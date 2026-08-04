@@ -227,27 +227,7 @@ function angDist(a,b){const d=Math.abs((a-b)%TAU);return d>Math.PI?TAU-d:d;}
 const RADII=[1.0,0.74,0.50];
 const RING_MULT=[1,1,1]; /* set e.g. [1,1.5,2] to pay more for riding inside */
 function radiusOf(i){return R*RADII[i];}
-/* THE ORBIT PLANE IS TILTED AWAY FROM THE VIEWER. Only the projection is
-   squashed — every collision test in this file is angular (sweptHit, angDist,
-   s.a vs G.angle), so tilting changes what you see and nothing about what the
-   game does. radiusOf stays the true radius and keeps hit tolerances intact. */
-const TILT=0.62;
-function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r*TILT];}
-/* -1 at the far edge, +1 at the near edge — drives scale, brightness and
-   draw order so the ring reads as a disc rather than a target. */
-function depthOf(a){return Math.sin(a);}
-function depthScale(a){return 1+0.17*depthOf(a);}
-/* one ellipse helper so every world-space ring obeys the same projection */
-function ringPath(r,a0,a1){
-  ctx.beginPath();
-  ctx.ellipse(cx,cy,r,r*TILT,0,a0===undefined?0:a0,a1===undefined?TAU:a1);
-}
-function byDepth(p,q){return depthOf(p.a)-depthOf(q.a);}
-const WORLD_ZOOM=1.42;
-/* screen extent of the drawn ring stack, for anchoring HUD text that is
-   rendered outside the zoomed pass */
-function ringTopY(){return cy-R*TILT*WORLD_ZOOM;}
-function ringBotY(){return cy+R*TILT*WORLD_ZOOM;}
+function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r];}
 
 /* ---------- audio ---------- */
 let AC=null,muted=false;
@@ -1197,24 +1177,16 @@ function draw(){
 
   ctx.save();
   if(G.shake>0)ctx.translate(rand(-G.shake,G.shake)*0.5,rand(-G.shake,G.shake)*0.5);
-  /* A tilted ellipse is wide and short, so the R that filled a portrait screen
-     as a circle leaves it two-thirds empty. Blow up the PROJECTION rather than
-     R: every radius, tolerance and angle stays exactly what it was, so this
-     cannot alter the game — only how big it is drawn. */
-  ctx.translate(cx,cy);ctx.scale(WORLD_ZOOM,WORLD_ZOOM);ctx.translate(-cx,-cy);
 
-  /* orbit rings, as ellipses on the tilted plane */
+  /* orbit rings */
   for(let i=0;i<G.nRings;i++){
     const rr=radiusOf(i),on=(G.hopP>=1&&G.ringI===i);
     ctx.strokeStyle='rgba(150,180,255,0.045)';ctx.lineWidth=13;
-    ringPath(rr);ctx.stroke();
+    ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
     ctx.strokeStyle=on?'rgba(175,205,255,0.14)':'rgba(150,180,255,0.065)';ctx.lineWidth=4.5;
-    ringPath(rr);ctx.stroke();
+    ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
     ctx.strokeStyle=on?'rgba(206,230,255,0.44)':'rgba(170,195,255,0.155)';ctx.lineWidth=1.3;
-    ringPath(rr);ctx.stroke();
-    /* near half brighter than the far half: the cue that sells the tilt */
-    ctx.strokeStyle=on?'rgba(214,236,255,0.30)':'rgba(180,205,255,0.10)';ctx.lineWidth=1.6;
-    ringPath(rr,0,Math.PI);ctx.stroke();
+    ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
   }
   ctx.globalCompositeOperation='lighter';
   ctx.fillStyle='rgba(120,160,255,0.5)';
@@ -1232,33 +1204,29 @@ function draw(){
     ctx.globalAlpha=0.55;
     ctx.strokeStyle=G.lapEmbers>=3?COL.ember:(G.lapEmbers>=1?COL.comet:'rgba(170,195,255,0.55)');
     ctx.lineWidth=3;
-    ringPath(lr,a0,a1);ctx.stroke();
+    ctx.beginPath();ctx.arc(cx,cy,lr,a0,a1);ctx.stroke();
     ctx.globalAlpha=1;
   }
   /* embers banked this orbit are drawn in the HUD — see drawHUD */
   /* Gesture guide: start dragging and the radial axis appears, so which way
      is "out" is never something you have to work out in your head. */
   if(pd&&pd.far>12&&G.state==='playing'&&G.nRings>1){
+    const ca=Math.cos(pd.ang),sa=Math.sin(pd.ang);
     const rIn=Math.max(9*u,radiusOf(G.nRings-1)-17*u),rOut=radiusOf(0)+21*u;
-    const pIn=posAt(pd.ang,rIn),pOut=posAt(pd.ang,rOut);
-    /* on a tilted plane the radial axis no longer points along pd.ang on
-       screen, so the arrowheads take their heading from the projected line */
-    const scr=Math.atan2(Math.sin(pd.ang)*TILT,Math.cos(pd.ang));
     ctx.save();
     ctx.globalAlpha=0.3;
     ctx.strokeStyle=COL.comet;ctx.lineWidth=1.5;
     ctx.setLineDash([5*u,5*u]);
     ctx.beginPath();
-    ctx.moveTo(pIn[0],pIn[1]);
-    ctx.lineTo(pOut[0],pOut[1]);
+    ctx.moveTo(cx+ca*rIn,cy+sa*rIn);
+    ctx.lineTo(cx+ca*rOut,cy+sa*rOut);
     ctx.stroke();
     ctx.setLineDash([]);
     const head=function(rr,facing,al){
-      const q=posAt(pd.ang,rr);
       ctx.globalAlpha=al;
       ctx.save();
-      ctx.translate(q[0],q[1]);
-      ctx.rotate(scr+(facing>0?0:Math.PI));
+      ctx.translate(cx+ca*rr,cy+sa*rr);
+      ctx.rotate(pd.ang+(facing>0?0:Math.PI));
       ctx.beginPath();
       ctx.moveTo(8*u,0);ctx.lineTo(-4*u,5*u);ctx.lineTo(-4*u,-5*u);ctx.closePath();
       ctx.fillStyle=COL.comet;ctx.fill();
@@ -1271,12 +1239,9 @@ function draw(){
   /* slow-mo timer arc */
   if(G.slow>0){
     ctx.strokeStyle=COL.warp;ctx.lineWidth=3;
-    ringPath(14*u,-Math.PI/2,-Math.PI/2+TAU*(G.slow/4));ctx.stroke();
+    ctx.beginPath();ctx.arc(cx,cy,14*u,-Math.PI/2,-Math.PI/2+TAU*(G.slow/4));ctx.stroke();
   }
 
-  /* Sorted far-edge-first so the near half of each ring overlaps the far
-     half. In-place is safe — nothing outside this frame depends on order. */
-  G.stars.sort(byDepth);G.pows.sort(byDepth);G.spikes.sort(byDepth);
   /* embers */
   ctx.globalCompositeOperation='lighter';
   for(const s of G.stars){
@@ -1284,7 +1249,7 @@ function draw(){
     let al=1;
     if(s.t<0.3)al=s.t/0.3;
     else if(s.life-s.t<0.8)al=(s.life-s.t)/0.8;
-    blit(SPR.ember,p[0],p[1],(1+0.18*Math.sin(s.t*6))*depthScale(s.a),s.t*1.5,al*(0.78+0.22*depthScale(s.a)));
+    blit(SPR.ember,p[0],p[1],1+0.18*Math.sin(s.t*6),s.t*1.5,al);
   }
   ctx.globalCompositeOperation='source-over';
   /* power-ups */
@@ -1328,24 +1293,25 @@ function draw(){
     if(s.va&&s.phase===1){
       const rr=radiusOf(s.ring),back=-Math.sign(s.va)*0.30;
       ctx.globalAlpha=0.3;ctx.strokeStyle=COL.shard;ctx.lineWidth=2.5;
-      ringPath(rr,Math.min(s.a,s.a+back),Math.max(s.a,s.a+back));
+      ctx.beginPath();
+      ctx.arc(cx,cy,rr,Math.min(s.a,s.a+back),Math.max(s.a,s.a+back));
       ctx.stroke();ctx.globalAlpha=1;
     }
     if(s.phase===0){
       const k=s.t/(s.warn||WARN);
       const bl=0.5+0.5*Math.sin(s.t*(10+k*30));
-      drawShardOutline(p[0],p[1],(8+3*k)*u*depthScale(s.a),0.34+0.6*bl);
+      drawShardOutline(p[0],p[1],(8+3*k)*u,0.34+0.6*bl);
     }else if(s.phase===1){
       if(armed(s)){
-        blit(SPR.shard,p[0],p[1],depthScale(s.a),0,1);
+        blit(SPR.shard,p[0],p[1],1,0,1);
       }else{
         /* dormant blinker: same silhouette, hollow — safe to cross right now */
         const q=1-(blinkPhase(s)-BLINK*0.55)/(BLINK*0.45);
-        drawShardOutline(p[0],p[1],10*u*depthScale(s.a),0.5+0.3*q,true);
+        drawShardOutline(p[0],p[1],10*u,0.5+0.3*q,true);
       }
     }else{
       const k=s.t/FADE;
-      blit(SPR.shard,p[0],p[1],(1-k*0.4)*depthScale(s.a),0,1-k);
+      blit(SPR.shard,p[0],p[1],1-k*0.4,0,1-k);
     }
   }
   /* ring-aligned pickup flashes, opening outward along the orbit */
@@ -1354,15 +1320,14 @@ function draw(){
     const lf=Math.max(a.life,0),half=0.09+0.5*(1-lf);
     ctx.globalAlpha=lf*lf*0.75;
     ctx.strokeStyle=a.col;ctx.lineWidth=(1+4*lf)*u;
-    ringPath(radiusOf(a.ring),a.a-half,a.a+half);ctx.stroke();
+    ctx.beginPath();ctx.arc(cx,cy,radiusOf(a.ring),a.a-half,a.a+half);ctx.stroke();
   }
   /* ripples */
   for(const r of G.rings){
     const lf=Math.max(r.life,0);
     ctx.globalAlpha=lf*0.55;
     ctx.strokeStyle=r.col;ctx.lineWidth=1+2*lf;
-    /* ripples lie flat on the tilted plane too */
-    ctx.beginPath();ctx.ellipse(r.x,r.y,r.r,r.r*TILT,0,0,TAU);ctx.stroke();
+    ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,TAU);ctx.stroke();
   }
   ctx.globalCompositeOperation='source-over';
   ctx.globalAlpha=1;
@@ -1374,12 +1339,11 @@ function draw(){
     let pal=1;
     if(G.t<G.invuln)pal=0.45+0.35*Math.sin(G.t*30);
     ctx.globalCompositeOperation='lighter';
-    const ds=depthScale(G.angle);
-    blit(SPR.cometGlow,p[0],p[1],ds,0,pal);
+    blit(SPR.cometGlow,p[0],p[1],1,0,pal);
     ctx.globalCompositeOperation='source-over';
-    blit(SPR.comet,p[0],p[1],ds,0,pal);
+    blit(SPR.comet,p[0],p[1],1,0,pal);
     for(let k=0;k<G.shields;k++)
-      blit(SPR.shieldRing,p[0],p[1],(1.18+k*0.34)*ds*(1+0.07*Math.sin(G.t*6-k*0.7)),0,pal*(0.72-k*0.16));
+      blit(SPR.shieldRing,p[0],p[1],(1.18+k*0.34)*(1+0.07*Math.sin(G.t*6-k*0.7)),0,pal*(0.72-k*0.16));
     if(G.t<G.invuln){
       ctx.globalAlpha=Math.min(1,(G.invuln-G.t)*1.6)*0.55;
       ctx.strokeStyle=COL.shield;ctx.lineWidth=2;
@@ -1522,8 +1486,7 @@ function hintText(){
 function drawHUD(){
   ctx.textAlign='center';ctx.textBaseline='alphabetic';
   const top=safeTop;
-  /* the ring's visible extent is R*TILT now, so the HUD tucks in closer */
-  const bottomY=Math.min(H-24*u-safeBot,ringBotY()+40*u);
+  const bottomY=Math.min(H-24*u-safeBot,cy+R+52*u);
   if(G.state==='playing'){
     const sz=46*u*(1+0.25*G.scorePop);
     text(G.score,cx,top+52*u,sz,'800','#eaf1ff',0);
@@ -1548,8 +1511,8 @@ function drawHUD(){
       const b=G.banner;
       const a=Math.min(1,b.t/0.3)*Math.min(1,(3.2-b.t)/0.6);
       ctx.globalAlpha=Math.max(0,a);
-      text(b.str,cx,ringTopY()-30*u,20*u,'800',COL.shard,4);
-      text(b.sub,cx,ringTopY()-10*u,12*u,'600','rgba(210,225,255,0.75)',0);
+      text(b.str,cx,cy-R-30*u,20*u,'800',COL.shard,4);
+      text(b.sub,cx,cy-R-10*u,12*u,'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
     }
     const hint=hintText();
@@ -1561,7 +1524,7 @@ function drawHUD(){
       ctx.globalAlpha=1;
     }
   }else if(G.state==='menu'){
-    const ty=Math.max(top+40*u,ringTopY()-40*u);
+    const ty=Math.max(top+40*u,cy-R-46*u);
     text('COMET LOOP',cx,ty,34*u,'800','#eaf1ff',6);
     text('tap to reverse \u00b7 swipe toward a ring',cx,cy-6*u,15*u,'600','rgba(210,225,255,0.85)',0);
     blit(SPR.ember,cx-84*u,cy+30*u,0.7,0.7,1);
