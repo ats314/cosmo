@@ -12,10 +12,23 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Comet Loop">
-<meta property="og:description" content="A one-thumb arcade game. Tap to reverse, swipe to hop rings, fill an orbit with embers.">
+<meta property="og:description" content="A one-thumb arcade game. Tap to reverse, swipe to hop rings, play in time.">
+<meta property="og:image" content="https://ats314.github.io/cosmo/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://ats314.github.io/cosmo/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://ats314.github.io/cosmo/og.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23060913'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23223055' stroke-width='2'/%3E%3Ccircle cx='16' cy='6' r='4' fill='%235df0ff'/%3E%3C/svg%3E">
 <style>
-  html,body{margin:0;height:100%;overflow:hidden;background:#060913}
+  /* overscroll-behavior stops Safari's rubber-band and pull-to-refresh.
+     It does NOT stop an in-app browser sheet being swiped away — that gesture
+     belongs to the host app, above the web view, and no page can reach it.
+     Add to home screen is the only real answer there. */
+  html,body{margin:0;height:100%;overflow:hidden;background:#060913;
+    overscroll-behavior:none;touch-action:none;}
   canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-action:none;
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
   #safe{position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;
@@ -35,6 +48,18 @@
    Ember #ffc857 / Shard #ff5d73 / Shield #7bffc8 / Warp #b48bff
 ======================================== */
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+/* iOS only, and only when NOT launched from the home screen. Safari proper is
+   fine; it is the in-app sheet that steals the gesture, and both share this
+   signature, so the hint is worth showing to either. */
+const IN_APP_BROWSER=(function(){
+  try{
+    const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||
+      (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+    const standalone=window.navigator.standalone===true||
+      (window.matchMedia&&window.matchMedia('(display-mode: fullscreen)').matches);
+    return ios&&!standalone;
+  }catch(e){return false;}
+})();
 const safeEl=document.getElementById('safe');
 const TAU=Math.PI*2;
 const rand=(a,b)=>a+Math.random()*(b-a);
@@ -2242,6 +2267,13 @@ function drawHUD(){
     ctx.textAlign='center';
     text('fill an orbit with embers for a big bonus',cx,cy+58*u,12*u,'600','rgba(210,225,255,0.6)',0);
     text('start with a shield \u00b7 tap it to phase through',cx,cy+76*u,12*u,'600','rgba(123,255,200,0.55)',0);
+    /* Opened from a chat app, iOS presents the page as a modal sheet, and that
+       sheet eats downward swipes to dismiss itself — the game's own inward hop.
+       Nothing in here can prevent it, so point at the thing that does. */
+    if(IN_APP_BROWSER){
+      text('add to home screen \u2014 swipes close this window',cx,cy+96*u,11*u,'600',
+        'rgba(255,190,120,0.75)',0);
+    }
     const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
     ctx.globalAlpha=pulse;
     text('TAP TO START',cx,bottomY,17*u,'800',COL.comet,4);
