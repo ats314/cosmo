@@ -12,10 +12,23 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Comet Loop">
-<meta property="og:description" content="A one-thumb arcade game. Tap to reverse, swipe to hop rings, fill an orbit with embers.">
+<meta property="og:description" content="A one-thumb arcade game. Tap to reverse, swipe to hop rings, play in time.">
+<meta property="og:image" content="https://ats314.github.io/cosmo/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://ats314.github.io/cosmo/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://ats314.github.io/cosmo/og.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23060913'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23223055' stroke-width='2'/%3E%3Ccircle cx='16' cy='6' r='4' fill='%235df0ff'/%3E%3C/svg%3E">
 <style>
-  html,body{margin:0;height:100%;overflow:hidden;background:#060913}
+  /* overscroll-behavior stops Safari's rubber-band and pull-to-refresh.
+     It does NOT stop an in-app browser sheet being swiped away — that gesture
+     belongs to the host app, above the web view, and no page can reach it.
+     Add to home screen is the only real answer there. */
+  html,body{margin:0;height:100%;overflow:hidden;background:#060913;
+    overscroll-behavior:none;touch-action:none;}
   canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-action:none;
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
   #safe{position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;
@@ -35,6 +48,18 @@
    Ember #ffc857 / Shard #ff5d73 / Shield #7bffc8 / Warp #b48bff
 ======================================== */
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+/* iOS only, and only when NOT launched from the home screen. Safari proper is
+   fine; it is the in-app sheet that steals the gesture, and both share this
+   signature, so the hint is worth showing to either. */
+const IN_APP_BROWSER=(function(){
+  try{
+    const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||
+      (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+    const standalone=window.navigator.standalone===true||
+      (window.matchMedia&&window.matchMedia('(display-mode: fullscreen)').matches);
+    return ios&&!standalone;
+  }catch(e){return false;}
+})();
 const safeEl=document.getElementById('safe');
 const TAU=Math.PI*2;
 const rand=(a,b)=>a+Math.random()*(b-a);
@@ -339,7 +364,7 @@ function buildBed(){
   const n=c.createBuffer(1,c.sampleRate*0.4,c.sampleRate),d=n.getChannelData(0);
   for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
   NOISE=n;
-  MU={next:0,step:0,chord:-1};
+  MU={next:0,step:0,chord:-1,armed:false,cool:0};
 }
 /* One-shot musical voice. Separate from beep() because music needs a filter
    and a longer tail, and because it must route through the bed's duck so a
@@ -375,13 +400,51 @@ function hat(t,g){
     s.start(t);s.stop(t+0.08);
   }catch(e){}
 }
+/* ---------- the drop ----------
+   The arrangement has been building and never releasing. A drop needs three
+   things and the third is the one people forget: a rise, a SILENCE, and the
+   hit. Cutting everything for the last half beat is what makes the downbeat
+   land — without the hole, the loud part is just more loud.
+
+   It is always fired on a downbeat. A drop that arrives mid-bar is not a drop,
+   it is a noise. So earning one ARMS it, and it goes off at the top of the
+   next cycle: up to four bars of rise, which is the anticipation. */
+const DROPQ=[];
+function armDrop(){
+  if(!MU||MU.armed||!AC)return;
+  if(AC.currentTime<MU.cool)return;      /* rationed, or it stops being an event */
+  MU.armed=true;
+}
+function fireDrop(t){
+  MU.armed=false;MU.cool=t+20;
+  const r=CH[0];
+  note(r[0]/2,t,1.30,'sawtooth',0.085,620);        /* the sub that arrives */
+  note(r[0],t,0.95,'sawtooth',0.060,2600);
+  note(PENT[0],t,0.70,'square',0.038,5200,-0.22);
+  note(PENT[4],t,0.70,'square',0.038,5200,0.22);
+  note(PENT[7],t,0.55,'triangle',0.030,7000,0);
+  hat(t,0.055);
+  DROPQ.push(t);                                    /* the picture waits for it */
+}
 /* Which layers are audible right now. Intensity is the difficulty clock, so
    the arrangement thickens as the run gets harder and a long run genuinely
    sounds different from its opening — which is also the only channel telling
    you that speed has climbed from 1.4 to 4.2 rad/s. */
 function musicStep(i,t,k){
   const bar=(i/8)|0,ch=CH[bar%4],beat=i%8;
+  if(MU.armed&&i===0)fireDrop(t);       /* always on the downbeat */
+  const build=MU.armed&&bar===3;        /* the final bar is the rise */
+  const hush=build&&beat>=6;            /* and the last two eighths are the hole */
   if(beat%2===0)BEATQ.push(t);          /* quarter notes, for the visual pulse */
+  if(build){
+    /* a riser: noise opening up, and a line climbing the pentatonic. Both
+       accelerate toward the edge so the arrival feels inevitable. */
+    const q=beat/8;
+    hat(t,0.006+0.030*q);
+    if(!hush)note(PENT[Math.min(9,3+beat)],t,0.13,'sawtooth',
+      0.016+0.024*q,900+7000*q,(beat%2?0.2:-0.2));
+  }
+  if(hush)return;                        /* everything else stops. that is the point */
   if(beat===0||beat===6)note(ch[0],t,beat===0?0.42:0.22,'triangle',0.075,900);
   /* Quarters while it is still calm, every eighth once the run is genuinely
      fast — the arrangement gains drive exactly where the game does. */
@@ -473,6 +536,7 @@ function judgeTiming(x,y){
        it stays a garnish next to embers and orbits. The real reward is that
        the music opens up, which costs no points at all. */
     if(G.groove>was)G.score+=G.groove;
+    if(G.groove>=8)armDrop();          /* holding a perfect chain earns it */
     G.grooveFx=1;
     if(G.groove>=3)popup(x,y-34*u,'GROOVE \u00d7'+G.groove,COL.warp,0.85+0.05*G.groove);
     return G.groove;
@@ -540,6 +604,18 @@ function bedTick(dt){
      settles rather than latching */
   PLAY.heat=Math.max(0,PLAY.heat-dt*0.34);
   while(BEATQ.length&&BEATQ[0]<=t){BEATQ.shift();G.beat=1;}
+  while(DROPQ.length&&DROPQ[0]<=t){
+    DROPQ.shift();G.dropFx=1;
+    /* the world answers the downbeat */
+    if(!RM){
+      G.flash=Math.max(G.flash,0.34);G.shake=Math.max(G.shake,9);
+      for(let i=0;i<G.nRings;i++)
+        G.rings.push({x:cx,y:cy,r:radiusOf(i),life:1,col:COL.warp,sp:230,dec:1.3});
+      G.rings.push({x:cx,y:cy,r:12*u,life:1,col:'#ffffff',sp:640,dec:1.2});
+    }
+    const q=posPlayer();burst(q[0],q[1],COL.warp,26,300);
+    try{if(navigator.vibrate)navigator.vibrate([34,30,70]);}catch(e){}
+  }
   if(BEATQ.length>32)BEATQ.length=0;      /* a stall must not bank a burst */
   BED.lp.frequency.setTargetAtTime(400+1500*k*k+900*PLAY.heat,t,0.5);
   musicTick();
@@ -811,7 +887,7 @@ const G={
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
   orbits:0,bestStreak:0,shareFx:0, /* run summary, for the death screen and share */
-  groove:0,grooveT:0,grooveFx:0,bestGroove:0,beat:0, /* rhythm */
+  groove:0,grooveT:0,grooveFx:0,bestGroove:0,beat:0,dropFx:0, /* rhythm */
   embers:0,blocks:0,phases:0,lastHit:'none', /* telemetry counters */
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
@@ -1017,7 +1093,8 @@ function startGame(){
   G.state='playing';G.score=0;G.diff=0;G.newBest=false;G.scorePop=0;G.mile=0;
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
-  G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;BEATQ.length=0;
+  G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;
+  BEATQ.length=0;DROPQ.length=0;if(MU){MU.armed=false;MU.cool=0;}
   G.embers=0;G.blocks=0;G.phases=0;G.lastHit='none';
   GEST.tap=0;GEST.swipe=0;GEST.lateSwipe=0;GEST.unresolved=0;
   G.angle=-Math.PI/2;G.prevAngle=G.angle;G.sweep=0;G.dir=1;G.speed=1.40;
@@ -1193,7 +1270,9 @@ function inMute(x,y){
    retry tap right after dying can never land on it by accident. */
 function shareRect(){
   const w=132*u,h=42*u;
-  return{x:cx-w/2,y:cy+76*u,w:w,h:h};
+  /* cy+76u collided with the best-groove line at cy+78u once that was added.
+     Positioned against the LAST element above it, not against the score. */
+  return{x:cx-w/2,y:cy+92*u,w:w,h:h};
 }
 function inShare(x,y){
   if(G.state!=='dead'||G.t-G.deadT<=0.6)return false;
@@ -1336,6 +1415,7 @@ function update(dt){
   G.scorePop=Math.max(0,G.scorePop-dt*3.5);
   G.beat=Math.max(0,G.beat-dt*4.5);
   G.grooveFx=Math.max(0,G.grooveFx-dt*2.2);
+  G.dropFx=Math.max(0,G.dropFx-dt*1.1);
   /* stop playing and the groove lets go, so it always reflects what you are
      doing now rather than something you did a minute ago */
   if(G.groove>0&&G.t>G.grooveT){G.groove--;G.grooveT=G.t+0.7;}
@@ -1417,6 +1497,7 @@ function update(dt){
     }
     if(T.name){
       G.banner={str:T.name,sub:T.sub,t:0};
+      armDrop();                         /* a new mechanic deserves an entrance */
       ripple(cx,cy,COL.shard);
       beep(300,0.16,'triangle',0.05,220);
       beep(240,0.22,'triangle',0.05,180,0.14);
@@ -1460,6 +1541,7 @@ function update(dt){
       beep(523,0.12,'triangle',0.07,784);
       beep(784,0.12,'triangle',0.07,1046,0.1);
       beep(1046,0.16,'triangle',0.07,1568,0.2);
+      if(st>=5)armDrop();                /* so does a five-orbit streak */
       if(st>=3){
         /* Earned tier: the comet stops dead for a beat while the ring burns
            round. Short enough not to break the rhythm of a 2.5s orbit. */
@@ -2185,6 +2267,13 @@ function drawHUD(){
     ctx.textAlign='center';
     text('fill an orbit with embers for a big bonus',cx,cy+58*u,12*u,'600','rgba(210,225,255,0.6)',0);
     text('start with a shield \u00b7 tap it to phase through',cx,cy+76*u,12*u,'600','rgba(123,255,200,0.55)',0);
+    /* Opened from a chat app, iOS presents the page as a modal sheet, and that
+       sheet eats downward swipes to dismiss itself — the game's own inward hop.
+       Nothing in here can prevent it, so point at the thing that does. */
+    if(IN_APP_BROWSER){
+      text('add to home screen \u2014 swipes close this window',cx,cy+96*u,11*u,'600',
+        'rgba(255,190,120,0.75)',0);
+    }
     const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
     ctx.globalAlpha=pulse;
     text('TAP TO START',cx,bottomY,17*u,'800',COL.comet,4);

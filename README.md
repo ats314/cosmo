@@ -182,6 +182,19 @@ going unused — that, and not clipping, was why it sounded thin on a phone.
 2.6 put a nova cascade three samples over full scale; 2.15 peaks at 0.93 on
 the loudest event with the limiter barely working.
 
+**The drop.** The arrangement builds and, when you earn it, releases. A drop
+needs three things and the third is the one usually missed: a rise, a
+**silence**, and the hit. The last bar runs an accelerating riser, the final
+two eighths cut almost everything, and the downbeat lands with six voices at
+once — without the hole, the loud part is just more loud.
+
+It always fires on a downbeat. Earning one *arms* it and it goes off at the top
+of the next cycle, so there is up to nine seconds of anticipation. A drop that
+arrived mid-bar would not be a drop, it would be a noise. Three things arm it:
+holding a perfect groove chain, a five-orbit streak, and every new mechanic
+announcement — so a tier banner now rides one in. There is a 20s cooldown,
+because a drop that happens constantly is not an event.
+
 **Timing is rewarded, and never punished.** Each input is judged against the
 sixteenth grid; land tight and the **groove** chain climbs to ×8. An off-beat
 input simply earns nothing — the game already demands you tap when a shard
