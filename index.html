@@ -438,7 +438,7 @@ const G={
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didPhase:false,
-  stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],
+  stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
   stop:0, /* hitstop: freezes the comet while the celebration plays */
   starT:0.6,spikeT:1.2,powT:6,shake:0,flash:0,tier:0,banner:null,
   runs:0,didReverse:false,didHop:false,didLap:false
@@ -476,6 +476,24 @@ function ripple(x,y,col){G.rings.push({x,y,r:10*u,life:1,col:col||COL.comet});}
    it is the one most worth making feel like part of the world. */
 function arcFlash(a,ring,col){G.arcs.push({a:a,ring:ring,life:1,col:col});}
 function popup(x,y,str,col,sz){G.pops.push({x,y,str,col,life:1,sz:sz||1});}
+/* NOVA. A front that expands from the pickup and turns what it touches into
+   light. Converting on CONTACT rather than all at once is the whole point:
+   the old version swapped every shard for an ember inside a single frame, so
+   the most powerful thing in the game had no duration to it at all. Now you
+   watch it travel — nearest shards first, each one detonating as the wave
+   reaches it, so the board comes apart in a cascade instead of a cut. */
+const NOVA_SP=1600;
+function novaBlast(x,y){G.novas.push({x:x,y:y,r:34*u,life:1});}
+function novaConvert(s){
+  const q=posAt(s.a,radiusOf(s.ring));
+  G.stars.push({a:s.a,ring:s.ring,t:0,life:rand(4.5,6.5)});
+  burst(q[0],q[1],COL.nova,9,200);
+  burst(q[0],q[1],COL.ember,7,130);
+  arcFlash(s.a,s.ring,COL.ember);
+  /* each conversion pings, and because the wave reaches them at different
+     times the cascade sequences itself with no scheduling */
+  beep(700+Math.random()*500,0.09,'triangle',0.045,1700);
+}
 /* IGNITION. Completing an orbit sets the orbit alight: a head races the full
    circumference in the direction you were travelling, leaving a burning wake.
    It is the one effect that describes what you actually did — the reward is
@@ -626,7 +644,7 @@ function startGame(){
   /* an extra shield while learning: one mistake should not end the lesson */
   G.shields=G.runs<=3?2:1;
   G.invuln=0;G.slow=0;G.tsCur=1;G.sinceShield=0;G.revPend=0;G.didPhase=false;
-  G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];
+  G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];G.novas=[];
   G.stop=0;
   G.starT=0.5;G.spikeT=1.2;G.powT=6;G.started=G.t;G.tier=0;G.banner=null;
   beep(440,0.12,'sine',0.05,880);
@@ -951,6 +969,23 @@ function update(dt){
     const L=G.laps[i];L.life-=1.35*dt;
     if(L.life<=0)G.laps.splice(i,1);
   }
+  /* dt, not sdt: the blast keeps expanding through the hitstop it caused */
+  for(let i=G.novas.length-1;i>=0;i--){
+    const n=G.novas[i];
+    /* 1.4 gives ~0.71s of life — long enough for the front to clear a
+       screen diagonal, short enough that it stops eating shards that spawn
+       well after the blast. */
+    n.r+=NOVA_SP*u*dt; n.life-=1.4*dt;
+    for(let j=G.spikes.length-1;j>=0;j--){
+      const q=posAt(G.spikes[j].a,radiusOf(G.spikes[j].ring));
+      if(Math.hypot(q[0]-n.x,q[1]-n.y)<=n.r)novaConvert(G.spikes.splice(j,1)[0]);
+    }
+    if(n.life<=0){
+      /* safety net: nothing survives a nova just because the front timed out */
+      while(G.spikes.length)novaConvert(G.spikes.pop());
+      G.novas.splice(i,1);
+    }
+  }
   for(let i=G.pops.length-1;i>=0;i--){
     const p=G.pops[i];p.y-=34*u*dt;p.life-=1.1*dt;
     if(p.life<=0)G.pops.splice(i,1);
@@ -1097,20 +1132,26 @@ function update(dt){
         ripple(p[0],p[1],COL.warp);
         beep(400,0.3,'sine',0.07,150);
       }else{
-        /* NOVA: every shard on both rings becomes an ember */
-        for(const sp of G.spikes){
-          const q=posAt(sp.a,radiusOf(sp.ring));
-          burst(q[0],q[1],COL.ember,6,120);
-          G.stars.push({a:sp.a,ring:sp.ring,t:0,life:rand(4.5,6.5)});
-        }
-        G.spikes.length=0;
-        popup(p[0],p[1]-20*u,'NOVA!',COL.nova);
+        /* The front does the converting — see novaBlast/novaConvert. */
+        novaBlast(p[0],p[1]);
+        /* You are standing inside your own blast, so nothing may kill you
+           while it sweeps. Dying mid-nova was always the wrong ending. */
+        G.invuln=Math.max(G.invuln,G.t+0.7);
+        popup(p[0],p[1]-24*u,'NOVA!',COL.nova,1.7);
         ripple(p[0],p[1],COL.nova);
-        G.rings.push({x:p[0],y:p[1],r:34*u,life:1,col:COL.nova});
-        burst(p[0],p[1],COL.nova,22,230);
-        if(!RM)G.flash=Math.max(G.flash,0.3);
-        beep(220,0.4,'sawtooth',0.06,1400);
+        burst(p[0],p[1],COL.nova,34,320);
+        burst(p[0],p[1],'#ffffff',14,190);
+        if(!RM){
+          /* longer than the orbit's 75ms — this is the rarest thing here and
+             should outrank the routine celebration, not sit beneath it */
+          G.stop=Math.max(G.stop,0.11);
+          G.flash=Math.max(G.flash,0.55);
+          G.shake=Math.max(G.shake,11);
+        }
+        beep(180,0.5,'sawtooth',0.07,1500);
+        beep(90,0.55,'sine',0.06,45);
         beep(1250,0.15,'sine',0.05,1900,0.13);
+        try{if(navigator.vibrate)navigator.vibrate([26,40,60]);}catch(e){}
       }
     }
   }
@@ -1438,6 +1479,26 @@ function draw(){
     }else{
       const k=s.t/FADE;
       blit(SPR.shard,p[0],p[1],1-k*0.4,0,1-k);
+    }
+  }
+  /* NOVA FRONT: a wide soft leading edge with a hard bright rim inside it,
+     plus a second rim trailing slightly so it reads as a shell with
+     thickness rather than an expanding hoop. */
+  ctx.globalCompositeOperation='lighter';
+  for(const n of G.novas){
+    const lf=Math.max(n.life,0);
+    ctx.strokeStyle=COL.nova;
+    ctx.globalAlpha=lf*0.30;
+    ctx.lineWidth=26*u*lf;
+    ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,TAU);ctx.stroke();
+    ctx.strokeStyle='#ffffff';
+    ctx.globalAlpha=lf*0.85;
+    ctx.lineWidth=(1.5+4*lf)*u;
+    ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,TAU);ctx.stroke();
+    if(n.r>34*u){
+      ctx.globalAlpha=lf*0.30;
+      ctx.lineWidth=(1+2.5*lf)*u;
+      ctx.beginPath();ctx.arc(n.x,n.y,n.r-22*u,0,TAU);ctx.stroke();
     }
   }
   /* ORBIT IGNITION: a head runs the full circumference in the direction you

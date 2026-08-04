@@ -96,7 +96,13 @@ a difficulty change — from run four the game is exactly what it always was.
   through anything for 1.4s and leaves the orbit intact. Never more than three
   power-ups pass without a shield.
 - **Slow-mo** (violet) — 4 seconds at 55% speed.
-- **Nova** (white) — turns every shard on the board into an ember.
+- **Nova** (white) — a front expands from where you took it and turns what it
+  touches into light. It converts on *contact*, not all at once: nearest
+  shards first, each detonating as the wave reaches it, so the board comes
+  apart as a cascade over roughly a fifth of a second rather than in a single
+  frame. Because the wave reaches each shard at a different moment, the
+  conversion pings sequence themselves with no scheduling. You are invulnerable
+  while it sweeps — you are standing inside your own blast.
 
 ## After a run
 
