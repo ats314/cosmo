@@ -179,6 +179,18 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   per-frame, so the background, nebulae, star field, comet, embers and shards
   are each rendered to an offscreen canvas at startup and blitted thereafter.
   They rebuild only when the scale unit, DPR, or window size actually changes.
+- **The orbit plane is tilted, and only the projection knows.** `posAt` squashes
+  the vertical axis by `TILT`, so rings draw as ellipses — but every collision
+  test in the file is angular (`sweptHit`, `angDist`, `s.a` against `G.angle`),
+  and `radiusOf` still returns the true radius. Tilting therefore changes what
+  you see and nothing about what the game does. Objects also scale and sort by
+  `depthOf`, so the near half of a ring passes in front of the far half.
+- **The zoom is applied to the projection, not to `R`.** A tilted ellipse is
+  wide and short, so the radius that filled a portrait screen as a circle left
+  it two-thirds empty. `WORLD_ZOOM` scales the rendered world about its centre;
+  because radii, tolerances and angles are all untouched, it provably cannot
+  alter difficulty — verified by replaying with simulated touch input and
+  getting the same score distribution.
 - **Collision is a swept arc**, not a point test, so nothing tunnels through a
   shard on a wide screen or after a dropped frame.
 - **Gates are checked for solvability before they spawn.** A gate blocks every
