@@ -231,11 +231,36 @@ function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r];}
 
 /* ---------- audio ---------- */
 let AC=null,muted=false;
+let audioUnlocked=false;
 function ensureAudio(){
   try{
     if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();
-    if(AC&&AC.state==='suspended')AC.resume();
+    if(AC.state==='suspended')AC.resume();
+    /* iOS will not actually start a context until something has been played
+       through it inside a user gesture — resume() alone can leave it silent.
+       A one-sample buffer is enough, and is inaudible. */
+    if(!audioUnlocked&&AC.state!=='closed'){
+      const src=AC.createBufferSource();
+      src.buffer=AC.createBuffer(1,1,22050);
+      src.connect(AC.destination);src.start(0);
+      audioUnlocked=true;
+    }
   }catch(e){}
+}
+/* Coming back from the app switcher or a lock screen leaves the context
+   suspended on iOS, and nothing else would resume it until the next tap. */
+document.addEventListener('visibilitychange',function(){
+  if(!document.hidden)ensureAudio();
+});
+/* One place to toggle from, so both the icon and the M key report what they
+   did. Mute persists per device, and a silent game with no acknowledgement
+   reads as broken audio rather than as a setting someone switched. */
+function toggleMute(){
+  muted=!muted;savePref('cometloop:muted',muted?'1':'0');
+  const r=muteRect();
+  popup(r.x+r.w/2,r.y+r.h+18*u,muted?'MUTED':'SOUND ON',
+    muted?'rgba(255,166,166,0.95)':COL.comet,1.05);
+  if(!muted){ensureAudio();beep(700,0.08,'sine',0.05,1000);}
 }
 /* `when` schedules on the audio clock instead of setTimeout, so arpeggios
    stay in time and don't fire late when the tab is backgrounded */
@@ -811,11 +836,7 @@ function inShare(x,y){
 let pd=null;
 cv.addEventListener('pointerdown',function(e){
   e.preventDefault();ensureAudio();
-  if(inMute(e.clientX,e.clientY)){
-    muted=!muted;savePref('cometloop:muted',muted?'1':'0');
-    if(!muted)beep(700,0.08,'sine',0.05,1000);
-    return;
-  }
+  if(inMute(e.clientX,e.clientY)){toggleMute();return;}
   if(inShield(e.clientX,e.clientY)){burnShield();return;}
   if(inShare(e.clientX,e.clientY)){doShare();return;} /* must precede the retry tap */
   if(G.state==='menu'){startGame();return;}
@@ -891,7 +912,7 @@ window.addEventListener('keydown',function(e){
     e.preventDefault();
     if(G.state==='playing')burnShield();
   }else if(e.code==='KeyM'){
-    muted=!muted;savePref('cometloop:muted',muted?'1':'0');
+    toggleMute();
   }
 });
 
@@ -1677,7 +1698,7 @@ function drawShareBtn(){
 function drawMute(){
   const r=muteRect(),x=r.x+r.w/2,y=r.y+r.h/2,s=r.w/2;
   ctx.save();
-  ctx.globalAlpha=muted?0.3:0.55;
+  ctx.globalAlpha=muted?0.72:0.5;
   ctx.fillStyle='#cfe4ff';ctx.strokeStyle='#cfe4ff';
   ctx.lineWidth=1.8;ctx.lineCap='round';
   ctx.beginPath();

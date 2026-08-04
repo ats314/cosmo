@@ -227,6 +227,17 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   the sky.
 - **Audio is scheduled on the `AudioContext` clock**, not `setTimeout`, so
   arpeggios stay in time when the tab is backgrounded.
+- **Mute is per device and permanent**, so toggling it says so. The speaker
+  sits in the top-right corner with a ~50×50px hit area that is live on the
+  menu too, and the setting persists through a reload — without
+  acknowledgement, one stray thumb reads as "this game has no sound". The
+  muted icon is drawn *more* prominently than the unmuted one for the same
+  reason: a muted state is the thing you need to notice.
+- **iOS needs audio actually played inside a gesture**, not just
+  `resume()` — a one-sample silent buffer unlocks it — and the context is
+  resumed again on `visibilitychange`, since returning from the app switcher
+  or lock screen leaves it suspended. (Note that on iPhone the hardware
+  ringer switch silences WebAudio regardless; no code can override that.)
 - **Completing an orbit sets the orbit alight.** A head races the full
   circumference in the direction you were travelling, wake burning behind it —
   the one effect that draws what you actually did. It sits just proud of the
