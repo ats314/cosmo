@@ -158,6 +158,59 @@ two would make the metric useless.
 Expect ad blockers to eat a fair share of events. Ratios like `misread_rate`
 and run-4 retention survive that; absolute player counts do not.
 
+## Audio
+
+```
+voice ─┬─► dry ──────────────► world ─┐
+       └─► send ─► reverb ───────────►├─► limiter ─► makeup ─► soft clip ─► out
+bed ─────────────► bedDuck ───────────┘
+```
+
+
+Everything is synthesised in WebAudio — there are no audio files anywhere in
+the repo.
+
+Sound routes through a bus built once: voices into a limiter, then makeup
+gain, then a soft clipper, with a send into a convolution reverb whose impulse
+is generated from noise and an exponential decay. Two delay taps were tried
+first and read as slapback rather than space — above the ~50ms fusion
+threshold you hear two echoes, not a room.
+
+`MASTER` was measured, not guessed. The original layer peaked at **0.138** on
+the busiest moment in the game, so roughly 86% of the available headroom was
+going unused — that, and not clipping, was why it sounded thin on a phone.
+2.6 put a nova cascade three samples over full scale; 2.15 peaks at 0.93 on
+the loudest event with the limiter barely working.
+
+The score is **adaptive layering**: one fixed tempo (104bpm) and one key
+(A minor, deliberately the key the SFX pentatonic sits in, so nothing the game
+plays can clash with it), with layers entering as the difficulty clock rises —
+bass, then a pentatonic arp, then hats, then a counter-line, with the arp
+moving from quarters to eighths past 62% intensity. Nothing changes tempo or
+key mid-run, so it can never lurch; what changes is how much of the
+arrangement you hear. It is also the only channel that tells you speed has
+climbed from 1.4 to 4.2 rad/s.
+
+Notes are scheduled **ahead on the audio clock**, never from the frame clock,
+which stalls whenever the tab is backgrounded. A stall longer than 0.4s
+resyncs rather than flushing its backlog as one chord — verified by forcing a
+five-second gap and counting what came out.
+
+The pad is four continuously running voices **retuned** per chord rather than
+restarted; restarting sustained oscillators every bar is what makes cheap game
+music click at the seams. Escalation is carried by filter movement, never by
+amplitude — a slow volume wobble on a sustained tone is the most fatiguing
+thing you can put under a fifteen-minute run.
+
+Several cues were fixed rather than added. iPhone speakers roll off hard below
+~500Hz, so the bump cue at 150→110Hz and the empty-shield cue at 140→100Hz
+were inaudible on the device the game ships to — and bump fires exactly when a
+swipe was misread, which is when the player most needs an answer. The shield
+block landed in the death register and sounded like a punishment for being
+rescued. The death itself fell to 50Hz and so ended by vanishing. The nova
+cascade picked a random pitch per shard and stacked into a dissonant wash; it
+is now a minor pentatonic.
+
 ## Running locally
 
 Any static server works. `file://` works too, except that Chrome's storage

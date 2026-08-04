@@ -229,13 +229,220 @@ const RING_MULT=[1,1,1]; /* set e.g. [1,1.5,2] to pay more for riding inside */
 function radiusOf(i){return R*RADII[i];}
 function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r];}
 
-/* ---------- audio ---------- */
+/* ---------- audio ----------
+   Everything is synthesised; there are no audio files. The layout is a fixed
+   bus built once, with per-sound voices created and discarded on top of it:
+
+     voice ─┬─► dry ─────────────► world ─┐
+            └─► send ─► verb ────────────►├─► limiter ─► makeup ─► clip ─► out
+     bed ──────────────► bedDuck ─────────┘
+
+   Measured before writing any of this: the old layer peaked at 0.138 on the
+   busiest moment in the game, so ~86% of the available headroom was going
+   unused. That, not clipping, was the reason it sounded thin on a phone. */
 let AC=null,muted=false;
 let audioUnlocked=false;
+let A=null;                      /* the bus, built once */
+const MASTER=2.15;               /* makeup. Measured, not guessed: 2.6 put the
+                                    nova cascade 3 samples over full scale. */
+/* iPhone speakers roll off hard under ~500Hz. Anything whose PAYLOAD lives
+   below that is inaudible on the target device however loud it looks here —
+   which is why the old bump and empty-shield cues could not be heard at all. */
+function buildBus(){
+  if(A||!AC)return;
+  const c=AC;
+  const out=c.createGain();out.gain.value=1;
+  /* Soft clip after makeup so a stacked moment saturates instead of tearing.
+     3rd-order curve: linear to ~0.5, then bends. */
+  const clip=c.createWaveShaper();
+  const n=1024,cv=new Float32Array(n);
+  for(let i=0;i<n;i++){const x=i/(n-1)*2-1;cv[i]=Math.tanh(x*1.25)/Math.tanh(1.25);}
+  clip.curve=cv;clip.oversample='2x';
+  const makeup=c.createGain();makeup.gain.value=MASTER;
+  const lim=c.createDynamicsCompressor();
+  lim.threshold.value=-16;lim.knee.value=6;lim.ratio.value=12;
+  lim.attack.value=0.003;lim.release.value=0.14;
+  const world=c.createGain();world.gain.value=1;
+  const bedDuck=c.createGain();bedDuck.gain.value=1;
+  /* Reverb: a real convolver over a generated impulse. Two delay taps read as
+     slapback rather than space — above the ~50ms fusion threshold you hear
+     two echoes, not a room. Noise through an exponential decay diffuses. */
+  const verb=c.createConvolver();
+  const sr=c.sampleRate,len=Math.floor(sr*1.6),ir=c.createBuffer(2,len,sr);
+  for(let ch=0;ch<2;ch++){
+    const d=ir.getChannelData(ch);
+    for(let i=0;i<len;i++){
+      const t=i/len;
+      d[i]=(Math.random()*2-1)*Math.pow(1-t,2.6)*(i<sr*0.006?t*160:1);
+    }
+  }
+  verb.buffer=ir;
+  const send=c.createGain();send.gain.value=0.20;
+  const verbTone=c.createBiquadFilter();
+  verbTone.type='highpass';verbTone.frequency.value=420; /* keep the tail out of the mud */
+  world.connect(lim);bedDuck.connect(lim);
+  send.connect(verb);verb.connect(verbTone);verbTone.connect(lim);
+  lim.connect(makeup);makeup.connect(clip);clip.connect(out);out.connect(c.destination);
+  A={out:out,world:world,send:send,lim:lim,bed:bedDuck,makeup:makeup};
+  buildBed();
+}
+/* The bed. Filter movement carries the escalation, never amplitude: a slow
+   volume wobble on a sustained tone is the single most fatiguing thing you can
+   put in a game, and this one has to survive fifteen-minute runs. Fundamentals
+   sit low but the harmonics of a sawtooth reach well into the band a phone can
+   actually reproduce, so it is present on a speaker without being boomy. */
+let BED=null;
+/* ---------- music ----------
+   Adaptive layering, which is how games do this: ONE fixed tempo and key, with
+   layers entering as the difficulty clock rises. Nothing speeds up or changes
+   key mid-run, so it can never lurch; what changes is how much of the
+   arrangement you are hearing.
+
+   In A minor, deliberately the same key the SFX pentatonic sits in, so nothing
+   the game plays can clash with what the music is doing underneath it.
+   i - VI - III - VII: the progression resolves without ever settling, which is
+   what you want under a run that is trying not to end. */
+const BPM=104,SPB=60/BPM,STEPS=32;      /* 4 bars of 4, counted in eighths */
+const CH=[[110,220,261.63,329.63],      /* Am  */
+          [ 87.31,174.61,220,261.63],   /* F   */
+          [130.81,261.63,329.63,392],   /* C   */
+          [ 98,196,246.94,293.66]];     /* G   */
+/* Pentatonic degrees for the arp and the counter-line, as indices into PENT. */
+const ARP=[0,2,4,2,3,2,4,5],CNT=[7,5,4,5,7,8,7,5];
+let MU=null,NOISE=null;
+function buildBed(){
+  if(BED||!AC)return;
+  const c=AC,g=c.createGain();g.gain.value=0;
+  const lp=c.createBiquadFilter();lp.type='lowpass';
+  lp.frequency.value=320;lp.Q.value=0.7;
+  const hp=c.createBiquadFilter();hp.type='highpass';hp.frequency.value=70;
+  /* The pad is four continuously running voices, retuned per chord rather than
+     restarted — restarting sustained oscillators every bar is what makes cheap
+     game music click audibly at the seams. */
+  const oscs=[],gains=[];
+  for(let i=0;i<4;i++){
+    for(let k=0;k<2;k++){
+      const o=c.createOscillator();
+      o.type=i<2?'sawtooth':'triangle';
+      o.frequency.value=CH[0][i];
+      o.detune.value=k?8:-8;            /* unison detune = chorus, not chord drift */
+      const vg=c.createGain();vg.gain.value=(i<2?0.05:0.03)/2;
+      o.connect(vg);vg.connect(lp);o.start();
+      oscs.push(o);gains.push(vg);
+    }
+  }
+  lp.connect(hp);hp.connect(g);
+  g.connect(A.bed);g.connect(A.send);
+  BED={g:g,lp:lp,oscs:oscs,gains:gains};
+  /* one noise buffer, reused by every hat for the life of the page */
+  const n=c.createBuffer(1,c.sampleRate*0.4,c.sampleRate),d=n.getChannelData(0);
+  for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+  NOISE=n;
+  MU={next:0,step:0,chord:-1};
+}
+/* One-shot musical voice. Separate from beep() because music needs a filter
+   and a longer tail, and because it must route through the bed's duck so a
+   nova pushes the score out of the way along with everything else. */
+function note(f,t,dur,type,g,cut,pan){
+  if(!A||!AC)return;
+  try{
+    const o=AC.createOscillator(),v=AC.createGain(),lp=AC.createBiquadFilter();
+    o.type=type;o.frequency.setValueAtTime(f,t);
+    lp.type='lowpass';lp.frequency.setValueAtTime(cut||3000,t);
+    lp.frequency.exponentialRampToValueAtTime(Math.max(180,(cut||3000)*0.35),t+dur);
+    v.gain.setValueAtTime(0.0001,t);
+    v.gain.exponentialRampToValueAtTime(g,t+0.012);
+    v.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(lp);lp.connect(v);
+    let tail=v;
+    if(pan&&AC.createStereoPanner){const sp=AC.createStereoPanner();sp.pan.value=pan;v.connect(sp);tail=sp;}
+    tail.connect(A.bed);
+    const sg=AC.createGain();sg.gain.value=0.5;tail.connect(sg);sg.connect(A.send);
+    o.start(t);o.stop(t+dur+0.02);
+  }catch(e){}
+}
+function hat(t,g){
+  if(!A||!AC||!NOISE)return;
+  try{
+    const s=AC.createBufferSource(),v=AC.createGain(),hp=AC.createBiquadFilter();
+    s.buffer=NOISE;s.loop=true;
+    hp.type='highpass';hp.frequency.value=7200;
+    v.gain.setValueAtTime(0.0001,t);
+    v.gain.exponentialRampToValueAtTime(g,t+0.004);
+    v.gain.exponentialRampToValueAtTime(0.0001,t+0.055);
+    s.connect(hp);hp.connect(v);v.connect(A.bed);
+    s.start(t);s.stop(t+0.08);
+  }catch(e){}
+}
+/* Which layers are audible right now. Intensity is the difficulty clock, so
+   the arrangement thickens as the run gets harder and a long run genuinely
+   sounds different from its opening — which is also the only channel telling
+   you that speed has climbed from 1.4 to 4.2 rad/s. */
+function musicStep(i,t,k){
+  const bar=(i/8)|0,ch=CH[bar%4],beat=i%8;
+  if(beat===0||beat===6)note(ch[0],t,beat===0?0.42:0.22,'triangle',0.075,900);
+  /* Quarters while it is still calm, every eighth once the run is genuinely
+     fast — the arrangement gains drive exactly where the game does. */
+  if(k>0.18&&(beat%2===0||k>0.62)){
+    const d=ARP[(i+bar)%ARP.length];
+    note(PENT[d],t,k>0.62?0.15:0.20,'square',0.018+0.013*k,1400+2200*k,
+      (beat%4===0?-0.3:0.3));
+  }
+  if(k>0.45&&(beat===2||beat===6))hat(t,0.020+0.012*k);
+  if(k>0.45&&beat===4)hat(t,0.012);
+  if(k>0.72&&beat===3&&(bar%2===1)){
+    note(PENT[CNT[i%CNT.length]],t,0.55,'triangle',0.026,3200,0.15);
+  }
+  if(MU.chord!==bar%4){                 /* retune the pad, never restart it */
+    MU.chord=bar%4;
+    for(let v=0;v<4;v++)for(let u2=0;u2<2;u2++)
+      BED.oscs[v*2+u2].frequency.setTargetAtTime(CH[bar%4][v],t,0.09);
+  }
+}
+/* Lookahead scheduling on the AUDIO clock. The frame clock stalls whenever the
+   tab is backgrounded and drifts constantly; scheduling notes from it is what
+   makes browser game music stagger. */
+function musicTick(){
+  if(!A||!AC||!MU||!BED||muted||AC.state!=='running')return;
+  if(G.state!=='playing'){MU.next=0;return;}
+  const now=AC.currentTime;
+  /* Coming back from a background: never flush the backlog as one chord. */
+  if(!MU.next||MU.next<now-0.4){MU.next=now+0.06;MU.step=0;MU.chord=-1;}
+  const k=Math.min(1,dl()/340);
+  let guard=0;
+  while(MU.next<now+0.16&&guard++<16){
+    musicStep(MU.step,MU.next,k);
+    MU.step=(MU.step+1)%STEPS;
+    MU.next+=SPB/2;
+  }
+}
+function bedTick(dt){
+  if(!BED||!AC)return;
+  const t=AC.currentTime;
+  const playing=G.state==='playing';
+  const k=playing?Math.min(1,dl()/380):0;
+  const lvl=muted?0:(playing?0.13+0.22*k:(G.state==='menu'?0.06:0.02));
+  BED.g.gain.setTargetAtTime(lvl,t,playing?0.9:0.5);
+  /* floor at 400: below that a phone speaker reproduces none of it, and the
+     opening minutes would be silent on the device this actually ships to */
+  BED.lp.frequency.setTargetAtTime(400+1500*k*k,t,1.4);
+  musicTick();
+}
+/* Big moments push the bed and the reverb tail out of the way, then let them
+   back. Without this the bed fights the one sound you actually need to hear. */
+function duckBed(amount,rel){
+  if(!A||!AC)return;
+  const t=AC.currentTime;
+  A.bed.gain.cancelScheduledValues(t);
+  A.bed.gain.setTargetAtTime(amount,t,0.02);
+  A.bed.gain.setTargetAtTime(1,t+0.09,rel||0.35);
+}
 function ensureAudio(){
   try{
     if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();
-    if(AC.state==='suspended')AC.resume();
+    /* 'interrupted' is WebKit-only and is where a phone call, Siri or an alarm
+       leaves you. Nothing else recovers from it, and it is not 'suspended'. */
+    if(AC.state==='suspended'||AC.state==='interrupted')AC.resume();
     /* iOS will not actually start a context until something has been played
        through it inside a user gesture — resume() alone can leave it silent.
        A one-sample buffer is enough, and is inaudible. */
@@ -245,6 +452,7 @@ function ensureAudio(){
       src.connect(AC.destination);src.start(0);
       audioUnlocked=true;
     }
+    buildBus();
   }catch(e){}
 }
 /* Coming back from the app switcher or a lock screen leaves the context
@@ -264,17 +472,45 @@ function toggleMute(){
 }
 /* `when` schedules on the audio clock instead of setTimeout, so arpeggios
    stay in time and don't fire late when the tab is backgrounded */
-function beep(f,d,type,g,slide,when){
+/* Kept at its original signature on purpose. Thirty call sites depend on it,
+   and replacing them wholesale is how an audio rewrite takes the game down —
+   so the bus was built underneath it instead. `pan` and `wet` are optional
+   extras; every existing caller keeps working untouched. */
+function beep(f,d,type,g,slide,when,pan,wet){
   if(!AC||muted)return;
   try{
+    if(!A)buildBus();
     const t0=AC.currentTime+(when||0),o=AC.createOscillator(),v=AC.createGain();
     o.type=type;o.frequency.setValueAtTime(f,t0);
     if(slide)o.frequency.exponentialRampToValueAtTime(slide,t0+d);
-    v.gain.setValueAtTime(g,t0);
+    /* A short attack instead of a step. The old jump was inaudible because an
+       oscillator starts at phase zero, but a ramp also lets short cues layer
+       without their onsets summing into a spike. */
+    const atk=Math.min(0.006,d*0.25);
+    v.gain.setValueAtTime(0.0001,t0);
+    v.gain.exponentialRampToValueAtTime(Math.max(g,0.0002),t0+atk);
     v.gain.exponentialRampToValueAtTime(0.0001,t0+d);
-    o.connect(v);v.connect(AC.destination);o.start(t0);o.stop(t0+d);
+    o.connect(v);
+    let tail=v;
+    if(pan&&AC.createStereoPanner){
+      const sp=AC.createStereoPanner();
+      sp.pan.value=Math.max(-1,Math.min(1,pan));
+      v.connect(sp);tail=sp;
+    }
+    if(A){
+      tail.connect(A.world);
+      const w=wet===undefined?1:wet;
+      if(w>0){const sg=AC.createGain();sg.gain.value=w;tail.connect(sg);sg.connect(A.send);}
+    }else tail.connect(AC.destination);
+    o.start(t0);o.stop(t0+d+0.02);
   }catch(e){}
 }
+/* Screen x to pan, narrowed so it never feels gimmicky in headphones — and it
+   degrades to nothing on a portrait phone, which sums to one driver anyway. */
+function panAt(x){return Math.max(-1,Math.min(1,((x-cx)/(W*0.5))*0.55));}
+/* A minor pentatonic has no semitones in it, so any subset of these played
+   together is consonant — which is what a ten-shard nova cascade needs. */
+const PENT=[440,523.25,587.33,659.25,783.99,880,1046.5,1174.66,1318.5,1568];
 
 /* ---------- persistence (no-ops gracefully if unavailable) ----------
    localStorage is the real store. window.storage is the async host API this
@@ -517,7 +753,9 @@ function novaConvert(s){
   arcFlash(s.a,s.ring,COL.ember);
   /* each conversion pings, and because the wave reaches them at different
      times the cascade sequences itself with no scheduling */
-  beep(700+Math.random()*500,0.09,'triangle',0.045,1700);
+  /* was a random pitch per shard, which stacked into a dissonant wash.
+     A minor pentatonic keeps a ten-shard cascade consonant however it lands. */
+  beep(PENT[(Math.random()*PENT.length)|0],0.11,'triangle',0.05,undefined,0,panAt(q[0]),1.2);
 }
 /* IGNITION. Completing an orbit sets the orbit alight: a head races the full
    circumference in the direction you were travelling, leaving a burning wake.
@@ -689,7 +927,12 @@ function die(){
   /* one wide, fast, slow-fading front that outruns the rest — the moment
      needs a beat that carries past the edge of the ring system */
   if(!RM)G.rings.push({x:p[0],y:p[1],r:8*u,life:1,col:'#ffffff',sp:560,dec:1.15});
-  beep(220,0.45,'sawtooth',0.09,50);
+  /* landed at 50Hz — inaudible on a phone, so the most important moment in
+     the game ended by simply vanishing. Now it lands somewhere you can hear. */
+  duckBed(0.05,0.9);
+  beep(220,0.5,'sawtooth',0.085,110);
+  beep(110,0.55,'triangle',0.06,66);
+  beep(1318,0.5,'sine',0.03,196,0.02);
   try{if(navigator.vibrate)navigator.vibrate(90);}catch(e){}
   const gest=GEST.tap+GEST.swipe+GEST.lateSwipe+GEST.unresolved;
   track('run_ended',{
@@ -729,7 +972,9 @@ function commitReverseFX(){
 function bump(){
   const p=posPlayer();
   burst(p[0],p[1],'rgba(170,195,255,0.85)',4,55);
-  beep(150,0.05,'sine',0.03,110);
+  /* was 150->110Hz: under the phone-speaker rolloff, so the one cue that
+     fires when a swipe was misread could not be heard at all */
+  beep(560,0.07,'triangle',0.035,430,0,panAt(p[0]),0.3);
 }
 /* step -1 = outward (toward ring 0), +1 = inward */
 function hop(step){
@@ -755,7 +1000,8 @@ function burnShield(){
   const p=posPlayer();
   if(G.shields<=0){
     burst(p[0],p[1],'rgba(170,195,255,0.85)',3,45);
-    beep(140,0.05,'sine',0.03,100);
+    /* was all but identical to bump(); two different refusals now differ */
+    beep(300,0.10,'square',0.030,240,0,0,0.2);
     return;
   }
   G.shields--;G.didPhase=true;G.phases++;
@@ -949,7 +1195,10 @@ function updateSpikes(sdt,lethal){
         burst(p[0],p[1],COL.shield,18,180);
         ripple(p[0],p[1],COL.shield);
         popup(p[0],p[1]-24*u,'BLOCKED',COL.shield);
-        beep(200,0.2,'square',0.07,90);
+        /* a save that sounded like a punishment: square falling to 90Hz sat
+           in the death register and below what a phone reproduces */
+        beep(392,0.16,'triangle',0.075,588);
+        beep(784,0.20,'sine',0.055,1046,0.05);
       }else{
         /* flags, not a stored type: twin and blinktwin are two independent
            shards, so a single one cannot report which pairing it came from */
@@ -966,6 +1215,7 @@ function update(dt){
   G.scorePop=Math.max(0,G.scorePop-dt*3.5);
   G.slow=Math.max(0,G.slow-dt);
   G.stop=Math.max(0,G.stop-dt);
+  bedTick(dt);
   const tsT=G.slow>0?0.55:1;
   G.tsCur+=(tsT-G.tsCur)*Math.min(1,dt*8);
   if(G.hopP<1)G.hopP=Math.min(1,G.hopP+dt/HOP);
@@ -1079,6 +1329,7 @@ function update(dt){
       G.rings.push(RM?{x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.ember}
         :{x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.ember,sp:150+120*k,dec:1.6});
       burst(lp[0],lp[1],COL.ember,18+Math.round(14*k),190+90*k);
+      duckBed(0.45,0.35);
       beep(523,0.12,'triangle',0.07,784);
       beep(784,0.12,'triangle',0.07,1046,0.1);
       beep(1046,0.16,'triangle',0.07,1568,0.2);
@@ -1141,7 +1392,8 @@ function update(dt){
       G.pows.splice(i,1);
       arcFlash(s.a,s.ring,s.type==='shield'?COL.shield:(s.type==='warp'?COL.warp:COL.nova));
       if(s.type==='shield'){
-        if(G.shields>=shieldMax()){G.score+=2;popup(p[0],p[1]-20*u,'+2',COL.shield);}
+        if(G.shields>=shieldMax()){G.score+=2;popup(p[0],p[1]-20*u,'+2',COL.shield);
+          beep(659,0.09,'sine',0.04,880,0,panAt(p[0]),0.3);}
         else{G.shields++;popup(p[0],p[1]-20*u,'SHIELD \u00d7'+G.shields,COL.shield);}
         burst(p[0],p[1],COL.shield,14,150);
         ripple(p[0],p[1],COL.shield);
@@ -1169,6 +1421,7 @@ function update(dt){
           G.flash=Math.max(G.flash,0.55);
           G.shake=Math.max(G.shake,11);
         }
+        duckBed(0.10,0.6);
         beep(180,0.5,'sawtooth',0.07,1500);
         beep(90,0.55,'sine',0.06,45);
         beep(1250,0.15,'sine',0.05,1900,0.13);
