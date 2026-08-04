@@ -423,7 +423,11 @@ function pickType(){
   }
   return pool.length?pool[Math.floor(Math.random()*pool.length)]:'single';
 }
-const SHIELD_MAX=3,PHASE_T=1.4;
+const PHASE_T=1.4;
+/* The bank grows with the clock. Late boards carry ten shards across three
+   rings and the inner ring costs twice the angle per shard, so three slots
+   stopped being enough to play around long before the run ended. */
+function shieldMax(){const d=dl();return d<160?3:d<320?4:5;}
 const REV_FX=0.07; /* grace before a tap's effects fire, so swipes stay silent */
 const G={
   state:'menu',t:0,started:0,deadT:0,
@@ -490,6 +494,16 @@ function checkMile(){
   }
 }
 
+/* A shard's hit width is (18.5u)/radius RADIANS, so it doubles on the
+   innermost ring — half the radius, twice the angle blocked. Spawn clearances
+   were flat radians regardless of ring, which meant that at the mandated
+   0.5rad separation two inner-ring neighbours overlapped by 0.068rad: a wall
+   with no gap, which the player simply cannot pass.
+   Expressing clearance as a multiple of the hit width fixes it on every ring
+   AND every screen size, since both terms carry the same u/radius factor.
+   Any k above 2 leaves a real gap; k=3.5 reproduces what ring 0 always had. */
+function hitTol(ring){return (18.5*u)/radiusOf(ring);}
+function sep(ring,k){return k*hitTol(ring);}
 function farFromAll(a,ring,minP,minSpike,minStar){
   if(angDist(a,G.angle)<minP)return false;
   for(const s of G.spikes)if(s.ring===ring&&angDist(a,s.a)<minSpike)return false;
@@ -500,7 +514,7 @@ function farFromAll(a,ring,minP,minSpike,minStar){
 function spawnStar(){
   for(let i=0;i<14;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
-    if(farFromAll(a,ring,0.45,0.4,0.55)){G.stars.push({a,ring,t:0,life:rand(7,10)});return;}
+    if(farFromAll(a,ring,0.45,sep(ring,2.8),sep(ring,3.9))){G.stars.push({a,ring,t:0,life:rand(7,10)});return;}
   }
 }
 function mkSpike(a,ring,extra){
@@ -541,7 +555,7 @@ function spawnSpike(){
       /* blocks the same angle on EVERY ring: hopping will not save you */
       if(angDist(a,G.angle)<1.7)continue;
       let ok=true;
-      for(let k=0;k<G.nRings;k++)if(!farFromAll(a,k,1.7,0.5,0.35))ok=false;
+      for(let k=0;k<G.nRings;k++)if(!farFromAll(a,k,1.7,sep(k,3.5),sep(k,2.5)))ok=false;
       if(!ok)continue;
       const life=rand(1.9,2.9);
       /* Every segment gets the SAME drift, or the bar shears apart — the
@@ -554,8 +568,8 @@ function spawnSpike(){
     }
     if(type==='twin'||type==='blinktwin'){
       const off=rand(0.30,0.40)*(Math.random()<0.5?-1:1);
-      if(!farFromAll(a,ring,clear,0.5,0.35))continue;
-      if(!farFromAll(a+off,ring,clear,0.5,0.35))continue;
+      if(!farFromAll(a,ring,clear,sep(ring,3.5),sep(ring,2.5)))continue;
+      if(!farFromAll(a+off,ring,clear,sep(ring,3.5),sep(ring,2.5)))continue;
       const life=rand(2.4,3.6);
       if(type==='blinktwin'){
         /* Half a cycle apart, so the pair alternates: there is always exactly
@@ -570,7 +584,7 @@ function spawnSpike(){
       }
       return;
     }
-    if(!farFromAll(a,ring,clear,0.5,0.35))continue;
+    if(!farFromAll(a,ring,clear,sep(ring,3.5),sep(ring,2.5)))continue;
     if(type==='drift'){
       G.spikes.push(mkSpike(a,ring,{va:rand(0.24,0.5)*(Math.random()<0.5?-1:1),life:rand(3.4,5.2)}));
     }else if(type==='blink'){
@@ -591,7 +605,7 @@ function spawnPow(){
   }
   for(let i=0;i<24;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
-    if(farFromAll(a,ring,0.6,0.45,0.42)){
+    if(farFromAll(a,ring,0.6,sep(ring,3.2),sep(ring,3.0))){
       G.pows.push({a,ring,t:0,life:7,type});
       G.sinceShield=(type==='shield')?0:G.sinceShield+1;
       return true;
@@ -1071,7 +1085,7 @@ function update(dt){
       G.pows.splice(i,1);
       arcFlash(s.a,s.ring,s.type==='shield'?COL.shield:(s.type==='warp'?COL.warp:COL.nova));
       if(s.type==='shield'){
-        if(G.shields>=SHIELD_MAX){G.score+=2;popup(p[0],p[1]-20*u,'+2',COL.shield);}
+        if(G.shields>=shieldMax()){G.score+=2;popup(p[0],p[1]-20*u,'+2',COL.shield);}
         else{G.shields++;popup(p[0],p[1]-20*u,'SHIELD \u00d7'+G.shields,COL.shield);}
         burst(p[0],p[1],COL.shield,14,150);
         ripple(p[0],p[1],COL.shield);
@@ -1565,8 +1579,11 @@ function drawShieldBtn(){
   ctx.arc(r.x+rad,midY,rad,Math.PI/2,-Math.PI/2);
   ctx.closePath();ctx.stroke();
   /* one glyph per shield slot, matching the pickup icon */
-  const gap=30*u,x0=r.x+r.w/2-(SHIELD_MAX-1)*gap/2;
-  for(let i=0;i<SHIELD_MAX;i++){
+  /* slots have to fit the widened bank, so the pitch closes up rather than
+     the pips spilling out of the button */
+  const mx=shieldMax(),gap=Math.min(30*u,(r.w-30*u)/Math.max(1,mx-1));
+  const x0=r.x+r.w/2-(mx-1)*gap/2;
+  for(let i=0;i<mx;i++){
     const on=i<G.shields,x=x0+i*gap;
     ctx.globalAlpha=on?pulse+0.35:0.16;
     ctx.strokeStyle=COL.shield;ctx.lineWidth=on?2.2:1.4;
