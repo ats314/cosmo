@@ -288,6 +288,51 @@ function savePref(k,v){
   }catch(e){}
 }
 
+/* ---------- telemetry ----------
+   OFF until POSTHOG_KEY is filled in: a clone of this file sends nothing
+   anywhere, and every call below short-circuits. Anonymous gameplay counters
+   only — no autocapture, no session recording, no cookies. Everything is
+   wrapped, and the loader stays silent on error, so an ad blocker or a dead
+   network can never take the game down with it. */
+const POSTHOG_KEY='';                          /* paste a project key to enable */
+const POSTHOG_HOST='https://us.i.posthog.com';
+let phReady=false,phQueue=[];
+function track(name,props){
+  if(!POSTHOG_KEY)return;
+  try{
+    if(phReady&&window.posthog)window.posthog.capture(name,props);
+    else if(phQueue.length<40)phQueue.push([name,props]);
+  }catch(e){}
+}
+function loadTelemetry(){
+  if(!POSTHOG_KEY)return;
+  try{
+    const s=document.createElement('script');
+    s.async=true;s.src=POSTHOG_HOST+'/static/array.js';
+    s.onload=function(){
+      try{
+        window.posthog.init(POSTHOG_KEY,{
+          api_host:POSTHOG_HOST,
+          persistence:'localStorage', /* no cookies, so no banner to argue about */
+          autocapture:false,          /* gameplay events only, not stray DOM clicks */
+          disable_session_recording:true,
+          capture_pageview:true
+        });
+        phReady=true;
+        for(const q of phQueue)window.posthog.capture(q[0],q[1]);
+        phQueue=[];
+      }catch(e){}
+    };
+    s.onerror=function(){phQueue=[];}; /* blocked — drop it and carry on */
+    document.head.appendChild(s);
+  }catch(e){}
+}
+loadTelemetry();
+/* Gesture outcomes, counted where each one actually resolves. Deliberately
+   NOT counted inside bump(), which also fires when a swipe hits the outermost
+   or innermost ring — that is the game answering correctly, not a misread. */
+const GEST={tap:0,swipe:0,lateSwipe:0,unresolved:0};
+
 /* ---------- state ---------- */
 const CW=2.5;   /* combo window seconds */
 const WARN=1.15,FADE=0.4,HOP=0.14;
@@ -379,6 +424,7 @@ const G={
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
   orbits:0,bestStreak:0,shareFx:0, /* run summary, for the death screen and share */
+  embers:0,blocks:0,phases:0,lastHit:'none', /* telemetry counters */
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didPhase:false,
@@ -538,6 +584,8 @@ function startGame(){
   G.state='playing';G.score=0;G.diff=0;G.newBest=false;G.scorePop=0;G.mile=0;
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
+  G.embers=0;G.blocks=0;G.phases=0;G.lastHit='none';
+  GEST.tap=0;GEST.swipe=0;GEST.lateSwipe=0;GEST.unresolved=0;
   G.angle=-Math.PI/2;G.prevAngle=G.angle;G.sweep=0;G.dir=1;G.speed=1.40;
   G.nRings=1;G.ringI=0;G.hopFromI=0;G.hopP=1;
   G.shields=1;G.invuln=0;G.slow=0;G.tsCur=1;G.sinceShield=0;G.revPend=0;G.didPhase=false;
@@ -560,6 +608,22 @@ function die(){
   G.rings.push({x:p[0],y:p[1],r:30*u,life:0.6,col:COL.comet});
   beep(220,0.45,'sawtooth',0.09,50);
   try{if(navigator.vibrate)navigator.vibrate(90);}catch(e){}
+  const gest=GEST.tap+GEST.swipe+GEST.lateSwipe+GEST.unresolved;
+  track('run_ended',{
+    score:G.score,best:G.best,new_best:G.newBest,
+    run_index:G.runs,                 /* lifetime run count — this is retention */
+    seconds:Math.round(G.deadT-G.started),
+    orbits:G.orbits,best_streak:G.bestStreak,embers:G.embers,
+    scored:G.embers>0,                /* did they ever get going at all */
+    tier:G.tier,tier_name:tierLabel(),rings:G.nRings,
+    death_cause:G.lastHit,
+    blocks:G.blocks,phases:G.phases,  /* shields spent for you vs. by you */
+    /* the input question: what fraction of swipes produced nothing */
+    gestures:gest,
+    gest_tap:GEST.tap,gest_swipe:GEST.swipe,
+    gest_late:GEST.lateSwipe,gest_unresolved:GEST.unresolved,
+    misread_rate:gest?+(GEST.unresolved/gest).toFixed(4):0
+  });
 }
 function reverseFX(){
   const p=posPlayer();
@@ -611,7 +675,7 @@ function burnShield(){
     beep(140,0.05,'sine',0.03,100);
     return;
   }
-  G.shields--;G.didPhase=true;
+  G.shields--;G.didPhase=true;G.phases++;
   G.invuln=Math.max(G.invuln,G.t+PHASE_T);
   ripple(p[0],p[1],COL.shield);
   burst(p[0],p[1],COL.shield,16,175);
@@ -645,6 +709,7 @@ function runSummary(){
 function doShare(){
   const txt=runSummary();
   beep(660,0.09,'sine',0.05,990);
+  track('share_tapped',{score:G.score,tier:G.tier,run_index:G.runs});
   try{
     if(navigator.share){navigator.share({text:txt}).catch(function(){});return;}
   }catch(e){}
@@ -729,6 +794,7 @@ cv.addEventListener('pointermove',function(e){
   if(Math.abs(pd.radial)>=len*RADIAL_MIN){
     const out=pd.radial>0;
     pd=null;
+    GEST.swipe++;          /* resolved mid-drag: the clean case */
     hop(out?-1:1);
   }
 });
@@ -738,9 +804,11 @@ function pdEnd(e){
     if(pd.swiped){
       /* Still ambiguous at lift. A clear lean commits; a flick essentially
          along the ring has no radial answer, so bump rather than coin-flip. */
-      if(Math.abs(pd.radial)>pd.far*0.12)hop(pd.radial>0?-1:1);
-      else bump();
+      if(Math.abs(pd.radial)>pd.far*0.12){GEST.lateSwipe++;hop(pd.radial>0?-1:1);}
+      /* Swiped and got nothing. This is the misread rate worth watching. */
+      else{GEST.unresolved++;bump();}
     }else{
+      GEST.tap++;
       commitReverseFX();
     }
   }
@@ -795,7 +863,7 @@ function updateSpikes(sdt,lethal){
       if(G.shields>0){
         /* Reactive save: you live, but the hit knocks you off your orbit.
            Spending a shield deliberately is what keeps the streak. */
-        G.shields--;G.invuln=G.t+0.9;
+        G.shields--;G.invuln=G.t+0.9;G.blocks++;
         s.phase=2;s.t=0;
         G.lapAcc=0;G.lapStreak=0;
         const p=posPlayer();
@@ -804,6 +872,9 @@ function updateSpikes(sdt,lethal){
         popup(p[0],p[1]-24*u,'BLOCKED',COL.shield);
         beep(200,0.2,'square',0.07,90);
       }else{
+        /* flags, not a stored type: twin and blinktwin are two independent
+           shards, so a single one cannot report which pairing it came from */
+        G.lastHit=s.gate?(s.va?'driftgate':'gate'):(s.blink?'blink':(s.va?'drift':'single'));
         die();
       }
     }
@@ -926,7 +997,7 @@ function update(dt){
       G.stars.splice(i,1);
       G.combo=Math.min(G.combo+1,6);G.comboT=CW;
       G.score+=G.combo;G.diff+=1;G.scorePop=1;
-      G.lapEmbers++;
+      G.lapEmbers++;G.embers++;
       const p=posAt(s.a,radiusOf(s.ring));
       burst(p[0],p[1],COL.ember,14,150);
       ripple(p[0],p[1],COL.ember);
@@ -1417,6 +1488,12 @@ function drawHUD(){
     ctx.globalAlpha=pulse;
     text('TAP TO START',cx,bottomY,17*u,'800',COL.comet,4);
     ctx.globalAlpha=1;
+    /* Shown only when collection is actually switched on. Delete this block
+       if you would rather disclose somewhere else — but disclose somewhere. */
+    if(POSTHOG_KEY){
+      text('anonymous play stats collected',cx,
+        Math.min(H-8*u-safeBot,bottomY+20*u),10*u,'600','rgba(200,215,255,0.32)',0);
+    }
   }else{
     text('GAME OVER',cx,cy-46*u,26*u,'800',COL.shard,5);
     text(G.score,cx,cy+14*u,54*u,'800','#eaf1ff',0);
