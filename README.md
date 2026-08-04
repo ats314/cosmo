@@ -182,6 +182,30 @@ going unused — that, and not clipping, was why it sounded thin on a phone.
 2.6 put a nova cascade three samples over full scale; 2.15 peaks at 0.93 on
 the loudest event with the limiter barely working.
 
+**Timing is rewarded, and never punished.** Each input is judged against the
+sixteenth grid; land tight and the **groove** chain climbs to ×8. An off-beat
+input simply earns nothing — the game already demands you tap when a shard
+arrives, and docking you for surviving at the wrong moment would force a choice
+between playing well and playing in time.
+
+The judgement is of **consistency, not absolute accuracy**. A phone adds
+30–50ms between finger and JS event, so scoring absolute timing would mean a
+player tapping perfectly in time registers late and never scores — their device
+deciding their result. Instead a running bias is tracked and the deviation from
+it is judged, so a player reliably 60ms late is playing in time and gets credit.
+Verified by simulating exactly that: the system learned a bias of 0.057 against
+an injected 55ms and that player reached ×8 alongside a perfectly-timed one,
+while arbitrary tapping topped out at ×4.
+
+Score is awarded **only when the chain climbs**, never for holding it. Paying
+per tight hit made forty taps worth 320 against 86 for a maxed orbit — rhythm
+would have become the whole game. On the way up a full chain totals 36, so it
+stays a garnish beside embers and orbits. The real reward is that the music
+opens up, and that costs nothing.
+
+The rings **pulse on every quarter note**, because you cannot play to a beat you
+cannot find. The pulse brightens and shifts colour as the groove builds.
+
 **Your inputs are part of the arrangement.** Every reverse and every hop
 already makes an immediate functional noise — that does not change, because
 delaying it would make the controls feel laggy. On top of it, each input places
