@@ -4,6 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Comet Loop</title>
+<meta name="description" content="A one-thumb arcade game. Tap to reverse, swipe to hop rings, fill an orbit with embers.">
+<meta name="theme-color" content="#060913">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Comet Loop">
+<meta property="og:description" content="A one-thumb arcade game. Tap to reverse, swipe to hop rings, fill an orbit with embers.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23060913'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23223055' stroke-width='2'/%3E%3Ccircle cx='16' cy='6' r='4' fill='%235df0ff'/%3E%3C/svg%3E">
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#060913}
   canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-action:none;
@@ -241,8 +251,21 @@ function beep(f,d,type,g,slide,when){
   }catch(e){}
 }
 
-/* ---------- persistence (no-ops gracefully if unavailable) ---------- */
+/* ---------- persistence (no-ops gracefully if unavailable) ----------
+   localStorage is the real store. window.storage is the async host API this
+   was first written against; it is still read and written when present so the
+   same file works in either place. Both are wrapped: private-mode Safari
+   throws on write, and file:// can throw on read. */
+function readLocal(k){
+  try{return window.localStorage?localStorage.getItem(k):null;}catch(e){return null;}
+}
 function loadPrefs(){
+  const b=parseInt(readLocal('cometloop:best'),10);
+  if(!isNaN(b))G.best=Math.max(G.best,b);
+  const r=parseInt(readLocal('cometloop:runs'),10);
+  if(!isNaN(r))G.runs=Math.max(G.runs,r);
+  const m=readLocal('cometloop:muted');
+  if(m!==null)muted=(m==='1');
   try{
     if(!window.storage||!window.storage.get)return;
     window.storage.get('cometloop:best').then(function(r){
@@ -259,6 +282,7 @@ function loadPrefs(){
   }catch(e){}
 }
 function savePref(k,v){
+  try{if(window.localStorage)localStorage.setItem(k,String(v));}catch(e){}
   try{
     if(window.storage&&window.storage.set)window.storage.set(k,String(v)).catch(function(){});
   }catch(e){}
@@ -539,10 +563,11 @@ function burnShield(){
 
 /* ---------- input ---------- */
 function muteRect(){const s=24*u;return{x:W-s-16*u,y:safeTop+14*u,w:s,h:s};}
+/* Pinned to the bottom of the safe area — it is a one-thumb game, and this is
+   the only part of the screen the thumb rests on anyway. */
 function shieldRect(){
   const w=116*u,h=46*u;
-  const y=Math.max(cy+R+18*u,Math.min(H-safeBot-h-16*u,H-safeBot-h-16*u));
-  return{x:cx-w/2,y:y,w:w,h:h};
+  return{x:cx-w/2,y:H-safeBot-h-16*u,w:w,h:h};
 }
 function inShield(x,y){
   if(G.state!=='playing')return false;
@@ -985,20 +1010,7 @@ function draw(){
     ctx.beginPath();ctx.arc(cx,cy,lr,a0,a1);ctx.stroke();
     ctx.globalAlpha=1;
   }
-  /* embers banked this orbit — drawn in the HUD, see drawHUD */
-  if(false){
-    const pipW=9*u,x0=cx-(LAP_EMB_MAX-1)*pipW/2,py=cy+30*u;
-    for(let i=0;i<LAP_EMB_MAX;i++){
-      const on=i<G.lapEmbers;
-      ctx.save();
-      ctx.translate(x0+i*pipW,py);ctx.rotate(Math.PI/4);
-      ctx.globalAlpha=on?0.95:0.22;
-      if(on){ctx.fillStyle=COL.ember;ctx.fillRect(-2.6*u,-2.6*u,5.2*u,5.2*u);}
-      else{ctx.strokeStyle='rgba(200,215,255,0.9)';ctx.lineWidth=1.2;ctx.strokeRect(-2.6*u,-2.6*u,5.2*u,5.2*u);}
-      ctx.restore();
-    }
-    ctx.globalAlpha=1;
-  }
+  /* embers banked this orbit are drawn in the HUD — see drawHUD */
   /* Gesture guide: start dragging and the radial axis appears, so which way
      is "out" is never something you have to work out in your head. */
   if(pd&&pd.far>12&&G.state==='playing'&&G.nRings>1){
@@ -1251,8 +1263,10 @@ function drawHUD(){
     }
     const hint=hintText();
     if(hint){
+      /* clear of the shield button, which lives in the same strip of screen */
+      const hy=Math.min(bottomY,shieldRect().y-12*u);
       ctx.globalAlpha=RM?0.75:0.5+0.3*Math.sin(G.t*2.6);
-      text(hint,cx,bottomY,14*u,'600','rgba(210,225,255,0.9)',1);
+      text(hint,cx,hy,14*u,'600','rgba(210,225,255,0.9)',1);
       ctx.globalAlpha=1;
     }
   }else if(G.state==='menu'){
