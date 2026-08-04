@@ -390,6 +390,9 @@ function musicStep(i,t,k){
   }
   if(k>0.45&&(beat===2||beat===6))hat(t,0.020+0.012*k);
   if(k>0.45&&beat===4)hat(t,0.012);
+  /* the player's own activity adds the offbeats, so working the controls
+     drives the groove instead of just making noise over it */
+  if(PLAY.heat>0.35&&(beat%2===1))hat(t,0.010+0.014*PLAY.heat);
   if(k>0.72&&beat===3&&(bar%2===1)){
     note(PENT[CNT[i%CNT.length]],t,0.55,'triangle',0.026,3200,0.15);
   }
@@ -398,6 +401,52 @@ function musicStep(i,t,k){
     for(let v=0;v<4;v++)for(let u2=0;u2<2;u2++)
       BED.oscs[v*2+u2].frequency.setTargetAtTime(CH[bar%4][v],t,0.09);
   }
+}
+/* ---------- the player as performer ----------
+   Every input already makes a functional noise the instant it happens; that
+   does not change, because delaying it would make the controls feel laggy.
+   What is added is a SECOND hit placed on the musical grid, so a player mashing
+   reverse while stuck is not making noise — they are playing the record.
+
+   A short percussive note tolerates the ~72ms average delay that quantising
+   costs, where a sustained one would not. And consecutive inputs walk a figure
+   instead of repeating a pitch, so tapping back and forth is a phrase. */
+const REVSEQ=[0,2,4,5,4,2,3,1],HOPUP=[5,7,8,9],HOPDN=[4,2,1,0];
+let PLAY={heat:0,idx:0,last:-9,slot:-1};
+/* NEAREST sixteenth, not the next one. Snapping forward alone costs up to a
+   full slot — 144ms at this tempo, past the point where a sound stops feeling
+   attached to the tap that caused it. Snapping to the nearest halves the worst
+   case to 72ms: a tap landing just after a beat plays essentially now and
+   reads as on it, and only a tap in the back half of a slot waits. */
+function gridNear(){
+  const now=AC.currentTime,s=SPB/4;
+  if(!MU||!MU.next)return now+0.015;
+  let t=MU.next;
+  while(t>now)t-=s;                          /* last grid point at or before now */
+  const pick=((now-t)>s*0.5)?t+s:t;
+  return pick<now+0.012?now+0.012:pick;      /* never schedule into the past */
+}
+function performerHit(kind,dir){
+  if(!A||!AC||!MU||muted||G.state!=='playing'||AC.state!=='running')return;
+  const now=AC.currentTime,t=gridNear();
+  /* One note per sixteenth. Two taps inside one slot is not a faster rhythm,
+     it is a flam — and it is how mashing would otherwise stack nodes. */
+  if(Math.abs(t-PLAY.slot)<1e-4)return;
+  PLAY.slot=t;
+  /* heat is engagement: it rises with input and decays over a few seconds,
+     and the arrangement answers it. Mashing should feel like playing, not
+     like panicking. */
+  PLAY.heat=Math.min(1,PLAY.heat+0.26);
+  if(now-PLAY.last>2.4)PLAY.idx=0;           /* a pause starts a new phrase */
+  PLAY.last=now;
+  let d;
+  if(kind==='hop')d=(dir<0?HOPUP:HOPDN)[PLAY.idx%4];
+  else d=REVSEQ[PLAY.idx%REVSEQ.length];
+  PLAY.idx++;
+  const g=0.026+0.022*PLAY.heat;
+  note(PENT[d],t,0.13,'triangle',g,2200+2600*PLAY.heat,kind==='hop'?(dir<0?-0.25:0.25):0);
+  /* an octave ghost once the player is really going, so a flurry thickens */
+  if(PLAY.heat>0.55)note(PENT[d]*2,t,0.09,'sine',g*0.4,6000,0);
 }
 /* Lookahead scheduling on the AUDIO clock. The frame clock stalls whenever the
    tab is backgrounded and drifts constantly; scheduling notes from it is what
@@ -425,7 +474,10 @@ function bedTick(dt){
   BED.g.gain.setTargetAtTime(lvl,t,playing?0.9:0.5);
   /* floor at 400: below that a phone speaker reproduces none of it, and the
      opening minutes would be silent on the device this actually ships to */
-  BED.lp.frequency.setTargetAtTime(400+1500*k*k,t,1.4);
+  /* engagement decays over ~3s, so a flurry lifts the arrangement and then
+     settles rather than latching */
+  PLAY.heat=Math.max(0,PLAY.heat-dt*0.34);
+  BED.lp.frequency.setTargetAtTime(400+1500*k*k+900*PLAY.heat,t,0.5);
   musicTick();
 }
 /* Big moments push the bed and the reverb tail out of the way, then let them
@@ -956,6 +1008,7 @@ function reverseFX(){
   ripple(p[0],p[1]);
   burst(p[0],p[1],COL.comet,6,90);
   beep(300,0.07,'square',0.045,540);
+  performerHit('rev',0);
 }
 function reverse(silent){
   G.dir*=-1;G.didReverse=true;
@@ -992,6 +1045,7 @@ function hop(step){
   ripple(p[0],p[1]);
   const out=step<0;
   beep(out?480:760,0.09,'sine',0.05,out?820:420);
+  performerHit('hop',step);
 }
 
 /* Spending a shield on purpose phases you through anything for a moment and
