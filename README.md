@@ -76,6 +76,19 @@ Speed keeps climbing after the unlocks run out. The exponential is within
 (capped at 4.2 rad/s). Without it a long run flattens into a plateau that only
 ever ends from a lapse in attention rather than from pressure.
 
+## Learning it
+
+A run opens on a single ring, where the only move is a tap to reverse. The
+second ring does not arrive for ~30 seconds, so until it does, a prompt to
+swipe would be asking for the one gesture the game will not answer — the
+hints skip it until there is somewhere to hop to.
+
+The first three runs get more room: two shields instead of one, and a longer
+clear opening before the first shard (9s, tapering back to the normal 4s by
+the fourth run). `G.runs` persists, so this fades out on its own and a
+returning player never meets it. It is a ramp for learning the controls, not
+a difficulty change — from run four the game is exactly what it always was.
+
 ## Power-ups
 
 - **Shield** (green) — banked, up to 3. Taking a hit spends one automatically
