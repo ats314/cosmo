@@ -182,6 +182,27 @@ going unused — that, and not clipping, was why it sounded thin on a phone.
 2.6 put a nova cascade three samples over full scale; 2.15 peaks at 0.93 on
 the loudest event with the limiter barely working.
 
+**Your inputs are part of the arrangement.** Every reverse and every hop
+already makes an immediate functional noise — that does not change, because
+delaying it would make the controls feel laggy. On top of it, each input places
+a second note *on the musical grid*, so a player mashing reverse while stuck is
+not making noise, they are playing the record.
+
+Consecutive inputs walk a pentatonic figure rather than repeating a pitch, so
+tapping back and forth is a phrase; a pause of 2.4s starts a new one. Hops run
+the figure upward or downward depending on direction. Input also builds *heat*,
+which opens the pad filter, adds sixteenth-note hats and thickens the hits, then
+decays over about three seconds — so working the controls drives the groove and
+then settles, rather than latching.
+
+Quantising is to the **nearest** sixteenth, not the next one. Snapping forward
+alone costs up to a full slot — 144ms at this tempo, past the point where a
+sound stops feeling attached to the tap that caused it. Nearest halves the worst
+case: measured at **61ms** across a flurry of twelve off-grid taps. One note per
+slot, so forty taps inside a single frame produce exactly one — two notes in one
+slot is not a faster rhythm, it is a flam, and it is how mashing would otherwise
+stack nodes.
+
 The score is **adaptive layering**: one fixed tempo (104bpm) and one key
 (A minor, deliberately the key the SFX pentatonic sits in, so nothing the game
 plays can clash with it), with layers entering as the difficulty clock rises —
