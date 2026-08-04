@@ -194,6 +194,20 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   They rebuild only when the scale unit, DPR, or window size actually changes.
 - **Collision is a swept arc**, not a point test, so nothing tunnels through a
   shard on a wide screen or after a dropped frame.
+- **Spawn clearances scale with ring radius.** A shard's hit width is
+  `18.5u / radius` *radians*, so it doubles on the innermost ring — half the
+  radius, twice the angle blocked. Clearances used to be flat radians, which
+  meant two inner-ring neighbours at the mandated 0.5rad separation overlapped
+  by 0.068rad: a wall with no gap, which the player simply could not pass.
+  Expressing clearance as a multiple of the hit width fixes it on every ring
+  and every screen size, because both terms carry the same `u / radius`
+  factor. Sampled over 3,000 boards, no pair of separate shards on a ring
+  leaves less than a full gap; the only overlaps left are twins, which exist
+  to be hopped.
+- **The shield cap grows with the clock** — 3, then 4 past `dl` 160, then 5
+  past 320. Late boards carry ten shards across three rings and the inner ring
+  costs twice the angle per shard, so three slots stopped being enough to play
+  around long before a run ended.
 - **Gates are checked for solvability before they spawn.** A gate blocks every
   ring at one angle, so it exists to force a reversal — and uniform random
   placement can bracket the player, wall ahead and shards behind on every
