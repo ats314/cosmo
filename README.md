@@ -194,8 +194,18 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   the sky.
 - **Audio is scheduled on the `AudioContext` clock**, not `setTimeout`, so
   arpeggios stay in time when the tab is backgrounded.
-- **`prefers-reduced-motion` is respected** — screen shake, flashes, parallax
-  and pulsing are all suppressed.
+- **Particles stretch along their velocity.** Burst speed drives the
+  elongation, and since velocity damps at `0.15^dt` the streak collapses to a
+  round spark on its own within a few frames — the shape carries the motion,
+  with no extra state to track.
+- **Gate bars are drawn as energy, not as a line** — a wide soft pass under a
+  tight core, overhanging both ends of the ring stack so they read as a
+  barrier across the field rather than a chord within it, with crawling rungs
+  once armed.
+- **Ripples carry their own speed and decay**, so a death shockwave can
+  outrun a pickup pop instead of every ring expanding at one rate.
+- **`prefers-reduced-motion` is respected** — screen shake, flashes, parallax,
+  pulsing, the death shockwave and the animated gate rungs are all suppressed.
 - **Safe-area insets** are read from a hidden probe element, so the ring and
   HUD stay clear of the notch and the home indicator.
 
