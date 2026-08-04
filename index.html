@@ -1116,6 +1116,72 @@ function text(str,x,y,size,weight,col,ls){
   try{ctx.letterSpacing='0px';}catch(e){}
 }
 
+/* ---------- bloom ----------
+   Screen-space bloom without ever reading back the main canvas. The obvious
+   route — drawImage(cv) into a small buffer — measures ~16ms a frame, because
+   pulling 1.3M pixels back out stalls the pipeline; having budget spare does
+   not help when the single operation eats all of it.
+   So the bright objects are re-drawn as crude blobs into a quarter-size
+   buffer instead. Precision is pointless there: the upscale blurs it past
+   recognition, and bilinear filtering on the way back up IS the blur. */
+const BLOOM_DIV=4,BLOOM_ALPHA=0.34;
+let bloomC=null,bloomG=null;
+function bloomDot(g,x,y,r,col){g.fillStyle=col;g.beginPath();g.arc(x,y,r,0,TAU);g.fill();}
+function drawBloom(){
+  if(!bloomC){bloomC=document.createElement('canvas');bloomG=bloomC.getContext('2d');}
+  const bw=Math.max(1,Math.ceil(W/BLOOM_DIV)),bh=Math.max(1,Math.ceil(H/BLOOM_DIV));
+  if(bloomC.width!==bw||bloomC.height!==bh){bloomC.width=bw;bloomC.height=bh;}
+  const g=bloomG,s=1/BLOOM_DIV;
+  g.setTransform(1,0,0,1,0,0);
+  g.clearRect(0,0,bw,bh);
+  g.setTransform(s,0,0,s,0,0);
+  g.globalCompositeOperation='lighter';
+  for(const st of G.stars){
+    const p=posAt(st.a,radiusOf(st.ring));
+    bloomDot(g,p[0],p[1],10*u,COL.ember);
+  }
+  for(const sp of G.spikes){
+    if(sp.phase!==1||!armed(sp))continue;
+    const p=posAt(sp.a,radiusOf(sp.ring));
+    bloomDot(g,p[0],p[1],11*u,COL.shard);
+  }
+  for(const pw of G.pows){
+    const p=posAt(pw.a,radiusOf(pw.ring));
+    bloomDot(g,p[0],p[1],10*u,pw.type==='shield'?COL.shield:(pw.type==='warp'?COL.warp:COL.nova));
+  }
+  for(const pt of G.parts){
+    if(pt.life<=0)continue;
+    bloomDot(g,pt.x,pt.y,pt.size*pt.life*1.6,pt.col);
+  }
+  if(G.state!=='dead'){
+    const p=posPlayer();
+    bloomDot(g,p[0],p[1],17*u,'#7ce9ff');
+    bloomDot(g,p[0],p[1],8*u,'#ffffff');
+  }
+  g.setTransform(1,0,0,1,0,0);
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  ctx.globalAlpha=BLOOM_ALPHA;
+  ctx.drawImage(bloomC,0,0,W,H);
+  ctx.restore();
+}
+
+/* The comet lights the track it is riding: a short arc centred on it, falling
+   off both ways. Decorative, but it also makes "which ring am I on" readable
+   at a glance without looking away from the comet. */
+const RING_LIT=[[0.62,0.030,7],[0.40,0.048,4.5],[0.22,0.078,2.6],[0.10,0.105,1.6]];
+function drawRingGlow(){
+  const rr=curR();
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  ctx.strokeStyle=COL.comet;
+  for(const L of RING_LIT){
+    ctx.globalAlpha=L[1];
+    ctx.lineWidth=L[2]*u;
+    ctx.beginPath();ctx.arc(cx,cy,rr,G.angle-L[0],G.angle+L[0]);ctx.stroke();
+  }
+  ctx.restore();
+}
 function drawTail(){
   const n=G.trail.length;
   if(n<4)return;
@@ -1130,13 +1196,16 @@ function drawTail(){
     /* width tapers by both age and position, so the head stays fat */
     bw[i]=8*u*Math.pow(Math.max(p.life,0),0.7)*(0.16+0.84*i/(n-1));
   }
-  const passes=[[2.5,0.075],[1.35,0.16],[0.6,0.34]];
+  /* Width, alpha, colour. The narrow pass runs near-white so the ribbon goes
+     hot at its centre and cools outward, the way anything incandescent does —
+     one flat cyan read as paint rather than as burning. */
+  const passes=[[2.5,0.075,COL.comet],[1.35,0.16,'#8ef2ff'],[0.6,0.34,'#e6fdff']];
   ctx.save();
   ctx.globalCompositeOperation='lighter';
-  ctx.fillStyle=COL.comet;
   for(let k=0;k<passes.length;k++){
     const m=passes[k][0];
     ctx.globalAlpha=passes[k][1];
+    ctx.fillStyle=passes[k][2];
     ctx.beginPath();
     for(let i=0;i<n;i++){
       const p=G.trail[i],w=bw[i]*m;
@@ -1194,6 +1263,7 @@ function draw(){
   ctx.fillStyle='rgba(120,160,255,0.10)';
   ctx.beginPath();ctx.arc(cx,cy,8,0,TAU);ctx.fill();
   ctx.globalCompositeOperation='source-over';
+  drawRingGlow();
 
   /* lap progress arc — colour reports how well fed this orbit is */
   if(G.state==='playing'&&G.lapAcc>0.05){
@@ -1373,6 +1443,9 @@ function draw(){
   }
   ctx.globalCompositeOperation='source-over';
   ctx.globalAlpha=1;
+  /* Bloom sits inside the shaken transform so it stays registered with the
+     world it is blooming, and under the popups so text stays crisp. */
+  drawBloom();
   /* score popups */
   ctx.textAlign='center';
   for(const p of G.pops){
@@ -1391,6 +1464,13 @@ function draw(){
     ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
   }
 
+  /* The world keeps rendering behind the game-over text — rings, embers and
+     fading shards all competing with the score. Drop it back before the HUD
+     goes on so the numbers you actually came for are legible. */
+  if(G.state==='dead'){
+    ctx.fillStyle='rgba(6,9,19,'+(Math.min(1,(G.t-G.deadT)/0.35)*0.80).toFixed(3)+')';
+    ctx.fillRect(0,0,W,H);
+  }
   drawHUD();
   drawMute();
   drawShieldBtn();

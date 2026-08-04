@@ -194,6 +194,19 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   the sky.
 - **Audio is scheduled on the `AudioContext` clock**, not `setTimeout`, so
   arpeggios stay in time when the tab is backgrounded.
+- **Bloom never reads back the canvas.** The textbook route — copy the frame
+  into a small buffer and let the upscale blur it — measures ~16ms here,
+  because pulling 1.3M pixels back out stalls the pipeline; spare budget does
+  not help when one operation eats all of it. Instead the bright objects are
+  re-drawn as crude blobs into a quarter-size buffer, which is then upscaled
+  back additively. Precision there is pointless: bilinear filtering on the way
+  up *is* the blur. Costs about 0.3ms.
+- **The comet lights its own ring** — a short arc centred on it, falling off
+  both ways. Decorative, but it also makes "which ring am I on" readable
+  without looking away from the comet.
+- **The trail runs hot at its core.** Three additive passes of one flat cyan
+  read as paint; the narrow pass now runs near-white so the ribbon cools
+  outward the way anything incandescent does.
 - **Particles stretch along their velocity.** Burst speed drives the
   elongation, and since velocity damps at `0.15^dt` the streak collapses to a
   round spark on its own within a few frames — the shape carries the motion,
