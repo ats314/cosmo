@@ -55,6 +55,26 @@ Mechanics unlock on a schedule, each announced with a banner:
 | 128s | third ring |
 | 153s | drifters — these ones move |
 | 193s | blinkers — they flicker, time your pass |
+| 238s | sliding gates — the wall slides, reverse early |
+| 288s | flicker pairs — one gap at a time, never both |
+| 348s | storm — no new tricks, just more of them |
+
+Those times assume a player earning no difficulty nudge at all, which is the
+slowest the schedule ever runs; scoring well pulls everything forward by up
+to 40 seconds.
+
+The late tiers are **compounds**, not new objects. `gate`, `blink` and drift
+(`va`) are independent flags on the same shard, and both update and draw
+already handle them in any combination — so a sliding gate and an alternating
+pair cost a spawn branch each and nothing else. A sliding gate gives every
+segment the same drift, or the rung would shear apart from the bar, which is
+drawn from ring 0's angle. A flicker pair is offset half a cycle, so there is
+always exactly one gap and never two.
+
+Speed keeps climbing after the unlocks run out. The exponential is within
+0.2 of its ceiling by ~4 minutes, so past that a slow linear term takes over
+(capped at 4.2 rad/s). Without it a long run flattens into a plateau that only
+ever ends from a lapse in attention rather than from pressure.
 
 ## Power-ups
 
