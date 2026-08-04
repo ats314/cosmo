@@ -310,6 +310,7 @@ const CH=[[110,220,261.63,329.63],      /* Am  */
 /* Pentatonic degrees for the arp and the counter-line, as indices into PENT. */
 const ARP=[0,2,4,2,3,2,4,5],CNT=[7,5,4,5,7,8,7,5];
 let MU=null,NOISE=null;
+const BEATQ=[];
 function buildBed(){
   if(BED||!AC)return;
   const c=AC,g=c.createGain();g.gain.value=0;
@@ -380,6 +381,7 @@ function hat(t,g){
    you that speed has climbed from 1.4 to 4.2 rad/s. */
 function musicStep(i,t,k){
   const bar=(i/8)|0,ch=CH[bar%4],beat=i%8;
+  if(beat%2===0)BEATQ.push(t);          /* quarter notes, for the visual pulse */
   if(beat===0||beat===6)note(ch[0],t,beat===0?0.42:0.22,'triangle',0.075,900);
   /* Quarters while it is still calm, every eighth once the run is genuinely
      fast — the arrangement gains drive exactly where the game does. */
@@ -412,7 +414,7 @@ function musicStep(i,t,k){
    costs, where a sustained one would not. And consecutive inputs walk a figure
    instead of repeating a pitch, so tapping back and forth is a phrase. */
 const REVSEQ=[0,2,4,5,4,2,3,1],HOPUP=[5,7,8,9],HOPDN=[4,2,1,0];
-let PLAY={heat:0,idx:0,last:-9,slot:-1};
+let PLAY={heat:0,idx:0,last:-9,slot:-1,bias:0};
 /* NEAREST sixteenth, not the next one. Snapping forward alone costs up to a
    full slot — 144ms at this tempo, past the point where a sound stops feeling
    attached to the tap that caused it. Snapping to the nearest halves the worst
@@ -425,6 +427,60 @@ function gridNear(){
   while(t>now)t-=s;                          /* last grid point at or before now */
   const pick=((now-t)>s*0.5)?t+s:t;
   return pick<now+0.012?now+0.012:pick;      /* never schedule into the past */
+}
+/* ---------- groove ----------
+   Reward for playing in time, and NEVER a penalty for not. An off-beat input
+   simply earns nothing: the game already demands you tap when a shard arrives,
+   and docking you for surviving at the wrong moment would force a choice
+   between playing well and playing in time. Nobody should have to make that.
+
+   The window has to absorb touch latency — 30-50ms on a phone before JS even
+   hears about it — so a single tight hit is not the achievement. The chain is.
+   At this window a random tapper lands ~60% of hits, so a run of five is about
+   8%, which is where the skill actually lives. */
+/* The window cannot simply be tight. A phone adds 30-50ms between the finger
+   and the JS event, so judging absolute accuracy would mean a player tapping
+   perfectly in time registers late and never scores at all — and their device,
+   not their playing, would decide it.
+
+   So judge CONSISTENCY instead. Track a running bias and score the deviation
+   from it: a player who is reliably 60ms late is playing in time and gets
+   credit, while arbitrary tapping has no stable bias to deviate from and
+   fails. This is what "creating a good beat" actually means, and it
+   self-calibrates to whatever device it lands on. */
+const TIGHT=0.032;
+function gridOff(){                 /* signed: negative early, positive late */
+  const now=AC.currentTime,s=SPB/4;
+  if(!MU||!MU.next)return 9;
+  let t=MU.next;
+  while(t>now)t-=s;
+  const late=now-t,early=(t+s)-now;
+  return late<=early?late:-early;
+}
+function judgeTiming(x,y){
+  if(G.state!=='playing'||!AC||!MU||muted)return 0;
+  const off=gridOff();
+  if(off>8)return 0;
+  const dev=Math.abs(off-PLAY.bias);
+  PLAY.bias+=(off-PLAY.bias)*0.18;  /* learns the device, and the player */
+  if(dev<TIGHT){
+    const was=G.groove;
+    G.groove=Math.min(8,G.groove+1);
+    G.grooveT=G.t+2.8;
+    /* Score only on the way UP. Paying per tight hit made a chain worth 320
+       over forty taps against 86 for a maxed orbit — rhythm would have become
+       the whole game. Climbing pays 36 in total and holding pays nothing, so
+       it stays a garnish next to embers and orbits. The real reward is that
+       the music opens up, which costs no points at all. */
+    if(G.groove>was)G.score+=G.groove;
+    G.grooveFx=1;
+    if(G.groove>=3)popup(x,y-34*u,'GROOVE \u00d7'+G.groove,COL.warp,0.85+0.05*G.groove);
+    return G.groove;
+  }
+  /* a miss costs one link, never the chain and never points — losing eight for
+     one late tap under pressure would just teach players to stop trying */
+  if(G.groove>0)G.groove=Math.max(0,G.groove-1);
+  return 0;
 }
 function performerHit(kind,dir){
   if(!A||!AC||!MU||muted||G.state!=='playing'||AC.state!=='running')return;
@@ -443,8 +499,14 @@ function performerHit(kind,dir){
   if(kind==='hop')d=(dir<0?HOPUP:HOPDN)[PLAY.idx%4];
   else d=REVSEQ[PLAY.idx%REVSEQ.length];
   PLAY.idx++;
-  const g=0.026+0.022*PLAY.heat;
-  note(PENT[d],t,0.13,'triangle',g,2200+2600*PLAY.heat,kind==='hop'?(dir<0?-0.25:0.25):0);
+  const p=posPlayer();
+  const gr=judgeTiming(p[0],p[1]);
+  /* the reward you actually feel: a tight hit is brighter and louder, so the
+     groove is audible before you ever look at the number */
+  const g=(0.026+0.022*PLAY.heat)*(1+0.10*gr);
+  note(PENT[d],t,0.13,'triangle',g,(2200+2600*PLAY.heat)*(1+0.16*gr),
+    kind==='hop'?(dir<0?-0.25:0.25):0);
+  if(gr>=3)note(PENT[Math.min(9,d+2)],t,0.10,'sine',g*0.5,7000,0);
   /* an octave ghost once the player is really going, so a flurry thickens */
   if(PLAY.heat>0.55)note(PENT[d]*2,t,0.09,'sine',g*0.4,6000,0);
 }
@@ -477,6 +539,8 @@ function bedTick(dt){
   /* engagement decays over ~3s, so a flurry lifts the arrangement and then
      settles rather than latching */
   PLAY.heat=Math.max(0,PLAY.heat-dt*0.34);
+  while(BEATQ.length&&BEATQ[0]<=t){BEATQ.shift();G.beat=1;}
+  if(BEATQ.length>32)BEATQ.length=0;      /* a stall must not bank a burst */
   BED.lp.frequency.setTargetAtTime(400+1500*k*k+900*PLAY.heat,t,0.5);
   musicTick();
 }
@@ -747,6 +811,7 @@ const G={
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
   orbits:0,bestStreak:0,shareFx:0, /* run summary, for the death screen and share */
+  groove:0,grooveT:0,grooveFx:0,bestGroove:0,beat:0, /* rhythm */
   embers:0,blocks:0,phases:0,lastHit:'none', /* telemetry counters */
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
@@ -952,6 +1017,7 @@ function startGame(){
   G.state='playing';G.score=0;G.diff=0;G.newBest=false;G.scorePop=0;G.mile=0;
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
+  G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;BEATQ.length=0;
   G.embers=0;G.blocks=0;G.phases=0;G.lastHit='none';
   GEST.tap=0;GEST.swipe=0;GEST.lateSwipe=0;GEST.unresolved=0;
   G.angle=-Math.PI/2;G.prevAngle=G.angle;G.sweep=0;G.dir=1;G.speed=1.40;
@@ -1086,6 +1152,7 @@ function runSummary(){
   return 'Comet Loop '+G.score+'\n'+
     bar+' '+tierLabel()+'\n'+
     G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
+    (G.bestGroove>=3?'groove ×'+G.bestGroove+'\n':'')+
     /* a deep link to index.html shares worse than the directory it lives in */
     (location.origin+location.pathname).replace(/index\.html$/,'');
 }
@@ -1267,6 +1334,12 @@ function update(dt){
   G.shake=Math.max(0,G.shake-dt*45);
   G.flash=Math.max(0,G.flash-dt*1.6);
   G.scorePop=Math.max(0,G.scorePop-dt*3.5);
+  G.beat=Math.max(0,G.beat-dt*4.5);
+  G.grooveFx=Math.max(0,G.grooveFx-dt*2.2);
+  /* stop playing and the groove lets go, so it always reflects what you are
+     doing now rather than something you did a minute ago */
+  if(G.groove>0&&G.t>G.grooveT){G.groove--;G.grooveT=G.t+0.7;}
+  if(G.groove>G.bestGroove)G.bestGroove=G.groove;
   G.slow=Math.max(0,G.slow-dt);
   G.stop=Math.max(0,G.stop-dt);
   bedTick(dt);
@@ -1681,6 +1754,18 @@ function draw(){
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
     ctx.strokeStyle=on?'rgba(206,230,255,0.44)':'rgba(170,195,255,0.155)';ctx.lineWidth=1.3;
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
+    /* THE PULSE. You cannot play to a beat you cannot find, so the rings
+       breathe on every quarter note. Kept faint enough that it never competes
+       with a shard for attention, and brighter as the groove builds. */
+    if(G.beat>0.02&&!RM){
+      ctx.save();
+      ctx.globalCompositeOperation='lighter';
+      ctx.globalAlpha=G.beat*G.beat*(0.05+0.026*G.groove);
+      ctx.strokeStyle=G.groove>=3?COL.warp:'rgba(180,210,255,1)';
+      ctx.lineWidth=(2+7*G.beat)*u;
+      ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
+      ctx.restore();
+    }
   }
   ctx.globalCompositeOperation='lighter';
   ctx.fillStyle='rgba(120,160,255,0.5)';
@@ -2061,6 +2146,11 @@ function drawHUD(){
       ctx.restore();
     }
     ctx.globalAlpha=1;
+    if(G.groove>=2){
+      ctx.globalAlpha=Math.min(1,0.35+0.14*G.groove)*(0.8+0.2*G.grooveFx);
+      text('GROOVE \u00d7'+G.groove,cx,top+136*u,13*u*(1+0.12*G.grooveFx),'800',COL.warp,2);
+      ctx.globalAlpha=1;
+    }
     if(G.combo>=2&&G.comboT>0){
       ctx.globalAlpha=0.35+0.65*(G.comboT/CW);
       text('\u00d7'+G.combo+' COMBO',cx,top+116*u,14*u,'800',COL.ember,2);
@@ -2112,6 +2202,8 @@ function drawHUD(){
     else text('BEST '+G.best,cx,cy+42*u,13*u,'600','rgba(200,215,255,0.5)',2);
     text(G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime(),
       cx,cy+62*u,12*u,'600','rgba(200,215,255,0.45)',0);
+    if(G.bestGroove>=3)
+      text('best groove ×'+G.bestGroove,cx,cy+78*u,11*u,'600','rgba(160,120,255,0.6)',0);
     if(G.t-G.deadT>0.6){
       const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
       ctx.globalAlpha=pulse;
