@@ -194,6 +194,15 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   the sky.
 - **Audio is scheduled on the `AudioContext` clock**, not `setTimeout`, so
   arpeggios stay in time when the tab is backgrounded.
+- **Completing an orbit sets the orbit alight.** A head races the full
+  circumference in the direction you were travelling, wake burning behind it —
+  the one effect that draws what you actually did. It sits just proud of the
+  ring rather than on it: on the ring it lands under the comet's own tail and
+  reads as more trail, but offset and gold against the tail's cyan it reads as
+  the orbit catching light. Everything about it scales with the streak, and
+  from ×3 the comet holds still for 75ms while the ring burns round — effects
+  run on `dt` and gameplay on `sdt`, so the freeze costs no animation. Under
+  reduced motion the ring lights all at once and the hitstop is skipped.
 - **Bloom never reads back the canvas.** The textbook route — copy the frame
   into a small buffer and let the upscale blur it — measures ~16ms here,
   because pulling 1.3M pixels back out stalls the pipeline; spare budget does
