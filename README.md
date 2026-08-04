@@ -85,6 +85,23 @@ ever ends from a lapse in attention rather than from pressure.
 - **Slow-mo** (violet) — 4 seconds at 55% speed.
 - **Nova** (white) — turns every shard on the board into an ember.
 
+## After a run
+
+The death screen reports orbits, best streak and elapsed time alongside the
+score, and offers a **SHARE** button. It hands off to the native share sheet
+where one exists and falls back to the clipboard, producing plain text:
+
+```
+Comet Loop 4300
+◆◆◆◆◆◆◆◆◆◆ STORM
+62 orbits · ×7 streak · 5:12
+https://ats314.github.io/cosmo/
+```
+
+Text rather than an image, deliberately: it survives every messaging app, can
+be quoted in a reply, and travels further than a bare link does. The bar
+reports how far the run got without spoiling the tiers you have not reached.
+
 ## Running locally
 
 Any static server works. `file://` works too, except that Chrome's storage
@@ -127,6 +144,15 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   They rebuild only when the scale unit, DPR, or window size actually changes.
 - **Collision is a swept arc**, not a point test, so nothing tunnels through a
   shard on a wide screen or after a dropped frame.
+- **Gates are checked for solvability before they spawn.** A gate blocks every
+  ring at one angle, so it exists to force a reversal — and uniform random
+  placement can bracket the player, wall ahead and shards behind on every
+  ring. `reverseEscape()` requires some ring to offer a clear run in the
+  post-reversal heading; without one the formation is downgraded to a single
+  shard. Across 5,000 randomised board states, about 2% had no escape, and
+  none of the 1,257 gates that shipped landed in one. A death you had no move
+  against reads as the game cheating, which is the one thing that stops a run
+  being worth retrying.
 - **Star positions live in normalised space**, so resizing never reshuffles
   the sky.
 - **Audio is scheduled on the `AudioContext` clock**, not `setTimeout`, so

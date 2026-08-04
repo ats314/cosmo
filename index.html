@@ -378,6 +378,7 @@ const G={
   state:'menu',t:0,started:0,deadT:0,
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
+  orbits:0,bestStreak:0,shareFx:0, /* run summary, for the death screen and share */
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didPhase:false,
@@ -442,8 +443,31 @@ function mkSpike(a,ring,extra){
   if(extra)for(const k in extra)s[k]=extra[k];
   return s;
 }
+/* A gate exists to force a reversal, so it has to leave somewhere to reverse
+   INTO. Placement is otherwise uniform-random, which can bracket the player:
+   wall ahead, shards behind on every ring. A death you had no move against
+   reads as the game cheating, and that is the one thing that stops a run
+   being worth retrying — so we check first and downgrade the formation
+   rather than ship the trap. */
+const GATE_ESCAPE=1.1; /* radians of clear run the reversal must open onto */
+function reverseEscape(minArc){
+  for(let k=0;k<G.nRings;k++){
+    let clearRing=true;
+    for(const s of G.spikes){
+      if(s.ring!==k||s.phase===2)continue; /* phase 2 is fading, harmless */
+      /* distance to this shard measured along the post-reversal heading */
+      let d=(s.a-G.angle)*(-G.dir);
+      d=((d%TAU)+TAU)%TAU;
+      if(d<minArc){clearRing=false;break;}
+    }
+    /* any ring will do — hops are fast enough to chain within this arc */
+    if(clearRing)return true;
+  }
+  return false;
+}
 function spawnSpike(){
-  const type=pickType();
+  let type=pickType();
+  if((type==='gate'||type==='driftgate')&&!reverseEscape(GATE_ESCAPE))type='single';
   const clear=age()<26?1.5:1.1;
   for(let i=0;i<18;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
@@ -513,6 +537,7 @@ function spawnPow(){
 function startGame(){
   G.state='playing';G.score=0;G.diff=0;G.newBest=false;G.scorePop=0;G.mile=0;
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
+  G.orbits=0;G.bestStreak=0;G.shareFx=0;
   G.angle=-Math.PI/2;G.prevAngle=G.angle;G.sweep=0;G.dir=1;G.speed=1.40;
   G.nRings=1;G.ringI=0;G.hopFromI=0;G.hopP=1;
   G.shields=1;G.invuln=0;G.slow=0;G.tsCur=1;G.sinceShield=0;G.revPend=0;G.didPhase=false;
@@ -595,6 +620,43 @@ function burnShield(){
   beep(900,0.12,'sine',0.05,1350,0.1);
 }
 
+/* ---------- run summary / share ----------
+   The artifact travels further than the link does, so it is plain text: it
+   survives every messaging app, can be quoted, and invites a reply. The
+   filled/hollow bar reports how far the run got without spoiling what is in
+   the tiers you have not reached. */
+function runTime(){
+  const s=Math.max(0,Math.round(G.deadT-G.started));
+  return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+}
+function tierLabel(){
+  for(let i=G.tier;i>=0;i--)if(TIERS[i].name)return TIERS[i].name;
+  return 'FIRST ORBIT';
+}
+function runSummary(){
+  let bar='';
+  for(let i=0;i<TIERS.length;i++)bar+=(i<=G.tier?'◆':'◇');
+  return 'Comet Loop '+G.score+'\n'+
+    bar+' '+tierLabel()+'\n'+
+    G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
+    /* a deep link to index.html shares worse than the directory it lives in */
+    (location.origin+location.pathname).replace(/index\.html$/,'');
+}
+function doShare(){
+  const txt=runSummary();
+  beep(660,0.09,'sine',0.05,990);
+  try{
+    if(navigator.share){navigator.share({text:txt}).catch(function(){});return;}
+  }catch(e){}
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(function(){
+        G.shareFx=G.t+1.8;
+      }).catch(function(){});
+    }
+  }catch(e){}
+}
+
 /* ---------- input ---------- */
 function muteRect(){const s=24*u;return{x:W-s-16*u,y:safeTop+14*u,w:s,h:s};}
 /* Pinned to the bottom of the safe area — it is a one-thumb game, and this is
@@ -612,6 +674,17 @@ function inMute(x,y){
   const r=muteRect(),pad=14;
   return x>=r.x-pad&&x<=r.x+r.w+pad&&y>=r.y-pad&&y<=r.y+r.h+pad;
 }
+/* Sits above TAP TO RETRY, and shares the same 0.6s lockout so a frantic
+   retry tap right after dying can never land on it by accident. */
+function shareRect(){
+  const w=132*u,h=42*u;
+  return{x:cx-w/2,y:cy+76*u,w:w,h:h};
+}
+function inShare(x,y){
+  if(G.state!=='dead'||G.t-G.deadT<=0.6)return false;
+  const r=shareRect(),pad=8*u;
+  return x>=r.x-pad&&x<=r.x+r.w+pad&&y>=r.y-pad&&y<=r.y+r.h+pad;
+}
 let pd=null;
 cv.addEventListener('pointerdown',function(e){
   e.preventDefault();ensureAudio();
@@ -621,6 +694,7 @@ cv.addEventListener('pointerdown',function(e){
     return;
   }
   if(inShield(e.clientX,e.clientY)){burnShield();return;}
+  if(inShare(e.clientX,e.clientY)){doShare();return;} /* must precede the retry tap */
   if(G.state==='menu'){startGame();return;}
   if(G.state==='dead'){if(G.t-G.deadT>0.6)startGame();return;}
   if(pd)return; /* one gesture at a time: a second finger can't double-reverse */
@@ -806,6 +880,7 @@ function update(dt){
     G.lapAcc-=TAU;
     const fed=G.lapEmbers>0;
     if(fed)G.lapStreak++;else G.lapStreak=0;
+    G.orbits++;G.bestStreak=Math.max(G.bestStreak,G.lapStreak);
     const base=6+13*Math.min(G.lapEmbers,LAP_EMB_MAX);
     const streakBonus=fed?Math.min(7*(G.lapStreak-1),28):0;
     const bonus=base+streakBonus;
@@ -1196,6 +1271,7 @@ function draw(){
   drawHUD();
   drawMute();
   drawShieldBtn();
+  drawShareBtn();
   if(G.flash>0){
     ctx.fillStyle='rgba(255,255,255,'+(G.flash*0.5)+')';
     ctx.fillRect(0,0,W,H);
@@ -1230,6 +1306,24 @@ function drawShieldBtn(){
     }
   }
   ctx.globalAlpha=1;ctx.restore();
+}
+function drawShareBtn(){
+  if(G.state!=='dead'||G.t-G.deadT<=0.6)return;
+  const r=shareRect(),midY=r.y+r.h/2,rad=r.h/2;
+  const copied=G.shareFx>G.t;
+  ctx.save();
+  ctx.globalAlpha=copied?0.85:0.5;
+  ctx.strokeStyle=COL.comet;ctx.lineWidth=1.6;
+  ctx.beginPath();
+  ctx.moveTo(r.x+rad,r.y);ctx.lineTo(r.x+r.w-rad,r.y);
+  ctx.arc(r.x+r.w-rad,midY,rad,-Math.PI/2,Math.PI/2);
+  ctx.lineTo(r.x+rad,r.y+r.h);
+  ctx.arc(r.x+rad,midY,rad,Math.PI/2,-Math.PI/2);
+  ctx.closePath();ctx.stroke();
+  ctx.globalAlpha=1;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  text(copied?'COPIED':'SHARE',cx,midY,14*u,'800',COL.comet,3);
+  ctx.restore();
 }
 function drawMute(){
   const r=muteRect(),x=r.x+r.w/2,y=r.y+r.h/2,s=r.w/2;
@@ -1328,6 +1422,8 @@ function drawHUD(){
     text(G.score,cx,cy+14*u,54*u,'800','#eaf1ff',0);
     if(G.newBest)text('NEW BEST',cx,cy+42*u,13*u,'700',COL.ember,3);
     else text('BEST '+G.best,cx,cy+42*u,13*u,'600','rgba(200,215,255,0.5)',2);
+    text(G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime(),
+      cx,cy+62*u,12*u,'600','rgba(200,215,255,0.45)',0);
     if(G.t-G.deadT>0.6){
       const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
       ctx.globalAlpha=pulse;
