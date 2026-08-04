@@ -303,14 +303,23 @@ function dl(){
   return a<70?a*0.6:42+(a-70);
 }
 /* Speed is one axis among four, and a shallow one. The whole curve is
-   stretched so a run has room to breathe: half of it is spent below 2.0. */
-function speedAt(){return 1.40+1.60*(1-Math.exp(-dl()/190));}
+   stretched so a run has room to breathe: half of it is spent below 2.0.
+   The exponential has flattened to within 0.2 of its ceiling by ~4 minutes,
+   so past that a slow linear climb takes over. Without it a long run settles
+   onto a plateau and only ever ends from a lapse of attention. */
+const SPEED_MAX=4.2;
+function speedAt(){
+  const d=dl();
+  return Math.min(SPEED_MAX,1.40+1.60*(1-Math.exp(-d/190))+Math.max(0,d-250)*0.0015);
+}
 function warnTime(){return Math.max(1.0,1.90-dl()*0.0028);}
 function shardCap(){
   const d=dl();
   /* A single ring can carry more shards than the same count spread over two,
-     so the opening is denser but simpler rather than sparse and slow. */
-  return d<10?2:d<20?3:d<40?4:d<70?5:d<110?6:d<160?7:8;
+     so the opening is denser but simpler rather than sparse and slow.
+     farFromAll keeps 0.5rad between shards, so a ring tops out near 12 —
+     10 across three rings stays placeable. */
+  return d<10?2:d<20?3:d<40?4:d<70?5:d<110?6:d<160?7:d<230?8:d<320?9:10;
 }
 function spawnGap(){return Math.max(0.80,2.1-dl()*0.0035);}
 /* Embers land on a random ring but you can only reach the one you are on,
@@ -322,8 +331,14 @@ function emberGap(){return Math.max(0.30,(1.35-dl()*0.003)/G.nRings);}
 /* ---------- shard archetypes ----------
    Each one asks for a different skill, and they unlock on a schedule so
    there is always something new arriving. */
-/* Clock values. Wall-clock arrival is roughly:
-   30s ring2 · 63s twin · 93s gate · 128s ring3 · 153s drift · 193s blink */
+/* Clock values. Wall-clock arrival for a player earning no difficulty nudge
+   at all, which is the slowest the schedule ever runs:
+   30s ring2 · 63s twin · 93s gate · 128s ring3 · 153s drift · 193s blink
+   238s sliding gates · 288s flicker pairs · 348s storm
+   The late tiers are compounds rather than new objects: gate, blink and drift
+   are independent flags on the same shard, and update and draw already handle
+   them in any combination, so a moving wall or an alternating pair costs
+   nothing but a spawn branch. */
 const TIERS=[
   {at:0,  type:'single',name:null},
   {at:18, type:null,    name:'SECOND RING', sub:'swipe toward the ring you want',rings:2},
@@ -331,7 +346,10 @@ const TIERS=[
   {at:65, type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 reverse'},
   {at:100,type:null,    name:'THIRD RING',  sub:'tighter inside \u2014 less room to dodge',rings:3},
   {at:125,type:'drift', name:'DRIFTERS',    sub:'these ones move'},
-  {at:165,type:'blink', name:'BLINKERS',    sub:'they flicker \u2014 time your pass'}
+  {at:165,type:'blink', name:'BLINKERS',    sub:'they flicker \u2014 time your pass'},
+  {at:210,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 reverse early'},
+  {at:260,type:'blinktwin',name:'FLICKER PAIRS',sub:'one gap at a time \u2014 never both'},
+  {at:320,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of them'}
 ];
 function tierIndex(){
   const d=dl();
@@ -345,8 +363,10 @@ function pickType(){
   for(let k=0;k<=top;k++){
     const ty=TIERS[k].type;
     if(!ty)continue;                       /* ring unlocks carry no formation */
-    if(ty==='twin'&&G.nRings<2)continue;   /* nothing to hop over onto */
-    if(ty==='gate'&&G.spikes.some(function(s){return s.gate;}))continue;
+    /* nothing to hop over onto */
+    if((ty==='twin'||ty==='blinktwin')&&G.nRings<2)continue;
+    /* one wall at a time, whether it slides or not */
+    if((ty==='gate'||ty==='driftgate')&&G.spikes.some(function(s){return s.gate;}))continue;
     pool.push(ty);
     if(k===top)pool.push(ty,ty);           /* the newest one shows up often */
   }
@@ -417,7 +437,7 @@ function spawnStar(){
   }
 }
 function mkSpike(a,ring,extra){
-  const s={a:a,ring:ring,t:0,phase:0,bt:0,va:0,gate:false,blink:false,
+  const s={a:a,ring:ring,t:0,phase:0,bt:0,bo:0,va:0,gate:false,blink:false,
     warn:warnTime(),life:rand(2.6,4.4)*(age()<30?0.7:1)};
   if(extra)for(const k in extra)s[k]=extra[k];
   return s;
@@ -427,23 +447,37 @@ function spawnSpike(){
   const clear=age()<26?1.5:1.1;
   for(let i=0;i<18;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
-    if(type==='gate'){
+    if(type==='gate'||type==='driftgate'){
       /* blocks the same angle on EVERY ring: hopping will not save you */
       if(angDist(a,G.angle)<1.7)continue;
       let ok=true;
       for(let k=0;k<G.nRings;k++)if(!farFromAll(a,k,1.7,0.5,0.35))ok=false;
       if(!ok)continue;
       const life=rand(1.9,2.9);
-      for(let k=0;k<G.nRings;k++)G.spikes.push(mkSpike(a,k,{gate:true,life:life}));
+      /* Every segment gets the SAME drift, or the bar shears apart — the
+         rung is drawn from ring 0's angle and would stop matching the rest.
+         Kept well under player speed: a sliding wall should crowd the exit,
+         not chase you down. */
+      const va=type==='driftgate'?rand(0.18,0.34)*(Math.random()<0.5?-1:1):0;
+      for(let k=0;k<G.nRings;k++)G.spikes.push(mkSpike(a,k,{gate:true,life:life,va:va}));
       return;
     }
-    if(type==='twin'){
+    if(type==='twin'||type==='blinktwin'){
       const off=rand(0.30,0.40)*(Math.random()<0.5?-1:1);
       if(!farFromAll(a,ring,clear,0.5,0.35))continue;
       if(!farFromAll(a+off,ring,clear,0.5,0.35))continue;
       const life=rand(2.4,3.6);
-      G.spikes.push(mkSpike(a,ring,{life:life}));
-      G.spikes.push(mkSpike(a+off,ring,{life:life}));
+      if(type==='blinktwin'){
+        /* Half a cycle apart, so the pair alternates: there is always exactly
+           one lethal side and one gap. Both are briefly armed at the crossover
+           and never both dormant, which is what stops it being a free pass. */
+        const bl=rand(4.4,6.2);
+        G.spikes.push(mkSpike(a,ring,{blink:true,bo:0,life:bl}));
+        G.spikes.push(mkSpike(a+off,ring,{blink:true,bo:BLINK*0.5,life:bl}));
+      }else{
+        G.spikes.push(mkSpike(a,ring,{life:life}));
+        G.spikes.push(mkSpike(a+off,ring,{life:life}));
+      }
       return;
     }
     if(!farFromAll(a,ring,clear,0.5,0.35))continue;
@@ -668,7 +702,10 @@ function pushTrail(){
   if(G.trail.length>50)G.trail.shift();
 }
 const BLINK=1.15; /* dormant for the back 45% of each cycle */
-function armed(s){return s.blink?((s.bt%BLINK)<BLINK*0.55):true;}
+/* bt restarts at 0 the moment a shard arms, so a pair cannot be staggered by
+   seeding bt — bo shifts where in the cycle it starts instead. */
+function blinkPhase(s){return (s.bt+(s.bo||0))%BLINK;}
+function armed(s){return s.blink?(blinkPhase(s)<BLINK*0.55):true;}
 function updateSpikes(sdt,lethal){
   const er=effRing(),pr=radiusOf(er);
   for(let i=G.spikes.length-1;i>=0;i--){
@@ -1092,7 +1129,7 @@ function draw(){
         blit(SPR.shard,p[0],p[1],1,0,1);
       }else{
         /* dormant blinker: same silhouette, hollow — safe to cross right now */
-        const q=1-(s.bt%BLINK-BLINK*0.55)/(BLINK*0.45);
+        const q=1-(blinkPhase(s)-BLINK*0.55)/(BLINK*0.45);
         drawShardOutline(p[0],p[1],10*u,0.5+0.3*q,true);
       }
     }else{
