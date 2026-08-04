@@ -367,6 +367,12 @@ function shardCap(){
   return d<10?2:d<20?3:d<40?4:d<70?5:d<110?6:d<160?7:d<230?8:d<320?9:10;
 }
 function spawnGap(){return Math.max(0.80,2.1-dl()*0.0035);}
+/* A NEW PLAYER RAMP, not a difficulty change. G.runs persists, so this fades
+   to nothing by the fourth run and someone returning never meets it — the
+   same principle the tutorial hints already use. It buys room to work out
+   that a tap reverses you, which is the whole game on one ring. */
+function rookie(){return Math.max(0,Math.min(1,(4-G.runs)/3));}
+function firstShardAt(){return 4+5*rookie();}
 /* Embers land on a random ring but you can only reach the one you are on,
    so both the cap and the spawn rate scale with ring count. Without this,
    adding a ring silently cuts your scoring rate while raising difficulty. */
@@ -595,6 +601,7 @@ function spawnPow(){
 }
 
 function startGame(){
+  G.runs++;savePref('cometloop:runs',G.runs);
   G.state='playing';G.score=0;G.diff=0;G.newBest=false;G.scorePop=0;G.mile=0;
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
@@ -602,11 +609,12 @@ function startGame(){
   GEST.tap=0;GEST.swipe=0;GEST.lateSwipe=0;GEST.unresolved=0;
   G.angle=-Math.PI/2;G.prevAngle=G.angle;G.sweep=0;G.dir=1;G.speed=1.40;
   G.nRings=1;G.ringI=0;G.hopFromI=0;G.hopP=1;
-  G.shields=1;G.invuln=0;G.slow=0;G.tsCur=1;G.sinceShield=0;G.revPend=0;G.didPhase=false;
+  /* an extra shield while learning: one mistake should not end the lesson */
+  G.shields=G.runs<=3?2:1;
+  G.invuln=0;G.slow=0;G.tsCur=1;G.sinceShield=0;G.revPend=0;G.didPhase=false;
   G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];
   G.stop=0;
   G.starT=0.5;G.spikeT=1.2;G.powT=6;G.started=G.t;G.tier=0;G.banner=null;
-  G.runs++;savePref('cometloop:runs',G.runs);
   beep(440,0.12,'sine',0.05,880);
 }
 function die(){
@@ -1025,7 +1033,7 @@ function update(dt){
   G.starT-=sdt;
   if(G.starT<=0&&G.stars.length<emberCap()){spawnStar();G.starT=emberGap()*rand(0.75,1.4);}
   G.spikeT-=sdt;
-  if(G.spikeT<=0&&age()>=4&&G.spikes.length<shardCap()){
+  if(G.spikeT<=0&&age()>=firstShardAt()&&G.spikes.length<shardCap()){
     spawnSpike();
     G.spikeT=spawnGap()*rand(0.85,1.15);
   }
@@ -1615,9 +1623,14 @@ function drawMute(){
 /* First few runs get one prompt at a time, each clearing itself the
    moment the player does the thing. Veterans never see them. */
 function hintText(){
-  if(G.runs>3||age()>60)return null;
+  if(G.runs>6||age()>60)return null;
   if(!G.didReverse)return 'tap anywhere to reverse';
-  if(!G.didHop)return 'swipe toward the ring you want';
+  /* Only once there is somewhere to hop TO. A run opens on a single ring for
+     its first 30 seconds, so without this the prompt asks a new player to
+     make the one gesture the game will not answer — they swipe, nothing
+     happens, and the controls read as broken at the exact moment they are
+     being learned. */
+  if(!G.didHop&&G.nRings>1)return 'swipe toward the ring you want';
   if(!G.didLap)return 'gather embers, then finish the lap';
   if(!G.didPhase&&G.shields>0)return 'tap the shield to phase through a hit';
   return null;
