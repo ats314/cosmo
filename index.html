@@ -292,42 +292,141 @@ function buildBus(){
    sit low but the harmonics of a sawtooth reach well into the band a phone can
    actually reproduce, so it is present on a speaker without being boomy. */
 let BED=null;
-const BED_HZ=[110,164.81,220,246.94];   /* A2 E3 A3 B3 — open fifth, no third,
-                                           so it never commits to major or minor */
+/* ---------- music ----------
+   Adaptive layering, which is how games do this: ONE fixed tempo and key, with
+   layers entering as the difficulty clock rises. Nothing speeds up or changes
+   key mid-run, so it can never lurch; what changes is how much of the
+   arrangement you are hearing.
+
+   In A minor, deliberately the same key the SFX pentatonic sits in, so nothing
+   the game plays can clash with what the music is doing underneath it.
+   i - VI - III - VII: the progression resolves without ever settling, which is
+   what you want under a run that is trying not to end. */
+const BPM=104,SPB=60/BPM,STEPS=32;      /* 4 bars of 4, counted in eighths */
+const CH=[[110,220,261.63,329.63],      /* Am  */
+          [ 87.31,174.61,220,261.63],   /* F   */
+          [130.81,261.63,329.63,392],   /* C   */
+          [ 98,196,246.94,293.66]];     /* G   */
+/* Pentatonic degrees for the arp and the counter-line, as indices into PENT. */
+const ARP=[0,2,4,2,3,2,4,5],CNT=[7,5,4,5,7,8,7,5];
+let MU=null,NOISE=null;
 function buildBed(){
   if(BED||!AC)return;
   const c=AC,g=c.createGain();g.gain.value=0;
   const lp=c.createBiquadFilter();lp.type='lowpass';
   lp.frequency.value=320;lp.Q.value=0.7;
-  const hp=c.createBiquadFilter();hp.type='highpass';hp.frequency.value=90;
-  const oscs=[];
-  for(let i=0;i<BED_HZ.length;i++){
+  const hp=c.createBiquadFilter();hp.type='highpass';hp.frequency.value=70;
+  /* The pad is four continuously running voices, retuned per chord rather than
+     restarted — restarting sustained oscillators every bar is what makes cheap
+     game music click audibly at the seams. */
+  const oscs=[],gains=[];
+  for(let i=0;i<4;i++){
     for(let k=0;k<2;k++){
       const o=c.createOscillator();
       o.type=i<2?'sawtooth':'triangle';
-      o.frequency.value=BED_HZ[i];
-      o.detune.value=(k?7:-7)+(i*2);   /* unison detune = chorus, not chord drift */
-      const vg=c.createGain();vg.gain.value=(i<2?0.045:0.028)/2;
+      o.frequency.value=CH[0][i];
+      o.detune.value=k?8:-8;            /* unison detune = chorus, not chord drift */
+      const vg=c.createGain();vg.gain.value=(i<2?0.05:0.03)/2;
       o.connect(vg);vg.connect(lp);o.start();
-      oscs.push(o);
+      oscs.push(o);gains.push(vg);
     }
   }
   lp.connect(hp);hp.connect(g);
   g.connect(A.bed);g.connect(A.send);
-  BED={g:g,lp:lp,oscs:oscs};
+  BED={g:g,lp:lp,oscs:oscs,gains:gains};
+  /* one noise buffer, reused by every hat for the life of the page */
+  const n=c.createBuffer(1,c.sampleRate*0.4,c.sampleRate),d=n.getChannelData(0);
+  for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+  NOISE=n;
+  MU={next:0,step:0,chord:-1};
 }
-/* Called from update(). Difficulty opens the filter and lifts the level; the
-   bed drops away on the menu and the death screen so those read as quiet. */
+/* One-shot musical voice. Separate from beep() because music needs a filter
+   and a longer tail, and because it must route through the bed's duck so a
+   nova pushes the score out of the way along with everything else. */
+function note(f,t,dur,type,g,cut,pan){
+  if(!A||!AC)return;
+  try{
+    const o=AC.createOscillator(),v=AC.createGain(),lp=AC.createBiquadFilter();
+    o.type=type;o.frequency.setValueAtTime(f,t);
+    lp.type='lowpass';lp.frequency.setValueAtTime(cut||3000,t);
+    lp.frequency.exponentialRampToValueAtTime(Math.max(180,(cut||3000)*0.35),t+dur);
+    v.gain.setValueAtTime(0.0001,t);
+    v.gain.exponentialRampToValueAtTime(g,t+0.012);
+    v.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(lp);lp.connect(v);
+    let tail=v;
+    if(pan&&AC.createStereoPanner){const sp=AC.createStereoPanner();sp.pan.value=pan;v.connect(sp);tail=sp;}
+    tail.connect(A.bed);
+    const sg=AC.createGain();sg.gain.value=0.5;tail.connect(sg);sg.connect(A.send);
+    o.start(t);o.stop(t+dur+0.02);
+  }catch(e){}
+}
+function hat(t,g){
+  if(!A||!AC||!NOISE)return;
+  try{
+    const s=AC.createBufferSource(),v=AC.createGain(),hp=AC.createBiquadFilter();
+    s.buffer=NOISE;s.loop=true;
+    hp.type='highpass';hp.frequency.value=7200;
+    v.gain.setValueAtTime(0.0001,t);
+    v.gain.exponentialRampToValueAtTime(g,t+0.004);
+    v.gain.exponentialRampToValueAtTime(0.0001,t+0.055);
+    s.connect(hp);hp.connect(v);v.connect(A.bed);
+    s.start(t);s.stop(t+0.08);
+  }catch(e){}
+}
+/* Which layers are audible right now. Intensity is the difficulty clock, so
+   the arrangement thickens as the run gets harder and a long run genuinely
+   sounds different from its opening — which is also the only channel telling
+   you that speed has climbed from 1.4 to 4.2 rad/s. */
+function musicStep(i,t,k){
+  const bar=(i/8)|0,ch=CH[bar%4],beat=i%8;
+  if(beat===0||beat===6)note(ch[0],t,beat===0?0.42:0.22,'triangle',0.075,900);
+  /* Quarters while it is still calm, every eighth once the run is genuinely
+     fast — the arrangement gains drive exactly where the game does. */
+  if(k>0.18&&(beat%2===0||k>0.62)){
+    const d=ARP[(i+bar)%ARP.length];
+    note(PENT[d],t,k>0.62?0.15:0.20,'square',0.018+0.013*k,1400+2200*k,
+      (beat%4===0?-0.3:0.3));
+  }
+  if(k>0.45&&(beat===2||beat===6))hat(t,0.020+0.012*k);
+  if(k>0.45&&beat===4)hat(t,0.012);
+  if(k>0.72&&beat===3&&(bar%2===1)){
+    note(PENT[CNT[i%CNT.length]],t,0.55,'triangle',0.026,3200,0.15);
+  }
+  if(MU.chord!==bar%4){                 /* retune the pad, never restart it */
+    MU.chord=bar%4;
+    for(let v=0;v<4;v++)for(let u2=0;u2<2;u2++)
+      BED.oscs[v*2+u2].frequency.setTargetAtTime(CH[bar%4][v],t,0.09);
+  }
+}
+/* Lookahead scheduling on the AUDIO clock. The frame clock stalls whenever the
+   tab is backgrounded and drifts constantly; scheduling notes from it is what
+   makes browser game music stagger. */
+function musicTick(){
+  if(!A||!AC||!MU||!BED||muted||AC.state!=='running')return;
+  if(G.state!=='playing'){MU.next=0;return;}
+  const now=AC.currentTime;
+  /* Coming back from a background: never flush the backlog as one chord. */
+  if(!MU.next||MU.next<now-0.4){MU.next=now+0.06;MU.step=0;MU.chord=-1;}
+  const k=Math.min(1,dl()/340);
+  let guard=0;
+  while(MU.next<now+0.16&&guard++<16){
+    musicStep(MU.step,MU.next,k);
+    MU.step=(MU.step+1)%STEPS;
+    MU.next+=SPB/2;
+  }
+}
 function bedTick(dt){
   if(!BED||!AC)return;
   const t=AC.currentTime;
   const playing=G.state==='playing';
   const k=playing?Math.min(1,dl()/380):0;
-  const lvl=muted?0:(playing?0.16+0.30*k:(G.state==='menu'?0.07:0.02));
+  const lvl=muted?0:(playing?0.13+0.22*k:(G.state==='menu'?0.06:0.02));
   BED.g.gain.setTargetAtTime(lvl,t,playing?0.9:0.5);
   /* floor at 400: below that a phone speaker reproduces none of it, and the
      opening minutes would be silent on the device this actually ships to */
   BED.lp.frequency.setTargetAtTime(400+1500*k*k,t,1.4);
+  musicTick();
 }
 /* Big moments push the bed and the reverb tail out of the way, then let them
    back. Without this the bed fights the one sound you actually need to hear. */
