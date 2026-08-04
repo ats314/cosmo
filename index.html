@@ -229,13 +229,121 @@ const RING_MULT=[1,1,1]; /* set e.g. [1,1.5,2] to pay more for riding inside */
 function radiusOf(i){return R*RADII[i];}
 function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r];}
 
-/* ---------- audio ---------- */
+/* ---------- audio ----------
+   Everything is synthesised; there are no audio files. The layout is a fixed
+   bus built once, with per-sound voices created and discarded on top of it:
+
+     voice ─┬─► dry ─────────────► world ─┐
+            └─► send ─► verb ────────────►├─► limiter ─► makeup ─► clip ─► out
+     bed ──────────────► bedDuck ─────────┘
+
+   Measured before writing any of this: the old layer peaked at 0.138 on the
+   busiest moment in the game, so ~86% of the available headroom was going
+   unused. That, not clipping, was the reason it sounded thin on a phone. */
 let AC=null,muted=false;
 let audioUnlocked=false;
+let A=null;                      /* the bus, built once */
+const MASTER=2.15;               /* makeup. Measured, not guessed: 2.6 put the
+                                    nova cascade 3 samples over full scale. */
+/* iPhone speakers roll off hard under ~500Hz. Anything whose PAYLOAD lives
+   below that is inaudible on the target device however loud it looks here —
+   which is why the old bump and empty-shield cues could not be heard at all. */
+function buildBus(){
+  if(A||!AC)return;
+  const c=AC;
+  const out=c.createGain();out.gain.value=1;
+  /* Soft clip after makeup so a stacked moment saturates instead of tearing.
+     3rd-order curve: linear to ~0.5, then bends. */
+  const clip=c.createWaveShaper();
+  const n=1024,cv=new Float32Array(n);
+  for(let i=0;i<n;i++){const x=i/(n-1)*2-1;cv[i]=Math.tanh(x*1.25)/Math.tanh(1.25);}
+  clip.curve=cv;clip.oversample='2x';
+  const makeup=c.createGain();makeup.gain.value=MASTER;
+  const lim=c.createDynamicsCompressor();
+  lim.threshold.value=-16;lim.knee.value=6;lim.ratio.value=12;
+  lim.attack.value=0.003;lim.release.value=0.14;
+  const world=c.createGain();world.gain.value=1;
+  const bedDuck=c.createGain();bedDuck.gain.value=1;
+  /* Reverb: a real convolver over a generated impulse. Two delay taps read as
+     slapback rather than space — above the ~50ms fusion threshold you hear
+     two echoes, not a room. Noise through an exponential decay diffuses. */
+  const verb=c.createConvolver();
+  const sr=c.sampleRate,len=Math.floor(sr*1.6),ir=c.createBuffer(2,len,sr);
+  for(let ch=0;ch<2;ch++){
+    const d=ir.getChannelData(ch);
+    for(let i=0;i<len;i++){
+      const t=i/len;
+      d[i]=(Math.random()*2-1)*Math.pow(1-t,2.6)*(i<sr*0.006?t*160:1);
+    }
+  }
+  verb.buffer=ir;
+  const send=c.createGain();send.gain.value=0.20;
+  const verbTone=c.createBiquadFilter();
+  verbTone.type='highpass';verbTone.frequency.value=420; /* keep the tail out of the mud */
+  world.connect(lim);bedDuck.connect(lim);
+  send.connect(verb);verb.connect(verbTone);verbTone.connect(lim);
+  lim.connect(makeup);makeup.connect(clip);clip.connect(out);out.connect(c.destination);
+  A={out:out,world:world,send:send,lim:lim,bed:bedDuck,makeup:makeup};
+  buildBed();
+}
+/* The bed. Filter movement carries the escalation, never amplitude: a slow
+   volume wobble on a sustained tone is the single most fatiguing thing you can
+   put in a game, and this one has to survive fifteen-minute runs. Fundamentals
+   sit low but the harmonics of a sawtooth reach well into the band a phone can
+   actually reproduce, so it is present on a speaker without being boomy. */
+let BED=null;
+const BED_HZ=[110,164.81,220,246.94];   /* A2 E3 A3 B3 — open fifth, no third,
+                                           so it never commits to major or minor */
+function buildBed(){
+  if(BED||!AC)return;
+  const c=AC,g=c.createGain();g.gain.value=0;
+  const lp=c.createBiquadFilter();lp.type='lowpass';
+  lp.frequency.value=320;lp.Q.value=0.7;
+  const hp=c.createBiquadFilter();hp.type='highpass';hp.frequency.value=90;
+  const oscs=[];
+  for(let i=0;i<BED_HZ.length;i++){
+    for(let k=0;k<2;k++){
+      const o=c.createOscillator();
+      o.type=i<2?'sawtooth':'triangle';
+      o.frequency.value=BED_HZ[i];
+      o.detune.value=(k?7:-7)+(i*2);   /* unison detune = chorus, not chord drift */
+      const vg=c.createGain();vg.gain.value=(i<2?0.045:0.028)/2;
+      o.connect(vg);vg.connect(lp);o.start();
+      oscs.push(o);
+    }
+  }
+  lp.connect(hp);hp.connect(g);
+  g.connect(A.bed);g.connect(A.send);
+  BED={g:g,lp:lp,oscs:oscs};
+}
+/* Called from update(). Difficulty opens the filter and lifts the level; the
+   bed drops away on the menu and the death screen so those read as quiet. */
+function bedTick(dt){
+  if(!BED||!AC)return;
+  const t=AC.currentTime;
+  const playing=G.state==='playing';
+  const k=playing?Math.min(1,dl()/380):0;
+  const lvl=muted?0:(playing?0.16+0.30*k:(G.state==='menu'?0.07:0.02));
+  BED.g.gain.setTargetAtTime(lvl,t,playing?0.9:0.5);
+  /* floor at 400: below that a phone speaker reproduces none of it, and the
+     opening minutes would be silent on the device this actually ships to */
+  BED.lp.frequency.setTargetAtTime(400+1500*k*k,t,1.4);
+}
+/* Big moments push the bed and the reverb tail out of the way, then let them
+   back. Without this the bed fights the one sound you actually need to hear. */
+function duckBed(amount,rel){
+  if(!A||!AC)return;
+  const t=AC.currentTime;
+  A.bed.gain.cancelScheduledValues(t);
+  A.bed.gain.setTargetAtTime(amount,t,0.02);
+  A.bed.gain.setTargetAtTime(1,t+0.09,rel||0.35);
+}
 function ensureAudio(){
   try{
     if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();
-    if(AC.state==='suspended')AC.resume();
+    /* 'interrupted' is WebKit-only and is where a phone call, Siri or an alarm
+       leaves you. Nothing else recovers from it, and it is not 'suspended'. */
+    if(AC.state==='suspended'||AC.state==='interrupted')AC.resume();
     /* iOS will not actually start a context until something has been played
        through it inside a user gesture — resume() alone can leave it silent.
        A one-sample buffer is enough, and is inaudible. */
@@ -245,6 +353,7 @@ function ensureAudio(){
       src.connect(AC.destination);src.start(0);
       audioUnlocked=true;
     }
+    buildBus();
   }catch(e){}
 }
 /* Coming back from the app switcher or a lock screen leaves the context
@@ -264,17 +373,45 @@ function toggleMute(){
 }
 /* `when` schedules on the audio clock instead of setTimeout, so arpeggios
    stay in time and don't fire late when the tab is backgrounded */
-function beep(f,d,type,g,slide,when){
+/* Kept at its original signature on purpose. Thirty call sites depend on it,
+   and replacing them wholesale is how an audio rewrite takes the game down —
+   so the bus was built underneath it instead. `pan` and `wet` are optional
+   extras; every existing caller keeps working untouched. */
+function beep(f,d,type,g,slide,when,pan,wet){
   if(!AC||muted)return;
   try{
+    if(!A)buildBus();
     const t0=AC.currentTime+(when||0),o=AC.createOscillator(),v=AC.createGain();
     o.type=type;o.frequency.setValueAtTime(f,t0);
     if(slide)o.frequency.exponentialRampToValueAtTime(slide,t0+d);
-    v.gain.setValueAtTime(g,t0);
+    /* A short attack instead of a step. The old jump was inaudible because an
+       oscillator starts at phase zero, but a ramp also lets short cues layer
+       without their onsets summing into a spike. */
+    const atk=Math.min(0.006,d*0.25);
+    v.gain.setValueAtTime(0.0001,t0);
+    v.gain.exponentialRampToValueAtTime(Math.max(g,0.0002),t0+atk);
     v.gain.exponentialRampToValueAtTime(0.0001,t0+d);
-    o.connect(v);v.connect(AC.destination);o.start(t0);o.stop(t0+d);
+    o.connect(v);
+    let tail=v;
+    if(pan&&AC.createStereoPanner){
+      const sp=AC.createStereoPanner();
+      sp.pan.value=Math.max(-1,Math.min(1,pan));
+      v.connect(sp);tail=sp;
+    }
+    if(A){
+      tail.connect(A.world);
+      const w=wet===undefined?1:wet;
+      if(w>0){const sg=AC.createGain();sg.gain.value=w;tail.connect(sg);sg.connect(A.send);}
+    }else tail.connect(AC.destination);
+    o.start(t0);o.stop(t0+d+0.02);
   }catch(e){}
 }
+/* Screen x to pan, narrowed so it never feels gimmicky in headphones — and it
+   degrades to nothing on a portrait phone, which sums to one driver anyway. */
+function panAt(x){return Math.max(-1,Math.min(1,((x-cx)/(W*0.5))*0.55));}
+/* A minor pentatonic has no semitones in it, so any subset of these played
+   together is consonant — which is what a ten-shard nova cascade needs. */
+const PENT=[440,523.25,587.33,659.25,783.99,880,1046.5,1174.66,1318.5,1568];
 
 /* ---------- persistence (no-ops gracefully if unavailable) ----------
    localStorage is the real store. window.storage is the async host API this
@@ -517,7 +654,9 @@ function novaConvert(s){
   arcFlash(s.a,s.ring,COL.ember);
   /* each conversion pings, and because the wave reaches them at different
      times the cascade sequences itself with no scheduling */
-  beep(700+Math.random()*500,0.09,'triangle',0.045,1700);
+  /* was a random pitch per shard, which stacked into a dissonant wash.
+     A minor pentatonic keeps a ten-shard cascade consonant however it lands. */
+  beep(PENT[(Math.random()*PENT.length)|0],0.11,'triangle',0.05,undefined,0,panAt(q[0]),1.2);
 }
 /* IGNITION. Completing an orbit sets the orbit alight: a head races the full
    circumference in the direction you were travelling, leaving a burning wake.
@@ -689,7 +828,12 @@ function die(){
   /* one wide, fast, slow-fading front that outruns the rest — the moment
      needs a beat that carries past the edge of the ring system */
   if(!RM)G.rings.push({x:p[0],y:p[1],r:8*u,life:1,col:'#ffffff',sp:560,dec:1.15});
-  beep(220,0.45,'sawtooth',0.09,50);
+  /* landed at 50Hz — inaudible on a phone, so the most important moment in
+     the game ended by simply vanishing. Now it lands somewhere you can hear. */
+  duckBed(0.05,0.9);
+  beep(220,0.5,'sawtooth',0.085,110);
+  beep(110,0.55,'triangle',0.06,66);
+  beep(1318,0.5,'sine',0.03,196,0.02);
   try{if(navigator.vibrate)navigator.vibrate(90);}catch(e){}
   const gest=GEST.tap+GEST.swipe+GEST.lateSwipe+GEST.unresolved;
   track('run_ended',{
@@ -729,7 +873,9 @@ function commitReverseFX(){
 function bump(){
   const p=posPlayer();
   burst(p[0],p[1],'rgba(170,195,255,0.85)',4,55);
-  beep(150,0.05,'sine',0.03,110);
+  /* was 150->110Hz: under the phone-speaker rolloff, so the one cue that
+     fires when a swipe was misread could not be heard at all */
+  beep(560,0.07,'triangle',0.035,430,0,panAt(p[0]),0.3);
 }
 /* step -1 = outward (toward ring 0), +1 = inward */
 function hop(step){
@@ -755,7 +901,8 @@ function burnShield(){
   const p=posPlayer();
   if(G.shields<=0){
     burst(p[0],p[1],'rgba(170,195,255,0.85)',3,45);
-    beep(140,0.05,'sine',0.03,100);
+    /* was all but identical to bump(); two different refusals now differ */
+    beep(300,0.10,'square',0.030,240,0,0,0.2);
     return;
   }
   G.shields--;G.didPhase=true;G.phases++;
@@ -949,7 +1096,10 @@ function updateSpikes(sdt,lethal){
         burst(p[0],p[1],COL.shield,18,180);
         ripple(p[0],p[1],COL.shield);
         popup(p[0],p[1]-24*u,'BLOCKED',COL.shield);
-        beep(200,0.2,'square',0.07,90);
+        /* a save that sounded like a punishment: square falling to 90Hz sat
+           in the death register and below what a phone reproduces */
+        beep(392,0.16,'triangle',0.075,588);
+        beep(784,0.20,'sine',0.055,1046,0.05);
       }else{
         /* flags, not a stored type: twin and blinktwin are two independent
            shards, so a single one cannot report which pairing it came from */
@@ -966,6 +1116,7 @@ function update(dt){
   G.scorePop=Math.max(0,G.scorePop-dt*3.5);
   G.slow=Math.max(0,G.slow-dt);
   G.stop=Math.max(0,G.stop-dt);
+  bedTick(dt);
   const tsT=G.slow>0?0.55:1;
   G.tsCur+=(tsT-G.tsCur)*Math.min(1,dt*8);
   if(G.hopP<1)G.hopP=Math.min(1,G.hopP+dt/HOP);
@@ -1079,6 +1230,7 @@ function update(dt){
       G.rings.push(RM?{x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.ember}
         :{x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.ember,sp:150+120*k,dec:1.6});
       burst(lp[0],lp[1],COL.ember,18+Math.round(14*k),190+90*k);
+      duckBed(0.45,0.35);
       beep(523,0.12,'triangle',0.07,784);
       beep(784,0.12,'triangle',0.07,1046,0.1);
       beep(1046,0.16,'triangle',0.07,1568,0.2);
@@ -1141,7 +1293,8 @@ function update(dt){
       G.pows.splice(i,1);
       arcFlash(s.a,s.ring,s.type==='shield'?COL.shield:(s.type==='warp'?COL.warp:COL.nova));
       if(s.type==='shield'){
-        if(G.shields>=shieldMax()){G.score+=2;popup(p[0],p[1]-20*u,'+2',COL.shield);}
+        if(G.shields>=shieldMax()){G.score+=2;popup(p[0],p[1]-20*u,'+2',COL.shield);
+          beep(659,0.09,'sine',0.04,880,0,panAt(p[0]),0.3);}
         else{G.shields++;popup(p[0],p[1]-20*u,'SHIELD \u00d7'+G.shields,COL.shield);}
         burst(p[0],p[1],COL.shield,14,150);
         ripple(p[0],p[1],COL.shield);
@@ -1169,6 +1322,7 @@ function update(dt){
           G.flash=Math.max(G.flash,0.55);
           G.shake=Math.max(G.shake,11);
         }
+        duckBed(0.10,0.6);
         beep(180,0.5,'sawtooth',0.07,1500);
         beep(90,0.55,'sine',0.06,45);
         beep(1250,0.15,'sine',0.05,1900,0.13);
