@@ -428,7 +428,8 @@ const G={
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didPhase:false,
-  stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],
+  stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],
+  stop:0, /* hitstop: freezes the comet while the celebration plays */
   starT:0.6,spikeT:1.2,powT:6,shake:0,flash:0,tier:0,banner:null,
   runs:0,didReverse:false,didHop:false,didLap:false
 };
@@ -464,7 +465,16 @@ function ripple(x,y,col){G.rings.push({x,y,r:10*u,life:1,col:col||COL.comet});}
    stamped across the orbit. This is the most repeated moment in the game, so
    it is the one most worth making feel like part of the world. */
 function arcFlash(a,ring,col){G.arcs.push({a:a,ring:ring,life:1,col:col});}
-function popup(x,y,str,col){G.pops.push({x,y,str,col,life:1});}
+function popup(x,y,str,col,sz){G.pops.push({x,y,str,col,life:1,sz:sz||1});}
+/* IGNITION. Completing an orbit sets the orbit alight: a head races the full
+   circumference in the direction you were travelling, leaving a burning wake.
+   It is the one effect that describes what you actually did — the reward is
+   the lap itself, drawn. Scale comes from the streak, so the celebration
+   grows as the thing being celebrated gets harder. */
+function ignite(ring,a,dir,streak){
+  G.laps.push({ring:ring,a:a,dir:dir,life:1,streak:streak,
+    mag:Math.min(1.6,0.7+0.22*Math.max(0,streak-1))});
+}
 function checkMile(){
   if(Math.floor(G.score/50)>G.mile){
     G.mile=Math.floor(G.score/50);
@@ -593,7 +603,8 @@ function startGame(){
   G.angle=-Math.PI/2;G.prevAngle=G.angle;G.sweep=0;G.dir=1;G.speed=1.40;
   G.nRings=1;G.ringI=0;G.hopFromI=0;G.hopP=1;
   G.shields=1;G.invuln=0;G.slow=0;G.tsCur=1;G.sinceShield=0;G.revPend=0;G.didPhase=false;
-  G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];
+  G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];
+  G.stop=0;
   G.starT=0.5;G.spikeT=1.2;G.powT=6;G.started=G.t;G.tier=0;G.banner=null;
   G.runs++;savePref('cometloop:runs',G.runs);
   beep(440,0.12,'sine',0.05,880);
@@ -893,6 +904,7 @@ function update(dt){
   G.flash=Math.max(0,G.flash-dt*1.6);
   G.scorePop=Math.max(0,G.scorePop-dt*3.5);
   G.slow=Math.max(0,G.slow-dt);
+  G.stop=Math.max(0,G.stop-dt);
   const tsT=G.slow>0?0.55:1;
   G.tsCur+=(tsT-G.tsCur)*Math.min(1,dt*8);
   if(G.hopP<1)G.hopP=Math.min(1,G.hopP+dt/HOP);
@@ -913,6 +925,10 @@ function update(dt){
     const a=G.arcs[i];a.life-=2.6*dt;
     if(a.life<=0)G.arcs.splice(i,1);
   }
+  for(let i=G.laps.length-1;i>=0;i--){
+    const L=G.laps[i];L.life-=1.35*dt;
+    if(L.life<=0)G.laps.splice(i,1);
+  }
   for(let i=G.pops.length-1;i>=0;i--){
     const p=G.pops[i];p.y-=34*u*dt;p.life-=1.1*dt;
     if(p.life<=0)G.pops.splice(i,1);
@@ -926,7 +942,9 @@ function update(dt){
   if(G.state==='dead'){G.sweep=0;updateSpikes(dt,false);return;}
 
   /* playing */
-  const sdt=dt*G.tsCur;
+  /* Effects run on dt, gameplay on sdt — so during hitstop the comet holds
+     still while the ignition keeps playing. That contrast is the impact. */
+  const sdt=dt*G.tsCur*(G.stop>0?0.10:1);
   /* a slow floor ramp so the game can never be stalled by refusing to score */
   G.speed=speedAt();
   /* announce each new mechanic so it registers as something to learn */
@@ -971,15 +989,31 @@ function update(dt){
     G.diff+=1;
     const lp=posPlayer();
     const label=(G.lapStreak>1?'ORBIT \u00d7'+G.lapStreak+' +':'ORBIT +')+bonus;
-    popup(lp[0],lp[1]-26*u,label,fed?COL.ember:'rgba(200,215,255,0.7)');
     if(fed){
+      const st=G.lapStreak;
+      /* everything below scales with the streak, so the payoff grows with
+         the difficulty of having earned it */
+      const k=Math.min(1,(st-1)/4);
+      popup(lp[0],lp[1]-28*u,label,COL.ember,1+0.45*k);
+      ignite(G.ringI,G.angle,G.dir,st);
       ripple(lp[0],lp[1],COL.ember);
-      G.rings.push({x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.ember});
-      burst(lp[0],lp[1],COL.ember,18,190);
+      /* a wide slow front off the ring itself, not just off the comet */
+      G.rings.push(RM?{x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.ember}
+        :{x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.ember,sp:150+120*k,dec:1.6});
+      burst(lp[0],lp[1],COL.ember,18+Math.round(14*k),190+90*k);
       beep(523,0.12,'triangle',0.07,784);
       beep(784,0.12,'triangle',0.07,1046,0.1);
       beep(1046,0.16,'triangle',0.07,1568,0.2);
+      if(st>=3){
+        /* Earned tier: the comet stops dead for a beat while the ring burns
+           round. Short enough not to break the rhythm of a 2.5s orbit. */
+        if(!RM)G.stop=Math.max(G.stop,0.075);
+        if(!RM)G.flash=Math.max(G.flash,0.16+0.10*k);
+        beep(1568,0.18,'triangle',0.05,2093,0.3);
+        try{if(navigator.vibrate)navigator.vibrate(18);}catch(e){}
+      }
     }else{
+      popup(lp[0],lp[1]-26*u,label,'rgba(200,215,255,0.7)');
       beep(392,0.1,'triangle',0.04,440);
     }
     G.lapEmbers=0;G.didLap=true;
@@ -1384,8 +1418,34 @@ function draw(){
       blit(SPR.shard,p[0],p[1],1-k*0.4,0,1-k);
     }
   }
-  /* ring-aligned pickup flashes, opening outward along the orbit */
+  /* ORBIT IGNITION: a head runs the full circumference in the direction you
+     were travelling, with the wake burning behind it. Drawn as a body arc
+     plus a short bright leading segment, so the eye tracks the head rather
+     than a ring that merely brightens. */
   ctx.globalCompositeOperation='lighter';
+  for(const L of G.laps){
+    const t=1-Math.max(L.life,0);
+    const sweep=RM?TAU:Math.min(1,t/0.62)*TAU;
+    /* Offset outside the ring. On the ring it lands under the comet's own
+       tail and reads as more trail; sitting just proud of it, gold against
+       the tail's cyan, it reads as the orbit itself catching light. */
+    const rr=radiusOf(L.ring)+9*u,lf=Math.max(L.life,0);
+    const a0=L.dir>0?L.a:L.a-sweep, a1=L.dir>0?L.a+sweep:L.a;
+    ctx.strokeStyle=COL.ember;
+    ctx.globalAlpha=lf*0.30*L.mag;
+    ctx.lineWidth=(3+9*lf)*u*L.mag;
+    ctx.beginPath();ctx.arc(cx,cy,rr,a0,a1);ctx.stroke();
+    ctx.globalAlpha=lf*0.62*L.mag;
+    ctx.lineWidth=(1.4+3*lf)*u*L.mag;
+    ctx.beginPath();ctx.arc(cx,cy,rr,a0,a1);ctx.stroke();
+    if(sweep<TAU){
+      const head=L.dir>0?a1:a0,w=0.22;
+      ctx.strokeStyle='#fffdf2';
+      ctx.globalAlpha=Math.min(1,lf*1.3)*L.mag;
+      ctx.lineWidth=(3.5+5*lf)*u*L.mag;
+      ctx.beginPath();ctx.arc(cx,cy,rr,head-w*(L.dir>0?1:0),head+w*(L.dir>0?0:1));ctx.stroke();
+    }
+  }
   for(const a of G.arcs){
     const lf=Math.max(a.life,0),half=0.09+0.5*(1-lf);
     ctx.globalAlpha=lf*lf*0.75;
@@ -1450,7 +1510,7 @@ function draw(){
   ctx.textAlign='center';
   for(const p of G.pops){
     ctx.globalAlpha=Math.max(p.life,0);
-    text(p.str,p.x,p.y,14*u,'800',p.col,1);
+    text(p.str,p.x,p.y,14*u*(p.sz||1),'800',p.col,1);
   }
   ctx.globalAlpha=1;
   ctx.restore();
