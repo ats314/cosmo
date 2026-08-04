@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Comet Loop</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#060913}
+  canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-action:none;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  #safe{position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;
+    padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="safe"></div>
+<script>
+'use strict';
+/* ============ COMET LOOP v3 ============
+   Tap = reverse · Swipe = hop rings
+   Orbits pay out based on embers gathered during them,
+   so the two systems feed each other instead of competing.
+   Void #060913 / Nebula #101a33 / Comet #5df0ff /
+   Ember #ffc857 / Shard #ff5d73 / Shield #7bffc8 / Warp #b48bff
+======================================== */
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const safeEl=document.getElementById('safe');
+const TAU=Math.PI*2;
+const rand=(a,b)=>a+Math.random()*(b-a);
+const RM=(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)||false;
+const COL={comet:'#5df0ff',ember:'#ffc857',shard:'#ff5d73',shield:'#7bffc8',warp:'#b48bff',nova:'#ffffff'};
+const LAP_EMB_MAX=4; /* embers per orbit that still raise the payout */
+
+let W=0,H=0,DPR=1,cx=0,cy=0,R=0,u=1,safeTop=0,safeBot=0;
+let bgStars=[];
+const nebulas=[
+  {x:0.22,y:0.25,r:0.55,c:'96,80,200',ph:0},
+  {x:0.80,y:0.70,r:0.60,c:'40,140,180',ph:2.1},
+  {x:0.65,y:0.15,r:0.45,c:'170,70,140',ph:4.0}
+];
+
+/* ---------- sprite cache (shadowBlur is done once, not every frame) ---------- */
+const SPR={};
+let sprU=-1,sprDPR=-1,sprW=-1,sprH=-1;
+function makeCanvas(w,h,fn){
+  const c=document.createElement('canvas');
+  c.width=Math.max(1,Math.ceil(w*DPR));c.height=Math.max(1,Math.ceil(h*DPR));
+  const g=c.getContext('2d');
+  g.setTransform(DPR,0,0,DPR,0,0);
+  fn(g,w,h);
+  return {c:c,w:w,h:h};
+}
+/* Star positions are generated once in normalised space and re-baked at each
+   size, so resizing never reshuffles the sky. */
+let starField=[];
+function buildStarField(){
+  if(starField.length)return;
+  const tiers=[
+    {n:104,r:[0.4,0.9],a:[0.14,0.30],c:'138,164,214',halo:false},
+    {n:54, r:[0.9,1.5],a:[0.24,0.44],c:'202,224,255',halo:false},
+    {n:15, r:[1.4,2.2],a:[0.48,0.72],c:'255,255,255',halo:true}
+  ];
+  for(const t of tiers)for(let i=0;i<t.n;i++)
+    starField.push({x:Math.random(),y:Math.random(),r:rand(t.r[0],t.r[1]),
+      a:rand(t.a[0],t.a[1]),c:t.c,halo:t.halo});
+}
+function makeSprite(half,fn){
+  const s=Math.ceil(half*2);
+  const c=document.createElement('canvas');
+  c.width=Math.ceil(s*DPR);c.height=Math.ceil(s*DPR);
+  const g=c.getContext('2d');
+  g.setTransform(DPR,0,0,DPR,0,0);
+  g.translate(s/2,s/2);
+  fn(g);
+  return {c:c,s:s};
+}
+function blit(sp,x,y,scale,rot,alpha){
+  if(!sp)return;
+  ctx.save();
+  ctx.globalAlpha=alpha;
+  ctx.translate(x,y);
+  if(rot)ctx.rotate(rot);
+  const d=sp.s*scale;
+  ctx.drawImage(sp.c,-d/2,-d/2,d,d);
+  ctx.restore();
+}
+function buildSprites(){
+  buildStarField();
+  /* Backdrop is baked once instead of building four radial gradients a frame.
+     The outer stops double as a vignette, pulling the eye to the rings. */
+  SPR.bg=makeCanvas(W,H,function(g){
+    const gr=g.createRadialGradient(cx,cy*0.92,0,cx,cy,Math.max(W,H)*0.85);
+    gr.addColorStop(0,'#17243f');
+    gr.addColorStop(0.38,'#0e1730');
+    gr.addColorStop(0.74,'#080d1c');
+    gr.addColorStop(1,'#04060e');
+    g.fillStyle=gr;g.fillRect(0,0,W,H);
+  });
+  SPR.neb=nebulas.map(function(n){
+    const sz=280;
+    return makeCanvas(sz,sz,function(g){
+      const gr=g.createRadialGradient(sz/2,sz/2,0,sz/2,sz/2,sz/2);
+      gr.addColorStop(0,'rgba('+n.c+',0.15)');
+      gr.addColorStop(0.45,'rgba('+n.c+',0.06)');
+      gr.addColorStop(1,'rgba('+n.c+',0)');
+      g.fillStyle=gr;g.fillRect(0,0,sz,sz);
+    });
+  });
+  /* Oversized so the field can drift without exposing an edge. */
+  SPR.stars=makeCanvas(W+56,H+56,function(g,w,h){
+    for(const st of starField){
+      const x=st.x*w,y=st.y*h;
+      if(st.halo){
+        const gr=g.createRadialGradient(x,y,0,x,y,st.r*5);
+        gr.addColorStop(0,'rgba('+st.c+',0.18)');
+        gr.addColorStop(1,'rgba('+st.c+',0)');
+        g.fillStyle=gr;g.beginPath();g.arc(x,y,st.r*5,0,TAU);g.fill();
+      }
+      g.fillStyle='rgba('+st.c+','+st.a.toFixed(3)+')';
+      g.beginPath();g.arc(x,y,st.r,0,TAU);g.fill();
+    }
+  });
+  SPR.ember=makeSprite(9*u+24,function(g){
+    const hr=22*u;
+    const gr=g.createRadialGradient(0,0,0,0,0,hr);
+    gr.addColorStop(0,'rgba(255,200,87,0.36)');
+    gr.addColorStop(0.35,'rgba(255,170,60,0.13)');
+    gr.addColorStop(1,'rgba(255,150,40,0)');
+    g.fillStyle=gr;g.beginPath();g.arc(0,0,hr,0,TAU);g.fill();
+    g.fillStyle=COL.ember;
+    g.beginPath();
+    for(let i=0;i<8;i++){
+      const rr=(i%2===0)?9*u:9*u*0.34,a=i*Math.PI/4;
+      const X=Math.cos(a)*rr,Y=Math.sin(a)*rr;
+      if(i===0)g.moveTo(X,Y);else g.lineTo(X,Y);
+    }
+    g.closePath();g.fill();
+    g.fillStyle='rgba(255,247,224,0.92)';
+    g.beginPath();g.arc(0,0,2.6*u,0,TAU);g.fill();
+  });
+  /* Shards get a lit facet and a rim so they read as solid crystal against
+     all the glow — threats should feel heavier than collectibles. */
+  SPR.shard=makeSprite(11*u+26,function(g){
+    const R0=11*u,hr=R0*2.3;
+    const gr=g.createRadialGradient(0,0,0,0,0,hr);
+    gr.addColorStop(0,'rgba(255,93,115,0.45)');
+    gr.addColorStop(0.42,'rgba(255,93,115,0.16)');
+    gr.addColorStop(1,'rgba(255,93,115,0)');
+    g.fillStyle=gr;g.beginPath();g.arc(0,0,hr,0,TAU);g.fill();
+    g.rotate(Math.PI/4);
+    const q=R0*0.7;
+    const lg=g.createLinearGradient(-q,-q,q,q);
+    lg.addColorStop(0,'#ff9dab');
+    lg.addColorStop(0.48,'#ff5d73');
+    lg.addColorStop(1,'#c53a52');
+    g.fillStyle=lg;g.fillRect(-q,-q,q*2,q*2);
+    g.strokeStyle='rgba(255,198,208,0.7)';g.lineWidth=1.2;
+    g.strokeRect(-q,-q,q*2,q*2);
+    g.strokeStyle='rgba(255,255,255,0.20)';g.lineWidth=1;
+    g.beginPath();g.moveTo(-q,q);g.lineTo(q,-q);g.stroke();
+  });
+  /* Bloom is drawn additively, the core is not — otherwise the head
+     saturates to a white smear and stops reading as a cyan point. */
+  SPR.cometGlow=makeSprite(9*u+34,function(g){
+    const hr=32*u;
+    const gr=g.createRadialGradient(0,0,0,0,0,hr);
+    gr.addColorStop(0,'rgba(110,238,255,0.50)');
+    gr.addColorStop(0.22,'rgba(93,240,255,0.22)');
+    gr.addColorStop(0.55,'rgba(70,190,255,0.07)');
+    gr.addColorStop(1,'rgba(60,160,255,0)');
+    g.fillStyle=gr;g.beginPath();g.arc(0,0,hr,0,TAU);g.fill();
+  });
+  SPR.comet=makeSprite(9*u+6,function(g){
+    g.fillStyle='rgba(52,196,224,0.9)';
+    g.beginPath();g.arc(0,0,8.6*u,0,TAU);g.fill();
+    g.fillStyle=COL.comet;
+    g.beginPath();g.arc(0,0,6.6*u,0,TAU);g.fill();
+    g.fillStyle='#eafdff';
+    g.beginPath();g.arc(0,0,3.4*u,0,TAU);g.fill();
+  });
+  SPR.shieldRing=makeSprite(15*u+16,function(g){
+    g.shadowColor=COL.shield;g.shadowBlur=7;
+    g.strokeStyle=COL.shield;g.lineWidth=1.7;
+    g.beginPath();g.arc(0,0,15*u,0,TAU);g.stroke();
+  });
+}
+
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth;H=window.innerHeight;
+  cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  cx=W/2;cy=H/2;
+  u=Math.max(0.75,Math.min(Math.min(W,H)/420,1.3));
+  try{
+    const cs=getComputedStyle(safeEl);
+    safeTop=parseFloat(cs.paddingTop)||0;
+    safeBot=parseFloat(cs.paddingBottom)||0;
+  }catch(e){safeTop=0;safeBot=0;}
+  /* keep the ring clear of the notch and the home indicator */
+  const usableH=H-safeTop-safeBot;
+  R=Math.min(W,usableH)*0.31;
+  cy=safeTop+usableH/2;
+  /* normalised coords: the star field never needs rebuilding on resize */
+  if(!bgStars.length){
+    for(let i=0;i<22;i++)bgStars.push({x:Math.random(),y:Math.random(),r:rand(0.7,1.7),ph:rand(0,TAU),tw:rand(0.5,2.5)});
+  }
+  if(sprU!==u||sprDPR!==DPR||sprW!==W||sprH!==H){buildSprites();sprU=u;sprDPR=DPR;sprW=W;sprH=H;}
+}
+window.addEventListener('resize',resize);resize();
+
+function angDist(a,b){const d=Math.abs((a-b)%TAU);return d>Math.PI?TAU-d:d;}
+/* Ring 0 is the outermost. Adding a ring adds a higher index further in, so
+   existing rings never move when a new one appears. */
+const RADII=[1.0,0.74,0.50];
+const RING_MULT=[1,1,1]; /* set e.g. [1,1.5,2] to pay more for riding inside */
+function radiusOf(i){return R*RADII[i];}
+function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r];}
+
+/* ---------- audio ---------- */
+let AC=null,muted=false;
+function ensureAudio(){
+  try{
+    if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();
+    if(AC&&AC.state==='suspended')AC.resume();
+  }catch(e){}
+}
+/* `when` schedules on the audio clock instead of setTimeout, so arpeggios
+   stay in time and don't fire late when the tab is backgrounded */
+function beep(f,d,type,g,slide,when){
+  if(!AC||muted)return;
+  try{
+    const t0=AC.currentTime+(when||0),o=AC.createOscillator(),v=AC.createGain();
+    o.type=type;o.frequency.setValueAtTime(f,t0);
+    if(slide)o.frequency.exponentialRampToValueAtTime(slide,t0+d);
+    v.gain.setValueAtTime(g,t0);
+    v.gain.exponentialRampToValueAtTime(0.0001,t0+d);
+    o.connect(v);v.connect(AC.destination);o.start(t0);o.stop(t0+d);
+  }catch(e){}
+}
+
+/* ---------- persistence (no-ops gracefully if unavailable) ---------- */
+function loadPrefs(){
+  try{
+    if(!window.storage||!window.storage.get)return;
+    window.storage.get('cometloop:best').then(function(r){
+      const v=r&&parseInt(r.value,10);
+      if(v&&!isNaN(v))G.best=Math.max(G.best,v);
+    }).catch(function(){});
+    window.storage.get('cometloop:runs').then(function(r){
+      const v=r&&parseInt(r.value,10);
+      if(v&&!isNaN(v))G.runs=Math.max(G.runs,v);
+    }).catch(function(){});
+    window.storage.get('cometloop:muted').then(function(r){
+      if(r)muted=(r.value==='1');
+    }).catch(function(){});
+  }catch(e){}
+}
+function savePref(k,v){
+  try{
+    if(window.storage&&window.storage.set)window.storage.set(k,String(v)).catch(function(){});
+  }catch(e){}
+}
+
+/* ---------- state ---------- */
+const CW=2.5;   /* combo window seconds */
+const WARN=1.15,FADE=0.4,HOP=0.14;
+function age(){return G.t-G.started;}
+/* DIFFICULTY IS A CLOCK. Scoring well nudges it forward a little, but the
+   nudge is capped, so playing well can never accelerate you into the wall.
+   Everything below is keyed off dl() — "difficulty seconds". */
+function dl(){
+  const a=age()+Math.min(G.diff*0.22,40);
+  /* The first ~70 seconds advance the clock at 60% rate, so a new player gets
+     a long, low-pressure stretch to find the controls before the curve
+     engages. After that it runs at true seconds. */
+  return a<70?a*0.6:42+(a-70);
+}
+/* Speed is one axis among four, and a shallow one. The whole curve is
+   stretched so a run has room to breathe: half of it is spent below 2.0. */
+function speedAt(){return 1.40+1.60*(1-Math.exp(-dl()/190));}
+function warnTime(){return Math.max(1.0,1.90-dl()*0.0028);}
+function shardCap(){
+  const d=dl();
+  /* A single ring can carry more shards than the same count spread over two,
+     so the opening is denser but simpler rather than sparse and slow. */
+  return d<10?2:d<20?3:d<40?4:d<70?5:d<110?6:d<160?7:8;
+}
+function spawnGap(){return Math.max(0.80,2.1-dl()*0.0035);}
+/* Embers land on a random ring but you can only reach the one you are on,
+   so both the cap and the spawn rate scale with ring count. Without this,
+   adding a ring silently cuts your scoring rate while raising difficulty. */
+function emberCap(){return Math.min(12,Math.round((3.5+dl()*0.004)*G.nRings));}
+function emberGap(){return Math.max(0.30,(1.35-dl()*0.003)/G.nRings);}
+
+/* ---------- shard archetypes ----------
+   Each one asks for a different skill, and they unlock on a schedule so
+   there is always something new arriving. */
+/* Clock values. Wall-clock arrival is roughly:
+   30s ring2 · 63s twin · 93s gate · 128s ring3 · 153s drift · 193s blink */
+const TIERS=[
+  {at:0,  type:'single',name:null},
+  {at:18, type:null,    name:'SECOND RING', sub:'swipe toward the ring you want',rings:2},
+  {at:38, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 hop over'},
+  {at:65, type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 reverse'},
+  {at:100,type:null,    name:'THIRD RING',  sub:'tighter inside \u2014 less room to dodge',rings:3},
+  {at:125,type:'drift', name:'DRIFTERS',    sub:'these ones move'},
+  {at:165,type:'blink', name:'BLINKERS',    sub:'they flicker \u2014 time your pass'}
+];
+function tierIndex(){
+  const d=dl();
+  let i=0;
+  for(let k=0;k<TIERS.length;k++)if(d>=TIERS[k].at)i=k;
+  return i;
+}
+function pickType(){
+  const top=tierIndex();
+  const pool=[];
+  for(let k=0;k<=top;k++){
+    const ty=TIERS[k].type;
+    if(!ty)continue;                       /* ring unlocks carry no formation */
+    if(ty==='twin'&&G.nRings<2)continue;   /* nothing to hop over onto */
+    if(ty==='gate'&&G.spikes.some(function(s){return s.gate;}))continue;
+    pool.push(ty);
+    if(k===top)pool.push(ty,ty);           /* the newest one shows up often */
+  }
+  return pool.length?pool[Math.floor(Math.random()*pool.length)]:'single';
+}
+const SHIELD_MAX=3,PHASE_T=1.4;
+const REV_FX=0.07; /* grace before a tap's effects fire, so swipes stay silent */
+const G={
+  state:'menu',t:0,started:0,deadT:0,
+  score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
+  combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
+  angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
+  nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
+  shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didPhase:false,
+  stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],
+  starT:0.6,spikeT:1.2,powT:6,shake:0,flash:0,tier:0,banner:null,
+  runs:0,didReverse:false,didHop:false,didLap:false
+};
+loadPrefs();
+
+function curR(){
+  if(G.hopP>=1)return radiusOf(G.ringI);
+  const k=G.hopP*G.hopP*(3-2*G.hopP);
+  return G.hopFrom+(radiusOf(G.ringI)-G.hopFrom)*k;
+}
+function posPlayer(){return posAt(G.angle,curR());}
+function effRing(){return G.hopP<0.5?G.hopFromI:G.ringI;}
+
+/* Swept-arc test: covers the whole angle travelled this frame, so nothing
+   tunnels through a shard on a big screen or after a dropped frame. */
+function sweptHit(target,tol){
+  if(G.sweep<=0)return angDist(G.angle,target)<tol;
+  if(G.sweep+tol>=TAU)return true;
+  let d=(target-G.prevAngle)*G.dir;
+  d=((d%TAU)+TAU)%TAU;
+  if(d>TAU-tol)d-=TAU;
+  return d<=G.sweep+tol;
+}
+
+function burst(x,y,col,n,spd){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*TAU,s=rand(spd*0.35,spd);
+    G.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,dec:rand(1.2,2.4),col,size:rand(1.5,3.5)*u});
+  }
+}
+function ripple(x,y,col){G.rings.push({x,y,r:10*u,life:1,col:col||COL.comet});}
+function popup(x,y,str,col){G.pops.push({x,y,str,col,life:1});}
+function checkMile(){
+  if(Math.floor(G.score/50)>G.mile){
+    G.mile=Math.floor(G.score/50);
+    ripple(cx,cy,COL.ember);
+    beep(660,0.1,'triangle',0.06,990);
+    beep(880,0.12,'triangle',0.06,1320,0.09);
+  }
+}
+
+function farFromAll(a,ring,minP,minSpike,minStar){
+  if(angDist(a,G.angle)<minP)return false;
+  for(const s of G.spikes)if(s.ring===ring&&angDist(a,s.a)<minSpike)return false;
+  for(const s of G.stars)if(s.ring===ring&&angDist(a,s.a)<minStar)return false;
+  for(const s of G.pows)if(s.ring===ring&&angDist(a,s.a)<minStar)return false;
+  return true;
+}
+function spawnStar(){
+  for(let i=0;i<14;i++){
+    const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
+    if(farFromAll(a,ring,0.45,0.4,0.55)){G.stars.push({a,ring,t:0,life:rand(7,10)});return;}
+  }
+}
+function mkSpike(a,ring,extra){
+  const s={a:a,ring:ring,t:0,phase:0,bt:0,va:0,gate:false,blink:false,
+    warn:warnTime(),life:rand(2.6,4.4)*(age()<30?0.7:1)};
+  if(extra)for(const k in extra)s[k]=extra[k];
+  return s;
+}
+function spawnSpike(){
+  const type=pickType();
+  const clear=age()<26?1.5:1.1;
+  for(let i=0;i<18;i++){
+    const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
+    if(type==='gate'){
+      /* blocks the same angle on EVERY ring: hopping will not save you */
+      if(angDist(a,G.angle)<1.7)continue;
+      let ok=true;
+      for(let k=0;k<G.nRings;k++)if(!farFromAll(a,k,1.7,0.5,0.35))ok=false;
+      if(!ok)continue;
+      const life=rand(1.9,2.9);
+      for(let k=0;k<G.nRings;k++)G.spikes.push(mkSpike(a,k,{gate:true,life:life}));
+      return;
+    }
+    if(type==='twin'){
+      const off=rand(0.30,0.40)*(Math.random()<0.5?-1:1);
+      if(!farFromAll(a,ring,clear,0.5,0.35))continue;
+      if(!farFromAll(a+off,ring,clear,0.5,0.35))continue;
+      const life=rand(2.4,3.6);
+      G.spikes.push(mkSpike(a,ring,{life:life}));
+      G.spikes.push(mkSpike(a+off,ring,{life:life}));
+      return;
+    }
+    if(!farFromAll(a,ring,clear,0.5,0.35))continue;
+    if(type==='drift'){
+      G.spikes.push(mkSpike(a,ring,{va:rand(0.24,0.5)*(Math.random()<0.5?-1:1),life:rand(3.4,5.2)}));
+    }else if(type==='blink'){
+      G.spikes.push(mkSpike(a,ring,{blink:true,life:rand(4.0,6.0)}));
+    }else{
+      G.spikes.push(mkSpike(a,ring));
+    }
+    return;
+  }
+}
+function spawnPow(){
+  let type;
+  if(G.sinceShield>=3){
+    type='shield'; /* pity: never more than 3 power-ups without a shield */
+  }else{
+    const rr=Math.random();
+    type=rr<0.4?'shield':(rr<0.75?'warp':'nova');
+  }
+  for(let i=0;i<24;i++){
+    const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
+    if(farFromAll(a,ring,0.6,0.45,0.42)){
+      G.pows.push({a,ring,t:0,life:7,type});
+      G.sinceShield=(type==='shield')?0:G.sinceShield+1;
+      return true;
+    }
+  }
+  return false;
+}
+
+function startGame(){
+  G.state='playing';G.score=0;G.diff=0;G.newBest=false;G.scorePop=0;G.mile=0;
+  G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
+  G.angle=-Math.PI/2;G.prevAngle=G.angle;G.sweep=0;G.dir=1;G.speed=1.40;
+  G.nRings=1;G.ringI=0;G.hopFromI=0;G.hopP=1;
+  G.shields=1;G.invuln=0;G.slow=0;G.tsCur=1;G.sinceShield=0;G.revPend=0;G.didPhase=false;
+  G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];
+  G.starT=0.5;G.spikeT=1.2;G.powT=6;G.started=G.t;G.tier=0;G.banner=null;
+  G.runs++;savePref('cometloop:runs',G.runs);
+  beep(440,0.12,'sine',0.05,880);
+}
+function die(){
+  if(G.state!=='playing')return;
+  G.state='dead';G.deadT=G.t;G.revPend=0;
+  G.newBest=G.score>G.best&&G.score>0;
+  if(G.score>G.best){G.best=G.score;savePref('cometloop:best',G.best);}
+  if(!RM){G.shake=16;G.flash=0.9;}
+  const p=posPlayer();
+  burst(p[0],p[1],COL.shard,26,240);
+  burst(p[0],p[1],COL.comet,16,170);
+  G.rings.push({x:p[0],y:p[1],r:6*u,life:1,col:'#ffffff'});
+  G.rings.push({x:p[0],y:p[1],r:16*u,life:0.85,col:COL.shard});
+  G.rings.push({x:p[0],y:p[1],r:30*u,life:0.6,col:COL.comet});
+  beep(220,0.45,'sawtooth',0.09,50);
+  try{if(navigator.vibrate)navigator.vibrate(90);}catch(e){}
+}
+function reverseFX(){
+  const p=posPlayer();
+  ripple(p[0],p[1]);
+  burst(p[0],p[1],COL.comet,6,90);
+  beep(300,0.07,'square',0.045,540);
+}
+function reverse(silent){
+  G.dir*=-1;G.didReverse=true;
+  /* You lose the lap and the streak multiplier, but the embers you already
+     gathered stay banked — otherwise gates, which exist to force reversals,
+     would systematically delete the score you turned around to protect. */
+  G.lapAcc=0;G.lapStreak=0;
+  if(silent)G.revPend=G.t+REV_FX;
+  else reverseFX();
+}
+function commitReverseFX(){
+  if(G.revPend>0){G.revPend=0;reverseFX();}
+}
+function bump(){
+  const p=posPlayer();
+  burst(p[0],p[1],'rgba(170,195,255,0.85)',4,55);
+  beep(150,0.05,'sine',0.03,110);
+}
+/* step -1 = outward (toward ring 0), +1 = inward */
+function hop(step){
+  if(G.hopP<1)return;
+  const t=G.ringI+step,p=posPlayer();
+  if(t<0||t>=G.nRings){
+    bump(); /* nowhere to go — acknowledge the input rather than swallowing it */
+    return;
+  }
+  G.didHop=true;
+  G.hopFrom=radiusOf(G.ringI);
+  G.hopFromI=G.ringI;
+  G.ringI=t;
+  G.hopP=0;
+  ripple(p[0],p[1]);
+  const out=step<0;
+  beep(out?480:760,0.09,'sine',0.05,out?820:420);
+}
+
+/* Spending a shield on purpose phases you through anything for a moment and
+   leaves the orbit untouched — the whole point of banking them. */
+function burnShield(){
+  const p=posPlayer();
+  if(G.shields<=0){
+    burst(p[0],p[1],'rgba(170,195,255,0.85)',3,45);
+    beep(140,0.05,'sine',0.03,100);
+    return;
+  }
+  G.shields--;G.didPhase=true;
+  G.invuln=Math.max(G.invuln,G.t+PHASE_T);
+  ripple(p[0],p[1],COL.shield);
+  burst(p[0],p[1],COL.shield,16,175);
+  popup(p[0],p[1]-26*u,'PHASE',COL.shield);
+  beep(420,0.18,'triangle',0.06,880);
+  beep(900,0.12,'sine',0.05,1350,0.1);
+}
+
+/* ---------- input ---------- */
+function muteRect(){const s=24*u;return{x:W-s-16*u,y:safeTop+14*u,w:s,h:s};}
+function shieldRect(){
+  const w=116*u,h=46*u;
+  const y=Math.max(cy+R+18*u,Math.min(H-safeBot-h-16*u,H-safeBot-h-16*u));
+  return{x:cx-w/2,y:y,w:w,h:h};
+}
+function inShield(x,y){
+  if(G.state!=='playing')return false;
+  const r=shieldRect(),pad=10*u;
+  return x>=r.x-pad&&x<=r.x+r.w+pad&&y>=r.y-pad&&y<=r.y+r.h+pad;
+}
+function inMute(x,y){
+  const r=muteRect(),pad=14;
+  return x>=r.x-pad&&x<=r.x+r.w+pad&&y>=r.y-pad&&y<=r.y+r.h+pad;
+}
+let pd=null;
+cv.addEventListener('pointerdown',function(e){
+  e.preventDefault();ensureAudio();
+  if(inMute(e.clientX,e.clientY)){
+    muted=!muted;savePref('cometloop:muted',muted?'1':'0');
+    if(!muted)beep(700,0.08,'sine',0.05,1000);
+    return;
+  }
+  if(inShield(e.clientX,e.clientY)){burnShield();return;}
+  if(G.state==='menu'){startGame();return;}
+  if(G.state==='dead'){if(G.t-G.deadT>0.6)startGame();return;}
+  if(pd)return; /* one gesture at a time: a second finger can't double-reverse */
+  const saved={lap:G.lapAcc,streak:G.lapStreak,emb:G.lapEmbers};
+  reverse(true); /* direction flips instantly; sound and sparks wait */
+  pd={id:e.pointerId,x:e.clientX,y:e.clientY,saved:saved,ang:G.angle,far:0,radial:0,swiped:false};
+});
+/* RADIAL SWIPE. Direction is read against the line from the centre through
+   the comet, so "away from the middle" always means out and "toward the
+   middle" always means in, wherever the comet happens to be on the circle.
+   The reference angle is where the comet was when the gesture started, which
+   is what the player was actually looking at when they committed. */
+const RADIAL_MIN=0.34; /* ~20 degrees off tangential before we call it */
+cv.addEventListener('pointermove',function(e){
+  if(!pd||pd.id!==e.pointerId||G.state!=='playing')return;
+  const dx=e.clientX-pd.x,dy=e.clientY-pd.y;
+  const len=Math.sqrt(dx*dx+dy*dy);
+  pd.far=len;
+  if(len<32)return;
+  if(!pd.swiped){
+    /* it was a swipe: roll back the speculative reverse, effects never fired */
+    pd.swiped=true;
+    G.revPend=0;
+    G.dir*=-1;
+    G.lapAcc=pd.saved.lap;
+    G.lapStreak=pd.saved.streak;
+    G.lapEmbers=pd.saved.emb;
+  }
+  pd.radial=dx*Math.cos(pd.ang)+dy*Math.sin(pd.ang);
+  /* A flick almost exactly along the ring is genuinely ambiguous — keep
+     watching rather than guessing; it resolves as the finger travels. */
+  if(Math.abs(pd.radial)>=len*RADIAL_MIN){
+    const out=pd.radial>0;
+    pd=null;
+    hop(out?-1:1);
+  }
+});
+function pdEnd(e){
+  if(pd&&e&&pd.id!==e.pointerId)return;
+  if(pd){
+    if(pd.swiped){
+      /* Still ambiguous at lift. A clear lean commits; a flick essentially
+         along the ring has no radial answer, so bump rather than coin-flip. */
+      if(Math.abs(pd.radial)>pd.far*0.12)hop(pd.radial>0?-1:1);
+      else bump();
+    }else{
+      commitReverseFX();
+    }
+  }
+  pd=null;
+}
+cv.addEventListener('pointerup',pdEnd);
+cv.addEventListener('pointercancel',pdEnd);
+cv.addEventListener('contextmenu',function(e){e.preventDefault();});
+window.addEventListener('keydown',function(e){
+  if(e.code==='Space'||e.code==='Enter'){
+    e.preventDefault();ensureAudio();
+    if(G.state==='menu')startGame();
+    else if(G.state==='dead'){if(G.t-G.deadT>0.6)startGame();}
+    else reverse(false);
+  }else if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='ArrowLeft'||e.code==='KeyA'){
+    e.preventDefault();
+    if(G.state==='playing')hop(-1);
+  }else if(e.code==='ArrowDown'||e.code==='KeyS'||e.code==='ArrowRight'||e.code==='KeyD'){
+    e.preventDefault();
+    if(G.state==='playing')hop(1);
+  }else if(e.code==='KeyE'||e.code==='ShiftLeft'){
+    e.preventDefault();
+    if(G.state==='playing')burnShield();
+  }else if(e.code==='KeyM'){
+    muted=!muted;savePref('cometloop:muted',muted?'1':'0');
+  }
+});
+
+/* ---------- update ---------- */
+function pushTrail(){
+  const p=posPlayer();
+  G.trail.push({x:p[0],y:p[1],life:1});
+  if(G.trail.length>50)G.trail.shift();
+}
+const BLINK=1.15; /* dormant for the back 45% of each cycle */
+function armed(s){return s.blink?((s.bt%BLINK)<BLINK*0.55):true;}
+function updateSpikes(sdt,lethal){
+  const er=effRing(),pr=radiusOf(er);
+  for(let i=G.spikes.length-1;i>=0;i--){
+    const s=G.spikes[i];s.t+=sdt;
+    if(s.va)s.a=(s.a+s.va*sdt)%TAU;
+    if(s.blink)s.bt+=sdt;
+    if(s.phase===0&&s.t>=(s.warn||WARN)){s.phase=1;s.t=0;s.bt=0;}
+    else if(s.phase===1&&s.t>=s.life){s.phase=2;s.t=0;}
+    else if(s.phase===2&&s.t>=FADE){G.spikes.splice(i,1);continue;}
+    /* a moving shard's hitbox is widened by however far it travelled this frame */
+    const tol=(18.5*u)/pr+Math.abs(s.va)*sdt;
+    if(lethal&&s.phase===1&&armed(s)&&s.ring===er&&G.t>=G.invuln&&sweptHit(s.a,tol)){
+      if(G.shields>0){
+        /* Reactive save: you live, but the hit knocks you off your orbit.
+           Spending a shield deliberately is what keeps the streak. */
+        G.shields--;G.invuln=G.t+0.9;
+        s.phase=2;s.t=0;
+        G.lapAcc=0;G.lapStreak=0;
+        const p=posPlayer();
+        burst(p[0],p[1],COL.shield,18,180);
+        ripple(p[0],p[1],COL.shield);
+        popup(p[0],p[1]-24*u,'BLOCKED',COL.shield);
+        beep(200,0.2,'square',0.07,90);
+      }else{
+        die();
+      }
+    }
+  }
+}
+function update(dt){
+  G.t+=dt;
+  G.shake=Math.max(0,G.shake-dt*45);
+  G.flash=Math.max(0,G.flash-dt*1.6);
+  G.scorePop=Math.max(0,G.scorePop-dt*3.5);
+  G.slow=Math.max(0,G.slow-dt);
+  const tsT=G.slow>0?0.55:1;
+  G.tsCur+=(tsT-G.tsCur)*Math.min(1,dt*8);
+  if(G.hopP<1)G.hopP=Math.min(1,G.hopP+dt/HOP);
+  if(G.revPend>0&&G.t>=G.revPend){G.revPend=0;reverseFX();}
+  for(let i=G.parts.length-1;i>=0;i--){
+    const p=G.parts[i];
+    p.x+=p.vx*dt;p.y+=p.vy*dt;
+    p.vx*=Math.pow(0.15,dt);p.vy*=Math.pow(0.15,dt);
+    p.life-=p.dec*dt;
+    if(p.life<=0)G.parts.splice(i,1);
+  }
+  for(let i=G.rings.length-1;i>=0;i--){
+    const r=G.rings[i];r.r+=170*u*dt;r.life-=2.8*dt;
+    if(r.life<=0)G.rings.splice(i,1);
+  }
+  for(let i=G.pops.length-1;i>=0;i--){
+    const p=G.pops[i];p.y-=34*u*dt;p.life-=1.1*dt;
+    if(p.life<=0)G.pops.splice(i,1);
+  }
+  for(let i=G.trail.length-1;i>=0;i--){
+    const tr=G.trail[i];tr.life-=dt*2.1;
+    if(tr.life<=0)G.trail.splice(i,1);
+  }
+
+  if(G.state==='menu'){G.sweep=0;G.angle+=0.8*dt;pushTrail();return;}
+  if(G.state==='dead'){G.sweep=0;updateSpikes(dt,false);return;}
+
+  /* playing */
+  const sdt=dt*G.tsCur;
+  /* a slow floor ramp so the game can never be stalled by refusing to score */
+  G.speed=speedAt();
+  /* announce each new mechanic so it registers as something to learn */
+  const ti=tierIndex();
+  if(ti>G.tier){
+    G.tier=ti;
+    const T=TIERS[ti];
+    if(T.rings&&T.rings>G.nRings){
+      G.nRings=T.rings;
+      const nr=radiusOf(G.nRings-1);
+      G.rings.push({x:cx,y:cy,r:nr*0.3,life:1,col:COL.comet});
+      G.rings.push({x:cx,y:cy,r:nr,life:1,col:COL.comet});
+      beep(330,0.2,'sine',0.05,660);
+      beep(660,0.25,'sine',0.05,990,0.16);
+    }
+    if(T.name){
+      G.banner={str:T.name,sub:T.sub,t:0};
+      ripple(cx,cy,COL.shard);
+      beep(300,0.16,'triangle',0.05,220);
+      beep(240,0.22,'triangle',0.05,180,0.14);
+    }
+  }
+  if(G.banner){G.banner.t+=dt;if(G.banner.t>3.2)G.banner=null;}
+  G.prevAngle=G.angle;
+  G.sweep=G.speed*sdt;
+  G.angle=(G.angle+G.dir*G.speed*sdt)%TAU;
+  pushTrail();
+
+  /* full orbit: 360 degrees of travel without reversing (hops allowed).
+     Payout scales with the embers gathered during it, so a bare orbit is
+     worth almost nothing and the two scoring systems feed each other. */
+  G.lapAcc+=G.speed*sdt;
+  if(G.lapAcc>=TAU){
+    G.lapAcc-=TAU;
+    const fed=G.lapEmbers>0;
+    if(fed)G.lapStreak++;else G.lapStreak=0;
+    const base=6+13*Math.min(G.lapEmbers,LAP_EMB_MAX);
+    const streakBonus=fed?Math.min(7*(G.lapStreak-1),28):0;
+    const bonus=base+streakBonus;
+    G.score+=bonus;G.scorePop=1;
+    G.diff+=1;
+    const lp=posPlayer();
+    const label=(G.lapStreak>1?'ORBIT \u00d7'+G.lapStreak+' +':'ORBIT +')+bonus;
+    popup(lp[0],lp[1]-26*u,label,fed?COL.ember:'rgba(200,215,255,0.7)');
+    if(fed){
+      ripple(lp[0],lp[1],COL.ember);
+      G.rings.push({x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.ember});
+      burst(lp[0],lp[1],COL.ember,18,190);
+      beep(523,0.12,'triangle',0.07,784);
+      beep(784,0.12,'triangle',0.07,1046,0.1);
+      beep(1046,0.16,'triangle',0.07,1568,0.2);
+    }else{
+      beep(392,0.1,'triangle',0.04,440);
+    }
+    G.lapEmbers=0;G.didLap=true;
+    checkMile();
+  }
+  G.comboT=Math.max(0,G.comboT-sdt);
+  if(G.comboT<=0)G.combo=0;
+
+  G.starT-=sdt;
+  if(G.starT<=0&&G.stars.length<emberCap()){spawnStar();G.starT=emberGap()*rand(0.75,1.4);}
+  G.spikeT-=sdt;
+  if(G.spikeT<=0&&age()>=4&&G.spikes.length<shardCap()){
+    spawnSpike();
+    G.spikeT=spawnGap()*rand(0.85,1.15);
+  }
+  G.powT-=sdt;
+  if(G.powT<=0&&G.pows.length===0&&dl()>=10){
+    G.powT=spawnPow()?Math.max(6,rand(10,15)-dl()*0.02):0.5;
+  }
+
+  const er=effRing();
+  /* embers */
+  for(let i=G.stars.length-1;i>=0;i--){
+    const s=G.stars[i];s.t+=sdt;
+    if(s.t>s.life){G.stars.splice(i,1);continue;}
+    if(s.ring===er&&sweptHit(s.a,(22*u)/radiusOf(er))){
+      G.stars.splice(i,1);
+      G.combo=Math.min(G.combo+1,6);G.comboT=CW;
+      G.score+=G.combo;G.diff+=1;G.scorePop=1;
+      G.lapEmbers++;
+      const p=posAt(s.a,radiusOf(s.ring));
+      burst(p[0],p[1],COL.ember,14,150);
+      ripple(p[0],p[1],COL.ember);
+      popup(p[0],p[1]-20*u,'+'+G.combo,COL.ember);
+      beep(700,0.09,'sine',0.06,1400);
+      beep(1050,0.1,'sine',0.05,1600,0.045);
+      checkMile();
+    }
+  }
+  /* power-ups */
+  for(let i=G.pows.length-1;i>=0;i--){
+    const s=G.pows[i];s.t+=sdt;
+    if(s.t>s.life){G.pows.splice(i,1);continue;}
+    if(s.ring===er&&sweptHit(s.a,(22*u)/radiusOf(er))){
+      const p=posAt(s.a,radiusOf(s.ring));
+      G.pows.splice(i,1);
+      if(s.type==='shield'){
+        if(G.shields>=SHIELD_MAX){G.score+=2;popup(p[0],p[1]-20*u,'+2',COL.shield);}
+        else{G.shields++;popup(p[0],p[1]-20*u,'SHIELD \u00d7'+G.shields,COL.shield);}
+        burst(p[0],p[1],COL.shield,14,150);
+        ripple(p[0],p[1],COL.shield);
+        beep(520,0.12,'triangle',0.06,780);
+      }else if(s.type==='warp'){
+        G.slow=4;
+        popup(p[0],p[1]-20*u,'SLOW-MO',COL.warp);
+        burst(p[0],p[1],COL.warp,14,150);
+        ripple(p[0],p[1],COL.warp);
+        beep(400,0.3,'sine',0.07,150);
+      }else{
+        /* NOVA: every shard on both rings becomes an ember */
+        for(const sp of G.spikes){
+          const q=posAt(sp.a,radiusOf(sp.ring));
+          burst(q[0],q[1],COL.ember,6,120);
+          G.stars.push({a:sp.a,ring:sp.ring,t:0,life:rand(4.5,6.5)});
+        }
+        G.spikes.length=0;
+        popup(p[0],p[1]-20*u,'NOVA!',COL.nova);
+        ripple(p[0],p[1],COL.nova);
+        G.rings.push({x:p[0],y:p[1],r:34*u,life:1,col:COL.nova});
+        burst(p[0],p[1],COL.nova,22,230);
+        if(!RM)G.flash=Math.max(G.flash,0.3);
+        beep(220,0.4,'sawtooth',0.06,1400);
+        beep(1250,0.15,'sine',0.05,1900,0.13);
+      }
+    }
+  }
+  updateSpikes(sdt,true);
+}
+
+/* ---------- draw helpers ---------- */
+function drawShardOutline(x,y,r,al,dash){
+  ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);
+  ctx.globalAlpha=al;
+  ctx.strokeStyle=COL.shard;ctx.lineWidth=2.5;
+  if(dash)ctx.setLineDash([4*u,3.5*u]);
+  ctx.strokeRect(-r*0.7,-r*0.7,r*1.4,r*1.4);
+  ctx.setLineDash([]);
+  if(dash){ctx.fillStyle=COL.shard;ctx.fillRect(-1.6*u,-1.6*u,3.2*u,3.2*u);}
+  ctx.globalAlpha=1;ctx.restore();
+}
+function drawPow(x,y,s,al){
+  ctx.save();ctx.translate(x,y);ctx.globalAlpha=al;
+  const pulse=1+0.15*Math.sin(s.t*5);
+  if(s.type==='shield'){
+    ctx.shadowColor=COL.shield;ctx.shadowBlur=12;
+    ctx.strokeStyle=COL.shield;ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(0,0,10*u*pulse,0,TAU);ctx.stroke();
+    ctx.fillStyle=COL.shield;
+    ctx.beginPath();ctx.arc(0,0,3.5*u,0,TAU);ctx.fill();
+  }else if(s.type==='warp'){
+    ctx.shadowColor=COL.warp;ctx.shadowBlur=12;
+    ctx.strokeStyle=COL.warp;ctx.lineWidth=2.5;
+    ctx.save();ctx.rotate(s.t*2);
+    ctx.strokeRect(-7*u*pulse,-7*u*pulse,14*u*pulse,14*u*pulse);
+    ctx.restore();
+    ctx.save();ctx.rotate(-s.t*2+Math.PI/4);
+    ctx.strokeRect(-4*u,-4*u,8*u,8*u);
+    ctx.restore();
+  }else{
+    ctx.shadowColor='#ffb36b';ctx.shadowBlur=14;
+    ctx.strokeStyle=COL.nova;ctx.lineWidth=2;
+    ctx.save();ctx.rotate(s.t*1.2);
+    ctx.beginPath();
+    for(let i=0;i<16;i++){
+      const sr=(i%2===0)?11*u*pulse:4*u,aa=i*Math.PI/8;
+      if(i===0)ctx.moveTo(Math.cos(aa)*sr,Math.sin(aa)*sr);
+      else ctx.lineTo(Math.cos(aa)*sr,Math.sin(aa)*sr);
+    }
+    ctx.closePath();ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle=COL.nova;
+    ctx.beginPath();ctx.arc(0,0,2.5*u,0,TAU);ctx.fill();
+  }
+  ctx.shadowBlur=0;ctx.globalAlpha=1;ctx.restore();
+}
+const F='-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+function text(str,x,y,size,weight,col,ls){
+  ctx.fillStyle=col;
+  ctx.font=weight+' '+Math.round(size)+'px '+F;
+  try{ctx.letterSpacing=(ls||0)+'px';}catch(e){}
+  ctx.fillText(str,x,y);
+  try{ctx.letterSpacing='0px';}catch(e){}
+}
+
+function drawTail(){
+  const n=G.trail.length;
+  if(n<4)return;
+  const nx=new Array(n),ny=new Array(n),bw=new Array(n);
+  for(let i=0;i<n;i++){
+    const p=G.trail[i];
+    const a=G.trail[i+1<n?i+1:n-1],b=G.trail[i>0?i-1:0];
+    let tx=a.x-b.x,ty=a.y-b.y;
+    const L=Math.sqrt(tx*tx+ty*ty);
+    if(L<1e-4){tx=1;ty=0;}else{tx/=L;ty/=L;}
+    nx[i]=-ty;ny[i]=tx;
+    /* width tapers by both age and position, so the head stays fat */
+    bw[i]=8*u*Math.pow(Math.max(p.life,0),0.7)*(0.16+0.84*i/(n-1));
+  }
+  const passes=[[2.5,0.075],[1.35,0.16],[0.6,0.34]];
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  ctx.fillStyle=COL.comet;
+  for(let k=0;k<passes.length;k++){
+    const m=passes[k][0];
+    ctx.globalAlpha=passes[k][1];
+    ctx.beginPath();
+    for(let i=0;i<n;i++){
+      const p=G.trail[i],w=bw[i]*m;
+      const X=p.x+nx[i]*w,Y=p.y+ny[i]*w;
+      if(i===0)ctx.moveTo(X,Y);else ctx.lineTo(X,Y);
+    }
+    for(let i=n-1;i>=0;i--){
+      const p=G.trail[i],w=bw[i]*m;
+      ctx.lineTo(p.x-nx[i]*w,p.y-ny[i]*w);
+    }
+    ctx.closePath();ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ---------- draw ---------- */
+function draw(){
+  const amb=RM?0:G.t;
+  if(SPR.bg)ctx.drawImage(SPR.bg.c,0,0,W,H);
+  if(SPR.neb)for(let i=0;i<nebulas.length;i++){
+    const n=nebulas[i],sp=SPR.neb[i];
+    const nr=n.r*Math.max(W,H)*0.5;
+    const nx=(n.x+0.02*Math.sin(amb*0.07+n.ph))*W;
+    const ny=(n.y+0.02*Math.cos(amb*0.05+n.ph))*H;
+    ctx.drawImage(sp.c,nx-nr,ny-nr,nr*2,nr*2);
+  }
+  /* Slow parallax on the baked sky, with a handful of live twinklers on top. */
+  const sdx=RM?0:Math.sin(amb*0.030)*17,sdy=RM?0:Math.cos(amb*0.023)*17;
+  if(SPR.stars)ctx.drawImage(SPR.stars.c,-28+sdx,-28+sdy,SPR.stars.w,SPR.stars.h);
+  ctx.globalCompositeOperation='lighter';
+  ctx.fillStyle='#dcebff';
+  for(const st of bgStars){
+    ctx.globalAlpha=RM?0.4:(0.10+0.55*(0.5+0.5*Math.sin(amb*st.tw+st.ph)));
+    ctx.beginPath();ctx.arc(st.x*W+sdx,st.y*H+sdy,st.r,0,TAU);ctx.fill();
+  }
+  ctx.globalCompositeOperation='source-over';
+  ctx.globalAlpha=1;
+
+  ctx.save();
+  if(G.shake>0)ctx.translate(rand(-G.shake,G.shake)*0.5,rand(-G.shake,G.shake)*0.5);
+
+  /* orbit rings */
+  for(let i=0;i<G.nRings;i++){
+    const rr=radiusOf(i),on=(G.hopP>=1&&G.ringI===i);
+    ctx.strokeStyle='rgba(150,180,255,0.045)';ctx.lineWidth=13;
+    ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
+    ctx.strokeStyle=on?'rgba(175,205,255,0.14)':'rgba(150,180,255,0.065)';ctx.lineWidth=4.5;
+    ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
+    ctx.strokeStyle=on?'rgba(206,230,255,0.44)':'rgba(170,195,255,0.155)';ctx.lineWidth=1.3;
+    ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
+  }
+  ctx.globalCompositeOperation='lighter';
+  ctx.fillStyle='rgba(120,160,255,0.5)';
+  ctx.beginPath();ctx.arc(cx,cy,2.6,0,TAU);ctx.fill();
+  ctx.fillStyle='rgba(120,160,255,0.10)';
+  ctx.beginPath();ctx.arc(cx,cy,8,0,TAU);ctx.fill();
+  ctx.globalCompositeOperation='source-over';
+
+  /* lap progress arc — colour reports how well fed this orbit is */
+  if(G.state==='playing'&&G.lapAcc>0.05){
+    const lr=curR()+6*u;
+    let a0,a1;
+    if(G.dir===1){a0=G.angle-G.lapAcc;a1=G.angle;}
+    else{a0=G.angle;a1=G.angle+G.lapAcc;}
+    ctx.globalAlpha=0.55;
+    ctx.strokeStyle=G.lapEmbers>=3?COL.ember:(G.lapEmbers>=1?COL.comet:'rgba(170,195,255,0.55)');
+    ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(cx,cy,lr,a0,a1);ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+  /* embers banked this orbit — drawn in the HUD, see drawHUD */
+  if(false){
+    const pipW=9*u,x0=cx-(LAP_EMB_MAX-1)*pipW/2,py=cy+30*u;
+    for(let i=0;i<LAP_EMB_MAX;i++){
+      const on=i<G.lapEmbers;
+      ctx.save();
+      ctx.translate(x0+i*pipW,py);ctx.rotate(Math.PI/4);
+      ctx.globalAlpha=on?0.95:0.22;
+      if(on){ctx.fillStyle=COL.ember;ctx.fillRect(-2.6*u,-2.6*u,5.2*u,5.2*u);}
+      else{ctx.strokeStyle='rgba(200,215,255,0.9)';ctx.lineWidth=1.2;ctx.strokeRect(-2.6*u,-2.6*u,5.2*u,5.2*u);}
+      ctx.restore();
+    }
+    ctx.globalAlpha=1;
+  }
+  /* Gesture guide: start dragging and the radial axis appears, so which way
+     is "out" is never something you have to work out in your head. */
+  if(pd&&pd.far>12&&G.state==='playing'&&G.nRings>1){
+    const ca=Math.cos(pd.ang),sa=Math.sin(pd.ang);
+    const rIn=Math.max(9*u,radiusOf(G.nRings-1)-17*u),rOut=radiusOf(0)+21*u;
+    ctx.save();
+    ctx.globalAlpha=0.3;
+    ctx.strokeStyle=COL.comet;ctx.lineWidth=1.5;
+    ctx.setLineDash([5*u,5*u]);
+    ctx.beginPath();
+    ctx.moveTo(cx+ca*rIn,cy+sa*rIn);
+    ctx.lineTo(cx+ca*rOut,cy+sa*rOut);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const head=function(rr,facing,al){
+      ctx.globalAlpha=al;
+      ctx.save();
+      ctx.translate(cx+ca*rr,cy+sa*rr);
+      ctx.rotate(pd.ang+(facing>0?0:Math.PI));
+      ctx.beginPath();
+      ctx.moveTo(8*u,0);ctx.lineTo(-4*u,5*u);ctx.lineTo(-4*u,-5*u);ctx.closePath();
+      ctx.fillStyle=COL.comet;ctx.fill();
+      ctx.restore();
+    };
+    head(rOut,1,G.ringI>0?0.8:0.18);              /* outward */
+    head(rIn,-1,G.ringI<G.nRings-1?0.8:0.18);     /* inward */
+    ctx.globalAlpha=1;ctx.restore();
+  }
+  /* slow-mo timer arc */
+  if(G.slow>0){
+    ctx.strokeStyle=COL.warp;ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(cx,cy,14*u,-Math.PI/2,-Math.PI/2+TAU*(G.slow/4));ctx.stroke();
+  }
+
+  /* embers */
+  ctx.globalCompositeOperation='lighter';
+  for(const s of G.stars){
+    const p=posAt(s.a,radiusOf(s.ring));
+    let al=1;
+    if(s.t<0.3)al=s.t/0.3;
+    else if(s.life-s.t<0.8)al=(s.life-s.t)/0.8;
+    blit(SPR.ember,p[0],p[1],1+0.18*Math.sin(s.t*6),s.t*1.5,al);
+  }
+  ctx.globalCompositeOperation='source-over';
+  /* power-ups */
+  for(const s of G.pows){
+    const p=posAt(s.a,radiusOf(s.ring));
+    let al=1;
+    if(s.t<0.3)al=s.t/0.3;
+    else if(s.life-s.t<0.8)al=(s.life-s.t)/0.8;
+    drawPow(p[0],p[1],s,al);
+  }
+  /* gate bars: a rung across both rings reads instantly as "you cannot hop past" */
+  for(const s of G.spikes){
+    if(!s.gate||s.ring!==0||s.phase===2)continue;
+    const i0=posAt(s.a,radiusOf(0)),i1=posAt(s.a,radiusOf(G.nRings-1));
+    ctx.globalAlpha=s.phase===0?0.16+0.14*Math.sin(s.t*12):0.42;
+    ctx.strokeStyle=COL.shard;ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(i0[0],i0[1]);ctx.lineTo(i1[0],i1[1]);ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+  /* shards */
+  for(const s of G.spikes){
+    const p=posAt(s.a,radiusOf(s.ring));
+    /* drifters trail a short arc showing which way they are sliding */
+    if(s.va&&s.phase===1){
+      const rr=radiusOf(s.ring),back=-Math.sign(s.va)*0.30;
+      ctx.globalAlpha=0.3;ctx.strokeStyle=COL.shard;ctx.lineWidth=2.5;
+      ctx.beginPath();
+      ctx.arc(cx,cy,rr,Math.min(s.a,s.a+back),Math.max(s.a,s.a+back));
+      ctx.stroke();ctx.globalAlpha=1;
+    }
+    if(s.phase===0){
+      const k=s.t/(s.warn||WARN);
+      const bl=0.5+0.5*Math.sin(s.t*(10+k*30));
+      drawShardOutline(p[0],p[1],(8+3*k)*u,0.34+0.6*bl);
+    }else if(s.phase===1){
+      if(armed(s)){
+        blit(SPR.shard,p[0],p[1],1,0,1);
+      }else{
+        /* dormant blinker: same silhouette, hollow — safe to cross right now */
+        const q=1-(s.bt%BLINK-BLINK*0.55)/(BLINK*0.45);
+        drawShardOutline(p[0],p[1],10*u,0.5+0.3*q,true);
+      }
+    }else{
+      const k=s.t/FADE;
+      blit(SPR.shard,p[0],p[1],1-k*0.4,0,1-k);
+    }
+  }
+  /* ripples */
+  ctx.globalCompositeOperation='lighter';
+  for(const r of G.rings){
+    const lf=Math.max(r.life,0);
+    ctx.globalAlpha=lf*0.55;
+    ctx.strokeStyle=r.col;ctx.lineWidth=1+2*lf;
+    ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,TAU);ctx.stroke();
+  }
+  ctx.globalCompositeOperation='source-over';
+  ctx.globalAlpha=1;
+  /* Comet tail: a single tapered ribbon rather than a chain of dots, drawn
+     in three additive passes so it falls off like light instead of paint. */
+  drawTail();
+  if(G.state!=='dead'){
+    const p=posPlayer();
+    let pal=1;
+    if(G.t<G.invuln)pal=0.45+0.35*Math.sin(G.t*30);
+    ctx.globalCompositeOperation='lighter';
+    blit(SPR.cometGlow,p[0],p[1],1,0,pal);
+    ctx.globalCompositeOperation='source-over';
+    blit(SPR.comet,p[0],p[1],1,0,pal);
+    for(let k=0;k<G.shields;k++)
+      blit(SPR.shieldRing,p[0],p[1],(1.18+k*0.34)*(1+0.07*Math.sin(G.t*6-k*0.7)),0,pal*(0.72-k*0.16));
+    if(G.t<G.invuln){
+      ctx.globalAlpha=Math.min(1,(G.invuln-G.t)*1.6)*0.55;
+      ctx.strokeStyle=COL.shield;ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(p[0],p[1],(19+5*Math.sin(G.t*16))*u,0,TAU);ctx.stroke();
+      ctx.globalAlpha=1;
+    }
+  }
+  /* particles */
+  ctx.globalCompositeOperation='lighter';
+  for(const p of G.parts){
+    ctx.globalAlpha=Math.max(p.life,0);ctx.fillStyle=p.col;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.size*p.life+0.5,0,TAU);ctx.fill();
+  }
+  ctx.globalCompositeOperation='source-over';
+  ctx.globalAlpha=1;
+  /* score popups */
+  ctx.textAlign='center';
+  for(const p of G.pops){
+    ctx.globalAlpha=Math.max(p.life,0);
+    text(p.str,p.x,p.y,14*u,'800',p.col,1);
+  }
+  ctx.globalAlpha=1;
+  ctx.restore();
+
+  /* slow-mo tint */
+  if(G.tsCur<0.98){
+    const k=Math.min(1,(1-G.tsCur)/0.45);
+    const vg=ctx.createRadialGradient(cx,cy,Math.min(W,H)*0.2,cx,cy,Math.max(W,H)*0.7);
+    vg.addColorStop(0,'rgba(140,90,255,0)');
+    vg.addColorStop(1,'rgba(140,90,255,'+(0.16*k)+')');
+    ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+  }
+
+  drawHUD();
+  drawMute();
+  drawShieldBtn();
+  if(G.flash>0){
+    ctx.fillStyle='rgba(255,255,255,'+(G.flash*0.5)+')';
+    ctx.fillRect(0,0,W,H);
+  }
+}
+
+function drawShieldBtn(){
+  if(G.state!=='playing')return;
+  const r=shieldRect(),midY=r.y+r.h/2,has=G.shields>0;
+  const pulse=has?0.55+0.2*Math.sin(G.t*3.2):0.22;
+  ctx.save();
+  /* frame */
+  ctx.globalAlpha=has?0.5:0.2;
+  ctx.strokeStyle=COL.shield;ctx.lineWidth=1.6;
+  const rad=r.h/2;
+  ctx.beginPath();
+  ctx.moveTo(r.x+rad,r.y);ctx.lineTo(r.x+r.w-rad,r.y);
+  ctx.arc(r.x+r.w-rad,midY,rad,-Math.PI/2,Math.PI/2);
+  ctx.lineTo(r.x+rad,r.y+r.h);
+  ctx.arc(r.x+rad,midY,rad,Math.PI/2,-Math.PI/2);
+  ctx.closePath();ctx.stroke();
+  /* one glyph per shield slot, matching the pickup icon */
+  const gap=30*u,x0=r.x+r.w/2-(SHIELD_MAX-1)*gap/2;
+  for(let i=0;i<SHIELD_MAX;i++){
+    const on=i<G.shields,x=x0+i*gap;
+    ctx.globalAlpha=on?pulse+0.35:0.16;
+    ctx.strokeStyle=COL.shield;ctx.lineWidth=on?2.2:1.4;
+    ctx.beginPath();ctx.arc(x,midY,9*u,0,TAU);ctx.stroke();
+    if(on){
+      ctx.fillStyle=COL.shield;
+      ctx.beginPath();ctx.arc(x,midY,3.4*u,0,TAU);ctx.fill();
+    }
+  }
+  ctx.globalAlpha=1;ctx.restore();
+}
+function drawMute(){
+  const r=muteRect(),x=r.x+r.w/2,y=r.y+r.h/2,s=r.w/2;
+  ctx.save();
+  ctx.globalAlpha=muted?0.3:0.55;
+  ctx.fillStyle='#cfe4ff';ctx.strokeStyle='#cfe4ff';
+  ctx.lineWidth=1.8;ctx.lineCap='round';
+  ctx.beginPath();
+  ctx.moveTo(x-s*0.8,y-s*0.28);ctx.lineTo(x-s*0.42,y-s*0.28);
+  ctx.lineTo(x-s*0.02,y-s*0.72);ctx.lineTo(x-s*0.02,y+s*0.72);
+  ctx.lineTo(x-s*0.42,y+s*0.28);ctx.lineTo(x-s*0.8,y+s*0.28);
+  ctx.closePath();ctx.fill();
+  ctx.beginPath();
+  if(muted){
+    ctx.moveTo(x+s*0.28,y-s*0.36);ctx.lineTo(x+s*0.8,y+s*0.36);
+    ctx.moveTo(x+s*0.8,y-s*0.36);ctx.lineTo(x+s*0.28,y+s*0.36);
+  }else{
+    ctx.arc(x+s*0.14,y,s*0.36,-0.85,0.85);
+    ctx.moveTo(x+s*0.14+s*0.68*Math.cos(-0.85),s*0.68*Math.sin(-0.85)+y);
+    ctx.arc(x+s*0.14,y,s*0.68,-0.85,0.85);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* First few runs get one prompt at a time, each clearing itself the
+   moment the player does the thing. Veterans never see them. */
+function hintText(){
+  if(G.runs>3||age()>60)return null;
+  if(!G.didReverse)return 'tap anywhere to reverse';
+  if(!G.didHop)return 'swipe toward the ring you want';
+  if(!G.didLap)return 'gather embers, then finish the lap';
+  if(!G.didPhase&&G.shields>0)return 'tap the shield to phase through a hit';
+  return null;
+}
+
+function drawHUD(){
+  ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  const top=safeTop;
+  const bottomY=Math.min(H-24*u-safeBot,cy+R+52*u);
+  if(G.state==='playing'){
+    const sz=46*u*(1+0.25*G.scorePop);
+    text(G.score,cx,top+52*u,sz,'800','#eaf1ff',0);
+    text('BEST '+G.best,cx,top+76*u,13*u,'600','rgba(200,215,255,0.5)',2);
+    /* embers banked toward this orbit's payout */
+    const pipW=10*u,x0=cx-(LAP_EMB_MAX-1)*pipW/2,py=top+92*u;
+    for(let i=0;i<LAP_EMB_MAX;i++){
+      ctx.save();ctx.translate(x0+i*pipW,py);ctx.rotate(Math.PI/4);
+      const on=i<G.lapEmbers;
+      ctx.globalAlpha=on?0.95:0.22;
+      if(on){ctx.fillStyle=COL.ember;ctx.fillRect(-2.8*u,-2.8*u,5.6*u,5.6*u);}
+      else{ctx.strokeStyle='rgba(200,215,255,0.9)';ctx.lineWidth=1.2;ctx.strokeRect(-2.8*u,-2.8*u,5.6*u,5.6*u);}
+      ctx.restore();
+    }
+    ctx.globalAlpha=1;
+    if(G.combo>=2&&G.comboT>0){
+      ctx.globalAlpha=0.35+0.65*(G.comboT/CW);
+      text('\u00d7'+G.combo+' COMBO',cx,top+116*u,14*u,'800',COL.ember,2);
+      ctx.globalAlpha=1;
+    }
+    if(G.banner){
+      const b=G.banner;
+      const a=Math.min(1,b.t/0.3)*Math.min(1,(3.2-b.t)/0.6);
+      ctx.globalAlpha=Math.max(0,a);
+      text(b.str,cx,cy-R-30*u,20*u,'800',COL.shard,4);
+      text(b.sub,cx,cy-R-10*u,12*u,'600','rgba(210,225,255,0.75)',0);
+      ctx.globalAlpha=1;
+    }
+    const hint=hintText();
+    if(hint){
+      ctx.globalAlpha=RM?0.75:0.5+0.3*Math.sin(G.t*2.6);
+      text(hint,cx,bottomY,14*u,'600','rgba(210,225,255,0.9)',1);
+      ctx.globalAlpha=1;
+    }
+  }else if(G.state==='menu'){
+    const ty=Math.max(top+40*u,cy-R-46*u);
+    text('COMET LOOP',cx,ty,34*u,'800','#eaf1ff',6);
+    text('tap to reverse \u00b7 swipe toward a ring',cx,cy-6*u,15*u,'600','rgba(210,225,255,0.85)',0);
+    blit(SPR.ember,cx-84*u,cy+30*u,0.7,0.7,1);
+    ctx.textAlign='left';
+    text('collect',cx-70*u,cy+35*u,14*u,'600','rgba(210,225,255,0.85)',0);
+    ctx.save();ctx.translate(cx+14*u,cy+30*u);ctx.rotate(Math.PI/4);
+    ctx.fillStyle=COL.shard;ctx.fillRect(-4.9*u,-4.9*u,9.8*u,9.8*u);ctx.restore();
+    text('dodge',cx+28*u,cy+35*u,14*u,'600','rgba(210,225,255,0.85)',0);
+    ctx.textAlign='center';
+    text('fill an orbit with embers for a big bonus',cx,cy+58*u,12*u,'600','rgba(210,225,255,0.6)',0);
+    text('start with a shield \u00b7 tap it to phase through',cx,cy+76*u,12*u,'600','rgba(123,255,200,0.55)',0);
+    const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
+    ctx.globalAlpha=pulse;
+    text('TAP TO START',cx,bottomY,17*u,'800',COL.comet,4);
+    ctx.globalAlpha=1;
+  }else{
+    text('GAME OVER',cx,cy-46*u,26*u,'800',COL.shard,5);
+    text(G.score,cx,cy+14*u,54*u,'800','#eaf1ff',0);
+    if(G.newBest)text('NEW BEST',cx,cy+42*u,13*u,'700',COL.ember,3);
+    else text('BEST '+G.best,cx,cy+42*u,13*u,'600','rgba(200,215,255,0.5)',2);
+    if(G.t-G.deadT>0.6){
+      const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
+      ctx.globalAlpha=pulse;
+      text('TAP TO RETRY',cx,bottomY,17*u,'800',COL.comet,4);
+      ctx.globalAlpha=1;
+    }
+  }
+}
+
+/* ---------- loop ---------- */
+let last=performance.now();
+function frame(now){
+  if(window.innerWidth!==W||window.innerHeight!==H)resize();
+  const dt=Math.min((now-last)/1000,0.05);
+  last=now;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
