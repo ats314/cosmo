@@ -3,8 +3,7 @@
 A one-thumb arcade game that runs in a single HTML file. No build step, no
 dependencies, no assets — open it and play.
 
-**▶ [Play it](https://ats314.github.io/cosmo/)** *(live once GitHub Pages is
-enabled — see [Deploying](#deploying))*
+**▶ [Play it](https://ats314.github.io/cosmo/)**
 
 You are a comet locked to a circular orbit. You cannot steer and you cannot
 stop. You get two verbs: reverse your direction, and hop between rings. Gather
@@ -78,11 +77,25 @@ python3 -m http.server 8000   # then open http://localhost:8000
 ## Deploying
 
 `.github/workflows/pages.yml` syntax-checks the game on every push and pull
-request, and publishes `main` to GitHub Pages. **The workflow cannot enable
-Pages for you** — do it once in
-*Settings → Pages → Build and deployment → Source: **GitHub Actions***.
-Until then the deploy job will fail with a "Pages is not enabled" error while
-the check job still passes.
+request, and publishes `main` to GitHub Pages.
+
+Setting it up on a fresh clone takes one manual step: *Settings → Pages →
+Build and deployment → Source: **GitHub Actions***. The workflow passes
+`enablement: true` to `configure-pages`, which is meant to create the Pages
+site automatically, but the default `GITHUB_TOKEN` is not permitted to and
+fails with `Resource not accessible by integration`. The flag is left in
+place because it costs nothing and works for anyone running with a token
+that does have the rights.
+
+Two things that bite when this is not yet working:
+
+- The `deploy` job declares a `permissions:` block, and such a block
+  *replaces* the defaults rather than adding to them. `contents: read` has to
+  be listed explicitly or `actions/checkout` fails — reported as
+  `Repository not found`, which reads like a missing repo rather than a
+  permissions problem.
+- Enabling Pages does not itself trigger a build. Push to `main`, or re-run
+  the last workflow, before expecting the site to appear.
 
 ## Notes on the implementation
 
