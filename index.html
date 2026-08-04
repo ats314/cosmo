@@ -1193,7 +1193,9 @@ function inMute(x,y){
    retry tap right after dying can never land on it by accident. */
 function shareRect(){
   const w=132*u,h=42*u;
-  return{x:cx-w/2,y:cy+76*u,w:w,h:h};
+  /* cy+76u collided with the best-groove line at cy+78u once that was added.
+     Positioned against the LAST element above it, not against the score. */
+  return{x:cx-w/2,y:cy+92*u,w:w,h:h};
 }
 function inShare(x,y){
   if(G.state!=='dead'||G.t-G.deadT<=0.6)return false;
