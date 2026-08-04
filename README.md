@@ -102,6 +102,43 @@ Text rather than an image, deliberately: it survives every messaging app, can
 be quoted in a reply, and travels further than a bare link does. The bar
 reports how far the run got without spoiling the tiers you have not reached.
 
+## Telemetry
+
+**Off by default.** `POSTHOG_KEY` is empty in this repo, so a clone sends
+nothing anywhere and every `track()` call short-circuits before it does
+anything. Paste a PostHog project key into that constant to switch it on; a
+disclosure line appears on the menu automatically when you do.
+
+It is configured for gameplay counters and nothing else: `autocapture` off,
+session recording off, `localStorage` persistence rather than cookies. The
+loader is fully wrapped and fails silent, so a blocked request or a dead
+network cannot take the game down with it.
+
+One event per run, `run_ended`, carrying score, duration, orbits, best
+streak, embers, tier reached, what killed you, shields spent reactively vs.
+deliberately, and `run_index` — the lifetime run count, which is the one that
+actually measures retention. Plus `share_tapped`.
+
+The interesting field is **`misread_rate`**. Every swipe begins as a tap, so
+the input layer reverses speculatively and rolls back once your finger
+travels. That is invisible when it works. `GEST` counts where each gesture
+actually resolves:
+
+| | |
+|---|---|
+| `tap` | lifted without travelling — reverse, as intended |
+| `swipe` | radial intent clear mid-drag — hop, as intended |
+| `lateSwipe` | only resolved at lift — worked, but it was close |
+| `unresolved` | swiped and got nothing. **The misread.** |
+
+Counted at the resolution sites, deliberately *not* inside `bump()` — that
+also fires when a swipe hits the outermost or innermost ring, which is the
+game answering correctly rather than failing to understand. Conflating the
+two would make the metric useless.
+
+Expect ad blockers to eat a fair share of events. Ratios like `misread_rate`
+and run-4 retention survive that; absolute player counts do not.
+
 ## Running locally
 
 Any static server works. `file://` works too, except that Chrome's storage
@@ -157,8 +194,18 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   the sky.
 - **Audio is scheduled on the `AudioContext` clock**, not `setTimeout`, so
   arpeggios stay in time when the tab is backgrounded.
-- **`prefers-reduced-motion` is respected** — screen shake, flashes, parallax
-  and pulsing are all suppressed.
+- **Particles stretch along their velocity.** Burst speed drives the
+  elongation, and since velocity damps at `0.15^dt` the streak collapses to a
+  round spark on its own within a few frames — the shape carries the motion,
+  with no extra state to track.
+- **Gate bars are drawn as energy, not as a line** — a wide soft pass under a
+  tight core, overhanging both ends of the ring stack so they read as a
+  barrier across the field rather than a chord within it, with crawling rungs
+  once armed.
+- **Ripples carry their own speed and decay**, so a death shockwave can
+  outrun a pickup pop instead of every ring expanding at one rate.
+- **`prefers-reduced-motion` is respected** — screen shake, flashes, parallax,
+  pulsing, the death shockwave and the animated gate rungs are all suppressed.
 - **Safe-area insets** are read from a hidden probe element, so the ring and
   HUD stay clear of the notch and the home indicator.
 
