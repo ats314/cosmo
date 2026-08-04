@@ -121,46 +121,6 @@ Text rather than an image, deliberately: it survives every messaging app, can
 be quoted in a reply, and travels further than a bare link does. The bar
 reports how far the run got without spoiling the tiers you have not reached.
 
-## Audio
-
-Everything is synthesised — there are no audio files. A fixed bus is built
-once and per-sound voices are created on top of it:
-
-```
-voice ─┬─► dry ──────────────► world ─┐
-       └─► send ─► reverb ───────────►├─► limiter ─► makeup ─► soft clip ─► out
-bed ─────────────► bedDuck ───────────┘
-```
-
-Measured before any of it was written: the old layer peaked at **0.138** on the
-busiest moment in the game, so ~86% of the available headroom was going unused.
-That, not clipping, was why it sounded thin on a phone. Makeup gain is 2.15 —
-a measured number, not a guess; 2.6 put a nova cascade three samples over full
-scale.
-
-**The bed** carries escalation through filter movement, never amplitude: a slow
-volume wobble on a sustained tone is the most fatiguing thing you can put in a
-game, and this one has to survive fifteen-minute runs. Its lowpass opens from
-400Hz to ~1900Hz as the difficulty clock advances, which measures as **+27dB of
-midrange** from the opening to a deep run. Two detuned unisons per note give
-chorus without drifting the chord, and the voicing is an open fifth with no
-third so it never commits to major or minor.
-
-**Reverb is a convolver over a generated impulse**, not delay taps. Two taps
-above the ~50ms fusion threshold read as slapback — you hear echoes, not a
-room. Noise through an exponential decay diffuses properly.
-
-Several cues were fixed rather than restyled. iPhone speakers roll off hard
-below ~500Hz, so anything whose payload sat under that was inaudible on the
-device the game ships to: the bump that fires when a swipe is misread, the
-empty-shield refusal (which was also near-identical to that bump — two
-different refusals, one sound), and the death, which fell to 50Hz and so ended
-by simply vanishing. The reactive shield block was a square wave falling into
-the death register, so a rescue sounded like a punishment. The nova cascade
-picked a random pitch per shard and stacked into a dissonant wash; it is now
-snapped to a minor pentatonic, which has no semitones, so any subset played
-together is consonant.
-
 ## Telemetry
 
 **Off by default.** `POSTHOG_KEY` is empty in this repo, so a clone sends
@@ -198,7 +158,14 @@ two would make the metric useless.
 Expect ad blockers to eat a fair share of events. Ratios like `misread_rate`
 and run-4 retention survive that; absolute player counts do not.
 
-## Music and sound
+## Audio
+
+```
+voice ─┬─► dry ──────────────► world ─┐
+       └─► send ─► reverb ───────────►├─► limiter ─► makeup ─► soft clip ─► out
+bed ─────────────► bedDuck ───────────┘
+```
+
 
 Everything is synthesised in WebAudio — there are no audio files anywhere in
 the repo.
