@@ -28,6 +28,10 @@ jobs:
     needs: check
     runs-on: ubuntu-latest
     permissions:
+      # A permissions block replaces the defaults rather than adding to them,
+      # so contents:read has to be spelled out — without it checkout cannot
+      # clone a private repo and fails with "Repository not found".
+      contents: read
       pages: write
       id-token: write
     environment:
