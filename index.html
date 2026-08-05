@@ -234,10 +234,20 @@ function resize(){
     safeTop=parseFloat(cs.paddingTop)||0;
     safeBot=parseFloat(cs.paddingBottom)||0;
   }catch(e){safeTop=0;safeBot=0;}
-  /* keep the ring clear of the notch and the home indicator */
-  const usableH=H-safeTop-safeBot;
-  R=Math.min(W,usableH)*0.31;
-  cy=safeTop+usableH/2;
+  /* SIZE THE ARENA FROM THE FREE BOX, not from a flat fraction of the screen.
+     `min(W,usableH)*0.31` ignored the furniture at both ends and left 74px of
+     dead margin either side in portrait while ALREADY overlapping in
+     landscape — 16px of clearance under the ring and the tier banner drawing
+     80px up into the HUD. Solving the actual box fixes both at once: portrait
+     gains about a third more arena, landscape stops colliding. */
+  const topLim=safeTop+150*u;            /* under the score / embers / groove stack */
+  const botLim=H-safeBot-74*u;           /* over the shield button */
+  const vBox=Math.max(40,(botLim-topLim)/2);
+  /* 30u leaves exactly enough for the comet plus a full three-shield stack
+     (15u sprite at 1.86x = 28u) at the widest point of the outer ring. */
+  const hBox=W/2-30*u;
+  R=Math.max(52,Math.min(hBox,vBox));
+  cy=(topLim+botLim)/2;
   /* normalised coords: the star field never needs rebuilding on resize */
   if(!bgStars.length){
     for(let i=0;i<22;i++)bgStars.push({x:Math.random(),y:Math.random(),r:rand(0.7,1.7),ph:rand(0,TAU),tw:rand(0.5,2.5)});
@@ -249,8 +259,24 @@ window.addEventListener('resize',resize);resize();
 function angDist(a,b){const d=Math.abs((a-b)%TAU);return d>Math.PI?TAU-d:d;}
 /* Ring 0 is the outermost. Adding a ring adds a higher index further in, so
    existing rings never move when a new one appears. */
-const RADII=[1.0,0.74,0.50];
+/* The inner ring was half the outer one, and a shard's hit width is
+   (18.5u)/radius RADIANS — so it blocked twice the angular fraction there and
+   held roughly a third fewer embers. Lifting it to 0.545 of a larger R makes
+   the innermost track about 42% wider than it was without touching a single
+   difficulty constant. */
+const RADII=[1.0,0.76,0.545];
 const RING_MULT=[1,1,1]; /* set e.g. [1,1.5,2] to pay more for riding inside */
+/* EACH RING IS AN INSTRUMENT. Nothing about the payout differs between them,
+   so the only honest way to say "inside is hotter" is to make it SOUND hotter.
+   Going in raises the register (performerHit already transposes by ring),
+   brightens the timbre from a warm saw to a hard square, opens the pad, and —
+   the part you feel rather than hear — doubles the subdivision underneath you.
+   The tempo never changes. Only how finely the bar is cut. */
+const RINGS=[
+  /* outer */ {wave:'sawtooth',cut:1.00,lift:0,   sub:0, tint:'132,162,255'},
+  /* mid   */ {wave:'square',  cut:1.18,lift:260, sub:1, tint:'128,206,255'},
+  /* inner */ {wave:'square',  cut:1.42,lift:620, sub:2, tint:'168,240,255'}];
+function ringOf(){return G.state==='playing'?Math.min(RINGS.length-1,effRing()):0;}
 function radiusOf(i){return R*RADII[i];}
 function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r];}
 
@@ -712,6 +738,18 @@ function musicStep(i,t,k){
   if((k>0.45||gv>0)&&(beat===2||beat===6))hat(t,0.020+0.012*k+0.006*gv);
   if(gv>=2&&beat%2===1)hat(t,0.009+0.004*gv,8200,0.045);
   if(k>0.45&&beat===4)hat(t,0.012);
+  /* THE RING IS THE SUBDIVISION. Ring 1 fills the offbeat eighths, ring 2 cuts
+     the whole bar into sixteenths — twice the pulse rate, at exactly the same
+     104bpm. This is the "inner rings are hotter" signal, and it is felt rather
+     than read: hopping inward audibly doubles the clock without the music ever
+     lurching, which a tempo change would. Quiet, because it is a floor under
+     what the player is doing, not a part competing with it. */
+  const rs=RINGS[ringOf()].sub;
+  if(rs>=1&&beat%2===1)hat(t,0.0085,8600,0.038);
+  if(rs>=2&&beat%2===0)hat(t+S16,0.0075,9000,0.032);
+  /* 3 / 7 / 11 events per bar. A full sixteenth shimmer measured 6.3x the
+     outer ring's density, which is a wall of noise rather than a groove —
+     this is a ladder you can hear each step of. */
   /* THE COVER. The band fills the offbeat only while nobody else is playing
      it, and fades out continuously as you engage — so the first thing you hear
      when you start working the controls is the machine stepping aside. Dull
@@ -879,8 +917,14 @@ function performerHit(kind,dir,ring){
     if(!RM)G.rings.push({x:p[0],y:p[1],r:6*u,life:1,col:COL.warp,sp:260,dec:2.2});
     else G.rings.push({x:p[0],y:p[1],r:9*u,life:1,col:COL.warp,sp:0,dec:2.2});
   }else{
-    note(PENT[d],t,0.13,'sawtooth',g,(2400+2200*PLAY.heat)*(1+0.16*gr),
+    /* your instrument changes with the track you are riding — warm saw on the
+       outside, hard bright square on the inside */
+    const rv=RINGS[rg];
+    note(PENT[d],t,0.13,rv.wave,g,(2400+2200*PLAY.heat)*(1+0.16*gr)*rv.cut,
       panAt(p[0]),A.perf);
+    /* the inner track gets an octave edge on top, so it reads as keener even
+       on a phone speaker where the fundamental is doing the least work */
+    if(rg>=2)note(PENT[Math.min(13,d+3)],t,0.09,'sine',g*0.34,7200,panAt(p[0]),A.perf);
     /* THE BAND ANSWERS. Three sixteenths later — 433ms, an odd subdivision no
        player on the eighth grid can ever claim, and far past the ~50ms fusion
        threshold, so it reads as a second musician rather than a doubling of
@@ -957,7 +1001,8 @@ function bedTick(dt){
      player's hands whether or not the chain ever reaches x8 — the build a
      real track waits eight bars for, paid for with playing instead. */
   const gv=Math.max(0,G.groove-4);
-  let cut=400+1500*k*k+900*PLAY.heat+420*gv;
+  /* the pad opens as you go inward too, so the whole mix brightens with depth */
+  let cut=400+1500*k*k+900*PLAY.heat+420*gv+(playing?RINGS[ringOf()].lift:0);
   if(MU&&MU.pay>0)cut=Math.min(cut,((PAY-MU.pay)>>3)<4?380:700);
   /* schedulePreDrop owns this param through the hole; do not fight it */
   if(!MU||t>=MU.lpLock)BED.lp.frequency.setTargetAtTime(cut,t,0.5);
@@ -2152,7 +2197,9 @@ function drawRingGlow(){
   const rr=curR();
   ctx.save();
   ctx.globalCompositeOperation='lighter';
-  ctx.strokeStyle=COL.comet;
+  /* the lit track takes its own colour, so the light under the comet says
+     which ring you are on as plainly as the arrangement does */
+  ctx.strokeStyle='rgb('+RINGS[Math.min(RINGS.length-1,effRing())].tint+')';
   for(const L of RING_LIT){
     ctx.globalAlpha=L[1];
     ctx.lineWidth=L[2]*u;
@@ -2274,15 +2321,19 @@ function draw(){
   /* orbit rings */
   for(let i=0;i<G.nRings;i++){
     const rr=radiusOf(i),on=(G.hopP>=1&&G.ringI===i);
-    ctx.strokeStyle='rgba(150,180,255,0.045)';ctx.lineWidth=13;
+    /* Each track carries its own colour, cooling from deep blue on the outside
+       to a keen cyan-white inside — the same axis the sound moves along, so
+       the picture and the arrangement are saying one thing rather than two. */
+    const tn=RINGS[Math.min(RINGS.length-1,i)].tint;
+    ctx.strokeStyle='rgba('+tn+',0.045)';ctx.lineWidth=13;
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
-    ctx.strokeStyle=on?'rgba(175,205,255,0.14)':'rgba(150,180,255,0.065)';ctx.lineWidth=4.5;
+    ctx.strokeStyle='rgba('+tn+','+(on?0.145:0.065)+')';ctx.lineWidth=4.5;
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
     /* the arena changes colour for the whole section. static, so it is safe
        under reduced motion — and it is the only whole-section signal an RM
        player gets, so they get it too. */
     ctx.strokeStyle=G.pay>0?(on?'rgba(196,160,255,0.46)':'rgba(170,140,240,0.17)')
-                           :(on?'rgba(206,230,255,0.44)':'rgba(170,195,255,0.155)');
+                           :'rgba('+tn+','+(on?0.46:0.17)+')';
     ctx.lineWidth=1.3;
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
   }
@@ -2292,7 +2343,9 @@ function draw(){
   if(G.pay>0){
     ctx.save();ctx.globalAlpha=0.24;ctx.strokeStyle=COL.warp;ctx.lineWidth=2.5;
     ctx.beginPath();
-    ctx.arc(cx,cy,radiusOf(G.nRings-1)+7*u,-Math.PI/2,-Math.PI/2+TAU*G.pay);
+    /* radiusOf(nRings-1) is the INNERMOST ring — this was drawing the section
+       readout inside the arena instead of framing it. Ring 0 is the outer. */
+    ctx.arc(cx,cy,radiusOf(0)+13*u,-Math.PI/2,-Math.PI/2+TAU*G.pay);
     ctx.stroke();ctx.restore();
   }
   ctx.globalCompositeOperation='lighter';
@@ -2696,8 +2749,14 @@ function drawHUD(){
       const b=G.banner;
       const a=Math.min(1,b.t/0.3)*Math.min(1,(3.2-b.t)/0.6);
       ctx.globalAlpha=Math.max(0,a);
-      text(b.str,cx,cy-R-30*u,20*u,'800',COL.shard,4);
-      text(b.sub,cx,cy-R-10*u,12*u,'600','rgba(210,225,255,0.75)',0);
+      /* The banner sits a fixed 30u above the ring, and the ring top is itself
+         pinned just under the HUD — so on a short viewport it was drawn 80px
+         UP INTO the score readout. Clamped below the groove line: on a phone
+         the arena is wide enough that this never binds, and in landscape the
+         banner slides down over the ring rather than through the HUD. */
+      const by=Math.max(cy-R-30*u,top+158*u);
+      text(b.str,cx,by,20*u,'800',COL.shard,4);
+      text(b.sub,cx,by+20*u,12*u,'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
     }
     const hint=hintText();
