@@ -2716,16 +2716,16 @@ function hintText(){
      lesson plan. Each entry either clears when the player does the thing or
      times out, so exactly one idea is ever on screen and nothing can sit there
      blocking the rest of the ladder. */
-  if(!G.didReverse)return 'tap anywhere to reverse';
-  if(!G.didLap&&a<22)return 'gather embers, then finish the lap';
+  if(!G.didReverse)return 'tap to reverse';
+  if(!G.didLap&&a<22)return 'embers, then a full lap';
   /* Only once there is somewhere to hop TO. A run opens on a single ring for
      its first 30 seconds, so without this the prompt asks a new player to
      make the one gesture the game will not answer — they swipe, nothing
      happens, and the controls read as broken at the exact moment they are
      being learned. */
-  if(!G.didHop&&G.nRings>1)return 'swipe toward the ring you want';
-  if(!G.didDodge&&G.spikes.length)return 'red is lethal — reverse or hop away';
-  if(!G.didShield&&a>17&&a<25)return 'a shield takes one hit for you';
+  if(!G.didHop&&G.nRings>1)return 'swipe to change ring';
+  if(!G.didDodge&&G.spikes.length)return 'red is lethal';
+  if(!G.didShield&&a>17&&a<25)return 'a shield takes one hit';
   /* Named after the ring now visibly contracting onto the comet, and phrased
      as an invitation rather than an instruction — a struggling player does not
      need another demand. */
@@ -2733,7 +2733,7 @@ function hintText(){
      prompt keys off this run's own chain, so it still reminds someone who
      learned it weeks ago and has not used it today. */
   if(G.bestGroove<2&&a>28&&G.groove<2)return 'tap with the pulse';
-  if(!G.sawDrop&&G.bestGroove>=4&&a>46)return 'hold the pulse to ×8 for a drop';
+  if(!G.sawDrop&&G.bestGroove>=4&&a>46)return 'pulse ×8 earns a drop';
   return null;
 }
 
@@ -2812,10 +2812,32 @@ function drawHUD(){
     }
     const hint=hintText();
     if(hint){
-      /* clear of the shield button, which lives in the same strip of screen */
-      const hy=Math.min(bottomY,shieldRect().y-12*u);
-      ctx.globalAlpha=RM?0.75:0.5+0.3*Math.sin(G.t*2.6);
-      text(hint,cx,hy,14*u,'600','rgba(210,225,255,0.9)',1);
+      /* DEAD CENTRE. The middle of the arena is the one region nothing ever
+         occupies — shards and embers ride the rings and the comet orbits them
+         — so guidance can sit where the eye already is without ever hiding a
+         threat. It used to sit at the very bottom of the screen at 14u with
+         alpha pulsing 0.5+-0.3 against a 0.9 colour, so it spent part of every
+         cycle at 18% opacity: not dim, unreadable.
+         The shadow is a second fillText offset by a pixel rather than
+         shadowBlur, which this file avoids per-frame on purpose. */
+      /* Fit it inside the innermost ring. Anything wider crosses the tracks at
+         three and nine o'clock, which is exactly where a shard would be — the
+         one place centred text can hide a threat. */
+      const budget=Math.min(W*0.82,radiusOf(G.nRings-1)*2*1.04);
+      let hs=17*u,hy=cy+5*u;
+      ctx.font='700 '+Math.round(hs)+'px '+F;
+      const wpx=ctx.measureText(hint).width+1*hint.length;
+      if(wpx>budget){
+        const fit=hs*budget/wpx;
+        /* Shrink to fit, but never below readable. On a short viewport the
+           arena is too small to hold a line at any size worth reading, so the
+           text sits under the rings instead — legible beats centred. */
+        if(fit>=13*u)hs=fit;
+        else{hs=15*u;hy=Math.min(H-26*u-safeBot,cy+R+34*u);}
+      }
+      ctx.globalAlpha=RM?1:0.88+0.12*Math.sin(G.t*2.6);
+      text(hint,cx+1.5,hy+1.5,hs,'700','rgba(4,8,20,0.85)',1);
+      text(hint,cx,hy,hs,'700','#eaf3ff',1);
       ctx.globalAlpha=1;
     }
   }else if(G.state==='menu'){
