@@ -289,6 +289,19 @@ function buildBus(){
   lim.attack.value=0.003;lim.release.value=0.14;
   const world=c.createGain();world.gain.value=1;
   const bedDuck=c.createGain();bedDuck.gain.value=1;
+  /* THE HOLE. One gain node carrying the whole band — pad, arp, root, hats.
+     The drop's silence is a single automation curve written on this, which is
+     why it cannot be left stranded by mute, death or a backgrounded tab. */
+  const hole=c.createGain();hole.gain.value=1;
+  /* THE PLAYER'S INSTRUMENT, on its own path. It bypasses bedDuck, so a nova
+     or an ignition gets the band out of the way and NOT you; and it bypasses
+     hole, so when the drop takes the floor out from under the arrangement your
+     own notes are the thing left standing. A +3dB bell at 1.5kHz is the most
+     efficient band on a 15mm phone driver and this mix was thin there. */
+  const perf=c.createGain();perf.gain.value=1;
+  const pq=c.createBiquadFilter();
+  pq.type='peaking';pq.frequency.value=1500;pq.Q.value=0.9;pq.gain.value=3;
+  perf.connect(pq);
   /* Reverb: a real convolver over a generated impulse. Two delay taps read as
      slapback rather than space — above the ~50ms fusion threshold you hear
      two echoes, not a room. Noise through an exponential decay diffuses. */
@@ -305,10 +318,11 @@ function buildBus(){
   const send=c.createGain();send.gain.value=0.20;
   const verbTone=c.createBiquadFilter();
   verbTone.type='highpass';verbTone.frequency.value=420; /* keep the tail out of the mud */
-  world.connect(lim);bedDuck.connect(lim);
+  world.connect(lim);bedDuck.connect(hole);hole.connect(lim);pq.connect(lim);
   send.connect(verb);verb.connect(verbTone);verbTone.connect(lim);
   lim.connect(makeup);makeup.connect(clip);clip.connect(out);out.connect(c.destination);
-  A={out:out,world:world,send:send,lim:lim,bed:bedDuck,makeup:makeup};
+  out.gain.value=muted?0:1;      /* mute the BUS, never the clock — see toggleMute */
+  A={out:out,world:world,send:send,lim:lim,bed:bedDuck,hole:hole,perf:perf,makeup:makeup};
   buildBed();
 }
 /* The bed. Filter movement carries the escalation, never amplitude: a slow
@@ -333,7 +347,42 @@ const CH=[[110,220,261.63,329.63],      /* Am  */
           [130.81,261.63,329.63,392],   /* C   */
           [ 98,196,246.94,293.66]];     /* G   */
 /* Pentatonic degrees for the arp and the counter-line, as indices into PENT. */
-const ARP=[0,2,4,2,3,2,4,5],CNT=[7,5,4,5,7,8,7,5];
+/* ARP tops out at degree 4 (784Hz) on purpose: the player's floor is 784 and a
+   boundary only reads as a boundary if the band actually stops below it. */
+const ARP=[0,2,4,2,3,2,4,3],CNT=[7,5,4,5,7,8,7,5];
+/* ---------- the payoff section ----------
+   A drop is not a moment, it is a DOOR. What was shipped fired six voices for
+   1.3s and then returned to exactly the arrangement it had been playing, so
+   earning one bought nothing. This is what it opens onto.
+
+   Eight bars, 18.46s, entered through a real hole. Bars 0-1 the band states a
+   hook that exists nowhere else in the game. Bars 2-3 the hook STOPS and those
+   bars are the player's. Bars 4-5 the hook returns with the drums at four
+   times the backbeat rate. Bar 6 is the player's again. Bar 7 is a written
+   descent that lands one eighth before the ordinary loop resumes.
+
+   PAY = 2 x STEPS is load-bearing: MU.step returns to 0 exactly as the section
+   ends, so the chord walk stays aligned and the seam lands on a downbeat. */
+const PAY=64,S16=SPB/4,PAYLEN=PAY*(SPB/2),PAYREST=42;
+/* 8 bars x 16 sixteenths of PENT degrees, -1 = rest. The accents are 3+3+2 and
+   share not one position with ARP's straight eighths, which is what makes it
+   read as a different piece of music rather than the same music louder. */
+const HOOK=[
+/*0 Am*/  8,-1,-1, 6,-1,-1, 5,-1,  6,-1,-1, 8,-1,-1, 9,-1,
+/*1 F */  8,-1,-1, 6,-1,-1, 5,-1,  3,-1,-1, 5,-1,-1,-1,-1,
+/*2 C */ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+/*3 G */ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+/*4 Am*/  8,-1,-1, 6,-1,-1, 5,-1,  6,-1,-1, 8,-1,-1, 9,-1,
+/*5 F */  8,-1,-1, 6,-1,-1, 5,-1,  3,-1,-1, 5,-1,-1,-1,-1,
+/*6 C */ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+/*7 G */  9,-1,-1, 8,-1,-1, 7,-1,  6,-1,-1, 5,-1,-1,-1,-1];  /* the descent */
+/* sixteenths to the next note, so a note can be as long as the gap it owns */
+const HOOKG=(function(){const g=new Array(128).fill(0);
+  for(let s=0;s<128;s++){if(HOOK[s]<0)continue;let n=1;
+    while(n<16&&HOOK[(s+n)%128]<0)n++;g[s]=n;}return g;})();
+/* If the player answers with nothing, the band covers — but LATE in the bar,
+   so the first half of every response bar is unconditionally theirs. */
+const GHOST=[-1,-1,-1,-1,-1,-1, 8,-1, 6,-1,-1, 5,-1,-1,-1,-1];
 let MU=null,NOISE=null;
 const BEATQ=[];
 function buildBed(){
@@ -360,17 +409,24 @@ function buildBed(){
   lp.connect(hp);hp.connect(g);
   g.connect(A.bed);g.connect(A.send);
   BED={g:g,lp:lp,oscs:oscs,gains:gains};
-  /* one noise buffer, reused by every hat for the life of the page */
-  const n=c.createBuffer(1,c.sampleRate*0.4,c.sampleRate),d=n.getChannelData(0);
+  /* One noise buffer, reused by every hat for the life of the page. 1.5s, not
+     0.4 — the drop's riser sweeps a continuous 1.73s tail and a short buffer
+     loops audibly underneath it. */
+  const n=c.createBuffer(1,c.sampleRate*1.5,c.sampleRate),d=n.getChannelData(0);
   for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
   NOISE=n;
-  MU={next:0,step:0,chord:-1,armed:false,cool:0};
+  MU={next:0,step:0,chord:-1,armed:false,cool:0,
+      pay:0,        /* eighths left in the payoff; 0 = inactive. the only flag. */
+      payEnd:0,     /* audio-clock deadline, so no stall path can strand it */
+      payN:0,payHits:0,barHits:0,barN:0,
+      rise:false,   /* a FULL two-bar rise is locked in */
+      lpLock:0,hushEnd:0,chainBar:-1,liftEnd:0};
 }
 /* One-shot musical voice. Separate from beep() because music needs a filter
    and a longer tail, and because it must route through the bed's duck so a
    nova pushes the score out of the way along with everything else. */
-function note(f,t,dur,type,g,cut,pan){
-  if(!A||!AC)return;
+function note(f,t,dur,type,g,cut,pan,bus){
+  if(!A||!AC||muted)return;
   try{
     const o=AC.createOscillator(),v=AC.createGain(),lp=AC.createBiquadFilter();
     o.type=type;o.frequency.setValueAtTime(f,t);
@@ -382,49 +438,207 @@ function note(f,t,dur,type,g,cut,pan){
     o.connect(lp);lp.connect(v);
     let tail=v;
     if(pan&&AC.createStereoPanner){const sp=AC.createStereoPanner();sp.pan.value=pan;v.connect(sp);tail=sp;}
-    tail.connect(A.bed);
-    const sg=AC.createGain();sg.gain.value=0.5;tail.connect(sg);sg.connect(A.send);
+    tail.connect(bus||A.bed);
+    /* The player's voice goes out drier. Wet reads as far away, dry reads as
+       close, and close is what "mine" sounds like. Half the trick is here. */
+    const sg=AC.createGain();sg.gain.value=bus?0.28:0.5;tail.connect(sg);sg.connect(A.send);
     o.start(t);o.stop(t+dur+0.02);
   }catch(e){}
 }
-function hat(t,g){
-  if(!A||!AC||!NOISE)return;
+/* hz/dec/wet are optional and every original call site omits them. With them
+   this same voice is a snare's noise body, an open hat, or the drop's riser. */
+function hat(t,g,hz,dec,wet){
+  if(!A||!AC||!NOISE||muted)return;
   try{
     const s=AC.createBufferSource(),v=AC.createGain(),hp=AC.createBiquadFilter();
+    const d=dec||0.055;
     s.buffer=NOISE;s.loop=true;
-    hp.type='highpass';hp.frequency.value=7200;
+    hp.type='highpass';hp.frequency.value=hz||7200;
     v.gain.setValueAtTime(0.0001,t);
     v.gain.exponentialRampToValueAtTime(g,t+0.004);
-    v.gain.exponentialRampToValueAtTime(0.0001,t+0.055);
+    v.gain.exponentialRampToValueAtTime(0.0001,t+d);
     s.connect(hp);hp.connect(v);v.connect(A.bed);
-    s.start(t);s.stop(t+0.08);
+    if(wet){const sg=AC.createGain();sg.gain.value=wet;v.connect(sg);sg.connect(A.send);}
+    s.start(t);s.stop(t+d+0.03);
   }catch(e){}
 }
+/* note() cannot sweep a pitch, so the kick is its own voice. The 400Hz START
+   is the part a phone hears; the 48Hz body is a headphone bonus and never
+   carries information. */
+function kick(t,g){
+  if(!A||!AC||muted)return;
+  try{const o=AC.createOscillator(),v=AC.createGain();
+    o.type='sine';o.frequency.setValueAtTime(400,t);
+    o.frequency.exponentialRampToValueAtTime(48,t+0.075);
+    v.gain.setValueAtTime(0.0001,t);
+    v.gain.exponentialRampToValueAtTime(g,t+0.006);
+    v.gain.exponentialRampToValueAtTime(0.0001,t+0.24);
+    o.connect(v);v.connect(A.bed);o.start(t);o.stop(t+0.27);}catch(e){}
+}
+/* 1900Hz noise is what a phone reproduces of a snare; the 196Hz body is for
+   headphones and is deliberately half the gain. */
+function snare(t,g,wet){
+  hat(t,g,1900,0.17,wet);
+  note(196,t,0.085,'triangle',g*0.5,900,0);
+}
+/* THE SECTION'S VOICE. Square alone at 1.3kHz for fifteen minutes is an ice
+   pick; the triangle gives it a body at the same perceived loudness. */
+function lead(f,t,dur,g,cut,pan){
+  note(f,t,dur,'square',  g*0.62,cut,     pan);
+  note(f,t,dur,'triangle',g*0.55,cut*0.7, pan);
+}
 /* ---------- the drop ----------
-   The arrangement has been building and never releasing. A drop needs three
-   things and the third is the one people forget: a rise, a SILENCE, and the
-   hit. Cutting everything for the last half beat is what makes the downbeat
-   land — without the hole, the loud part is just more loud.
+   A rise, a SILENCE, and the hit — and the third is the one that was missing.
+   Measured on the shipped build, the "hush" was -0.1dB against an ordinary bar:
+   musicStep's `if(hush)return` stopped SCHEDULING notes, but the pad is a bank
+   of continuously running oscillators whose gain lives in bedTick, so it played
+   straight through and filled the hole completely. The riser hat also sat above
+   the guard and fired at the loudest gain of any hat in the game, inside the
+   silence. The drop then landed +2.9dB on a phone speaker — barely the
+   threshold at which a human notices a level change at all.
 
-   It is always fired on a downbeat. A drop that arrives mid-bar is not a drop,
-   it is a noise. So earning one ARMS it, and it goes off at the top of the
-   next cycle: up to four bars of rise, which is the anticipation. */
+   None of that is fixed by turning the drop up; peak was already 0.97. It is
+   fixed by taking everything else away first. Loudness by contrast is free. */
 const DROPQ=[];
 function armDrop(){
   if(!MU||MU.armed||!AC)return;
+  if(MU.pay>0||MU.rise)return;           /* sections cannot nest */
   if(AC.currentTime<MU.cool)return;      /* rationed, or it stops being an event */
   MU.armed=true;
 }
+/* THE RULE THIS WHOLE FEATURE HANGS OFF: every duck writes its own undo at
+   schedule time, in the same call. Never rely on a later tick to restore a
+   param. AudioParam automation runs on the audio clock independently of JS,
+   mute, visibility and game state, so a hole whose recovery is already written
+   cannot be stranded by any of them. endSection() is belt and braces here, not
+   the mechanism. Do not add a second duck on A.hole without this discipline. */
+function schedulePreDrop(tD){
+  if(!A||!AC||!BED)return;
+  const e=SPB/2,g=A.hole.gain;
+  g.cancelScheduledValues(tD-2*e);
+  g.setValueAtTime(1,tD-2*e);                  /* pin, so the cancel cannot click */
+  g.linearRampToValueAtTime(0.22,tD-1.5*e);    /* the swallow: -13dB in 144ms */
+  g.linearRampToValueAtTime(0.05,tD-1*e);      /* -26dB for the last eighth */
+  g.setValueAtTime(0.05,tD-0.008);
+  g.linearRampToValueAtTime(1,tD);             /* 8ms restore, landing ON the beat */
+  MU.hushEnd=tD+0.02;
+  /* Linear ramps, not setTargetAtTime: asymptotic curves never arrive and need
+     a pin. 8ms rather than a step because 0.05->1 on eight running sawtooths
+     clicks; 8ms is under the audibility floor and does not soften the hit.
+     0.05 rather than 0, because the 1.6s reverb tail is fed pre-duck and rings
+     through — the hole is a hole in the band, not digital silence. */
+  const f=BED.lp.frequency;
+  f.cancelScheduledValues(tD-2*e);
+  f.setValueAtTime(f.value,tD-2*e);
+  f.linearRampToValueAtTime(2600,tD-1.5*e);    /* opens through the rise... */
+  f.linearRampToValueAtTime(220,tD-1*e);       /* ...then slams for the hole */
+  f.setValueAtTime(220,tD-0.008);
+  f.linearRampToValueAtTime(1600,tD+0.06);
+  MU.lpLock=tD+0.25;
+}
 function fireDrop(t){
-  MU.armed=false;MU.cool=t+20;
-  const r=CH[0];
-  note(r[0]/2,t,1.30,'sawtooth',0.085,620);        /* the sub that arrives */
-  note(r[0],t,0.95,'sawtooth',0.060,2600);
-  note(PENT[0],t,0.70,'square',0.038,5200,-0.22);
-  note(PENT[4],t,0.70,'square',0.038,5200,0.22);
-  note(PENT[7],t,0.55,'triangle',0.030,7000,0);
-  hat(t,0.055);
-  DROPQ.push(t);                                    /* the picture waits for it */
+  MU.armed=false;MU.rise=false;
+  MU.pay=PAY;MU.payEnd=t+PAYLEN+0.6;MU.payN++;MU.payHits=0;MU.barHits=0;
+  MU.cool=t+PAYLEN+PAYREST;
+  /* The sub was 1.30s and the single largest gain figure in the drop, at 55Hz
+     — a third of the budget spent where the target device reproduces nothing,
+     smearing across the first two bars of the hook it exists to introduce.
+     Shorter now, and the stabs moved up an octave to pre-echo the hook. */
+  note(55, t,0.55,'sawtooth',0.045,620);          /* headphone weight only */
+  note(110,t,0.60,'sawtooth',0.055,2600);
+  note(PENT[8],t,0.45,'square',0.034,6000,-0.22);
+  note(PENT[5],t,0.45,'square',0.034,6000, 0.22);
+  hat(t,0.060,2400,0.55,0.55);                    /* the crash, wet */
+  /* No kick here on purpose. The caller runs payoffStep at this same t and its
+     bar 0 fires one — the impact and the section starting are ONE event, and
+     scheduling both put two kicks on the same sample. */
+  DROPQ.push(t);                                  /* the picture waits for it */
+}
+/* THE SECTION. Called instead of the ordinary arrangement for eight bars. */
+function payoffStep(t,ch,k){
+  const n=PAY-MU.pay,pb=n>>3,ps=n&7;
+  const late=pb>=4,resp=(pb===2||pb===3||pb===6);
+  /* ONE scalar for the whole section. Measured over seven trials per build:
+     the section drove the soft clip 2.3dB harder than the ordinary
+     arrangement, and the fix has to be a uniform trim rather than a hunt
+     through individual voices — the pad's eight detuned oscillators beat
+     against each other, so a single-run peak reading cannot tell an edit from
+     the phase it happened to land on. The section keeps its 33dB of contrast
+     either way; that comes from the hole, not from the gain. */
+  const w=0.68;
+  if(ps===0){MU.barHits=0;G.payOpen=resp?1:0;}
+  /* the visual pulse rate DOUBLES exactly where the audio does */
+  if(late||ps%2===0)BEATQ.push(t);
+  /* drums. halftime is a backbeat PERIOD, not a tempo — the grid never moves. */
+  if(ps===0)kick(t,0.075*w);
+  if(late&&ps===5)kick(t+S16,0.050*w);
+  if(!late){
+    if(pb%2===1&&ps===4)snare(t,0.052*w,0.45);      /* one backbeat per 8 beats */
+    if(ps%2===1)hat(t,0.011*w,7200,0.055);
+    if(pb%2===1&&ps===7)hat(t,0.020*w,5200,0.22,0.30);
+  }else{
+    if(ps===2||ps===6)snare(t,0.048*w,0.15);        /* per 2 beats: a 4x jump */
+    hat(t,((ps===0||ps===4)?0.021:0.014)*w,7200,0.05);
+    if(k>0.35||PLAY.heat>0.34){
+      hat(t+S16,0.009*w,7600,0.04);
+      if(PLAY.heat>0.34)hat(t+S16*1.16,0.008*w,8200,0.04);   /* 58% swing */
+    }
+  }
+  if(ps===0||ps===4)note(ch[1],t,ps?0.20:0.32,'triangle',0.030*w,700);
+  /* chord tones an octave up, off the beat, hook bars only */
+  if(!resp&&pb!==7&&(ps===3||ps===5)){
+    note(ch[2]*2,t,0.20,'sawtooth',0.020*w,4200,-0.26);
+    note(ch[3]*2,t,0.20,'sawtooth',0.020*w,4200, 0.26);
+  }
+  const pan=(pb%2)?0.30:-0.30,gh=(0.048+0.014*k)*w;
+  for(let j=0;j<2;j++){
+    const s16=ps*2+j,ix=pb*16+s16,d=HOOK[ix];
+    if(d<0)continue;
+    /* the pickups are earned: someone fighting for their life gets the tune's
+       bones, someone working the controls gets it with all its ornaments */
+    if((s16===3||s16===11)&&PLAY.heat<=0.30)continue;
+    const tt=t+j*S16,gap=HOOKG[ix];
+    lead(PENT[d],tt,gap>8?0.50:Math.min(0.34,0.06+0.075*gap),gh,5200,pan);
+    if(late&&k>0.30)
+      note(PENT[Math.max(0,d-2)],tt,0.24,'triangle',gh*0.30,3400,-pan);
+  }
+  /* THE BAND COVERS AN EMPTY RESPONSE BAR — decided a full beat in, so the
+     player always owns the front of the bar, and quieter once they have
+     answered anywhere in the section: the band steps back and stays back. */
+  if(resp&&ps===2&&MU.barHits===0){
+    const gg=0.034*w*(1-0.6*Math.min(1,MU.payHits/6));
+    for(let s=0;s<16;s++){const d=GHOST[s];if(d<0)continue;
+      lead(PENT[d],t+(s-4)*S16,0.26,gg,2600,-pan);}
+  }
+  MU.pay--;
+}
+/* ONE undo for every abnormal path — death, mute, a backgrounded tab, a phone
+   call, a new run started mid-section. Every field the section sets is cleared
+   here and every param handed back to its normal owner. BED.g is written only
+   by bedTick and A.hole only by schedulePreDrop, which is why there is no
+   stuck-pad failure mode in this feature to defend against. */
+function endSection(){
+  if(!MU)return;
+  MU.pay=0;MU.payEnd=0;MU.payHits=0;MU.barHits=0;
+  MU.armed=false;MU.rise=false;MU.lpLock=0;MU.hushEnd=0;MU.liftEnd=0;
+  G.pay=0;G.payOpen=0;
+  if(A&&AC){const t=AC.currentTime;
+    A.hole.gain.cancelScheduledValues(t);
+    A.hole.gain.setTargetAtTime(1,t,0.04);}
+  if(BED&&AC)BED.lp.frequency.cancelScheduledValues(AC.currentTime);
+}
+/* A tier unlock gets ceremony, not a chorus: 2.3s, no hush, no response bars.
+   Handing an 18.5s section with three player bars to someone who has never
+   grooved, over a full-screen text banner, reads as the music breaking. */
+function fireLift(){
+  if(!MU||!AC||MU.pay>0||MU.rise)return;
+  const t=AC.currentTime;
+  if(t<MU.liftEnd)return;
+  MU.liftEnd=t+2*SPB*4;
+  hat(t,0.055,3200,0.40,0.45);
+  note(PENT[8],t,0.40,'square',0.032,5600,-0.2);
+  note(PENT[5],t,0.40,'square',0.032,5600, 0.2);
+  note(CH[0][0],t,0.60,'sawtooth',0.055,900);
 }
 /* Which layers are audible right now. Intensity is the difficulty clock, so
    the arrangement thickens as the run gets harder and a long run genuinely
@@ -432,39 +646,84 @@ function fireDrop(t){
    you that speed has climbed from 1.4 to 4.2 rad/s. */
 function musicStep(i,t,k){
   const bar=(i/8)|0,ch=CH[bar%4],beat=i%8;
-  if(MU.armed&&i===0)fireDrop(t);       /* always on the downbeat */
-  const build=MU.armed&&bar===3;        /* the final bar is the rise */
-  const hush=build&&beat>=6;            /* and the last two eighths are the hole */
-  if(beat%2===0)BEATQ.push(t);          /* quarter notes, for the visual pulse */
-  if(build){
-    /* a riser: noise opening up, and a line climbing the pentatonic. Both
-       accelerate toward the edge so the arrival feels inevitable. */
-    const q=beat/8;
-    hat(t,0.006+0.030*q);
-    if(!hush)note(PENT[Math.min(9,3+beat)],t,0.13,'sawtooth',
-      0.016+0.024*q,900+7000*q,(beat%2?0.2:-0.2));
-  }
-  if(hush)return;                        /* everything else stops. that is the point */
-  if(beat===0||beat===6)note(ch[0],t,beat===0?0.42:0.22,'triangle',0.075,900);
-  /* Quarters while it is still calm, every eighth once the run is genuinely
-     fast — the arrangement gains drive exactly where the game does. */
-  if(k>0.18&&(beat%2===0||k>0.62)){
-    const d=ARP[(i+bar)%ARP.length];
-    note(PENT[d],t,k>0.62?0.15:0.20,'square',0.018+0.013*k,1400+2200*k,
-      (beat%4===0?-0.3:0.3));
-  }
-  if(k>0.45&&(beat===2||beat===6))hat(t,0.020+0.012*k);
-  if(k>0.45&&beat===4)hat(t,0.012);
-  /* the player's own activity adds the offbeats, so working the controls
-     drives the groove instead of just making noise over it */
-  if(PLAY.heat>0.35&&(beat%2===1))hat(t,0.010+0.014*PLAY.heat);
-  if(k>0.72&&beat===3&&(bar%2===1)){
-    note(PENT[CNT[i%CNT.length]],t,0.55,'triangle',0.026,3200,0.15);
-  }
-  if(MU.chord!==bar%4){                 /* retune the pad, never restart it */
+  /* The retune moved to the TOP, before any return: the pad keeps tracking the
+     progression while it is ducked and through the whole payoff, so it comes
+     back in tune rather than glissing into place. */
+  if(MU.chord!==bar%4){
     MU.chord=bar%4;
     for(let v=0;v<4;v++)for(let u2=0;u2<2;u2++)
       BED.oscs[v*2+u2].frequency.setTargetAtTime(CH[bar%4][v],t,0.09);
+  }
+  if(beat===0)MU.barN++;
+  if(MU.pay>0){payoffStep(t,ch,k);return;}
+  /* A two-bar rise, LATCHED. `MU.armed && bar===3` gave between zero and eight
+     eighths of runway depending purely on which eighth you happened to arm on:
+     arm at bar 3 beat 7 and the drop arrived one eighth later with no rise and
+     no hush at all. The latch guarantees the full run-up every time. */
+  if(MU.armed&&i===16&&!MU.rise)MU.rise=true;
+  if(MU.rise&&i===24)schedulePreDrop(t+8*(SPB/2));
+  if(MU.rise&&i===0){fireDrop(t);payoffStep(t,ch,k);return;}
+  const rise=MU.rise&&i>=16;
+  if(beat%2===0)BEATQ.push(t);          /* quarter notes, for the visual pulse */
+  if(rise){
+    /* THE RISE, AND NOTHING ELSE. It measured -19.8dB against an ordinary
+       bar's -19.6 because the arp, counter-line and root kept playing
+       underneath it. The return is the entire fix. */
+    const n=i-16,q=n/16;
+    if(n<14){                            /* eighths 14 and 15 are the hole */
+      note(PENT[Math.min(9,1+Math.round(n*0.62))],t,0.15,'sawtooth',
+        0.014+0.041*q,700+7300*q,n%2?0.22:-0.22);
+      /* a HIGHPASS sweep: all the tension, no low end, so it costs the
+         limiter nothing at the moment the drop needs the headroom */
+      hat(t,0.006+0.032*q,1200+6400*q,0.10,0.20);
+      if(n===0)note(CH[0][0],t,0.42,'triangle',0.075,900);
+      if(n>=10&&n<14){
+        snare(t,0.018+0.024*q,0.25);snare(t+S16,0.020+0.026*q,0.25);
+      }
+    }
+    return;
+  }
+  /* The root was the loudest figure in the loop and a phone reproduced almost
+     none of it: 110Hz on a TRIANGLE (harmonics fall as 1/n²) through a 900Hz
+     lowpass leaves the 3rd at 330Hz, under the rolloff. Two voices now — the
+     sub for headphones, and a real one two octaves up that a speaker can play. */
+  if(beat===0||beat===6){
+    note(ch[0],t,beat===0?0.42:0.22,'triangle',0.055,900);
+    note(ch[0]*4,t,beat===0?0.30:0.16,'square',0.020,2600,0);
+  }
+  /* THE MACHINE OWNS THE BEAT; THE PLAYER OWNS THE OFFBEAT. The arp is pinned
+     to even eighths at every difficulty — the old ||k>0.62 filled every slot
+     late in a run, which is exactly when the player is working hardest, and
+     put the band's square on top of the player's note in the same register. */
+  const ad=ARP[(i+bar)%ARP.length];
+  if(k>0.18&&beat%2===0)
+    note(PENT[ad],t,0.20,'square',0.015+0.011*k,1200+1800*k,
+      (beat%4===0?-0.3:0.3));
+  /* the drive the deleted clause used to add, moved onto the ON beat where it
+     cannot collide. Never beat 0 — that already carries the root and is the
+     loudest scheduled instant in the game. */
+  if(k>0.62&&beat%2===0&&beat!==0)
+    note(PENT[Math.min(4,ad+2)],t,0.11,'square',0.010+0.006*k,3000,
+      beat%4===2?0.3:-0.3);
+  /* The chain opens the arrangement as it climbs, and the counter-line DROPS
+     OUT at x7 — taking a layer away near the top is what makes the last two
+     links feel like a held breath rather than just more music. */
+  const gv=Math.max(0,G.groove-4);
+  if((k>0.45||gv>0)&&(beat===2||beat===6))hat(t,0.020+0.012*k+0.006*gv);
+  if(gv>=2&&beat%2===1)hat(t,0.009+0.004*gv,8200,0.045);
+  if(k>0.45&&beat===4)hat(t,0.012);
+  /* THE COVER. The band fills the offbeat only while nobody else is playing
+     it, and fades out continuously as you engage — so the first thing you hear
+     when you start working the controls is the machine stepping aside. Dull
+     and quiet on purpose: 0.014 against the player's ~0.10. It is a cover. */
+  const cov=Math.max(0,1-PLAY.heat/0.30);
+  if(k>0.45&&beat%2===1&&cov>0.05)
+    note(PENT[ARP[(i+bar+3)%ARP.length]],t,0.16,'square',0.014*cov,1100,0);
+  /* CNT[i%8] with i only ever 11 or 27 resolved to CNT[3] both times — one
+     repeated pitch, not a line. Indexed by something that moves now, and
+     dropped an octave so it sits below the player's floor. */
+  if(k>0.72&&gv<3&&beat===3&&(bar%2===1)){
+    note(PENT[CNT[((i/4)|0)%CNT.length]]/2,t,0.55,'triangle',0.030,2200,0.15);
   }
 }
 /* ---------- the player as performer ----------
@@ -476,7 +735,10 @@ function musicStep(i,t,k){
    A short percussive note tolerates the ~72ms average delay that quantising
    costs, where a sustained one would not. And consecutive inputs walk a figure
    instead of repeating a pitch, so tapping back and forth is a phrase. */
-const REVSEQ=[0,2,4,5,4,2,3,1],HOPUP=[5,7,8,9],HOPDN=[4,2,1,0];
+/* All three figures stay inside 0..5 so the ring transposition below applies
+   uniformly. HOPOUT descends because outward means a LOWER ring index and a
+   lower register — the old tables played the rising figure while moving down. */
+const REVSEQ=[0,2,4,5,4,2,3,1],HOPIN=[2,3,5,4],HOPOUT=[3,2,0,1];
 let PLAY={heat:0,idx:0,last:-9,slot:-1,bias:0};
 /* NEAREST sixteenth, not the next one. Snapping forward alone costs up to a
    full slot — 144ms at this tempo, past the point where a sound stops feeling
@@ -521,7 +783,7 @@ function gridOff(){                 /* signed: negative early, positive late */
   return late<=early?late:-early;
 }
 function judgeTiming(x,y){
-  if(G.state!=='playing'||!AC||!MU||muted)return 0;
+  if(G.state!=='playing'||!AC||!MU)return 0;
   const off=gridOff();
   if(off>8)return 0;
   const dev=Math.abs(off-PLAY.bias);
@@ -530,14 +792,33 @@ function judgeTiming(x,y){
     const was=G.groove;
     G.groove=Math.min(8,G.groove+1);
     G.grooveT=G.t+2.8;
-    /* Score only on the way UP. Paying per tight hit made a chain worth 320
-       over forty taps against 86 for a maxed orbit — rhythm would have become
-       the whole game. Climbing pays 36 in total and holding pays nothing, so
-       it stays a garnish next to embers and orbits. The real reward is that
-       the music opens up, which costs no points at all. */
-    if(G.groove>was)G.score+=G.groove;
-    if(G.groove>=8)armDrop();          /* holding a perfect chain earns it */
+    /* Score only on the way UP: 36 in total on the climb, nothing for holding,
+       so it stays a garnish next to the 86 a maxed orbit pays. What a tight
+       chain actually buys is your OWN instrument getting louder and brighter,
+       and at x8 it arms the drop. What opens the ARRANGEMENT is PLAY.heat —
+       engagement, not accuracy — so playing at all thickens the record and
+       playing in time sharpens it. Neither one ever costs you a point. */
+    if(G.groove>was){
+      G.score+=G.groove;
+      if(G.groove===1&&MU)MU.chainBar=MU.barN;
+      /* Arms exactly ONCE per chain — the old test was inside the tight branch
+         with groove capped at 8, so a held chain re-armed on every single hit
+         and the cooldown became the interval. The bar-line condition then
+         requires the chain to survive a chord change: eight tight sixteenths
+         take 1.15s, less than a bar, so x8 was reachable without ever holding
+         anything. "Hold it through a chord change" is musically meaningful in
+         a way that "tap eight times" is not. */
+      if(G.groove>=8&&MU&&MU.chainBar!==MU.barN)armDrop();
+    }
     G.grooveFx=1;
+    /* Once, ever, on the exact tap that proved it. A first-time discoverer at
+       x2 previously got nothing at the moment they succeeded \u2014 the readout
+       started at x2 and the popup at x3, so the two taps that taught you the
+       mechanic existed were the two you were told nothing about. */
+    if(G.groove>=2&&!G.didGroove){
+      G.didGroove=true;savePref('cometloop:groove','1');
+      popup(x,y-34*u,'IN TIME',COL.warp,1.0);
+    }
     if(G.groove>=3)popup(x,y-34*u,'GROOVE \u00d7'+G.groove,COL.warp,0.85+0.05*G.groove);
     return G.groove;
   }
@@ -546,8 +827,8 @@ function judgeTiming(x,y){
   if(G.groove>0)G.groove=Math.max(0,G.groove-1);
   return 0;
 }
-function performerHit(kind,dir){
-  if(!A||!AC||!MU||muted||G.state!=='playing'||AC.state!=='running')return;
+function performerHit(kind,dir,ring){
+  if(!A||!AC||!MU||G.state!=='playing'||AC.state!=='running')return;
   const now=AC.currentTime,t=gridNear();
   /* One note per sixteenth. Two taps inside one slot is not a faster rhythm,
      it is a flam — and it is how mashing would otherwise stack nodes. */
@@ -559,30 +840,69 @@ function performerHit(kind,dir){
   PLAY.heat=Math.min(1,PLAY.heat+0.26);
   if(now-PLAY.last>2.4)PLAY.idx=0;           /* a pause starts a new phrase */
   PLAY.last=now;
+  /* RING TRANSPOSES THE WHOLE FIGURE. Not a code to be decoded — a
+     transposition, heard as "my line went up when I hopped inward". Ring 0
+     bases at PENT[4], ring 1 at [6], ring 2 at [8], so going deeper (which is
+     also the tightest and most dangerous track) literally raises your part.
+     The ring is passed in because hop() sets G.ringI before calling us while
+     effRing() still reports the ring being left. */
+  const rg=Math.min(2,ring===undefined?effRing():ring);
   let d;
-  if(kind==='hop')d=(dir<0?HOPUP:HOPDN)[PLAY.idx%4];
-  else d=REVSEQ[PLAY.idx%REVSEQ.length];
+  if(kind==='hop')d=(dir<0?HOPOUT:HOPIN)[PLAY.idx%4]+4+2*rg;
+  else d=REVSEQ[PLAY.idx%REVSEQ.length]+4+2*rg;
   PLAY.idx++;
   const p=posPlayer();
   const gr=judgeTiming(p[0],p[1]);
   /* the reward you actually feel: a tight hit is brighter and louder, so the
-     groove is audible before you ever look at the number */
-  const g=(0.026+0.022*PLAY.heat)*(1+0.10*gr);
-  note(PENT[d],t,0.13,'triangle',g,(2200+2600*PLAY.heat)*(1+0.16*gr),
-    kind==='hop'?(dir<0?-0.25:0.25):0);
-  if(gr>=3)note(PENT[Math.min(9,d+2)],t,0.10,'sine',g*0.5,7000,0);
-  /* an octave ghost once the player is really going, so a flurry thickens */
-  if(PLAY.heat>0.55)note(PENT[d]*2,t,0.09,'sine',g*0.4,6000,0);
+     groove is audible before you ever look at the number.
+     A SAWTOOTH against the band's square: the band has odd harmonics only, a
+     saw has all of them, and at ring 0 — where the register split is thinnest
+     — timbre is what keeps the two apart. panAt() puts your line where you
+     actually are, so it sweeps the field as you orbit. */
+  const g=(0.030+0.026*PLAY.heat)*(1+0.10*gr);
+  const inPay=MU.pay>0,pb=(PAY-MU.pay)>>3;
+  const resp=inPay&&(pb===2||pb===3||pb===6);
+  if(inPay){MU.payHits++;MU.barHits++;}
+  if(resp){
+    /* YOUR NOTE COMES OUT IN THE HOOK'S OWN VOICE. Nobody is told this. During
+       the hook bars your taps are the small blip they always were; the instant
+       bar 2 arrives they become the same lead, louder, with an echo. That
+       change IS the tutorial, and it also means you can never mask the hook. */
+    const gl=g*1.7,pn=kind==='hop'?(dir<0?-0.28:0.28):0,hp=pn===0?0.26:-pn;
+    lead(PENT[Math.min(13,d)],t,0.22,gl,5200,pn);
+    if(gr>=3)lead(PENT[Math.min(13,d+2)],t,0.19,gl*0.45,4200,hp);
+    /* A dotted eighth. Against a 3+3+2 hook it lands squarely in the rests, so
+       four taps sound like twelve — and it treats on-beat and off-beat input
+       identically, because gridNear() already quantised both. */
+    note(PENT[Math.min(13,d)],t+3*S16,0.18,'square',gl*0.40,2400,hp);
+    note(PENT[Math.min(13,d+2)],t+6*S16,0.15,'square',gl*0.16,1800,pn||0.32);
+    if(!RM)G.rings.push({x:p[0],y:p[1],r:6*u,life:1,col:COL.warp,sp:260,dec:2.2});
+    else G.rings.push({x:p[0],y:p[1],r:9*u,life:1,col:COL.warp,sp:0,dec:2.2});
+  }else{
+    note(PENT[d],t,0.13,'sawtooth',g,(2400+2200*PLAY.heat)*(1+0.16*gr),
+      panAt(p[0]),A.perf);
+    /* THE BAND ANSWERS. Three sixteenths later — 433ms, an odd subdivision no
+       player on the eighth grid can ever claim, and far past the ~50ms fusion
+       threshold, so it reads as a second musician rather than a doubling of
+       you. In the band's register, on the band's bus, panned opposite. */
+    if(gr>=3)
+      note(PENT[Math.max(0,d-6)],t+SPB*0.75,0.20,'square',g*0.42,1700,-panAt(p[0]));
+  }
 }
 /* Lookahead scheduling on the AUDIO clock. The frame clock stalls whenever the
    tab is backgrounded and drifts constantly; scheduling notes from it is what
    makes browser game music stagger. */
 function musicTick(){
-  if(!A||!AC||!MU||!BED||muted||AC.state!=='running')return;
-  if(G.state!=='playing'){MU.next=0;return;}
+  if(!A||!AC||!MU||!BED||AC.state!=='running')return;
+  if(G.state!=='playing'){
+    if(MU.pay||MU.rise||MU.hushEnd)endSection();
+    MU.next=0;return;
+  }
   const now=AC.currentTime;
   /* Coming back from a background: never flush the backlog as one chord. */
-  if(!MU.next||MU.next<now-0.4){MU.next=now+0.06;MU.step=0;MU.chord=-1;}
+  /* A phrase cannot be resumed across an unknown gap, so the rest of the
+     section is forfeited rather than replayed compressed. */
+  if(!MU.next||MU.next<now-0.4){endSection();MU.next=now+0.06;MU.step=0;MU.chord=-1;}
   const k=Math.min(1,dl()/340);
   let guard=0;
   while(MU.next<now+0.16&&guard++<16){
@@ -596,8 +916,24 @@ function bedTick(dt){
   const t=AC.currentTime;
   const playing=G.state==='playing';
   const k=playing?Math.min(1,dl()/380):0;
-  const lvl=muted?0:(playing?0.13+0.22*k:(G.state==='menu'?0.06:0.02));
-  BED.g.gain.setTargetAtTime(lvl,t,playing?0.9:0.5);
+  /* not gated on muted: the bus already is, and gating here made unmuting
+     produce a 0.9s pad swell that read as a fade-in rather than a switch */
+  /* THE DEADLINE. bedTick runs from update() unconditionally, so this catches
+     every stall path including the ones nobody enumerated — an iOS phone-call
+     interrupt mid-section leaves musicTick bailing on AC.state, and only this
+     line would notice. */
+  if(MU&&MU.pay>0&&t>MU.payEnd)endSection();
+  const lvl=playing?0.13+0.22*k:(G.state==='menu'?0.06:0.02);
+  /* The pad recedes for the payoff and comes back for its second half. This
+     IS the loudness of the section: contrast costs no headroom. bedTick stays
+     the ONLY writer of BED.g, which is why there is no stuck-pad case. */
+  let mul=1;
+  /* 0.50 in the late half, not 0.65: measured, the double-time bars were the
+     loudest instant in the game and drove the soft clip to 1.45 pre-limiter.
+     The pad comes down, never the hook — the pad receding IS the loudness. */
+  if(MU&&MU.pay>0)mul=((PAY-MU.pay)>>3)<4?0.35:0.60;
+  BED.g.gain.setTargetAtTime(lvl*mul,t,playing?0.9:0.5);
+  G.pay=(MU&&MU.pay>0)?MU.pay/PAY:0;
   /* floor at 400: below that a phone speaker reproduces none of it, and the
      opening minutes would be silent on the device this actually ships to */
   /* engagement decays over ~3s, so a flurry lifts the arrangement and then
@@ -617,13 +953,24 @@ function bedTick(dt){
     try{if(navigator.vibrate)navigator.vibrate([34,30,70]);}catch(e){}
   }
   if(BEATQ.length>32)BEATQ.length=0;      /* a stall must not bank a burst */
-  BED.lp.frequency.setTargetAtTime(400+1500*k*k+900*PLAY.heat,t,0.5);
+  /* THE GROOVE IS AUDIBLE AS A BUILD. From x5 up the pad opens under the
+     player's hands whether or not the chain ever reaches x8 — the build a
+     real track waits eight bars for, paid for with playing instead. */
+  const gv=Math.max(0,G.groove-4);
+  let cut=400+1500*k*k+900*PLAY.heat+420*gv;
+  if(MU&&MU.pay>0)cut=Math.min(cut,((PAY-MU.pay)>>3)<4?380:700);
+  /* schedulePreDrop owns this param through the hole; do not fight it */
+  if(!MU||t>=MU.lpLock)BED.lp.frequency.setTargetAtTime(cut,t,0.5);
   musicTick();
 }
 /* Big moments push the bed and the reverb tail out of the way, then let them
    back. Without this the bed fights the one sound you actually need to hear. */
 function duckBed(amount,rel){
   if(!A||!AC)return;
+  /* An ember collected inside the hole would otherwise cancel the scheduled
+     recovery and undo the silence. During the hush the band is already 26dB
+     down, there is nothing to duck, and the cue itself goes through A.world. */
+  if(MU&&AC.currentTime<MU.hushEnd)return;
   const t=AC.currentTime;
   A.bed.gain.cancelScheduledValues(t);
   A.bed.gain.setTargetAtTime(amount,t,0.02);
@@ -650,17 +997,34 @@ function ensureAudio(){
 /* Coming back from the app switcher or a lock screen leaves the context
    suspended on iOS, and nothing else would resume it until the next tap. */
 document.addEventListener('visibilitychange',function(){
-  if(!document.hidden)ensureAudio();
+  /* iOS can replay pending automation compressed on resume, so a section in
+     flight is abandoned rather than rushed through. */
+  if(!document.hidden){ensureAudio();endSection();}
 });
 /* One place to toggle from, so both the icon and the M key report what they
    did. Mute persists per device, and a silent game with no acknowledgement
    reads as broken audio rather than as a setting someone switched. */
+/* MUTE THE BUS, NEVER THE CLOCK. The old guards on musicTick, judgeTiming and
+   performerHit did not silence the rhythm system, they deleted it: musicTick
+   returning early left MU.next frozen, so gridOff() answered its sentinel
+   forever, BEATQ never filled, G.beat never left 0, and even the VISUAL beat
+   stopped. Sound off meant no groove, no score from it, no drop, and no
+   metronome — for a deaf player, or anyone on a bus, the whole mechanic simply
+   did not exist. Now the clock always runs and only the output is gated; note()
+   and hat() early-out so a silent run still costs nothing to play. */
 function toggleMute(){
   muted=!muted;savePref('cometloop:muted',muted?'1':'0');
   const r=muteRect();
   popup(r.x+r.w/2,r.y+r.h+18*u,muted?'MUTED':'SOUND ON',
     muted?'rgba(255,166,166,0.95)':COL.comet,1.05);
-  if(!muted){ensureAudio();beep(700,0.08,'sine',0.05,1000);}
+  ensureAudio();
+  /* musicTick still runs while muted but note()/hat() do not, so a section
+     muted mid-flight would never be heard again — end it rather than let it
+     run out silently against a ducked bus. */
+  if(muted)endSection();
+  /* 20ms rather than a jump, so muting mid-decay does not click */
+  if(A&&AC)A.out.gain.setTargetAtTime(muted?0:1,AC.currentTime,0.02);
+  if(!muted)beep(700,0.08,'sine',0.05,1000);
 }
 /* `when` schedules on the audio clock instead of setTimeout, so arpeggios
    stay in time and don't fire late when the tab is backgrounded */
@@ -702,7 +1066,12 @@ function beep(f,d,type,g,slide,when,pan,wet){
 function panAt(x){return Math.max(-1,Math.min(1,((x-cx)/(W*0.5))*0.55));}
 /* A minor pentatonic has no semitones in it, so any subset of these played
    together is consonant — which is what a ten-shard nova cascade needs. */
-const PENT=[440,523.25,587.33,659.25,783.99,880,1046.5,1174.66,1318.5,1568];
+/* Extended to fourteen so the PLAYER has a register above the band. Degrees
+   0-4 are the band's; 4-13 are the player's, and every one of those is above
+   the ~500Hz a phone speaker gives up on. Still A minor pentatonic throughout,
+   so nothing here can clash with anything else. */
+const PENT=[440,523.25,587.33,659.25,783.99,880,1046.5,1174.66,1318.5,1568,
+            1760,2093,2349.32,2637];
 
 /* ---------- persistence (no-ops gracefully if unavailable) ----------
    localStorage is the real store. window.storage is the async host API this
@@ -719,6 +1088,9 @@ function loadPrefs(){
   if(!isNaN(r))G.runs=Math.max(G.runs,r);
   const m=readLocal('cometloop:muted');
   if(m!==null)muted=(m==='1');
+  /* Deliberately never reset by startGame: it records whether this human has
+     ever found the mechanic, not whether this run has. */
+  if(readLocal('cometloop:groove')==='1')G.didGroove=true;
   try{
     if(!window.storage||!window.storage.get)return;
     window.storage.get('cometloop:best').then(function(r){
@@ -888,6 +1260,7 @@ const G={
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
   orbits:0,bestStreak:0,shareFx:0, /* run summary, for the death screen and share */
   groove:0,grooveT:0,grooveFx:0,bestGroove:0,beat:0,dropFx:0, /* rhythm */
+  pay:0,payOpen:0,didGroove:false,                            /* the payoff section */
   embers:0,blocks:0,phases:0,lastHit:'none', /* telemetry counters */
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
@@ -948,7 +1321,9 @@ function novaConvert(s){
      times the cascade sequences itself with no scheduling */
   /* was a random pitch per shard, which stacked into a dissonant wash.
      A minor pentatonic keeps a ten-shard cascade consonant however it lands. */
-  beep(PENT[(Math.random()*PENT.length)|0],0.11,'triangle',0.05,undefined,0,panAt(q[0]),1.2);
+  /* pinned to the original ten: extending PENT for the player's register must
+     not silently retune a ten-shard cascade up into it */
+  beep(PENT[(Math.random()*10)|0],0.11,'triangle',0.05,undefined,0,panAt(q[0]),1.2);
 }
 /* IGNITION. Completing an orbit sets the orbit alight: a head races the full
    circumference in the direction you were travelling, leaving a burning wake.
@@ -1094,7 +1469,9 @@ function startGame(){
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;
-  BEATQ.length=0;DROPQ.length=0;if(MU){MU.armed=false;MU.cool=0;}
+  BEATQ.length=0;DROPQ.length=0;
+  if(MU){MU.cool=0;MU.payN=0;MU.barN=0;MU.chainBar=-1;}
+  endSection();
   G.embers=0;G.blocks=0;G.phases=0;G.lastHit='none';
   GEST.tap=0;GEST.swipe=0;GEST.lateSwipe=0;GEST.unresolved=0;
   G.angle=-Math.PI/2;G.prevAngle=G.angle;G.sweep=0;G.dir=1;G.speed=1.40;
@@ -1124,6 +1501,10 @@ function die(){
   if(!RM)G.rings.push({x:p[0],y:p[1],r:8*u,life:1,col:'#ffffff',sp:560,dec:1.15});
   /* landed at 50Hz — inaudible on a phone, so the most important moment in
      the game ended by simply vanishing. Now it lands somewhere you can hear. */
+  /* order matters: hand A.hole back first, then let the death duck take the
+     bed. The death hit itself is unaffected either way — beep() goes to
+     A.world and never touches either node. */
+  endSection();
   duckBed(0.05,0.9);
   beep(220,0.5,'sawtooth',0.085,110);
   beep(110,0.55,'triangle',0.06,66);
@@ -1151,7 +1532,7 @@ function reverseFX(){
   ripple(p[0],p[1]);
   burst(p[0],p[1],COL.comet,6,90);
   beep(300,0.07,'square',0.045,540);
-  performerHit('rev',0);
+  performerHit('rev',0,effRing());
 }
 function reverse(silent){
   G.dir*=-1;G.didReverse=true;
@@ -1178,6 +1559,13 @@ function hop(step){
   const t=G.ringI+step,p=posPlayer();
   if(t<0||t>=G.nRings){
     bump(); /* nowhere to go — acknowledge the input rather than swallowing it */
+    /* THE FREE INSTRUMENT. A flick into a wall is the only input in the game
+       with no survival consequence at all: it costs no streak (reverse zeroes
+       lapStreak, worth up to 28), no shield, no position. So it is the one
+       you can play purely for the music. The one-note-per-sixteenth guard
+       caps it, and the angle keeps advancing with shards inbound, so there is
+       nothing to farm here — only something to play. */
+    performerHit('rev',0,effRing());
     return;
   }
   G.didHop=true;
@@ -1186,9 +1574,11 @@ function hop(step){
   G.ringI=t;
   G.hopP=0;
   ripple(p[0],p[1]);
+  /* The cue used to contradict the gesture in both directions AND sit under
+     the phone rolloff at both endpoints. Outward now falls, inward rises. */
   const out=step<0;
-  beep(out?480:760,0.09,'sine',0.05,out?820:420);
-  performerHit('hop',step);
+  beep(out?940:620,0.09,'sine',0.05,out?620:940,0,panAt(p[0]),0.35);
+  performerHit('hop',step,t);   /* the ring being ARRIVED at, not the one left */
 }
 
 /* Spending a shield on purpose phases you through anything for a moment and
@@ -1229,7 +1619,7 @@ function runSummary(){
   return 'Comet Loop '+G.score+'\n'+
     bar+' '+tierLabel()+'\n'+
     G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
-    (G.bestGroove>=3?'groove ×'+G.bestGroove+'\n':'')+
+    (G.bestGroove>=2?'groove ×'+G.bestGroove+'\n':'')+
     /* a deep link to index.html shares worse than the directory it lives in */
     (location.origin+location.pathname).replace(/index\.html$/,'');
 }
@@ -1416,6 +1806,7 @@ function update(dt){
   G.beat=Math.max(0,G.beat-dt*4.5);
   G.grooveFx=Math.max(0,G.grooveFx-dt*2.2);
   G.dropFx=Math.max(0,G.dropFx-dt*1.1);
+  G.payOpen=Math.max(0,G.payOpen-dt*1.4);
   /* stop playing and the groove lets go, so it always reflects what you are
      doing now rather than something you did a minute ago */
   if(G.groove>0&&G.t>G.grooveT){G.groove--;G.grooveT=G.t+0.7;}
@@ -1497,7 +1888,7 @@ function update(dt){
     }
     if(T.name){
       G.banner={str:T.name,sub:T.sub,t:0};
-      armDrop();                         /* a new mechanic deserves an entrance */
+      fireLift();      /* ceremony, not a chorus — see fireLift */
       ripple(cx,cy,COL.shard);
       beep(300,0.16,'triangle',0.05,220);
       beep(240,0.22,'triangle',0.05,180,0.14);
@@ -1541,7 +1932,9 @@ function update(dt){
       beep(523,0.12,'triangle',0.07,784);
       beep(784,0.12,'triangle',0.07,1046,0.1);
       beep(1046,0.16,'triangle',0.07,1568,0.2);
-      if(st>=5)armDrop();                /* so does a five-orbit streak */
+      /* thresholds, not a floor: `st>=5` fired on every fed orbit past the
+         fifth, which at mid-run speed is roughly every three seconds */
+      if(st===5||st===9||st===14)armDrop();
       if(st>=3){
         /* Earned tier: the comet stops dead for a beat while the ring burns
            round. Short enough not to break the rhythm of a 2.5s orbit. */
@@ -1587,8 +1980,13 @@ function update(dt){
       ripple(p[0],p[1],COL.ember);
       arcFlash(s.a,s.ring,COL.ember);
       popup(p[0],p[1]-20*u,'+'+G.combo,COL.ember);
-      beep(700,0.09,'sine',0.06,1400);
-      beep(1050,0.1,'sine',0.05,1600,0.045);
+      /* THE EMBER RUN. Was 700Hz gliding to 1400 — the most repeated sound in
+         the game, 104 cents sharp of E5 and smeared across an octave by the
+         slide. Now the chain walks the pentatonic and RESOLVES on the octave:
+         G5 A5 C6 D6 E6 G6. The thing the player was already doing for score
+         produces a phrase with a cadence, at no timing cost whatsoever. */
+      beep(PENT[Math.min(9,3+G.combo)],0.09,'sine',0.06,0,0,panAt(p[0]),0.35);
+      beep(PENT[Math.min(13,5+G.combo)],0.10,'sine',0.05,0,0.045,panAt(p[0]),0.35);
       checkMile();
     }
   }
@@ -1801,6 +2199,52 @@ function drawTail(){
   ctx.restore();
 }
 
+/* ---------- the visible beat ----------
+   The old pulse breathed the RINGS, at peak alpha 0.05 against static strokes
+   on the same path summing to ~0.265 — and it PEAKED ON THE BEAT. You cannot
+   synchronise to a flash that arrives at the same moment as the thing it is
+   announcing; human reaction is ~250ms and an eighth here is 288ms. It was also
+   4.5x brighter at groove x8 than at x0, so the game showed you the beat most
+   clearly exactly when you least needed it and dimmest while you were trying
+   to find it.
+
+   What people actually synchronise to is continuous motion with a predictable
+   arrival, and it has to land where the eye already is. So: a ring that
+   contracts onto the comet over the half-beat BEFORE each beat, and lands. */
+function beatPhase(){
+  if(!AC||!MU||!MU.next||AC.state!=='running'||G.state!=='playing')return -1;
+  /* MU.next is the next UNSCHEDULED eighth and sits ahead of now by the
+     lookahead, so the quarter boundary is derived from it, not subtracted. */
+  const q=MU.next+((MU.step%2)?SPB/2:0);
+  let d=(q-AC.currentTime)%SPB;if(d<0)d+=SPB;
+  return 1-d/SPB;
+}
+function drawBeat(p){
+  const ph=beatPhase();if(ph<0)return;
+  /* fades back for a veteran who has clearly found it, and stays for everyone
+     else. It is a teaching aid first and an ornament second. */
+  const vis=(G.runs>6&&G.bestGroove>=5)?0.45:1;
+  ctx.save();ctx.globalCompositeOperation='lighter';
+  ctx.strokeStyle=(G.groove>=3||G.pay>0)?COL.warp:'rgba(200,225,255,1)';
+  if(RM){
+    /* one opacity step per beat is 1.73Hz — far below any flash threshold,
+       and it still carries the anticipation */
+    ctx.globalAlpha=(ph>0.62?0.28:0.09)*vis;ctx.lineWidth=2*u;
+    ctx.beginPath();ctx.arc(p[0],p[1],32*u,0,TAU);ctx.stroke();
+  }else{
+    const a=Math.max(0,(ph-0.5)*2);        /* 288ms of visible approach */
+    if(a>0){
+      ctx.globalAlpha=(0.05+0.24*a*a)*vis;ctx.lineWidth=(1.2+1.3*a)*u;
+      ctx.beginPath();ctx.arc(p[0],p[1],(32+18*(1-a))*u,0,TAU);ctx.stroke();
+    }
+    if(G.beat>0.02){                       /* the landing, at a level you see */
+      ctx.globalAlpha=G.beat*(0.30+0.045*G.groove+0.10*G.payOpen)*vis;
+      ctx.lineWidth=(1.6+3.2*G.beat)*u;
+      ctx.beginPath();ctx.arc(p[0],p[1],(32+6*(1-G.beat))*u,0,TAU);ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 /* ---------- draw ---------- */
 function draw(){
   const amb=RM?0:G.t;
@@ -1834,20 +2278,22 @@ function draw(){
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
     ctx.strokeStyle=on?'rgba(175,205,255,0.14)':'rgba(150,180,255,0.065)';ctx.lineWidth=4.5;
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
-    ctx.strokeStyle=on?'rgba(206,230,255,0.44)':'rgba(170,195,255,0.155)';ctx.lineWidth=1.3;
+    /* the arena changes colour for the whole section. static, so it is safe
+       under reduced motion — and it is the only whole-section signal an RM
+       player gets, so they get it too. */
+    ctx.strokeStyle=G.pay>0?(on?'rgba(196,160,255,0.46)':'rgba(170,140,240,0.17)')
+                           :(on?'rgba(206,230,255,0.44)':'rgba(170,195,255,0.155)');
+    ctx.lineWidth=1.3;
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
-    /* THE PULSE. You cannot play to a beat you cannot find, so the rings
-       breathe on every quarter note. Kept faint enough that it never competes
-       with a shard for attention, and brighter as the groove builds. */
-    if(G.beat>0.02&&!RM){
-      ctx.save();
-      ctx.globalCompositeOperation='lighter';
-      ctx.globalAlpha=G.beat*G.beat*(0.05+0.026*G.groove);
-      ctx.strokeStyle=G.groove>=3?COL.warp:'rgba(180,210,255,1)';
-      ctx.lineWidth=(2+7*G.beat)*u;
-      ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
-      ctx.restore();
-    }
+  }
+  /* How much of your section is left. One slow monotonic sweep — no flashing,
+     no motion beyond the arc itself, so it is drawn for everyone including
+     reduced motion, where it is the structural readout. */
+  if(G.pay>0){
+    ctx.save();ctx.globalAlpha=0.24;ctx.strokeStyle=COL.warp;ctx.lineWidth=2.5;
+    ctx.beginPath();
+    ctx.arc(cx,cy,radiusOf(G.nRings-1)+7*u,-Math.PI/2,-Math.PI/2+TAU*G.pay);
+    ctx.stroke();ctx.restore();
   }
   ctx.globalCompositeOperation='lighter';
   ctx.fillStyle='rgba(120,160,255,0.5)';
@@ -2050,6 +2496,7 @@ function draw(){
     blit(SPR.cometGlow,p[0],p[1],1,0,pal);
     ctx.globalCompositeOperation='source-over';
     blit(SPR.comet,p[0],p[1],1,0,pal);
+    drawBeat(p);
     for(let k=0;k<G.shields;k++)
       blit(SPR.shieldRing,p[0],p[1],(1.18+k*0.34)*(1+0.07*Math.sin(G.t*6-k*0.7)),0,pal*(0.72-k*0.16));
     if(G.t<G.invuln){
@@ -2206,6 +2653,13 @@ function hintText(){
   if(!G.didHop&&G.nRings>1)return 'swipe toward the ring you want';
   if(!G.didLap)return 'gather embers, then finish the lap';
   if(!G.didPhase&&G.shields>0)return 'tap the shield to phase through a hit';
+  /* LAST, deliberately. didReverse/didHop/didLap are permanently true from run
+     one, but didPhase is reset every run — putting this any higher would
+     permanently displace the only per-run survival hint that is left.
+     "Tap on the beat" is an imperative aimed at someone already struggling.
+     This names the ring now visibly contracting onto their comet, and reads
+     as an invitation rather than an instruction. */
+  if(!G.didGroove&&G.runs>=3&&age()>25&&G.groove<2)return 'tap with the pulse';
   return null;
 }
 
@@ -2228,7 +2682,7 @@ function drawHUD(){
       ctx.restore();
     }
     ctx.globalAlpha=1;
-    if(G.groove>=2){
+    if(G.groove>=1){
       ctx.globalAlpha=Math.min(1,0.35+0.14*G.groove)*(0.8+0.2*G.grooveFx);
       text('GROOVE \u00d7'+G.groove,cx,top+136*u,13*u*(1+0.12*G.grooveFx),'800',COL.warp,2);
       ctx.globalAlpha=1;
@@ -2291,7 +2745,7 @@ function drawHUD(){
     else text('BEST '+G.best,cx,cy+42*u,13*u,'600','rgba(200,215,255,0.5)',2);
     text(G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime(),
       cx,cy+62*u,12*u,'600','rgba(200,215,255,0.45)',0);
-    if(G.bestGroove>=3)
+    if(G.bestGroove>=2)
       text('best groove ×'+G.bestGroove,cx,cy+78*u,11*u,'600','rgba(160,120,255,0.6)',0);
     if(G.t-G.deadT>0.6){
       const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
