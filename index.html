@@ -2789,6 +2789,70 @@ function drawMute(){
    player gets the whole ladder no matter when they pick the game up. The flags
    they key off are all per-run now, so the sequence replays from the top every
    time without ever standing between anyone and the next input. */
+/* SHOW THE GESTURE, DO NOT DESCRIBE IT. Every rung of this ladder used to be
+   a sentence, read while dodging, in vocabulary the game had invented —
+   "sparks", "track", "the bar". A sentence is the slowest possible way to
+   teach a thumb movement. Each rung now carries a small animated diagram of
+   the thing itself, drawn beside the words, and the words use only nouns that
+   are visible on screen: rings, stars, shields. */
+function hintGlyph(kind,x,y,s){
+  const ph=RM?0.45:(G.t*0.85)%1;
+  ctx.save();
+  ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.strokeStyle='#eaf3ff';ctx.fillStyle='#eaf3ff';ctx.lineWidth=1.9*u;
+  if(kind==='tap'){
+    /* a thumb press, and the reversal it causes */
+    ctx.globalAlpha=0.45*(1-ph)+0.15;ctx.lineWidth=2.4*u;
+    ctx.beginPath();ctx.arc(x,y,s*(0.26+0.5*ph),0,TAU);ctx.stroke();
+    ctx.globalAlpha=0.95;
+    ctx.beginPath();ctx.arc(x,y,s*0.23,0,TAU);ctx.fill();
+    ctx.globalAlpha=0.85;ctx.lineWidth=2.2*u;
+    for(const d of [-1,1]){
+      ctx.beginPath();ctx.arc(x,y,s*0.62,d>0?-0.5:Math.PI-0.5,d>0?0.5:Math.PI+0.5);ctx.stroke();
+      const a2=d>0?0.5:Math.PI+0.5, ax=x+Math.cos(a2)*s*0.62, ay=y+Math.sin(a2)*s*0.62;
+      ctx.beginPath();ctx.moveTo(ax,ay);
+      ctx.lineTo(ax-d*s*0.13,ay-s*0.13);ctx.moveTo(ax,ay);
+      ctx.lineTo(ax+d*s*0.05,ay-s*0.18);ctx.stroke();
+    }
+  }else if(kind==='swipe'){
+    /* two rings seen edge on, and a thumb crossing from one to the other */
+    ctx.globalAlpha=0.6;ctx.lineWidth=2.6*u;
+    ctx.strokeStyle='rgba(150,190,255,1)';
+    ctx.beginPath();ctx.moveTo(x-s*0.52,y-s*0.46);ctx.lineTo(x+s*0.52,y-s*0.46);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x-s*0.52,y+s*0.46);ctx.lineTo(x+s*0.52,y+s*0.46);ctx.stroke();
+    const ty=y-s*0.46+s*0.92*ph;
+    ctx.strokeStyle='#eaf3ff';ctx.fillStyle='#eaf3ff';
+    ctx.globalAlpha=0.25;ctx.lineWidth=2.4*u;      /* the path already travelled */
+    ctx.beginPath();ctx.moveTo(x,y-s*0.46);ctx.lineTo(x,ty);ctx.stroke();
+    ctx.globalAlpha=1;
+    ctx.beginPath();ctx.arc(x,ty,s*0.2,0,TAU);ctx.fill();
+    ctx.lineWidth=2.4*u;
+    ctx.beginPath();ctx.moveTo(x-s*0.19,ty+s*0.16);ctx.lineTo(x,ty+s*0.36);
+    ctx.lineTo(x+s*0.19,ty+s*0.16);ctx.stroke();
+  }else if(kind==='star'){
+    blit(SPR.ember,x,y,s/26,0,0.95);
+  }else if(kind==='shard'){
+    ctx.globalAlpha=0.95;ctx.fillStyle=COL.shard;
+    ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);
+    ctx.fillRect(-s*0.27,-s*0.27,s*0.54,s*0.54);ctx.restore();
+  }else if(kind==='shield'){
+    ctx.globalAlpha=0.95;ctx.strokeStyle=COL.shield;ctx.fillStyle=COL.shield;
+    ctx.lineWidth=2.2*u;
+    ctx.beginPath();ctx.arc(x,y,s*0.34,0,TAU);ctx.stroke();
+    ctx.beginPath();ctx.arc(x,y,s*0.13,0,TAU);ctx.fill();
+  }else if(kind==='beat'){
+    /* the same contracting ring the comet wears, so the prompt names it */
+    ctx.globalAlpha=0.95;ctx.beginPath();ctx.arc(x,y,s*0.18,0,TAU);ctx.fill();
+    ctx.globalAlpha=0.25+0.55*ph;ctx.lineWidth=(1.3+1.6*ph)*u;
+    ctx.beginPath();ctx.arc(x,y,s*(0.62-0.34*ph),0,TAU);ctx.stroke();
+  }else if(kind==='build'){
+    ctx.globalAlpha=0.28;ctx.fillStyle=COL.warp;
+    ctx.fillRect(x-s*0.5,y-s*0.1,s,s*0.2);
+    ctx.globalAlpha=0.95;
+    ctx.fillRect(x-s*0.5,y-s*0.1,s*(0.25+0.7*ph),s*0.2);
+  }
+  ctx.restore();
+}
 function hintText(){
   if(G.state!=='playing')return null;
   const a=age();
@@ -2796,24 +2860,24 @@ function hintText(){
      lesson plan. Each entry either clears when the player does the thing or
      times out, so exactly one idea is ever on screen and nothing can sit there
      blocking the rest of the ladder. */
-  if(!G.didReverse)return 'tap anywhere to turn around';
-  if(!G.didLap&&a<22)return 'collect sparks, then finish a lap';
+  if(!G.didReverse)return {t:'tap anywhere to turn around',g:'tap'};
+  if(!G.didLap&&a<22)return {t:'collect stars, then finish a lap',g:'star'};
   /* Only once there is somewhere to hop TO. A run opens on a single ring for
      its first 30 seconds, so without this the prompt asks a new player to
      make the one gesture the game will not answer — they swipe, nothing
      happens, and the controls read as broken at the exact moment they are
      being learned. */
-  if(!G.didHop&&G.nRings>1)return 'swipe up or down to switch track';
-  if(!G.didDodge&&G.spikes.length)return 'red kills \u2014 turn or switch track';
-  if(!G.didShield&&a>17&&a<25)return 'each shield saves you from one hit';
+  if(!G.didHop&&G.nRings>1)return {t:'swipe up or down to change ring',g:'swipe'};
+  if(!G.didDodge&&G.spikes.length)return {t:'red kills you \u2014 get out of its way',g:'shard'};
+  if(!G.didShield&&a>17&&a<25)return {t:'a shield takes one hit for you',g:'shield'};
   /* Named after the ring now visibly contracting onto the comet, and phrased
      as an invitation rather than an instruction — a struggling player does not
      need another demand. */
   /* didGroove is the LIFETIME flag behind the one-time IN TIME popup; the
      prompt keys off this run's own chain, so it still reminds someone who
      learned it weeks ago and has not used it today. */
-  if(G.bestGroove<2&&a>28&&G.groove<2)return 'tap in time with the beat';
-  if(!G.sawDrop&&a>34&&G.build>0.25)return 'fill the bar to earn a drop';
+  if(G.bestGroove<2&&a>28&&G.groove<2)return {t:'tap in time with the beat',g:'beat'};
+  if(!G.sawDrop&&a>34&&G.build>0.25)return {t:'keep playing to fill the build',g:'build'};
   return null;
 }
 
@@ -2921,7 +2985,8 @@ function drawHUD(){
       text(b.sub,cx,by+20*u,12*u,'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
     }
-    const hint=hintText();
+    const hintO=hintText();
+    const hint=hintO&&hintO.t;
     if(hint){
       /* DEAD CENTRE. The middle of the arena is the one region nothing ever
          occupies — shards and embers ride the rings and the comet orbits them
@@ -2962,8 +3027,12 @@ function drawHUD(){
          Under the rings is not an option: that space belongs to the shields. */
       let over=Math.max(...lines.map(wide))/budget;
       if(over>1)hs=Math.max(13*u,hs/over);
-      const lh=hs*1.15, y0=cy+5*u-(lines.length-1)*lh/2;
+      /* diagram above, words below — the picture is the instruction and the
+         sentence only names it */
+      const lh=hs*1.15, gs=30*u;
+      const y0=cy+5*u-(lines.length-1)*lh/2+gs*0.42;
       ctx.globalAlpha=RM?1:0.88+0.12*Math.sin(G.t*2.6);
+      hintGlyph(hintO.g,cx,y0-(lines.length-1)*lh/2-hs-gs*0.62,gs);
       for(let i=0;i<lines.length;i++){
         text(lines[i],cx+1.5,y0+i*lh+1.5,hs,'700','rgba(4,8,20,0.85)',1);
         text(lines[i],cx,y0+i*lh,hs,'700','#eaf3ff',1);
@@ -2973,22 +3042,31 @@ function drawHUD(){
   }else if(G.state==='menu'){
     const ty=Math.max(top+40*u,cy-R-46*u);
     text('COMET LOOP',cx,ty,34*u,'800','#eaf1ff',6);
-    text('tap to reverse \u00b7 swipe toward a ring',cx,cy-6*u,15*u,'600','rgba(210,225,255,0.85)',0);
-    blit(SPR.ember,cx-84*u,cy+30*u,0.7,0.7,1);
-    ctx.textAlign='left';
-    text('collect',cx-70*u,cy+35*u,14*u,'600','rgba(210,225,255,0.85)',0);
-    ctx.save();ctx.translate(cx+14*u,cy+30*u);ctx.rotate(Math.PI/4);
-    ctx.fillStyle=COL.shard;ctx.fillRect(-4.9*u,-4.9*u,9.8*u,9.8*u);ctx.restore();
-    text('dodge',cx+28*u,cy+35*u,14*u,'600','rgba(210,225,255,0.85)',0);
+    /* A KEY, NOT A PARAGRAPH. Each row is the diagram the game will use again
+       mid-run, so the picture is learned here and only recognised later. The
+       old copy still told players to "tap it to phase through" — a control
+       that was removed two releases ago, which is the worst thing an
+       instruction can do. */
+    const rows=[['tap','tap anywhere to turn around'],
+                ['swipe','swipe up or down to change ring'],
+                ['star','collect stars, finish laps'],
+                ['shard','red kills you'],
+                ['shield','a shield takes one hit for you'],
+                ['beat','tap in time to build a drop']];
+    const rh=24*u, y0=cy-34*u, gx=cx-118*u;
+    for(let i=0;i<rows.length;i++){
+      const ry=y0+i*rh;
+      hintGlyph(rows[i][0],gx,ry-4.5*u,20*u);
+      ctx.textAlign='left';
+      text(rows[i][1],gx+20*u,ry,13*u,'600','rgba(214,228,255,0.88)',0);
+    }
     ctx.textAlign='center';
-    text('fill an orbit with embers for a big bonus',cx,cy+58*u,12*u,'600','rgba(210,225,255,0.6)',0);
-    text('start with a shield \u00b7 tap it to phase through',cx,cy+76*u,12*u,'600','rgba(123,255,200,0.55)',0);
     /* Opened from a chat app, iOS presents the page as a modal sheet, and that
        sheet eats downward swipes to dismiss itself — the game's own inward hop.
        Nothing in here can prevent it, so point at the thing that does. */
     if(IN_APP_BROWSER){
-      text('add to home screen \u2014 swipes close this window',cx,cy+96*u,11*u,'600',
-        'rgba(255,190,120,0.75)',0);
+      text('add to home screen \u2014 swipes close this window',cx,y0+rows.length*rh+10*u,
+        11*u,'600','rgba(255,190,120,0.75)',0);
     }
     const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
     ctx.globalAlpha=pulse;
