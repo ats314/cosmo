@@ -447,6 +447,8 @@ function buildBed(){
   NOISE=n;
   MU={next:0,step:0,chord:-1,armed:false,cool:0,
       chainT:0,     /* audio time the current groove chain began */
+      landT:0,      /* audio time the drop lands — the target to hit */
+      landDone:0,   /* 0 unarmed, 1 hit, 2 spent */
       pend:null,    /* a drop earned while busy, waiting for the music to free up */
       pay:0,        /* eighths left in the payoff; 0 = inactive. the only flag. */
       payEnd:0,     /* audio-clock deadline, so no stall path can strand it */
@@ -571,6 +573,64 @@ function build(amount,src){
     armDrop(BUILD_SRC[best]);
   }
 }
+/* LANDING THE DROP. The biggest moment in the game happened TO the player —
+   they earned it, waited through the rise, and then watched. A target appears
+   in the dead centre through the last bar with a ring converging on it, and
+   the ring touches the rim exactly when the drop hits, so the timing is read
+   rather than guessed. Hitting it is worth a great deal; missing it costs
+   nothing at all and the drop lands regardless. It can never be a tax on
+   survival, only a prize on top of one.
+   The tap is judged against the SAME learned latency bias the groove uses, so
+   a slow phone does not decide whether anyone can hit it. */
+const LAND_WIN=0.30, LAND_PERFECT=0.10;
+function landRect(){return{x:cx,y:cy,r:46*u};}
+function landOpen(){
+  if(!MU||!AC||G.state!=='playing')return 0;
+  /* landDone means ALREADY PRESSED. Expiry is the time window alone: musicStep
+     schedules a lookahead ahead of the audio clock, so fireDrop runs in JS
+     before the instant it is scheduling — closing the window there killed the
+     target at exactly the moment the player was aiming for it. */
+  if(!MU.landT||MU.landDone)return 0;
+  const d=MU.landT-AC.currentTime;
+  return (d<SPB*4.4&&d>-LAND_WIN)?1:0;      /* the last bar, plus the late half of the window */
+}
+function inLand(x,y){
+  if(!landOpen())return false;
+  const r=landRect(),dx=x-r.x,dy=y-r.y;
+  return dx*dx+dy*dy<=r.r*r.r;
+}
+function landDrop(){
+  if(!landOpen())return;
+  MU.landDone=2;
+  const dev=Math.abs((AC.currentTime-PLAY.bias)-MU.landT);
+  const perfect=dev<LAND_PERFECT, good=dev<LAND_WIN;
+  const gain=perfect?200:good?75:0;
+  G.landFx={t:0,perfect:perfect,good:good,gain:gain,dev:+dev.toFixed(3)};
+  if(gain){G.score+=gain;G.scorePop=1;G.lands++;}
+  const p=posPlayer();
+  if(perfect){
+    /* the whole screen answers */
+    if(!RM){
+      G.stop=Math.max(G.stop,0.16);
+      G.flash=Math.max(G.flash,0.85);G.shake=Math.max(G.shake,22);
+      G.rings.push({x:cx,y:cy,r:10*u,life:1,col:'#ffffff',sp:1500,dec:0.85});
+      G.rings.push({x:cx,y:cy,r:10*u,life:1,col:COL.warp,sp:820,dec:1.0});
+      for(let i=0;i<G.nRings;i++)
+        G.rings.push({x:cx,y:cy,r:radiusOf(i),life:1,col:COL.warp,sp:300,dec:1.1});
+    }
+    burst(cx,cy,'#ffffff',30,420);
+    burst(p[0],p[1],COL.warp,26,320);
+    note(PENT[11],AC.currentTime,0.5,'square',0.030,7000,0,A.perf);
+    note(PENT[9], AC.currentTime,0.6,'square',0.026,6000,0,A.perf);
+    hat(AC.currentTime,0.055,3000,0.5,0.5);
+    try{if(navigator.vibrate)navigator.vibrate([40,26,40,26,70]);}catch(e){}
+  }else if(good){
+    if(!RM)G.rings.push({x:cx,y:cy,r:10*u,life:1,col:COL.warp,sp:620,dec:1.3});
+    burst(cx,cy,COL.warp,14,240);
+    note(PENT[9],AC.currentTime,0.34,'square',0.024,5200,0,A.perf);
+    try{if(navigator.vibrate)navigator.vibrate([26,20,40]);}catch(e){}
+  }
+}
 function armDrop(why){
   if(!MU||MU.armed||!AC)return;
   why=why||'DROP EARNED';
@@ -605,6 +665,7 @@ function schedulePreDrop(tD){
   g.setValueAtTime(0.05,tD-0.008);
   g.linearRampToValueAtTime(1,tD);             /* 8ms restore, landing ON the beat */
   MU.hushEnd=tD+0.02;
+  MU.landT=tD;MU.landDone=0;      /* the instant the player is aiming at */
   /* Linear ramps, not setTargetAtTime: asymptotic curves never arrive and need
      a pin. 8ms rather than a step because 0.05->1 on eight running sawtooths
      clicks; 8ms is under the audibility floor and does not soften the hit.
@@ -712,6 +773,7 @@ function endSection(){
   if(!MU)return;
   MU.pay=0;MU.payEnd=0;MU.payHits=0;MU.barHits=0;
   MU.armed=false;MU.rise=false;MU.lpLock=0;MU.hushEnd=0;MU.liftEnd=0;MU.pend=null;
+  MU.landT=0;MU.landDone=0;
   G.pay=0;G.payOpen=0;
   if(A&&AC){const t=AC.currentTime;
     A.hole.gain.cancelScheduledValues(t);
@@ -1384,6 +1446,7 @@ const G={
   armFx:null,sayFx:null,
   pay:0,payOpen:0,didGroove:false,                            /* the payoff section */
   build:0,buildSrc:{ember:0,hop:0,time:0,orbit:0},            /* the build meter */
+  landFx:null,lands:0,                                        /* landing the drop */
   embers:0,blocks:0,phases:0,lastHit:'none', /* telemetry counters */
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
@@ -1593,7 +1656,7 @@ function startGame(){
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
-  G.build=0;G.buildSrc={ember:0,hop:0,time:0,orbit:0};
+  G.build=0;G.buildSrc={ember:0,hop:0,time:0,orbit:0};G.landFx=null;G.lands=0;
   BEATQ.length=0;DROPQ.length=0;
   if(MU){MU.cool=0;MU.payN=0;MU.barN=0;MU.chainBar=-1;MU.pend=null;}
   endSection();
@@ -1744,6 +1807,7 @@ function runSummary(){
     bar+' '+tierLabel()+'\n'+
     G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
     (G.bestGroove>=2?'groove ×'+G.bestGroove+'\n':'')+
+    (G.lands>0?G.lands+' drops landed\n':'')+
     /* a deep link to index.html shares worse than the directory it lives in */
     (location.origin+location.pathname).replace(/index\.html$/,'');
 }
@@ -1793,6 +1857,10 @@ cv.addEventListener('pointerdown',function(e){
   e.preventDefault();ensureAudio();
   if(inMute(e.clientX,e.clientY)){toggleMute();return;}
   if(inShare(e.clientX,e.clientY)){doShare();return;} /* must precede the retry tap */
+  /* Dead centre and only live for one bar per drop, so it can hardly ever
+     swallow a reverse someone needed — and the rest of the screen still
+     reverses, as the mute and share buttons already establish. */
+  if(inLand(e.clientX,e.clientY)){landDrop();return;}
   if(G.state==='menu'){startGame();return;}
   if(G.state==='dead'){if(G.t-G.deadT>0.6)startGame();return;}
   if(pd)return; /* one gesture at a time: a second finger can't double-reverse */
@@ -1929,6 +1997,7 @@ function update(dt){
   if(G.armFx){G.armFx.t+=dt;if(G.armFx.t>2.6)G.armFx=null;}
   if(MU&&MU.pay<=0)G.build=Math.max(0,G.build-dt*0.011);
   if(G.sayFx){G.sayFx.t+=dt;if(G.sayFx.t>1.8)G.sayFx=null;}
+  if(G.landFx){G.landFx.t+=dt;if(G.landFx.t>1.9)G.landFx=null;}
   /* stop playing and the groove lets go, so it always reflects what you are
      doing now rather than something you did a minute ago */
   if(G.groove>0&&G.t>G.grooveT){G.groove--;G.grooveT=G.t+0.7;}
@@ -2985,6 +3054,47 @@ function drawHUD(){
       text(b.sub,cx,by+20*u,12*u,'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
     }
+    /* THE TARGET. A ring converges on the rim and touches it exactly as the
+       drop lands, so the timing is something you watch rather than guess —
+       the same language as the beat ring around the comet. */
+    if(landOpen()){
+      const lr=landRect(),d=MU.landT-AC.currentTime;
+      const app=Math.max(0,Math.min(1,1-d/(SPB*4)));      /* 0 far out, 1 on the beat */
+      ctx.save();
+      ctx.globalCompositeOperation='lighter';
+      /* the rim */
+      ctx.globalAlpha=0.30+0.45*app;
+      ctx.strokeStyle=COL.warp;ctx.lineWidth=(1.8+2.2*app)*u;
+      ctx.beginPath();ctx.arc(lr.x,lr.y,lr.r,0,TAU);ctx.stroke();
+      /* the incoming ring */
+      if(d>0){
+        ctx.globalAlpha=0.25+0.6*app;
+        ctx.strokeStyle='#ffffff';ctx.lineWidth=(1.4+2.6*app)*u;
+        ctx.beginPath();ctx.arc(lr.x,lr.y,lr.r+(1-app)*72*u,0,TAU);ctx.stroke();
+      }
+      /* the word, only while it is still reachable */
+      ctx.globalCompositeOperation='source-over';
+      ctx.globalAlpha=0.55+0.45*app;
+      text(d>0?'TAP ON THE DROP':'NOW',lr.x,lr.y+4*u,
+        (d>0?10.5:14)*u,'800','#eaf3ff',2);
+      ctx.restore();ctx.globalAlpha=1;
+    }
+    /* THE PAYOFF. Its own moment, at a size nothing else in the game uses. */
+    if(G.landFx){
+      const f=G.landFx,a=Math.min(1,f.t/0.12)*Math.min(1,(1.9-f.t)/0.7);
+      ctx.globalAlpha=Math.max(0,a);
+      const pop=1+0.35*Math.max(0,1-f.t*4);
+      if(f.perfect){
+        text('PERFECT DROP',cx,cy-14*u,26*u*pop,'800',COL.warp,6);
+        text('+'+f.gain,cx,cy+22*u,34*u*pop,'800','#ffffff',3);
+      }else if(f.good){
+        text('ON THE DROP',cx,cy-8*u,20*u*pop,'800',COL.warp,4);
+        text('+'+f.gain,cx,cy+18*u,22*u*pop,'800','#eaf3ff',2);
+      }else{
+        text('MISSED IT',cx,cy,16*u,'800','rgba(210,225,255,0.55)',3);
+      }
+      ctx.globalAlpha=1;
+    }
     const hintO=hintText();
     const hint=hintO&&hintO.t;
     if(hint){
@@ -3085,8 +3195,14 @@ function drawHUD(){
     else text('BEST '+G.best,cx,cy+42*u,13*u,'600','rgba(200,215,255,0.5)',2);
     text(G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime(),
       cx,cy+62*u,12*u,'600','rgba(200,215,255,0.45)',0);
-    if(G.bestGroove>=2)
-      text('best groove ×'+G.bestGroove,cx,cy+78*u,11*u,'600','rgba(160,120,255,0.6)',0);
+    /* Landed drops are the rarest thing a run can contain, so they get the
+       line — sharing it with the groove rather than adding a row, because
+       this screen has run out of vertical space twice already. */
+    const brag=[];
+    if(G.bestGroove>=2)brag.push('groove ×'+G.bestGroove);
+    if(G.lands>0)brag.push(G.lands+(G.lands===1?' drop landed':' drops landed'));
+    if(brag.length)
+      text(brag.join('  ·  '),cx,cy+78*u,11*u,'600','rgba(170,135,255,0.7)',0);
     if(G.t-G.deadT>0.6){
       const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
       ctx.globalAlpha=pulse;
