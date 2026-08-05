@@ -234,10 +234,20 @@ function resize(){
     safeTop=parseFloat(cs.paddingTop)||0;
     safeBot=parseFloat(cs.paddingBottom)||0;
   }catch(e){safeTop=0;safeBot=0;}
-  /* keep the ring clear of the notch and the home indicator */
-  const usableH=H-safeTop-safeBot;
-  R=Math.min(W,usableH)*0.31;
-  cy=safeTop+usableH/2;
+  /* SIZE THE ARENA FROM THE FREE BOX, not from a flat fraction of the screen.
+     `min(W,usableH)*0.31` ignored the furniture at both ends and left 74px of
+     dead margin either side in portrait while ALREADY overlapping in
+     landscape — 16px of clearance under the ring and the tier banner drawing
+     80px up into the HUD. Solving the actual box fixes both at once: portrait
+     gains about a third more arena, landscape stops colliding. */
+  const topLim=safeTop+150*u;            /* under the score / embers / groove stack */
+  const botLim=H-safeBot-74*u;           /* over the shield button */
+  const vBox=Math.max(40,(botLim-topLim)/2);
+  /* 30u leaves exactly enough for the comet plus a full three-shield stack
+     (15u sprite at 1.86x = 28u) at the widest point of the outer ring. */
+  const hBox=W/2-30*u;
+  R=Math.max(52,Math.min(hBox,vBox));
+  cy=(topLim+botLim)/2;
   /* normalised coords: the star field never needs rebuilding on resize */
   if(!bgStars.length){
     for(let i=0;i<22;i++)bgStars.push({x:Math.random(),y:Math.random(),r:rand(0.7,1.7),ph:rand(0,TAU),tw:rand(0.5,2.5)});
@@ -249,8 +259,24 @@ window.addEventListener('resize',resize);resize();
 function angDist(a,b){const d=Math.abs((a-b)%TAU);return d>Math.PI?TAU-d:d;}
 /* Ring 0 is the outermost. Adding a ring adds a higher index further in, so
    existing rings never move when a new one appears. */
-const RADII=[1.0,0.74,0.50];
+/* The inner ring was half the outer one, and a shard's hit width is
+   (18.5u)/radius RADIANS — so it blocked twice the angular fraction there and
+   held roughly a third fewer embers. Lifting it to 0.545 of a larger R makes
+   the innermost track about 42% wider than it was without touching a single
+   difficulty constant. */
+const RADII=[1.0,0.76,0.545];
 const RING_MULT=[1,1,1]; /* set e.g. [1,1.5,2] to pay more for riding inside */
+/* EACH RING IS AN INSTRUMENT. Nothing about the payout differs between them,
+   so the only honest way to say "inside is hotter" is to make it SOUND hotter.
+   Going in raises the register (performerHit already transposes by ring),
+   brightens the timbre from a warm saw to a hard square, opens the pad, and —
+   the part you feel rather than hear — doubles the subdivision underneath you.
+   The tempo never changes. Only how finely the bar is cut. */
+const RINGS=[
+  /* outer */ {wave:'sawtooth',cut:1.00,lift:0,   sub:0, tint:'132,162,255'},
+  /* mid   */ {wave:'square',  cut:1.18,lift:260, sub:1, tint:'128,206,255'},
+  /* inner */ {wave:'square',  cut:1.42,lift:620, sub:2, tint:'168,240,255'}];
+function ringOf(){return G.state==='playing'?Math.min(RINGS.length-1,effRing()):0;}
 function radiusOf(i){return R*RADII[i];}
 function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r];}
 
@@ -500,11 +526,21 @@ function lead(f,t,dur,g,cut,pan){
    None of that is fixed by turning the drop up; peak was already 0.97. It is
    fixed by taking everything else away first. Loudness by contrast is free. */
 const DROPQ=[];
-function armDrop(){
+/* SAY WHY. Arming used to set a flag and produce no feedback whatsoever — no
+   sound, no text, no HUD change — and the drop then landed up to nine seconds
+   later. A player could earn one, hear it arrive, and have no way to connect
+   the two. The reason is now named on screen at the instant it is earned, and
+   the run-up is drawn, so the whole chain from cause to payoff is visible. */
+function armDrop(why){
   if(!MU||MU.armed||!AC)return;
   if(MU.pay>0||MU.rise)return;           /* sections cannot nest */
   if(AC.currentTime<MU.cool)return;      /* rationed, or it stops being an event */
   MU.armed=true;
+  G.sawDrop=true;
+  G.armFx={why:why||'DROP EARNED',t:0};
+  const p=posPlayer();
+  ripple(p[0],p[1],COL.warp);
+  try{if(navigator.vibrate)navigator.vibrate(18);}catch(e){}
 }
 /* THE RULE THIS WHOLE FEATURE HANGS OFF: every duck writes its own undo at
    schedule time, in the same call. Never rely on a later tick to restore a
@@ -566,7 +602,15 @@ function payoffStep(t,ch,k){
      the phase it happened to land on. The section keeps its 33dB of contrast
      either way; that comes from the hole, not from the gain. */
   const w=0.68;
-  if(ps===0){MU.barHits=0;G.payOpen=resp?1:0;}
+  if(ps===0){
+    MU.barHits=0;G.payOpen=resp?1:0;
+    /* The response bars are the best thing in the game and completely
+       invisible — the hook simply stops and the player has no way to know the
+       silence is an invitation. Named for the first two sections of a run,
+       then left alone once it has been learned. */
+    if(resp&&MU.payN<=2)G.sayFx={str:'YOUR TURN',t:0};
+    else if(pb===0&&MU.payN<=2)G.sayFx={str:'LISTEN',t:0};
+  }
   /* the visual pulse rate DOUBLES exactly where the audio does */
   if(late||ps%2===0)BEATQ.push(t);
   /* drums. halftime is a backbeat PERIOD, not a tempo — the grid never moves. */
@@ -712,6 +756,18 @@ function musicStep(i,t,k){
   if((k>0.45||gv>0)&&(beat===2||beat===6))hat(t,0.020+0.012*k+0.006*gv);
   if(gv>=2&&beat%2===1)hat(t,0.009+0.004*gv,8200,0.045);
   if(k>0.45&&beat===4)hat(t,0.012);
+  /* THE RING IS THE SUBDIVISION. Ring 1 fills the offbeat eighths, ring 2 cuts
+     the whole bar into sixteenths — twice the pulse rate, at exactly the same
+     104bpm. This is the "inner rings are hotter" signal, and it is felt rather
+     than read: hopping inward audibly doubles the clock without the music ever
+     lurching, which a tempo change would. Quiet, because it is a floor under
+     what the player is doing, not a part competing with it. */
+  const rs=RINGS[ringOf()].sub;
+  if(rs>=1&&beat%2===1)hat(t,0.0085,8600,0.038);
+  if(rs>=2&&beat%2===0)hat(t+S16,0.0075,9000,0.032);
+  /* 3 / 7 / 11 events per bar. A full sixteenth shimmer measured 6.3x the
+     outer ring's density, which is a wall of noise rather than a groove —
+     this is a ladder you can hear each step of. */
   /* THE COVER. The band fills the offbeat only while nobody else is playing
      it, and fades out continuously as you engage — so the first thing you hear
      when you start working the controls is the machine stepping aside. Dull
@@ -808,7 +864,7 @@ function judgeTiming(x,y){
          take 1.15s, less than a bar, so x8 was reachable without ever holding
          anything. "Hold it through a chord change" is musically meaningful in
          a way that "tap eight times" is not. */
-      if(G.groove>=8&&MU&&MU.chainBar!==MU.barN)armDrop();
+      if(G.groove>=8&&MU&&MU.chainBar!==MU.barN)armDrop('PERFECT TIMING \u00d78');
     }
     G.grooveFx=1;
     /* Once, ever, on the exact tap that proved it. A first-time discoverer at
@@ -879,8 +935,14 @@ function performerHit(kind,dir,ring){
     if(!RM)G.rings.push({x:p[0],y:p[1],r:6*u,life:1,col:COL.warp,sp:260,dec:2.2});
     else G.rings.push({x:p[0],y:p[1],r:9*u,life:1,col:COL.warp,sp:0,dec:2.2});
   }else{
-    note(PENT[d],t,0.13,'sawtooth',g,(2400+2200*PLAY.heat)*(1+0.16*gr),
+    /* your instrument changes with the track you are riding — warm saw on the
+       outside, hard bright square on the inside */
+    const rv=RINGS[rg];
+    note(PENT[d],t,0.13,rv.wave,g,(2400+2200*PLAY.heat)*(1+0.16*gr)*rv.cut,
       panAt(p[0]),A.perf);
+    /* the inner track gets an octave edge on top, so it reads as keener even
+       on a phone speaker where the fundamental is doing the least work */
+    if(rg>=2)note(PENT[Math.min(13,d+3)],t,0.09,'sine',g*0.34,7200,panAt(p[0]),A.perf);
     /* THE BAND ANSWERS. Three sixteenths later — 433ms, an odd subdivision no
        player on the eighth grid can ever claim, and far past the ~50ms fusion
        threshold, so it reads as a second musician rather than a doubling of
@@ -957,7 +1019,8 @@ function bedTick(dt){
      player's hands whether or not the chain ever reaches x8 — the build a
      real track waits eight bars for, paid for with playing instead. */
   const gv=Math.max(0,G.groove-4);
-  let cut=400+1500*k*k+900*PLAY.heat+420*gv;
+  /* the pad opens as you go inward too, so the whole mix brightens with depth */
+  let cut=400+1500*k*k+900*PLAY.heat+420*gv+(playing?RINGS[ringOf()].lift:0);
   if(MU&&MU.pay>0)cut=Math.min(cut,((PAY-MU.pay)>>3)<4?380:700);
   /* schedulePreDrop owns this param through the hole; do not fight it */
   if(!MU||t>=MU.lpLock)BED.lp.frequency.setTargetAtTime(cut,t,0.5);
@@ -1192,12 +1255,15 @@ function shardCap(){
   return d<10?2:d<20?3:d<40?4:d<70?5:d<110?6:d<160?7:d<230?8:d<320?9:10;
 }
 function spawnGap(){return Math.max(0.80,2.1-dl()*0.0035);}
-/* A NEW PLAYER RAMP, not a difficulty change. G.runs persists, so this fades
-   to nothing by the fourth run and someone returning never meets it — the
-   same principle the tutorial hints already use. It buys room to work out
-   that a tap reverses you, which is the whole game on one ring. */
+/* EVERY RUN OPENS QUIETLY. This used to fade out by the fourth run, so a
+   returning player was dropped straight into a moving board with no room to
+   re-find the controls — and anyone handed the phone at run twelve got no
+   ramp at all. Now the opening seconds are calm for everybody, every time:
+   the first shard is held off, and the tail of the ramp still gives a genuine
+   newcomer a little longer on top of that. The difficulty clock past the
+   opening is untouched, so the run reaches exactly where it always did. */
 function rookie(){return Math.max(0,Math.min(1,(4-G.runs)/3));}
-function firstShardAt(){return 4+5*rookie();}
+function firstShardAt(){return 7+4*rookie();}
 /* Embers land on a random ring but you can only reach the one you are on,
    so both the cap and the spawn rate scale with ring count. Without this,
    adding a ring silently cuts your scoring rate while raising difficulty. */
@@ -1248,7 +1314,6 @@ function pickType(){
   }
   return pool.length?pool[Math.floor(Math.random()*pool.length)]:'single';
 }
-const PHASE_T=1.4;
 /* The bank grows with the clock. Late boards carry ten shards across three
    rings and the inner ring costs twice the angle per shard, so three slots
    stopped being enough to play around long before the run ended. */
@@ -1260,11 +1325,13 @@ const G={
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
   orbits:0,bestStreak:0,shareFx:0, /* run summary, for the death screen and share */
   groove:0,grooveT:0,grooveFx:0,bestGroove:0,beat:0,dropFx:0, /* rhythm */
+  armFx:null,sayFx:null,
   pay:0,payOpen:0,didGroove:false,                            /* the payoff section */
   embers:0,blocks:0,phases:0,lastHit:'none', /* telemetry counters */
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
-  shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didPhase:false,
+  shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
+  didDodge:false,sawDrop:false,taught:0,
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
   stop:0, /* hitstop: freezes the comet while the celebration plays */
   starT:0.6,spikeT:1.2,powT:6,shake:0,flash:0,tier:0,banner:null,
@@ -1468,17 +1535,27 @@ function startGame(){
   G.state='playing';G.score=0;G.diff=0;G.newBest=false;G.scorePop=0;G.mile=0;
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
-  G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;
+  G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
   BEATQ.length=0;DROPQ.length=0;
   if(MU){MU.cool=0;MU.payN=0;MU.barN=0;MU.chainBar=-1;}
   endSection();
-  G.embers=0;G.blocks=0;G.phases=0;G.lastHit='none';
+  G.embers=0;G.blocks=0;G.lastHit='none';
   GEST.tap=0;GEST.swipe=0;GEST.lateSwipe=0;GEST.unresolved=0;
   G.angle=-Math.PI/2;G.prevAngle=G.angle;G.sweep=0;G.dir=1;G.speed=1.40;
   G.nRings=1;G.ringI=0;G.hopFromI=0;G.hopP=1;
   /* an extra shield while learning: one mistake should not end the lesson */
-  G.shields=G.runs<=3?2:1;
-  G.invuln=0;G.slow=0;G.tsCur=1;G.sinceShield=0;G.revPend=0;G.didPhase=false;
+  /* Two to start, always. One was a single mistake between a new player and
+     the retry screen, and shields are now purely "you live" — see the block
+     path in updateSpikes. */
+  G.shields=2;
+  G.invuln=0;G.slow=0;G.tsCur=1;G.sinceShield=0;G.revPend=0;G.didShield=false;
+  /* Reset EVERY run, so the ladder replays from the top every time. These were
+     lifetime flags, permanently true after run one — which meant a returning
+     player, or anyone handed the phone, got no reminder of the controls at
+     all. Each clears the instant the thing is done, so a veteran sees each for
+     well under a second. */
+  G.didDodge=false;G.sawDrop=false;G.taught=0;
+  G.didReverse=false;G.didHop=false;G.didLap=false;
   G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];G.novas=[];
   G.stop=0;
   G.starT=0.5;G.spikeT=1.2;G.powT=6;G.started=G.t;G.tier=0;G.banner=null;
@@ -1519,7 +1596,7 @@ function die(){
     scored:G.embers>0,                /* did they ever get going at all */
     tier:G.tier,tier_name:tierLabel(),rings:G.nRings,
     death_cause:G.lastHit,
-    blocks:G.blocks,phases:G.phases,  /* shields spent for you vs. by you */
+    blocks:G.blocks,                  /* shields that saved a run */
     /* the input question: what fraction of swipes produced nothing */
     gestures:gest,
     gest_tap:GEST.tap,gest_swipe:GEST.swipe,
@@ -1581,24 +1658,12 @@ function hop(step){
   performerHit('hop',step,t);   /* the ring being ARRIVED at, not the one left */
 }
 
-/* Spending a shield on purpose phases you through anything for a moment and
-   leaves the orbit untouched — the whole point of banking them. */
-function burnShield(){
-  const p=posPlayer();
-  if(G.shields<=0){
-    burst(p[0],p[1],'rgba(170,195,255,0.85)',3,45);
-    /* was all but identical to bump(); two different refusals now differ */
-    beep(300,0.10,'square',0.030,240,0,0,0.2);
-    return;
-  }
-  G.shields--;G.didPhase=true;G.phases++;
-  G.invuln=Math.max(G.invuln,G.t+PHASE_T);
-  ripple(p[0],p[1],COL.shield);
-  burst(p[0],p[1],COL.shield,16,175);
-  popup(p[0],p[1]-26*u,'PHASE',COL.shield);
-  beep(420,0.18,'triangle',0.06,880);
-  beep(900,0.12,'sine',0.05,1350,0.1);
-}
+/* The phase move is gone. It asked the player to spend a shield PRE-EMPTIVELY,
+   which meant reading a threat, deciding it was unsurvivable, and hitting a
+   second button — all inside the reaction window they were already using to
+   dodge. Shields are now exactly what they look like: one hit each, spent
+   automatically, costing nothing else. The bottom bar is a readout, not a
+   control, and the whole strip is a normal tap target again. */
 
 /* ---------- run summary / share ----------
    The artifact travels further than the link does, so it is plain text: it
@@ -1647,11 +1712,6 @@ function shieldRect(){
   const w=116*u,h=46*u;
   return{x:cx-w/2,y:H-safeBot-h-16*u,w:w,h:h};
 }
-function inShield(x,y){
-  if(G.state!=='playing')return false;
-  const r=shieldRect(),pad=10*u;
-  return x>=r.x-pad&&x<=r.x+r.w+pad&&y>=r.y-pad&&y<=r.y+r.h+pad;
-}
 function inMute(x,y){
   const r=muteRect(),pad=14;
   return x>=r.x-pad&&x<=r.x+r.w+pad&&y>=r.y-pad&&y<=r.y+r.h+pad;
@@ -1673,7 +1733,6 @@ let pd=null;
 cv.addEventListener('pointerdown',function(e){
   e.preventDefault();ensureAudio();
   if(inMute(e.clientX,e.clientY)){toggleMute();return;}
-  if(inShield(e.clientX,e.clientY)){burnShield();return;}
   if(inShare(e.clientX,e.clientY)){doShare();return;} /* must precede the retry tap */
   if(G.state==='menu'){startGame();return;}
   if(G.state==='dead'){if(G.t-G.deadT>0.6)startGame();return;}
@@ -1744,9 +1803,6 @@ window.addEventListener('keydown',function(e){
   }else if(e.code==='ArrowDown'||e.code==='KeyS'||e.code==='ArrowRight'||e.code==='KeyD'){
     e.preventDefault();
     if(G.state==='playing')hop(1);
-  }else if(e.code==='KeyE'||e.code==='ShiftLeft'){
-    e.preventDefault();
-    if(G.state==='playing')burnShield();
   }else if(e.code==='KeyM'){
     toggleMute();
   }
@@ -1771,20 +1827,24 @@ function updateSpikes(sdt,lethal){
     if(s.blink)s.bt+=sdt;
     if(s.phase===0&&s.t>=(s.warn||WARN)){s.phase=1;s.t=0;s.bt=0;}
     else if(s.phase===1&&s.t>=s.life){s.phase=2;s.t=0;}
-    else if(s.phase===2&&s.t>=FADE){G.spikes.splice(i,1);continue;}
+    /* survived one: the "red is lethal" prompt has done its job */
+    else if(s.phase===2&&s.t>=FADE){G.spikes.splice(i,1);G.didDodge=true;continue;}
     /* a moving shard's hitbox is widened by however far it travelled this frame */
     const tol=(18.5*u)/pr+Math.abs(s.va)*sdt;
     if(lethal&&s.phase===1&&armed(s)&&s.ring===er&&G.t>=G.invuln&&sweptHit(s.a,tol)){
       if(G.shields>0){
-        /* Reactive save: you live, but the hit knocks you off your orbit.
-           Spending a shield deliberately is what keeps the streak. */
+        /* A SHIELD MEANS YOU LIVE. That is the whole of it. It used to also
+           zero lapAcc and lapStreak, so being saved still cost you the orbit
+           you were most of the way through and broke the run's flow at the
+           exact moment the shield was supposed to protect it. The shield
+           itself is the price. */
         G.shields--;G.invuln=G.t+0.9;G.blocks++;
         s.phase=2;s.t=0;
-        G.lapAcc=0;G.lapStreak=0;
         const p=posPlayer();
         burst(p[0],p[1],COL.shield,18,180);
         ripple(p[0],p[1],COL.shield);
-        popup(p[0],p[1]-24*u,'BLOCKED',COL.shield);
+        popup(p[0],p[1]-24*u,'SHIELD USED',COL.shield);
+        G.didShield=true;G.didDodge=true;
         /* a save that sounded like a punishment: square falling to 90Hz sat
            in the death register and below what a phone reproduces */
         beep(392,0.16,'triangle',0.075,588);
@@ -1807,6 +1867,8 @@ function update(dt){
   G.grooveFx=Math.max(0,G.grooveFx-dt*2.2);
   G.dropFx=Math.max(0,G.dropFx-dt*1.1);
   G.payOpen=Math.max(0,G.payOpen-dt*1.4);
+  if(G.armFx){G.armFx.t+=dt;if(G.armFx.t>2.6)G.armFx=null;}
+  if(G.sayFx){G.sayFx.t+=dt;if(G.sayFx.t>1.8)G.sayFx=null;}
   /* stop playing and the groove lets go, so it always reflects what you are
      doing now rather than something you did a minute ago */
   if(G.groove>0&&G.t>G.grooveT){G.groove--;G.grooveT=G.t+0.7;}
@@ -1934,7 +1996,7 @@ function update(dt){
       beep(1046,0.16,'triangle',0.07,1568,0.2);
       /* thresholds, not a floor: `st>=5` fired on every fed orbit past the
          fifth, which at mid-run speed is roughly every three seconds */
-      if(st===5||st===9||st===14)armDrop();
+      if(st===5||st===9||st===14)armDrop(st+' CLEAN ORBITS');
       if(st>=3){
         /* Earned tier: the comet stops dead for a beat while the ring burns
            round. Short enough not to break the rhythm of a 2.5s orbit. */
@@ -2152,7 +2214,9 @@ function drawRingGlow(){
   const rr=curR();
   ctx.save();
   ctx.globalCompositeOperation='lighter';
-  ctx.strokeStyle=COL.comet;
+  /* the lit track takes its own colour, so the light under the comet says
+     which ring you are on as plainly as the arrangement does */
+  ctx.strokeStyle='rgb('+RINGS[Math.min(RINGS.length-1,effRing())].tint+')';
   for(const L of RING_LIT){
     ctx.globalAlpha=L[1];
     ctx.lineWidth=L[2]*u;
@@ -2274,15 +2338,19 @@ function draw(){
   /* orbit rings */
   for(let i=0;i<G.nRings;i++){
     const rr=radiusOf(i),on=(G.hopP>=1&&G.ringI===i);
-    ctx.strokeStyle='rgba(150,180,255,0.045)';ctx.lineWidth=13;
+    /* Each track carries its own colour, cooling from deep blue on the outside
+       to a keen cyan-white inside — the same axis the sound moves along, so
+       the picture and the arrangement are saying one thing rather than two. */
+    const tn=RINGS[Math.min(RINGS.length-1,i)].tint;
+    ctx.strokeStyle='rgba('+tn+',0.045)';ctx.lineWidth=13;
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
-    ctx.strokeStyle=on?'rgba(175,205,255,0.14)':'rgba(150,180,255,0.065)';ctx.lineWidth=4.5;
+    ctx.strokeStyle='rgba('+tn+','+(on?0.145:0.065)+')';ctx.lineWidth=4.5;
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
     /* the arena changes colour for the whole section. static, so it is safe
        under reduced motion — and it is the only whole-section signal an RM
        player gets, so they get it too. */
     ctx.strokeStyle=G.pay>0?(on?'rgba(196,160,255,0.46)':'rgba(170,140,240,0.17)')
-                           :(on?'rgba(206,230,255,0.44)':'rgba(170,195,255,0.155)');
+                           :'rgba('+tn+','+(on?0.46:0.17)+')';
     ctx.lineWidth=1.3;
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
   }
@@ -2292,7 +2360,9 @@ function draw(){
   if(G.pay>0){
     ctx.save();ctx.globalAlpha=0.24;ctx.strokeStyle=COL.warp;ctx.lineWidth=2.5;
     ctx.beginPath();
-    ctx.arc(cx,cy,radiusOf(G.nRings-1)+7*u,-Math.PI/2,-Math.PI/2+TAU*G.pay);
+    /* radiusOf(nRings-1) is the INNERMOST ring — this was drawing the section
+       readout inside the arena instead of framing it. Ring 0 is the outer. */
+    ctx.arc(cx,cy,radiusOf(0)+13*u,-Math.PI/2,-Math.PI/2+TAU*G.pay);
     ctx.stroke();ctx.restore();
   }
   ctx.globalCompositeOperation='lighter';
@@ -2571,16 +2641,9 @@ function drawShieldBtn(){
   const r=shieldRect(),midY=r.y+r.h/2,has=G.shields>0;
   const pulse=has?0.55+0.2*Math.sin(G.t*3.2):0.22;
   ctx.save();
-  /* frame */
-  ctx.globalAlpha=has?0.5:0.2;
-  ctx.strokeStyle=COL.shield;ctx.lineWidth=1.6;
-  const rad=r.h/2;
-  ctx.beginPath();
-  ctx.moveTo(r.x+rad,r.y);ctx.lineTo(r.x+r.w-rad,r.y);
-  ctx.arc(r.x+r.w-rad,midY,rad,-Math.PI/2,Math.PI/2);
-  ctx.lineTo(r.x+rad,r.y+r.h);
-  ctx.arc(r.x+rad,midY,rad,Math.PI/2,-Math.PI/2);
-  ctx.closePath();ctx.stroke();
+  /* No frame any more. It read as a button because it WAS one, and it is now
+     a readout — a pill outline invites a press it no longer answers. */
+  ctx.globalAlpha=1;
   /* one glyph per shield slot, matching the pickup icon */
   /* slots have to fit the widened bank, so the pitch closes up rather than
      the pips spilling out of the button */
@@ -2640,26 +2703,37 @@ function drawMute(){
   ctx.restore();
 }
 
-/* First few runs get one prompt at a time, each clearing itself the
-   moment the player does the thing. Veterans never see them. */
+/* EVERY RUN TEACHES. These used to stop after run six, on the theory that a
+   veteran should never see them — but each one clears the instant the player
+   does the thing, so a veteran sees each for well under a second and a new
+   player gets the whole ladder no matter when they pick the game up. The flags
+   they key off are all per-run now, so the sequence replays from the top every
+   time without ever standing between anyone and the next input. */
 function hintText(){
-  if(G.runs>6||age()>60)return null;
+  if(G.state!=='playing')return null;
+  const a=age();
+  /* First match wins, so this list IS the curriculum and its order is the
+     lesson plan. Each entry either clears when the player does the thing or
+     times out, so exactly one idea is ever on screen and nothing can sit there
+     blocking the rest of the ladder. */
   if(!G.didReverse)return 'tap anywhere to reverse';
+  if(!G.didLap&&a<22)return 'gather embers, then finish the lap';
   /* Only once there is somewhere to hop TO. A run opens on a single ring for
      its first 30 seconds, so without this the prompt asks a new player to
      make the one gesture the game will not answer — they swipe, nothing
      happens, and the controls read as broken at the exact moment they are
      being learned. */
   if(!G.didHop&&G.nRings>1)return 'swipe toward the ring you want';
-  if(!G.didLap)return 'gather embers, then finish the lap';
-  if(!G.didPhase&&G.shields>0)return 'tap the shield to phase through a hit';
-  /* LAST, deliberately. didReverse/didHop/didLap are permanently true from run
-     one, but didPhase is reset every run — putting this any higher would
-     permanently displace the only per-run survival hint that is left.
-     "Tap on the beat" is an imperative aimed at someone already struggling.
-     This names the ring now visibly contracting onto their comet, and reads
-     as an invitation rather than an instruction. */
-  if(!G.didGroove&&G.runs>=3&&age()>25&&G.groove<2)return 'tap with the pulse';
+  if(!G.didDodge&&G.spikes.length)return 'red is lethal — reverse or hop away';
+  if(!G.didShield&&a>17&&a<25)return 'a shield takes one hit for you';
+  /* Named after the ring now visibly contracting onto the comet, and phrased
+     as an invitation rather than an instruction — a struggling player does not
+     need another demand. */
+  /* didGroove is the LIFETIME flag behind the one-time IN TIME popup; the
+     prompt keys off this run's own chain, so it still reminds someone who
+     learned it weeks ago and has not used it today. */
+  if(G.bestGroove<2&&a>28&&G.groove<2)return 'tap with the pulse';
+  if(!G.sawDrop&&G.bestGroove>=4&&a>46)return 'hold the pulse to ×8 for a drop';
   return null;
 }
 
@@ -2687,6 +2761,36 @@ function drawHUD(){
       text('GROOVE \u00d7'+G.groove,cx,top+136*u,13*u*(1+0.12*G.grooveFx),'800',COL.warp,2);
       ctx.globalAlpha=1;
     }
+    /* WHY A DROP IS COMING, at the moment it is earned. Named, so the cause
+       and the payoff are connected across the bars between them. */
+    if(G.armFx){
+      const a=Math.min(1,G.armFx.t/0.22)*Math.min(1,(2.6-G.armFx.t)/0.7);
+      ctx.globalAlpha=Math.max(0,a);
+      text(G.armFx.why,cx,top+172*u,12*u,'800',COL.warp,3);
+      text('DROP INCOMING',cx,top+190*u,15*u,'800','#eaf1ff',4);
+      ctx.globalAlpha=1;
+    }
+    /* THE RUN-UP. Once armed, the wait is up to four bars — long enough that
+       without this the drop reads as arriving from nowhere. The bar fills as
+       the rise plays, so the arrival is something you can see coming. */
+    if(MU&&(MU.armed||MU.rise)&&G.pay<=0){
+      const w=96*u,x0=cx-w/2,y=top+200*u;
+      let prog=MU.rise?Math.min(1,((MU.step+STEPS-16)%STEPS)/16):0;
+      ctx.globalAlpha=0.30;ctx.fillStyle='rgba(180,150,255,0.5)';
+      ctx.fillRect(x0,y,w,2.5*u);
+      ctx.globalAlpha=0.85;ctx.fillStyle=COL.warp;
+      ctx.fillRect(x0,y,w*(MU.rise?prog:0.06+0.04*Math.sin(G.t*4)),2.5*u);
+      ctx.globalAlpha=1;
+    }
+    /* which half of the section you are in, over the arena rather than the HUD
+       so it reads as part of the moment instead of another statistic */
+    if(G.sayFx){
+      const a=Math.min(1,G.sayFx.t/0.18)*Math.min(1,(1.8-G.sayFx.t)/0.6);
+      ctx.globalAlpha=Math.max(0,a)*0.9;
+      text(G.sayFx.str,cx,cy-R-16*u,17*u,'800',
+        G.sayFx.str==='YOUR TURN'?COL.warp:'rgba(210,225,255,0.75)',5);
+      ctx.globalAlpha=1;
+    }
     if(G.combo>=2&&G.comboT>0){
       ctx.globalAlpha=0.35+0.65*(G.comboT/CW);
       text('\u00d7'+G.combo+' COMBO',cx,top+116*u,14*u,'800',COL.ember,2);
@@ -2696,8 +2800,14 @@ function drawHUD(){
       const b=G.banner;
       const a=Math.min(1,b.t/0.3)*Math.min(1,(3.2-b.t)/0.6);
       ctx.globalAlpha=Math.max(0,a);
-      text(b.str,cx,cy-R-30*u,20*u,'800',COL.shard,4);
-      text(b.sub,cx,cy-R-10*u,12*u,'600','rgba(210,225,255,0.75)',0);
+      /* The banner sits a fixed 30u above the ring, and the ring top is itself
+         pinned just under the HUD — so on a short viewport it was drawn 80px
+         UP INTO the score readout. Clamped below the groove line: on a phone
+         the arena is wide enough that this never binds, and in landscape the
+         banner slides down over the ring rather than through the HUD. */
+      const by=Math.max(cy-R-30*u,top+158*u);
+      text(b.str,cx,by,20*u,'800',COL.shard,4);
+      text(b.sub,cx,by+20*u,12*u,'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
     }
     const hint=hintText();
