@@ -811,6 +811,14 @@ function judgeTiming(x,y){
       if(G.groove>=8&&MU&&MU.chainBar!==MU.barN)armDrop();
     }
     G.grooveFx=1;
+    /* Once, ever, on the exact tap that proved it. A first-time discoverer at
+       x2 previously got nothing at the moment they succeeded \u2014 the readout
+       started at x2 and the popup at x3, so the two taps that taught you the
+       mechanic existed were the two you were told nothing about. */
+    if(G.groove>=2&&!G.didGroove){
+      G.didGroove=true;savePref('cometloop:groove','1');
+      popup(x,y-34*u,'IN TIME',COL.warp,1.0);
+    }
     if(G.groove>=3)popup(x,y-34*u,'GROOVE \u00d7'+G.groove,COL.warp,0.85+0.05*G.groove);
     return G.groove;
   }
@@ -1080,6 +1088,9 @@ function loadPrefs(){
   if(!isNaN(r))G.runs=Math.max(G.runs,r);
   const m=readLocal('cometloop:muted');
   if(m!==null)muted=(m==='1');
+  /* Deliberately never reset by startGame: it records whether this human has
+     ever found the mechanic, not whether this run has. */
+  if(readLocal('cometloop:groove')==='1')G.didGroove=true;
   try{
     if(!window.storage||!window.storage.get)return;
     window.storage.get('cometloop:best').then(function(r){
@@ -1608,7 +1619,7 @@ function runSummary(){
   return 'Comet Loop '+G.score+'\n'+
     bar+' '+tierLabel()+'\n'+
     G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
-    (G.bestGroove>=3?'groove ×'+G.bestGroove+'\n':'')+
+    (G.bestGroove>=2?'groove ×'+G.bestGroove+'\n':'')+
     /* a deep link to index.html shares worse than the directory it lives in */
     (location.origin+location.pathname).replace(/index\.html$/,'');
 }
@@ -2188,6 +2199,52 @@ function drawTail(){
   ctx.restore();
 }
 
+/* ---------- the visible beat ----------
+   The old pulse breathed the RINGS, at peak alpha 0.05 against static strokes
+   on the same path summing to ~0.265 — and it PEAKED ON THE BEAT. You cannot
+   synchronise to a flash that arrives at the same moment as the thing it is
+   announcing; human reaction is ~250ms and an eighth here is 288ms. It was also
+   4.5x brighter at groove x8 than at x0, so the game showed you the beat most
+   clearly exactly when you least needed it and dimmest while you were trying
+   to find it.
+
+   What people actually synchronise to is continuous motion with a predictable
+   arrival, and it has to land where the eye already is. So: a ring that
+   contracts onto the comet over the half-beat BEFORE each beat, and lands. */
+function beatPhase(){
+  if(!AC||!MU||!MU.next||AC.state!=='running'||G.state!=='playing')return -1;
+  /* MU.next is the next UNSCHEDULED eighth and sits ahead of now by the
+     lookahead, so the quarter boundary is derived from it, not subtracted. */
+  const q=MU.next+((MU.step%2)?SPB/2:0);
+  let d=(q-AC.currentTime)%SPB;if(d<0)d+=SPB;
+  return 1-d/SPB;
+}
+function drawBeat(p){
+  const ph=beatPhase();if(ph<0)return;
+  /* fades back for a veteran who has clearly found it, and stays for everyone
+     else. It is a teaching aid first and an ornament second. */
+  const vis=(G.runs>6&&G.bestGroove>=5)?0.45:1;
+  ctx.save();ctx.globalCompositeOperation='lighter';
+  ctx.strokeStyle=(G.groove>=3||G.pay>0)?COL.warp:'rgba(200,225,255,1)';
+  if(RM){
+    /* one opacity step per beat is 1.73Hz — far below any flash threshold,
+       and it still carries the anticipation */
+    ctx.globalAlpha=(ph>0.62?0.28:0.09)*vis;ctx.lineWidth=2*u;
+    ctx.beginPath();ctx.arc(p[0],p[1],32*u,0,TAU);ctx.stroke();
+  }else{
+    const a=Math.max(0,(ph-0.5)*2);        /* 288ms of visible approach */
+    if(a>0){
+      ctx.globalAlpha=(0.05+0.24*a*a)*vis;ctx.lineWidth=(1.2+1.3*a)*u;
+      ctx.beginPath();ctx.arc(p[0],p[1],(32+18*(1-a))*u,0,TAU);ctx.stroke();
+    }
+    if(G.beat>0.02){                       /* the landing, at a level you see */
+      ctx.globalAlpha=G.beat*(0.30+0.045*G.groove+0.10*G.payOpen)*vis;
+      ctx.lineWidth=(1.6+3.2*G.beat)*u;
+      ctx.beginPath();ctx.arc(p[0],p[1],(32+6*(1-G.beat))*u,0,TAU);ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 /* ---------- draw ---------- */
 function draw(){
   const amb=RM?0:G.t;
@@ -2221,20 +2278,22 @@ function draw(){
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
     ctx.strokeStyle=on?'rgba(175,205,255,0.14)':'rgba(150,180,255,0.065)';ctx.lineWidth=4.5;
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
-    ctx.strokeStyle=on?'rgba(206,230,255,0.44)':'rgba(170,195,255,0.155)';ctx.lineWidth=1.3;
+    /* the arena changes colour for the whole section. static, so it is safe
+       under reduced motion — and it is the only whole-section signal an RM
+       player gets, so they get it too. */
+    ctx.strokeStyle=G.pay>0?(on?'rgba(196,160,255,0.46)':'rgba(170,140,240,0.17)')
+                           :(on?'rgba(206,230,255,0.44)':'rgba(170,195,255,0.155)');
+    ctx.lineWidth=1.3;
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
-    /* THE PULSE. You cannot play to a beat you cannot find, so the rings
-       breathe on every quarter note. Kept faint enough that it never competes
-       with a shard for attention, and brighter as the groove builds. */
-    if(G.beat>0.02&&!RM){
-      ctx.save();
-      ctx.globalCompositeOperation='lighter';
-      ctx.globalAlpha=G.beat*G.beat*(0.05+0.026*G.groove);
-      ctx.strokeStyle=G.groove>=3?COL.warp:'rgba(180,210,255,1)';
-      ctx.lineWidth=(2+7*G.beat)*u;
-      ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
-      ctx.restore();
-    }
+  }
+  /* How much of your section is left. One slow monotonic sweep — no flashing,
+     no motion beyond the arc itself, so it is drawn for everyone including
+     reduced motion, where it is the structural readout. */
+  if(G.pay>0){
+    ctx.save();ctx.globalAlpha=0.24;ctx.strokeStyle=COL.warp;ctx.lineWidth=2.5;
+    ctx.beginPath();
+    ctx.arc(cx,cy,radiusOf(G.nRings-1)+7*u,-Math.PI/2,-Math.PI/2+TAU*G.pay);
+    ctx.stroke();ctx.restore();
   }
   ctx.globalCompositeOperation='lighter';
   ctx.fillStyle='rgba(120,160,255,0.5)';
@@ -2437,6 +2496,7 @@ function draw(){
     blit(SPR.cometGlow,p[0],p[1],1,0,pal);
     ctx.globalCompositeOperation='source-over';
     blit(SPR.comet,p[0],p[1],1,0,pal);
+    drawBeat(p);
     for(let k=0;k<G.shields;k++)
       blit(SPR.shieldRing,p[0],p[1],(1.18+k*0.34)*(1+0.07*Math.sin(G.t*6-k*0.7)),0,pal*(0.72-k*0.16));
     if(G.t<G.invuln){
@@ -2593,6 +2653,13 @@ function hintText(){
   if(!G.didHop&&G.nRings>1)return 'swipe toward the ring you want';
   if(!G.didLap)return 'gather embers, then finish the lap';
   if(!G.didPhase&&G.shields>0)return 'tap the shield to phase through a hit';
+  /* LAST, deliberately. didReverse/didHop/didLap are permanently true from run
+     one, but didPhase is reset every run — putting this any higher would
+     permanently displace the only per-run survival hint that is left.
+     "Tap on the beat" is an imperative aimed at someone already struggling.
+     This names the ring now visibly contracting onto their comet, and reads
+     as an invitation rather than an instruction. */
+  if(!G.didGroove&&G.runs>=3&&age()>25&&G.groove<2)return 'tap with the pulse';
   return null;
 }
 
@@ -2615,7 +2682,7 @@ function drawHUD(){
       ctx.restore();
     }
     ctx.globalAlpha=1;
-    if(G.groove>=2){
+    if(G.groove>=1){
       ctx.globalAlpha=Math.min(1,0.35+0.14*G.groove)*(0.8+0.2*G.grooveFx);
       text('GROOVE \u00d7'+G.groove,cx,top+136*u,13*u*(1+0.12*G.grooveFx),'800',COL.warp,2);
       ctx.globalAlpha=1;
@@ -2678,7 +2745,7 @@ function drawHUD(){
     else text('BEST '+G.best,cx,cy+42*u,13*u,'600','rgba(200,215,255,0.5)',2);
     text(G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime(),
       cx,cy+62*u,12*u,'600','rgba(200,215,255,0.45)',0);
-    if(G.bestGroove>=3)
+    if(G.bestGroove>=2)
       text('best groove ×'+G.bestGroove,cx,cy+78*u,11*u,'600','rgba(160,120,255,0.6)',0);
     if(G.t-G.deadT>0.6){
       const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
