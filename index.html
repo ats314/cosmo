@@ -389,7 +389,11 @@ const ARP=[0,2,4,2,3,2,4,3],CNT=[7,5,4,5,7,8,7,5];
 
    PAY = 2 x STEPS is load-bearing: MU.step returns to 0 exactly as the section
    ends, so the chord walk stays aligned and the seam lands on a downbeat. */
-const PAY=64,S16=SPB/4,PAYLEN=PAY*(SPB/2),PAYREST=42;
+/* PAYREST is now only the musical breathing room between two sections, not a
+   rationing device — see armDrop. Long enough that the ordinary arrangement
+   is heard again between payoffs; short enough that earning one means having
+   one. */
+const PAY=64,S16=SPB/4,PAYLEN=PAY*(SPB/2),PAYREST=20;
 /* 8 bars x 16 sixteenths of PENT degrees, -1 = rest. The accents are 3+3+2 and
    share not one position with ARP's straight eighths, which is what makes it
    read as a different piece of music rather than the same music louder. */
@@ -442,6 +446,8 @@ function buildBed(){
   for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
   NOISE=n;
   MU={next:0,step:0,chord:-1,armed:false,cool:0,
+      chainT:0,     /* audio time the current groove chain began */
+      pend:null,    /* a drop earned while busy, waiting for the music to free up */
       pay:0,        /* eighths left in the payoff; 0 = inactive. the only flag. */
       payEnd:0,     /* audio-clock deadline, so no stall path can strand it */
       payN:0,payHits:0,barHits:0,barN:0,
@@ -531,13 +537,54 @@ const DROPQ=[];
    later. A player could earn one, hear it arrive, and have no way to connect
    the two. The reason is now named on screen at the instant it is earned, and
    the run-up is drawn, so the whole chain from cause to payoff is visible. */
+/* EARNING ALWAYS COUNTS. Measured over a five-minute run, twenty drops were
+   earned and fifteen were thrown away by the cooldown — so the cooldown, not
+   the player, was deciding when a drop happened. That is a timer wearing an
+   achievement's clothes.
+   Nothing is discarded now. Earn one while a section is playing, or inside the
+   gap after it, and it is BANKED: it fires the moment the music is free. The
+   only thing the cooldown still does is stop two sections overlapping, which
+   is a musical constraint rather than a rationing one. What keeps drops
+   special is that they are hard to earn, not that they are hard to receive. */
+/* THE BUILD. Three discrete triggers were the wrong shape: each one named a
+   single behaviour, so a player who navigated by HOPPING BETWEEN RINGS — a
+   perfectly good style that avoids tapping altogether — matched none of them
+   and earned nothing at all. And a build-up that arrives as a threshold you
+   cross invisibly is not a build-up; it is a lottery result.
+   One meter now, filled by everything the game considers playing well:
+   gathering sparks, hopping tracks, landing taps in time, and closing orbits.
+   It is on screen the whole time, so the answer to "how am I causing this" is
+   simply visible. It also decays, so it measures how you are playing NOW
+   rather than how long you have been alive. */
+const BUILD_SRC={ember:'GATHERING SPARKS',hop:'WORKING THE RINGS',
+                 time:'PLAYING IN TIME',orbit:'CLEAN ORBITS'};
+function build(amount,src){
+  if(!MU||G.state!=='playing')return;
+  if(MU.pay>0||MU.rise||MU.armed||MU.pend)return;   /* not while one is already coming */
+  G.build+=amount;
+  G.buildSrc[src]=(G.buildSrc[src]||0)+amount;
+  if(G.build>=1){
+    G.build=0;
+    let best='ember',bv=-1;
+    for(const k in G.buildSrc)if(G.buildSrc[k]>bv){bv=G.buildSrc[k];best=k;}
+    G.buildSrc={ember:0,hop:0,time:0,orbit:0};
+    armDrop(BUILD_SRC[best]);
+  }
+}
 function armDrop(why){
   if(!MU||MU.armed||!AC)return;
-  if(MU.pay>0||MU.rise)return;           /* sections cannot nest */
-  if(AC.currentTime<MU.cool)return;      /* rationed, or it stops being an event */
+  why=why||'DROP EARNED';
+  if(MU.pay>0||MU.rise||AC.currentTime<MU.cool){
+    if(!MU.pend){
+      MU.pend=why;G.sawDrop=true;
+      G.armFx={why:why,t:0,banked:true};
+      try{if(navigator.vibrate)navigator.vibrate(12);}catch(e){}
+    }
+    return;
+  }
   MU.armed=true;
   G.sawDrop=true;
-  G.armFx={why:why||'DROP EARNED',t:0};
+  G.armFx={why:why,t:0};
   const p=posPlayer();
   ripple(p[0],p[1],COL.warp);
   try{if(navigator.vibrate)navigator.vibrate(18);}catch(e){}
@@ -664,7 +711,7 @@ function payoffStep(t,ch,k){
 function endSection(){
   if(!MU)return;
   MU.pay=0;MU.payEnd=0;MU.payHits=0;MU.barHits=0;
-  MU.armed=false;MU.rise=false;MU.lpLock=0;MU.hushEnd=0;MU.liftEnd=0;
+  MU.armed=false;MU.rise=false;MU.lpLock=0;MU.hushEnd=0;MU.liftEnd=0;MU.pend=null;
   G.pay=0;G.payOpen=0;
   if(A&&AC){const t=AC.currentTime;
     A.hole.gain.cancelScheduledValues(t);
@@ -856,15 +903,20 @@ function judgeTiming(x,y){
        playing in time sharpens it. Neither one ever costs you a point. */
     if(G.groove>was){
       G.score+=G.groove;
-      if(G.groove===1&&MU)MU.chainBar=MU.barN;
-      /* Arms exactly ONCE per chain — the old test was inside the tight branch
-         with groove capped at 8, so a held chain re-armed on every single hit
-         and the cooldown became the interval. The bar-line condition then
-         requires the chain to survive a chord change: eight tight sixteenths
-         take 1.15s, less than a bar, so x8 was reachable without ever holding
-         anything. "Hold it through a chord change" is musically meaningful in
-         a way that "tap eight times" is not. */
-      if(G.groove>=8&&MU&&MU.chainBar!==MU.barN)armDrop('PERFECT TIMING \u00d78');
+      if(G.groove===1&&MU)MU.chainT=AC.currentTime;
+      /* Arms once per chain: groove caps at 8 and this sits inside the
+         `climbed` branch, so only the hit that REACHES 8 can fire it.
+         The old guard demanded the chain start in one bar and finish in
+         another — but eight tight sixteenths take 1.15s against a 2.31s bar,
+         so a fast clean chain ALWAYS failed it and the timing route never
+         armed a drop at all. Measured: a five-minute run reaching x8 earned
+         nothing from it. A floor stops a burst arming instantly and lets
+         every real chain through — but it has to sit clear of the natural
+         value, not on it: seven links at sixteenth notes take exactly
+         7 x 0.1442 = 1.01s, so a 1.0s floor made a genuine x8 chain a coin
+         flip. 0.6s is unreachable by hand (that would be thirteen taps a
+         second) and every real chain clears it. */
+      build(0.021,'time');
     }
     G.grooveFx=1;
     /* Once, ever, on the exact tap that proved it. A first-time discoverer at
@@ -985,6 +1037,10 @@ function bedTick(dt){
      interrupt mid-section leaves musicTick bailing on AC.state, and only this
      line would notice. */
   if(MU&&MU.pay>0&&t>MU.payEnd)endSection();
+  /* a banked drop fires the instant the music can carry one */
+  if(MU&&MU.pend&&!MU.armed&&!MU.rise&&MU.pay<=0&&t>=MU.cool&&playing){
+    const w=MU.pend;MU.pend=null;armDrop(w);
+  }
   const lvl=playing?0.13+0.22*k:(G.state==='menu'?0.06:0.02);
   /* The pad recedes for the payoff and comes back for its second half. This
      IS the loudness of the section: contrast costs no headroom. bedTick stays
@@ -1283,15 +1339,15 @@ function emberGap(){return Math.max(0.30,(1.35-dl()*0.003)/G.nRings);}
    nothing but a spawn branch. */
 const TIERS=[
   {at:0,  type:'single',name:null},
-  {at:18, type:null,    name:'SECOND RING', sub:'swipe toward the ring you want',rings:2},
-  {at:38, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 hop over'},
-  {at:65, type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 reverse'},
-  {at:100,type:null,    name:'THIRD RING',  sub:'tighter inside \u2014 less room to dodge',rings:3},
-  {at:125,type:'drift', name:'DRIFTERS',    sub:'these ones move'},
-  {at:165,type:'blink', name:'BLINKERS',    sub:'they flicker \u2014 time your pass'},
-  {at:210,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 reverse early'},
-  {at:260,type:'blinktwin',name:'FLICKER PAIRS',sub:'one gap at a time \u2014 never both'},
-  {at:320,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of them'}
+  {at:18, type:null,    name:'SECOND RING', sub:'swipe up or down to switch track',rings:2},
+  {at:38, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 swipe to another ring'},
+  {at:65, type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 tap to turn back'},
+  {at:100,type:null,    name:'THIRD RING',  sub:'inside is tighter, faster and higher',rings:3},
+  {at:125,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
+  {at:165,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
+  {at:210,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
+  {at:260,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
+  {at:320,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
 ];
 function tierIndex(){
   const d=dl();
@@ -1327,6 +1383,7 @@ const G={
   groove:0,grooveT:0,grooveFx:0,bestGroove:0,beat:0,dropFx:0, /* rhythm */
   armFx:null,sayFx:null,
   pay:0,payOpen:0,didGroove:false,                            /* the payoff section */
+  build:0,buildSrc:{ember:0,hop:0,time:0,orbit:0},            /* the build meter */
   embers:0,blocks:0,phases:0,lastHit:'none', /* telemetry counters */
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
@@ -1536,8 +1593,9 @@ function startGame(){
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
+  G.build=0;G.buildSrc={ember:0,hop:0,time:0,orbit:0};
   BEATQ.length=0;DROPQ.length=0;
-  if(MU){MU.cool=0;MU.payN=0;MU.barN=0;MU.chainBar=-1;}
+  if(MU){MU.cool=0;MU.payN=0;MU.barN=0;MU.chainBar=-1;MU.pend=null;}
   endSection();
   G.embers=0;G.blocks=0;G.lastHit='none';
   GEST.tap=0;GEST.swipe=0;GEST.lateSwipe=0;GEST.unresolved=0;
@@ -1655,6 +1713,7 @@ function hop(step){
      the phone rolloff at both endpoints. Outward now falls, inward rises. */
   const out=step<0;
   beep(out?940:620,0.09,'sine',0.05,out?620:940,0,panAt(p[0]),0.35);
+  build(0.042,'hop');           /* navigating by ring change is a style, not a fallback */
   performerHit('hop',step,t);   /* the ring being ARRIVED at, not the one left */
 }
 
@@ -1868,6 +1927,7 @@ function update(dt){
   G.dropFx=Math.max(0,G.dropFx-dt*1.1);
   G.payOpen=Math.max(0,G.payOpen-dt*1.4);
   if(G.armFx){G.armFx.t+=dt;if(G.armFx.t>2.6)G.armFx=null;}
+  if(MU&&MU.pay<=0)G.build=Math.max(0,G.build-dt*0.011);
   if(G.sayFx){G.sayFx.t+=dt;if(G.sayFx.t>1.8)G.sayFx=null;}
   /* stop playing and the groove lets go, so it always reflects what you are
      doing now rather than something you did a minute ago */
@@ -1996,7 +2056,18 @@ function update(dt){
       beep(1046,0.16,'triangle',0.07,1568,0.2);
       /* thresholds, not a floor: `st>=5` fired on every fed orbit past the
          fifth, which at mid-run speed is roughly every three seconds */
-      if(st===5||st===9||st===14)armDrop(st+' CLEAN ORBITS');
+      /* was `st===5||st===9||st===14` — exact values, so past 14 it could
+         never fire again; a player on a streak of 99 earned nothing from
+         orbits after the first minute. The requirement now ESCALATES instead:
+         5 laps, then 15, then 25. Laps are the passive route — you get them
+         by not dying — so making each one dearer is what keeps the section
+         special now that the cooldown no longer throws earnings away. */
+      /* The gap GROWS each time. A fed orbit lands about every nine seconds,
+         so a flat step meant a drop roughly every fourth orbit for the whole
+         run and half the run turned into payoff. Growing the requirement is
+         what keeps the section rare without the cooldown throwing earnings
+         away: 4 orbits, then 9, then 16, then 25. */
+      build(0.085,'orbit');
       if(st>=3){
         /* Earned tier: the comet stops dead for a beat while the ring burns
            round. Short enough not to break the rhythm of a 2.5s orbit. */
@@ -2049,6 +2120,7 @@ function update(dt){
          produces a phrase with a cadence, at no timing cost whatsoever. */
       beep(PENT[Math.min(9,3+G.combo)],0.09,'sine',0.06,0,0,panAt(p[0]),0.35);
       beep(PENT[Math.min(13,5+G.combo)],0.10,'sine',0.05,0,0.045,panAt(p[0]),0.35);
+      build(0.016,'ember');
       checkMile();
     }
   }
@@ -2147,7 +2219,15 @@ function drawPow(x,y,s,al){
   }
   ctx.shadowBlur=0;ctx.globalAlpha=1;ctx.restore();
 }
-const F='-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+/* The old stack led with -apple-system, so on the device this actually ships
+   to every word was San Francisco: the system UI face, which reads as a
+   settings screen rather than a game. This leads with geometric sans instead —
+   Avenir Next on iOS and macOS, Century Gothic or Trebuchet on Windows,
+   Roboto on Android. Circular bowls and a high x-height suit a game made
+   entirely of circles, and it costs nothing: every one of these ships with the
+   OS, so there is still no font to download and no network call. */
+const F='"Avenir Next","Avenir",Futura,"Century Gothic","Trebuchet MS",'+
+        '"Segoe UI",Roboto,system-ui,sans-serif';
 function text(str,x,y,size,weight,col,ls){
   ctx.fillStyle=col;
   ctx.font=weight+' '+Math.round(size)+'px '+F;
@@ -2716,24 +2796,24 @@ function hintText(){
      lesson plan. Each entry either clears when the player does the thing or
      times out, so exactly one idea is ever on screen and nothing can sit there
      blocking the rest of the ladder. */
-  if(!G.didReverse)return 'tap to reverse';
-  if(!G.didLap&&a<22)return 'embers, then a full lap';
+  if(!G.didReverse)return 'tap anywhere to turn around';
+  if(!G.didLap&&a<22)return 'collect sparks, then finish a lap';
   /* Only once there is somewhere to hop TO. A run opens on a single ring for
      its first 30 seconds, so without this the prompt asks a new player to
      make the one gesture the game will not answer — they swipe, nothing
      happens, and the controls read as broken at the exact moment they are
      being learned. */
-  if(!G.didHop&&G.nRings>1)return 'swipe to change ring';
-  if(!G.didDodge&&G.spikes.length)return 'red is lethal';
-  if(!G.didShield&&a>17&&a<25)return 'a shield takes one hit';
+  if(!G.didHop&&G.nRings>1)return 'swipe up or down to switch track';
+  if(!G.didDodge&&G.spikes.length)return 'red kills \u2014 turn or switch track';
+  if(!G.didShield&&a>17&&a<25)return 'each shield saves you from one hit';
   /* Named after the ring now visibly contracting onto the comet, and phrased
      as an invitation rather than an instruction — a struggling player does not
      need another demand. */
   /* didGroove is the LIFETIME flag behind the one-time IN TIME popup; the
      prompt keys off this run's own chain, so it still reminds someone who
      learned it weeks ago and has not used it today. */
-  if(G.bestGroove<2&&a>28&&G.groove<2)return 'tap with the pulse';
-  if(!G.sawDrop&&G.bestGroove>=4&&a>46)return 'pulse ×8 earns a drop';
+  if(G.bestGroove<2&&a>28&&G.groove<2)return 'tap in time with the beat';
+  if(!G.sawDrop&&a>34&&G.build>0.25)return 'fill the bar to earn a drop';
   return null;
 }
 
@@ -2756,9 +2836,26 @@ function drawHUD(){
       ctx.restore();
     }
     ctx.globalAlpha=1;
+    /* THE COUNTER SAYS WHAT IT IS FOR. "GROOVE x5" is a score with no verb in
+       it \u2014 it never told anyone what the number counts or what it buys, which
+       is why the drop read as something that just happened to you. It now
+       names the action and states the target it is climbing towards. */
+    /* A short viewport cannot hold the explanatory column without it reaching
+       down into the arena, so the sub-lines are earned by having the room. */
+    const roomy=(top+186*u)<(cy-R);
     if(G.groove>=1){
-      ctx.globalAlpha=Math.min(1,0.35+0.14*G.groove)*(0.8+0.2*G.grooveFx);
-      text('GROOVE \u00d7'+G.groove,cx,top+136*u,13*u*(1+0.12*G.grooveFx),'800',COL.warp,2);
+      ctx.globalAlpha=Math.min(1,0.45+0.12*G.groove)*(0.8+0.2*G.grooveFx);
+      text('IN TIME \u00d7'+G.groove,cx,top+136*u,13*u*(1+0.12*G.grooveFx),'800',COL.warp,2);
+      ctx.globalAlpha=1;
+    }
+    /* The orbit streak lived only inside a popup that showed for under a
+       second once per orbit, so the run's longest-commitment behaviour was
+       also its least visible. It no longer claims to earn a drop by itself —
+       everything feeds one meter now, and that meter is drawn below. */
+    if(G.lapStreak>=2&&roomy){
+      ctx.globalAlpha=0.5;
+      text('LAPS \u00d7'+G.lapStreak,cx,top+154*u,9.5*u,'700',
+        'rgba(255,200,120,0.85)',2);
       ctx.globalAlpha=1;
     }
     /* WHY A DROP IS COMING, at the moment it is earned. Named, so the cause
@@ -2766,20 +2863,34 @@ function drawHUD(){
     if(G.armFx){
       const a=Math.min(1,G.armFx.t/0.22)*Math.min(1,(2.6-G.armFx.t)/0.7);
       ctx.globalAlpha=Math.max(0,a);
-      text(G.armFx.why,cx,top+172*u,12*u,'800',COL.warp,3);
-      text('DROP INCOMING',cx,top+190*u,15*u,'800','#eaf1ff',4);
+      const ay=roomy?190:150;
+      text(G.armFx.why,cx,top+ay*u,12*u,'800',COL.warp,3);
+      /* Earned while the music was busy: say so, rather than swallowing it.
+         The player did the thing and the game owes them an answer. */
+      text(G.armFx.banked?'DROP BANKED':'DROP INCOMING',cx,top+(ay+18)*u,15*u,'800',
+        G.armFx.banked?'rgba(200,175,255,0.95)':'#eaf1ff',4);
       ctx.globalAlpha=1;
     }
-    /* THE RUN-UP. Once armed, the wait is up to four bars — long enough that
-       without this the drop reads as arriving from nowhere. The bar fills as
-       the rise plays, so the arrival is something you can see coming. */
-    if(MU&&(MU.armed||MU.rise)&&G.pay<=0){
-      const w=96*u,x0=cx-w/2,y=top+200*u;
-      let prog=MU.rise?Math.min(1,((MU.step+STEPS-16)%STEPS)/16):0;
-      ctx.globalAlpha=0.30;ctx.fillStyle='rgba(180,150,255,0.5)';
-      ctx.fillRect(x0,y,w,2.5*u);
-      ctx.globalAlpha=0.85;ctx.fillStyle=COL.warp;
-      ctx.fillRect(x0,y,w*(MU.rise?prog:0.06+0.04*Math.sin(G.t*4)),2.5*u);
+    /* THE BUILD, ALWAYS VISIBLE. This is the answer to "I have no idea how
+       drops are happening": the bar fills from everything you do well, and
+       when it is full you get one. Once armed it switches to showing the
+       run-up instead, so the same strip of screen carries the whole story
+       from earning it to hearing it. */
+    if(MU&&G.pay<=0){
+      const armed=MU.armed||MU.rise||MU.pend;
+      const w=104*u,x0=cx-w/2,y=top+(roomy?222:180)*u,hgt=3*u;
+      const prog=armed?(MU.rise?Math.min(1,((MU.step+STEPS-16)%STEPS)/16)
+                               :0.5+0.5*Math.sin(G.t*4))
+                     :Math.min(1,G.build);
+      ctx.globalAlpha=0.26;ctx.fillStyle='rgba(180,150,255,0.6)';
+      ctx.fillRect(x0,y,w,hgt);
+      ctx.globalAlpha=armed?0.95:0.35+0.5*G.build;
+      ctx.fillStyle=armed?'#eaf1ff':COL.warp;
+      ctx.fillRect(x0,y,w*prog,hgt);
+      if(!armed&&G.build>0.04&&roomy){
+        ctx.globalAlpha=0.4+0.35*G.build;
+        text('BUILD',cx,y-6*u,8.5*u,'700','rgba(190,160,255,0.9)',3);
+      }
       ctx.globalAlpha=1;
     }
     /* which half of the section you are in, over the arena rather than the HUD
@@ -2822,22 +2933,41 @@ function drawHUD(){
          shadowBlur, which this file avoids per-frame on purpose. */
       /* Fit it inside the innermost ring. Anything wider crosses the tracks at
          three and nine o'clock, which is exactly where a shard would be — the
-         one place centred text can hide a threat. */
-      const budget=Math.min(W*0.82,radiusOf(G.nRings-1)*2*1.04);
-      let hs=17*u,hy=cy+5*u;
-      ctx.font='700 '+Math.round(hs)+'px '+F;
-      const wpx=ctx.measureText(hint).width+1*hint.length;
-      if(wpx>budget){
-        const fit=hs*budget/wpx;
-        /* Shrink to fit, but never below readable. On a short viewport the
-           arena is too small to hold a line at any size worth reading, so the
-           text sits under the rings instead — legible beats centred. */
-        if(fit>=13*u)hs=fit;
-        else{hs=15*u;hy=Math.min(H-26*u-safeBot,cy+R+34*u);}
+         one place centred text can hide a threat.
+         WRAPPED, because the guidance now says what to do and what you get
+         rather than naming a mechanic, and those sentences do not fit on one
+         line at a readable size. The middle of a circle has far more vertical
+         room than horizontal, so two lines is the shape that actually fits —
+         shrinking a long single line to make it fit was the wrong axis. */
+      const budget=Math.min(W*0.82,radiusOf(G.nRings-1)*2*1.02);
+      let hs=17*u;
+      const wide=t=>{ctx.font='700 '+Math.round(hs)+'px '+F;
+                     return ctx.measureText(t).width+1*t.length;};
+      let lines=[hint];
+      if(wide(hint)>budget){
+        /* split at the word boundary closest to the middle, so the two lines
+           come out balanced rather than one long and one orphan */
+        const w=hint.split(' ');
+        let best=1,bd=1e9;
+        for(let i=1;i<w.length;i++){
+          const d=Math.abs(w.slice(0,i).join(' ').length-w.slice(i).join(' ').length);
+          if(d<bd){bd=d;best=i;}
+        }
+        lines=[w.slice(0,best).join(' '),w.slice(best).join(' ')];
       }
+      /* A floor, not a fit-at-any-cost. On a short landscape viewport the
+         arena is barely 100px across and nothing readable fits inside it —
+         there the block keeps its size and overlaps the rings, because
+         guidance you cannot read is worse than guidance sitting over a track.
+         Under the rings is not an option: that space belongs to the shields. */
+      let over=Math.max(...lines.map(wide))/budget;
+      if(over>1)hs=Math.max(13*u,hs/over);
+      const lh=hs*1.15, y0=cy+5*u-(lines.length-1)*lh/2;
       ctx.globalAlpha=RM?1:0.88+0.12*Math.sin(G.t*2.6);
-      text(hint,cx+1.5,hy+1.5,hs,'700','rgba(4,8,20,0.85)',1);
-      text(hint,cx,hy,hs,'700','#eaf3ff',1);
+      for(let i=0;i<lines.length;i++){
+        text(lines[i],cx+1.5,y0+i*lh+1.5,hs,'700','rgba(4,8,20,0.85)',1);
+        text(lines[i],cx,y0+i*lh,hs,'700','#eaf3ff',1);
+      }
       ctx.globalAlpha=1;
     }
   }else if(G.state==='menu'){
