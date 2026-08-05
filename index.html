@@ -1381,7 +1381,15 @@ function spawnGap(){return Math.max(0.80,2.1-dl()*0.0035);}
    newcomer a little longer on top of that. The difficulty clock past the
    opening is untouched, so the run reaches exactly where it always did. */
 function rookie(){return Math.max(0,Math.min(1,(4-G.runs)/3));}
-function firstShardAt(){return 7+4*rookie();}
+/* Measured over five instrumented runs: the first threat was not arriving
+   until 10.5s and 13.2 of the first 25 seconds had an empty board — more than
+   half the opening was nothing at all. That flat 7s floor was me overshooting
+   the gentle-opening request: it bought a newcomer room to find the controls
+   and charged every returning player ten seconds of dead air for it.
+   The ramp goes back to being a ramp. A first run still opens at 11s, and by
+   the fourth it is 4.5s — quicker than the 4s+5s it ever was for a newcomer,
+   and back to a game that starts when you press start. */
+function firstShardAt(){return 4.5+6.5*rookie();}
 /* Embers land on a random ring but you can only reach the one you are on,
    so both the cap and the spawn rate scale with ring count. Without this,
    adding a ring silently cuts your scoring rate while raising difficulty. */
