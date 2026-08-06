@@ -1205,6 +1205,8 @@ function loadPrefs(){
   if(!isNaN(b))G.best=Math.max(G.best,b);
   const r=parseInt(readLocal('cometloop:runs'),10);
   if(!isNaN(r))G.runs=Math.max(G.runs,r);
+  const lv=parseInt(readLocal('cometloop:level'),10);
+  if(!isNaN(lv))G.bestLevel=Math.max(G.bestLevel,lv);
   const m=readLocal('cometloop:muted');
   if(m!==null)muted=(m==='1');
   /* Deliberately never reset by startGame: it records whether this human has
@@ -1219,6 +1221,10 @@ function loadPrefs(){
     window.storage.get('cometloop:runs').then(function(r){
       const v=r&&parseInt(r.value,10);
       if(v&&!isNaN(v))G.runs=Math.max(G.runs,v);
+    }).catch(function(){});
+    window.storage.get('cometloop:level').then(function(r){
+      const v=r&&parseInt(r.value,10);
+      if(v&&!isNaN(v))G.bestLevel=Math.max(G.bestLevel,v);
     }).catch(function(){});
     window.storage.get('cometloop:muted').then(function(r){
       if(r)muted=(r.value==='1');
@@ -1331,23 +1337,42 @@ function emberGap(){return Math.max(0.30,(1.35-dl()*0.003)/G.nRings);}
    there is always something new arriving. */
 /* Clock values. Wall-clock arrival for a player earning no difficulty nudge
    at all, which is the slowest the schedule ever runs:
-   30s ring2 · 63s twin · 93s gate · 128s ring3 · 153s drift · 193s blink
-   238s sliding gates · 288s flicker pairs · 348s storm
+   20s ring2 · 50s twin · 80s gate · 106s ring3 · 133s drift · 173s blink
+   223s sliding gates · 278s flicker pairs · 343s storm
    The late tiers are compounds rather than new objects: gate, blink and drift
    are independent flags on the same shard, and update and draw already handle
    them in any combination, so a moving wall or an alternating pair costs
-   nothing but a spawn branch. */
+   nothing but a spawn branch.
+
+   THE FRONT OF THIS LADDER USED TO SIT BEHIND A WALL NOBODY CLEARED. Ring two
+   arrived at 30s and ring three at 128s, so a first-time player met the hop —
+   the unfamiliar gesture, the one a circle makes ambiguous — only once the
+   board had filled to three shards, and met the third ring essentially never.
+   A tester who played four rounds asked for "maybe three layers?" and for new
+   power-ups: he was describing things that already shipped, from outside the
+   wall that hid them. And because the spawn pool below the old TWIN at dl 38
+   is 100% plain singles, his whole experience of the game was one obstacle
+   type on two rings. He reported that as "needs more stuff", correctly.
+
+   Pulling the front of the ladder in answers both, and it costs no difficulty:
+   every pressure term — speedAt, shardCap, spawnGap, warnTime — keys off dl()
+   and none of them is touched here, so this changes WHAT arrives, never HOW
+   MUCH. Ring two now lands at 20s, inside the quiet opening, where a
+   simulation of this spawn system puts median time-to-impact at 3.5s: the hop
+   gets taught in the calm the opening exists to provide, rather than at the
+   exact moment the calm ends. The late tiers barely move — the top of the
+   ladder was never the problem, since almost nobody reaches it either way. */
 const TIERS=[
   {at:0,  type:'single',name:null},
-  {at:18, type:null,    name:'SECOND RING', sub:'swipe up or down to switch track',rings:2},
-  {at:38, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 swipe to another ring'},
-  {at:65, type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 tap to turn back'},
-  {at:100,type:null,    name:'THIRD RING',  sub:'inside is tighter, faster and higher',rings:3},
-  {at:125,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
-  {at:165,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
-  {at:210,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
-  {at:260,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
-  {at:320,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
+  {at:12, type:null,    name:'SECOND RING', sub:'swipe up or down to switch track',rings:2},
+  {at:30, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 swipe to another ring'},
+  {at:52, type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 tap to turn back'},
+  {at:78, type:null,    name:'THIRD RING',  sub:'inside is tighter, faster and higher',rings:3},
+  {at:105,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
+  {at:145,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
+  {at:195,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
+  {at:250,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
+  {at:315,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
 ];
 function tierIndex(){
   const d=dl();
@@ -1355,8 +1380,22 @@ function tierIndex(){
   for(let k=0;k<TIERS.length;k++)if(d>=TIERS[k].at)i=k;
   return i;
 }
+/* WHICH FORMATION IS "NEW" RIGHT NOW. Three of the ten tiers announce a ring
+   or a storm rather than a shape, so `top` lands on a type:null entry once per
+   run at THIRD RING and once at STORM. The featured-tripling below used to key
+   off `k===top` directly, which meant those two tiers featured nothing at all:
+   crossing THIRD RING dropped gates from 60% of the pool to 33%, so the banner
+   celebrating a new ring also quietly made the board easier, and STORM — whose
+   own banner promises "just more of everything" — flattened flicker pairs from
+   33% to 14%. Walking back to the last tier that actually carries a shape
+   keeps the newest formation featured across the gaps. */
+function featuredTier(top){
+  for(let k=top;k>=0;k--)if(TIERS[k].type)return k;
+  return 0;
+}
 function pickType(){
   const top=tierIndex();
+  const feat=featuredTier(top);
   const pool=[];
   for(let k=0;k<=top;k++){
     const ty=TIERS[k].type;
@@ -1366,7 +1405,7 @@ function pickType(){
     /* one wall at a time, whether it slides or not */
     if((ty==='gate'||ty==='driftgate')&&G.spikes.some(function(s){return s.gate;}))continue;
     pool.push(ty);
-    if(k===top)pool.push(ty,ty);           /* the newest one shows up often */
+    if(k===feat)pool.push(ty,ty);          /* the newest one shows up often */
   }
   return pool.length?pool[Math.floor(Math.random()*pool.length)]:'single';
 }
@@ -1378,6 +1417,7 @@ const REV_FX=0.07; /* grace before a tap's effects fire, so swipes stay silent *
 const G={
   state:'menu',t:0,started:0,deadT:0,
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
+  bestLevel:1,newLevel:false, /* furthest tier ever reached, and this run's */
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
   orbits:0,bestStreak:0,shareFx:0, /* run summary, for the death screen and share */
   groove:0,grooveT:0,grooveFx:0,bestGroove:0,beat:0,dropFx:0, /* rhythm */
@@ -1388,10 +1428,10 @@ const G={
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
-  didDodge:false,sawDrop:false,taught:0,
+  didDodge:false,sawDrop:false,taught:0,gotWarp:false,gotNova:false,
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
   stop:0, /* hitstop: freezes the comet while the celebration plays */
-  starT:0.6,spikeT:1.2,powT:6,shake:0,flash:0,tier:0,banner:null,
+  starT:0.6,spikeT:1.2,powT:6,powN:0,shake:0,flash:0,tier:0,banner:null,
   runs:0,didReverse:false,didHop:false,didLap:false
 };
 loadPrefs();
@@ -1432,15 +1472,37 @@ function popup(x,y,str,col,sz){G.pops.push({x,y,str,col,life:1,sz:sz||1});}
    the old version swapped every shard for an ember inside a single frame, so
    the most powerful thing in the game had no duration to it at all. Now you
    watch it travel — nearest shards first, each one detonating as the wave
-   reaches it, so the board comes apart in a cascade instead of a cut. */
-const NOVA_SP=1600;
+   reaches it, so the board comes apart in a cascade instead of a cut.
+
+   SPEED WAS TUNED TO THE WRONG DISTANCE. 1600 was picked so the front clears
+   a screen diagonal inside its lifetime, and it does — but no shard is ever
+   out on the diagonal. The blast is centred on the comet and every shard sits
+   inside the ring system, so the farthest one is 2R away: 334px on a 390px
+   phone, crossed in 0.225s at the old speed. The cascade this function is
+   written to produce finished in thirteen frames and the front then spent
+   another half second expanding through empty space. 560 puts the same sweep
+   at ~0.65s, which is long enough to read as a wave travelling outward, and
+   the decay is slowed to match so the front still outlives the sweep. */
+const NOVA_SP=560;
 function novaBlast(x,y){G.novas.push({x:x,y:y,r:34*u,life:1});}
+/* The ember lands on the ring the PLAYER is on, at the angle the shard held.
+   Converting in place looked right and paid almost nothing: embers are only
+   collectable on your current ring, so on a three-ring board two thirds of a
+   nova's output was scenery that expired 5s later. A six-shard nova returned
+   about two reachable embers — twelve points against the eighty-six a maxed
+   orbit pays, for the rarest thing in the game. Landing them on your own
+   track turns the same blast into a guaranteed ember run: the combo climbs,
+   the pentatonic phrase resolves, lapEmbers feeds the orbit payout and the
+   build meter fills. The burst still fires out where the shard actually was,
+   so the light reads as travelling from the danger onto your lane. */
 function novaConvert(s){
   const q=posAt(s.a,radiusOf(s.ring));
-  G.stars.push({a:s.a,ring:s.ring,t:0,life:rand(4.5,6.5)});
+  const ring=effRing();
+  G.stars.push({a:s.a,ring:ring,t:0,life:rand(6.0,8.0)});
   burst(q[0],q[1],COL.nova,9,200);
   burst(q[0],q[1],COL.ember,7,130);
-  arcFlash(s.a,s.ring,COL.ember);
+  arcFlash(s.a,s.ring,COL.nova);
+  arcFlash(s.a,ring,COL.ember);
   /* each conversion pings, and because the wave reaches them at different
      times the cascade sequences itself with no scheduling */
   /* was a random pitch per shard, which stacked into a dissonant wash.
@@ -1568,9 +1630,24 @@ function spawnSpike(){
     return;
   }
 }
+/* THE CURRICULUM. The first three placements of every run are one of each, in
+   this order, and only then does the 40/35/25 roll take over. Left to chance,
+   the three types are drawn independently at roughly one placement every 12
+   seconds, so a 60-second run — which is most runs, for most players — saw two
+   power-ups and had better than even odds of never meeting slow-mo or nova at
+   all. Two of the three most interesting things in the game were effectively
+   optional content. The tester who asked for "new items, power ups" had been
+   playing a game that mostly hands you shields.
+   Ordered rather than merely guaranteed: shield first because it is the one
+   that keeps you alive and the one the hint ladder already explains, then
+   slow-mo, then nova last because it is the spectacle and it wants a board
+   with something on it to convert. */
+const POW_INTRO=['shield','warp','nova'];
 function spawnPow(){
   let type;
-  if(G.sinceShield>=3){
+  if(G.powN<POW_INTRO.length){
+    type=POW_INTRO[G.powN];
+  }else if(G.sinceShield>=3){
     type='shield'; /* pity: never more than 3 power-ups without a shield */
   }else{
     const rr=Math.random();
@@ -1581,6 +1658,10 @@ function spawnPow(){
     if(farFromAll(a,ring,0.6,sep(ring,3.2),sep(ring,3.0))){
       G.pows.push({a,ring,t:0,life:7,type});
       G.sinceShield=(type==='shield')?0:G.sinceShield+1;
+      /* counts PLACEMENTS, not pickups: a player who misses the slow-mo still
+         advances the curriculum, or a run spent dodging would serve nothing
+         but shields forever. */
+      G.powN++;
       return true;
     }
   }
@@ -1612,11 +1693,14 @@ function startGame(){
      player, or anyone handed the phone, got no reminder of the controls at
      all. Each clears the instant the thing is done, so a veteran sees each for
      well under a second. */
-  G.didDodge=false;G.sawDrop=false;G.taught=0;
+  G.didDodge=false;G.sawDrop=false;G.taught=0;G.gotWarp=false;G.gotNova=false;
   G.didReverse=false;G.didHop=false;G.didLap=false;
   G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];G.novas=[];
   G.stop=0;
-  G.starT=0.5;G.spikeT=1.2;G.powT=6;G.started=G.t;G.tier=0;G.banner=null;
+  /* powT 4, not 6: paired with the dl()>=6 gate below it puts the first
+     shield on the board around 10s instead of 17s, which leaves room for all
+     three of the intro power-ups inside a short run. */
+  G.starT=0.5;G.spikeT=1.2;G.powT=4;G.powN=0;G.started=G.t;G.tier=0;G.banner=null;
   beep(440,0.12,'sine',0.05,880);
 }
 function die(){
@@ -1624,6 +1708,11 @@ function die(){
   G.state='dead';G.deadT=G.t;G.revPend=0;
   G.newBest=G.score>G.best&&G.score>0;
   if(G.score>G.best){G.best=G.score;savePref('cometloop:best',G.best);}
+  /* Checked before the score, and reported instead of it when both land: a
+     player who just got further than they ever have should be told THAT, not
+     handed a number. Level 1 is where every run starts, so it is never news. */
+  G.newLevel=levelNum()>G.bestLevel&&levelNum()>1;
+  if(levelNum()>G.bestLevel){G.bestLevel=levelNum();savePref('cometloop:level',G.bestLevel);}
   if(!RM){G.shake=16;G.flash=0.9;}
   const p=posPlayer();
   burst(p[0],p[1],COL.shard,26,240);
@@ -1653,6 +1742,11 @@ function die(){
     orbits:G.orbits,best_streak:G.bestStreak,embers:G.embers,
     scored:G.embers>0,                /* did they ever get going at all */
     tier:G.tier,tier_name:tierLabel(),rings:G.nRings,
+    /* the ordinal the player actually sees, so the funnel is readable without
+       anyone having to remember that tier is zero-based */
+    level:levelNum(),best_level:G.bestLevel,
+    /* did the curriculum land: three placements is the whole intro set */
+    pows_placed:G.powN,saw_warp:G.gotWarp,saw_nova:G.gotNova,
     death_cause:G.lastHit,
     blocks:G.blocks,                  /* shields that saved a run */
     /* the input question: what fraction of swipes produced nothing */
@@ -1737,12 +1831,27 @@ function tierLabel(){
   for(let i=G.tier;i>=0;i--)if(TIERS[i].name)return TIERS[i].name;
   return 'FIRST ORBIT';
 }
+/* THE ORDINAL. The ladder has been computed on every run since the tiers went
+   in — G.tier ratchets in update(), tierLabel() names it, and runSummary()
+   renders a ten-position bar of it — but the only places it ever surfaced were
+   the clipboard and an analytics endpoint that ships switched off. The player
+   climbing it was never told the number.
+   A tester put the reason better than the design did: "reaching level XYZ
+   seems more memorable and rewarding than just a highest score. Levels are
+   more distinct." A score is a cardinal you cannot repeat from memory; a level
+   is an ordinal you can say out loud, compare, and come back for. This costs
+   one function and some text — the simulation underneath is untouched. */
+const LEVEL_MAX=TIERS.length;
+function levelNum(){return G.tier+1;}
 function runSummary(){
   let bar='';
   for(let i=0;i<TIERS.length;i++)bar+=(i<=G.tier?'◆':'◇');
-  return 'Comet Loop '+G.score+'\n'+
+  /* The level leads and the score moves down a line. A shared score is a
+     number nobody can place; a shared level is a claim that invites one back
+     — "level 6" is answerable in a way "4300" is not. */
+  return 'Comet Loop · LEVEL '+levelNum()+'/'+LEVEL_MAX+'\n'+
     bar+' '+tierLabel()+'\n'+
-    G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
+    G.score+' points · '+G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
     (G.bestGroove>=2?'groove ×'+G.bestGroove+'\n':'')+
     /* a deep link to index.html shares worse than the directory it lives in */
     (location.origin+location.pathname).replace(/index\.html$/,'');
@@ -1963,10 +2072,12 @@ function update(dt){
   /* dt, not sdt: the blast keeps expanding through the hitstop it caused */
   for(let i=G.novas.length-1;i>=0;i--){
     const n=G.novas[i];
-    /* 1.4 gives ~0.71s of life — long enough for the front to clear a
-       screen diagonal, short enough that it stops eating shards that spawn
-       well after the blast. */
-    n.r+=NOVA_SP*u*dt; n.life-=1.4*dt;
+    /* Paced to the RING SYSTEM, not to the screen. The farthest shard is 2R
+       from a blast centred on the comet, which the 560 front crosses in about
+       0.65s, so 0.8 (1.25s of life) leaves the sweep comfortably inside the
+       window with room for a wide screen — and still expires long before it
+       could eat shards that spawn well after the blast. */
+    n.r+=NOVA_SP*u*dt; n.life-=0.8*dt;
     for(let j=G.spikes.length-1;j>=0;j--){
       const q=posAt(G.spikes[j].a,radiusOf(G.spikes[j].ring));
       if(Math.hypot(q[0]-n.x,q[1]-n.y)<=n.r)novaConvert(G.spikes.splice(j,1)[0]);
@@ -2011,7 +2122,7 @@ function update(dt){
     if(T.name){
       G.banner={str:T.name,sub:T.sub,t:0};
       fireLift();      /* ceremony, not a chorus — see fireLift */
-      ripple(cx,cy,COL.shard);
+      ripple(cx,cy,COL.ember);   /* earned, so gold — see the banner draw */
       beep(300,0.16,'triangle',0.05,220);
       beep(240,0.22,'triangle',0.05,180,0.14);
     }
@@ -2094,7 +2205,7 @@ function update(dt){
     G.spikeT=spawnGap()*rand(0.85,1.15);
   }
   G.powT-=sdt;
-  if(G.powT<=0&&G.pows.length===0&&dl()>=10){
+  if(G.powT<=0&&G.pows.length===0&&dl()>=6){
     G.powT=spawnPow()?Math.max(6,rand(10,15)-dl()*0.02):0.5;
   }
 
@@ -2140,17 +2251,21 @@ function update(dt){
         ripple(p[0],p[1],COL.shield);
         beep(520,0.12,'triangle',0.06,780);
       }else if(s.type==='warp'){
-        G.slow=4;
+        G.slow=4;G.gotWarp=true;
         popup(p[0],p[1]-20*u,'SLOW-MO',COL.warp);
         burst(p[0],p[1],COL.warp,14,150);
         ripple(p[0],p[1],COL.warp);
         beep(400,0.3,'sine',0.07,150);
       }else{
         /* The front does the converting — see novaBlast/novaConvert. */
+        G.gotNova=true;
         novaBlast(p[0],p[1]);
         /* You are standing inside your own blast, so nothing may kill you
-           while it sweeps. Dying mid-nova was always the wrong ending. */
-        G.invuln=Math.max(G.invuln,G.t+0.7);
+           while it sweeps. Dying mid-nova was always the wrong ending.
+           Sized to the sweep: 0.7 covered the old 0.22s front with room to
+           spare, but the front now takes ~0.65s to reach the far side of the
+           ring system and the guarantee has to outlast it. */
+        G.invuln=Math.max(G.invuln,G.t+0.95);
         popup(p[0],p[1]-24*u,'NOVA!',COL.nova,1.7);
         ripple(p[0],p[1],COL.nova);
         burst(p[0],p[1],COL.nova,34,320);
@@ -2797,15 +2912,31 @@ function hintText(){
      times out, so exactly one idea is ever on screen and nothing can sit there
      blocking the rest of the ladder. */
   if(!G.didReverse)return 'tap anywhere to turn around';
-  if(!G.didLap&&a<22)return 'collect sparks, then finish a lap';
   /* Only once there is somewhere to hop TO. A run opens on a single ring for
-     its first 30 seconds, so without this the prompt asks a new player to
+     its first 20 seconds, so without this the prompt asks a new player to
      make the one gesture the game will not answer — they swipe, nothing
      happens, and the controls read as broken at the exact moment they are
-     being learned. */
+     being learned.
+     IT NOW OUTRANKS THE LAP PROMPT. The hop is the unfamiliar half of the
+     control scheme — a radial swipe on a circle, where "away from the middle"
+     points a different way at every point of the orbit — and the lap prompt
+     used to hold the line until 22s, handing over just as the board filled.
+     Whichever lesson is harder should get the quiet part of the run. */
   if(!G.didHop&&G.nRings>1)return 'swipe up or down to switch track';
+  /* NAME THE ORB WHILE IT IS STILL ON THE BOARD. Slow-mo and nova were taught
+     nowhere at all: you touched a coloured dot and something large happened
+     that you had no word for. These sit high in the ladder because a pickup
+     lives 7s, and a lesson that waits for the commoner prompts to clear is a
+     lesson that arrives after the thing it describes has gone. */
+  for(const pw of G.pows){
+    if(pw.type==='warp'&&!G.gotWarp)return 'violet slows everything down';
+    if(pw.type==='nova'&&!G.gotNova)return 'white turns every shard to sparks';
+  }
+  if(!G.didLap&&a<22)return 'collect sparks, then finish a lap';
   if(!G.didDodge&&G.spikes.length)return 'red kills \u2014 turn or switch track';
-  if(!G.didShield&&a>17&&a<25)return 'each shield saves you from one hit';
+  /* Widened at the front to meet the first shield, which the power-up
+     curriculum now places around 10s rather than 17s. */
+  if(!G.didShield&&a>9&&a<22)return 'each shield saves you from one hit';
   /* Named after the ring now visibly contracting onto the comet, and phrased
      as an invitation rather than an instruction — a struggling player does not
      need another demand. */
@@ -2817,6 +2948,24 @@ function hintText(){
   return null;
 }
 
+/* THE LADDER, DRAWN. Ten pips, one per tier, filled up to where this run got
+   — the same rotated-square idiom as the lap-ember pips, so the game says
+   "progress" one way rather than two. The empty half is the point as much as
+   the full half: a player who dies on level 3 can see that seven more exist,
+   which is the thing a bare score can never tell them. */
+function drawLadder(x,y,tier){
+  const pipW=13*u,x0=x-(LEVEL_MAX-1)*pipW/2;
+  for(let i=0;i<LEVEL_MAX;i++){
+    ctx.save();ctx.translate(x0+i*pipW,y);ctx.rotate(Math.PI/4);
+    const on=i<=tier;
+    ctx.globalAlpha=on?0.95:0.25;
+    if(on){ctx.fillStyle=COL.ember;ctx.fillRect(-3.4*u,-3.4*u,6.8*u,6.8*u);}
+    else{ctx.strokeStyle='rgba(200,215,255,0.9)';ctx.lineWidth=1.2;
+      ctx.strokeRect(-3.4*u,-3.4*u,6.8*u,6.8*u);}
+    ctx.restore();
+  }
+  ctx.globalAlpha=1;
+}
 function drawHUD(){
   ctx.textAlign='center';ctx.textBaseline='alphabetic';
   const top=safeTop;
@@ -2824,7 +2973,11 @@ function drawHUD(){
   if(G.state==='playing'){
     const sz=46*u*(1+0.25*G.scorePop);
     text(G.score,cx,top+52*u,sz,'800','#eaf1ff',0);
-    text('BEST '+G.best,cx,top+76*u,13*u,'600','rgba(200,215,255,0.5)',2);
+    /* The level replaces BEST here. The score directly above is already the
+       live number, and a second number you cannot affect this second is worth
+       less than the one that says where in the game you are. */
+    text('LEVEL '+levelNum()+' · '+tierLabel(),cx,top+76*u,13*u,'700',
+      'rgba(255,200,87,0.72)',2);
     /* embers banked toward this orbit's payout */
     const pipW=10*u,x0=cx-(LAP_EMB_MAX-1)*pipW/2,py=top+92*u;
     for(let i=0;i<LAP_EMB_MAX;i++){
@@ -2917,7 +3070,14 @@ function drawHUD(){
          the arena is wide enough that this never binds, and in landscape the
          banner slides down over the ring rather than through the HUD. */
       const by=Math.max(cy-R-30*u,top+158*u);
-      text(b.str,cx,by,20*u,'800',COL.shard,4);
+      /* GOLD, NOT RED. This drew in COL.shard — the shard fill, the danger
+         outline, and the exact colour GAME OVER is printed in. The one moment
+         the game announces that you have got somewhere was painted in its
+         failure colour, which is a strange thing to do to the only reward the
+         ladder ever hands out. Ember gold is what the game already uses for
+         everything earned. */
+      text('LEVEL '+levelNum(),cx,by-19*u,12*u,'800','rgba(255,200,87,0.75)',3);
+      text(b.str,cx,by,20*u,'800',COL.ember,4);
       text(b.sub,cx,by+20*u,12*u,'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
     }
@@ -2982,12 +3142,26 @@ function drawHUD(){
     text('dodge',cx+28*u,cy+35*u,14*u,'600','rgba(210,225,255,0.85)',0);
     ctx.textAlign='center';
     text('fill an orbit with embers for a big bonus',cx,cy+58*u,12*u,'600','rgba(210,225,255,0.6)',0);
-    text('start with a shield \u00b7 tap it to phase through',cx,cy+76*u,12*u,'600','rgba(123,255,200,0.55)',0);
+    /* WAS: "start with a shield \u00b7 tap it to phase through". Nothing in the
+       input layer has ever handled a tap on the shield \u2014 pointerdown routes
+       mute, share, start, retry, reverse and the radial swipe, and that is the
+       whole list. So the menu was teaching a control that does not exist, and
+       because a tap anywhere reverses, a player who followed the instruction
+       got a direction flip they did not ask for, at a moment they had chosen
+       to press something. Say what shields actually do instead. */
+    text('green saves you \u00b7 violet slows \u00b7 white clears',cx,cy+76*u,12*u,'600','rgba(123,255,200,0.55)',0);
+    /* Only once there is a climb to report. A first-time player has no level
+       to beat and does not need a scoreboard before they have played. */
+    if(G.bestLevel>1){
+      text('BEST \u00b7 LEVEL '+G.bestLevel+' of '+LEVEL_MAX,cx,cy+96*u,12*u,'700',
+        'rgba(255,200,87,0.7)',2);
+    }
     /* Opened from a chat app, iOS presents the page as a modal sheet, and that
        sheet eats downward swipes to dismiss itself — the game's own inward hop.
        Nothing in here can prevent it, so point at the thing that does. */
     if(IN_APP_BROWSER){
-      text('add to home screen \u2014 swipes close this window',cx,cy+96*u,11*u,'600',
+      /* pushed to 114u so it clears the best-level line above it */
+      text('add to home screen \u2014 swipes close this window',cx,cy+114*u,11*u,'600',
         'rgba(255,190,120,0.75)',0);
     }
     const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
@@ -3001,10 +3175,20 @@ function drawHUD(){
         Math.min(H-8*u-safeBot,bottomY+20*u),10*u,'600','rgba(200,215,255,0.32)',0);
     }
   }else{
-    text('GAME OVER',cx,cy-46*u,26*u,'800',COL.shard,5);
+    /* THE LEVEL LEADS. GAME OVER used to be the headline at 26u and the score
+       was the only thing you took away. Both are still here, but the ordinal
+       goes on top and in ember gold, because it is the part a player repeats
+       to somebody else. GAME OVER shrinks to a label — you already know you
+       died, the screen behind you just exploded. */
+    drawLadder(cx,cy-104*u,G.tier);
+    text('LEVEL '+levelNum(),cx,cy-72*u,30*u,'800',COL.ember,5);
+    text(tierLabel(),cx,cy-52*u,11*u,'700','rgba(255,200,87,0.6)',3);
+    text('GAME OVER',cx,cy-30*u,13*u,'800',COL.shard,3);
     text(G.score,cx,cy+14*u,54*u,'800','#eaf1ff',0);
-    if(G.newBest)text('NEW BEST',cx,cy+42*u,13*u,'700',COL.ember,3);
-    else text('BEST '+G.best,cx,cy+42*u,13*u,'600','rgba(200,215,255,0.5)',2);
+    if(G.newLevel)text('FURTHEST YET',cx,cy+42*u,13*u,'700',COL.ember,3);
+    else if(G.newBest)text('NEW BEST',cx,cy+42*u,13*u,'700',COL.ember,3);
+    else text('BEST LEVEL '+G.bestLevel+' · '+G.best,cx,cy+42*u,13*u,'600',
+      'rgba(200,215,255,0.5)',2);
     text(G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime(),
       cx,cy+62*u,12*u,'600','rgba(200,215,255,0.45)',0);
     if(G.bestGroove>=2)

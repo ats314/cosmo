@@ -16,7 +16,6 @@ embers, dodge shards, and complete orbits.
 | Reverse | tap anywhere | `Space` / `Enter` |
 | Hop outward | swipe away from the centre | `↑` `W` `←` `A` |
 | Hop inward | swipe toward the centre | `↓` `S` `→` `D` |
-| Phase through a hit | tap the shield bar | `E` / `Shift` |
 | Mute | tap the speaker | `M` |
 
 Swipes are read **radially** — measured against the line from the centre
@@ -49,15 +48,15 @@ Mechanics unlock on a schedule, each announced with a banner:
 
 | ≈ | Unlock |
 |---|---|
-| 30s | second ring |
-| 63s | twin shards — too wide to outrun, hop over |
-| 93s | gates — every ring blocked, reverse |
-| 128s | third ring |
-| 153s | drifters — these ones move |
-| 193s | blinkers — they flicker, time your pass |
-| 238s | sliding gates — the wall slides, reverse early |
-| 288s | flicker pairs — one gap at a time, never both |
-| 348s | storm — no new tricks, just more of them |
+| 20s | second ring |
+| 50s | twin shards — too wide to outrun, hop over |
+| 80s | gates — every ring blocked, reverse |
+| 106s | third ring |
+| 133s | drifters — these ones move |
+| 173s | blinkers — they flicker, time your pass |
+| 223s | sliding gates — the wall slides, reverse early |
+| 278s | flicker pairs — one gap at a time, never both |
+| 343s | storm — no new tricks, just more of them |
 
 Those times assume a player earning no difficulty nudge at all, which is the
 slowest the schedule ever runs; scoring well pulls everything forward by up
@@ -76,44 +75,130 @@ Speed keeps climbing after the unlocks run out. The exponential is within
 (capped at 4.2 rad/s). Without it a long run flattens into a plateau that only
 ever ends from a lapse in attention rather than from pressure.
 
+## Levels
+
+The ladder is ten levels, and it is the same ten tiers the game has always
+climbed — `TIERS`, `tierIndex()`, `G.tier` — but until now the only places the
+ordinal ever surfaced were the clipboard and an analytics endpoint that ships
+switched off. The player doing the climbing was never told the number.
+
+A tester put the case better than the design did:
+
+> I just think clearing the board using level tiers might be more rewarding as
+> a sense of accomplishment than just trying to get a higher score each time.
+> For whatever reason, reaching level "XYZ" seems more memorable and rewarding
+> than just a highest score. Levels are more distinct, you know?
+
+He is right, and the reason is that a score is a cardinal you cannot repeat
+from memory while a level is an ordinal you can say out loud, compare against
+someone else, and come back for. So the level now appears under the score in
+play, leads the death screen in ember gold with the tier named beneath it,
+leads the share text, and persists as `cometloop:level` — "BEST · LEVEL 6 of
+10" on the menu, and **FURTHEST YET** in place of NEW BEST when a run sets it.
+
+The ten-pip ladder is drawn on the death screen with the reached levels
+filled. The empty half is the point as much as the full half: a player who
+dies on level 3 can see that seven more exist, which is the one thing a bare
+score can never tell them.
+
+None of this touches the simulation. It changes what the game *says* about
+itself, not what it does.
+
+**The banner is gold now, not red.** A tier announcement drew in `COL.shard` —
+the shard fill, the danger outline, and the exact colour `GAME OVER` prints
+in. The only moment the game announced that you had got somewhere was painted
+in its failure colour.
+
+**And the newest formation stays featured across ring unlocks.** `pickType()`
+triples the weight of the newest shape, keyed off the top tier — but three of
+the ten tiers announce a ring or a storm rather than a shape, so at those the
+tripling silently did nothing. Crossing THIRD RING dropped gates from 60% of
+the spawn pool to 33%: a banner celebrating a new ring that also made the
+board easier. STORM, whose own banner promises "just more of everything",
+flattened flicker pairs from 33% to 14%. It now walks back to the last tier
+that carries a shape.
+
 ## Learning it
 
 A run opens on a single ring, where the only move is a tap to reverse. The
-second ring does not arrive for ~30 seconds, so until it does, a prompt to
+second ring does not arrive for ~20 seconds, so until it does, a prompt to
 swipe would be asking for the one gesture the game will not answer — the
 hints skip it until there is somewhere to hop to.
 
-The first three runs get more room: two shields instead of one, and a longer
-clear opening before the first shard (9s, tapering back to the normal 4s by
-the fourth run). `G.runs` persists, so this fades out on its own and a
-returning player never meets it. It is a ramp for learning the controls, not
-a difficulty change — from run four the game is exactly what it always was.
+**The hard gesture gets the quiet part of the run.** The second ring used to
+arrive at 30s, which meant the hop — a radial swipe on a circle, where "away
+from the middle" points a different way at every point of the orbit — was
+introduced at the exact moment the board first filled up. The calm opening was
+being spent teaching the tap, which nobody needs help with, and the difficult
+half of the control scheme was taught under pressure. The ring now lands at
+20s and the hop prompt outranks the lap prompt, so the lesson and the calm
+coincide.
+
+**Every run introduces all three power-ups, in order.** The first three
+placements are shield, then slow-mo, then nova; only afterwards does the
+40/35/25 roll take over. Drawn independently at roughly one placement every
+twelve seconds, a 60-second run — which is most runs — saw two power-ups and
+had better than even odds of never meeting slow-mo or nova at all. Two of the
+three most interesting objects in the game were optional content. Slow-mo and
+nova are also *named* now, by a hint that fires while the orb is still on the
+board: before, you touched a coloured dot and something large happened that
+you had no word for.
+
+The first three runs get a longer clear opening before the first shard —
+11s, tapering back to the normal 7s by the fourth run. (Every run starts with
+two shields, for everybody, not just newcomers.) `G.runs` persists, so this
+fades out on its own and a returning player never meets it. It is a ramp for
+learning the controls, not a difficulty change — from run four the game is
+exactly what it always was.
 
 ## Power-ups
 
 - **Shield** (green) — banked, up to 3. Taking a hit spends one automatically
-  but knocks you off your orbit. Spending one *deliberately* phases you
-  through anything for 1.4s and leaves the orbit intact. Never more than three
-  power-ups pass without a shield.
+  but knocks you off your orbit. Never more than three power-ups pass without
+  a shield.
 - **Slow-mo** (violet) — 4 seconds at 55% speed.
 - **Nova** (white) — a front expands from where you took it and turns what it
   touches into light. It converts on *contact*, not all at once: nearest
   shards first, each detonating as the wave reaches it, so the board comes
-  apart as a cascade over roughly a fifth of a second rather than in a single
-  frame. Because the wave reaches each shard at a different moment, the
-  conversion pings sequence themselves with no scheduling. You are invulnerable
-  while it sweeps — you are standing inside your own blast.
+  apart as a cascade rather than in a single frame. Because the wave reaches
+  each shard at a different moment, the conversion pings sequence themselves
+  with no scheduling. You are invulnerable while it sweeps — you are standing
+  inside your own blast.
+
+  **Its speed was tuned to the wrong distance.** The front ran at 1600, picked
+  so it clears a screen diagonal inside its lifetime — but no shard is ever out
+  on the diagonal. The blast is centred on the comet and every shard sits
+  inside the ring system, so the farthest is 2R away: 334px on a 390px phone,
+  crossed in **0.225s**. The cascade this was all written to produce finished
+  in thirteen frames and the front then spent another half second expanding
+  through empty space. At 560 the same sweep takes ~0.65s, which is long enough
+  to read as a wave travelling outward, and the invulnerability window was
+  widened to outlast it.
+
+  **And the embers now land on your ring.** Converting in place looked right
+  and paid almost nothing: embers are only collectable on the ring you are on,
+  so on a three-ring board two thirds of a nova's output was scenery that
+  expired five seconds later. A six-shard nova returned about two reachable
+  embers — twelve points, against the eighty-six a maxed orbit pays, for the
+  rarest thing in the game. They now arrive on your own track at the angle the
+  shard held, which turns the same blast into a guaranteed ember run: the combo
+  climbs, the pentatonic phrase resolves, and `lapEmbers` feeds the orbit
+  payout and the build meter. The conversion burst still fires out where the
+  shard actually was, so the light reads as travelling from the danger onto
+  your lane.
 
 ## After a run
 
-The death screen reports orbits, best streak and elapsed time alongside the
-score, and offers a **SHARE** button. It hands off to the native share sheet
-where one exists and falls back to the clipboard, producing plain text:
+The death screen leads with the **level**, names the tier under it, and draws
+the ten-pip ladder with your run filled in — then the score, then orbits, best
+streak and elapsed time. It offers a **SHARE** button that hands off to the
+native share sheet where one exists and falls back to the clipboard, producing
+plain text:
 
 ```
-Comet Loop 4300
+Comet Loop · LEVEL 10/10
 ◆◆◆◆◆◆◆◆◆◆ STORM
-62 orbits · ×7 streak · 5:12
+4300 points · 62 orbits · ×7 streak · 5:12
 https://ats314.github.io/cosmo/
 ```
 
@@ -133,10 +218,11 @@ session recording off, `localStorage` persistence rather than cookies. The
 loader is fully wrapped and fails silent, so a blocked request or a dead
 network cannot take the game down with it.
 
-One event per run, `run_ended`, carrying score, duration, orbits, best
-streak, embers, tier reached, what killed you, shields spent reactively vs.
-deliberately, and `run_index` — the lifetime run count, which is the one that
-actually measures retention. Plus `share_tapped`.
+One event per run, `run_ended`, carrying score, duration, orbits, best streak,
+embers, level and tier reached, what killed you, shields that saved the run,
+how many power-ups were placed and whether slow-mo and nova were actually
+seen, and `run_index` — the lifetime run count, which is the one that actually
+measures retention. Plus `share_tapped`.
 
 The interesting field is **`misread_rate`**. Every swipe begins as a tap, so
 the input layer reverses speculatively and rolls back once your finger
@@ -190,10 +276,15 @@ once — without the hole, the loud part is just more loud.
 
 It always fires on a downbeat. Earning one *arms* it and it goes off at the top
 of the next cycle, so there is up to nine seconds of anticipation. A drop that
-arrived mid-bar would not be a drop, it would be a noise. Three things arm it:
-holding a perfect groove chain, a five-orbit streak, and every new mechanic
-announcement — so a tier banner now rides one in. There is a 20s cooldown,
-because a drop that happens constantly is not an event.
+arrived mid-bar would not be a drop, it would be a noise. There is a 20s
+cooldown, because a drop that happens constantly is not an event.
+
+What arms one is the **build meter**, and nothing else. Four things fill it,
+one per style of play — gathering sparks, working the rings, playing in time,
+and closing clean orbits — and whichever contributed most names the drop when
+it lands. The meter decays, so it measures how you are playing *now* rather
+than how long you have survived, and it is on screen throughout, so "how am I
+causing this" never needs answering twice.
 
 **Timing is rewarded, and never punished.** Each input is judged against the
 sixteenth grid; land tight and the **groove** chain climbs to ×8. An off-beat
