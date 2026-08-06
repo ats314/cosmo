@@ -49,7 +49,7 @@ Mechanics unlock on a schedule, each announced with a banner:
 | ≈ | Unlock |
 |---|---|
 | 20s | second ring |
-| 50s | twin shards — too wide to outrun, hop over |
+| 30s | twin shards — too wide to outrun, hop over |
 | 80s | gates — every ring blocked, reverse |
 | 106s | third ring |
 | 133s | drifters — these ones move |
@@ -133,6 +133,19 @@ being spent teaching the tap, which nobody needs help with, and the difficult
 half of the control scheme was taught under pressure. The ring now lands at
 20s and the hop prompt outranks the lap prompt, so the lesson and the calm
 coincide.
+
+**The opening is no longer one object repeated.** `TWIN` is the first tier
+carrying a shape other than a plain single, so everything below it is a 100%
+single pool — and it used to sit at 63 seconds, which is longer than most first
+runs last. A tester played four rounds and reported that the game needed more
+stuff; he had genuinely seen one obstacle type. It is at 30s now, and the move
+is free: across 300 simulated runs per setting, pulling it from 50s to 25s
+moved median survival less than 2% (814s → 822s), left forced inputs per minute
+flat at 74, and killed nobody inside the first minute at any setting, because a
+twin spends two slots of the same shard cap rather than adding to it. It is not
+pulled all the way in only because twins are the tier that makes the hop
+compulsory, and the second ring needs a clear stretch first — the lesson before
+the exam.
 
 **Every run introduces all three power-ups, in order.** The first three
 placements are shield, then slow-mo, then nova; only afterwards does the
@@ -221,8 +234,16 @@ network cannot take the game down with it.
 One event per run, `run_ended`, carrying score, duration, orbits, best streak,
 embers, level and tier reached, what killed you, shields that saved the run,
 how many power-ups were placed and whether slow-mo and nova were actually
-seen, and `run_index` — the lifetime run count, which is the one that actually
-measures retention. Plus `share_tapped`.
+seen, whether the player ever hopped or closed a lap, and `run_index` — the
+lifetime run count, which is the one that actually measures retention. Plus
+`share_tapped`.
+
+**`did_hop` is the one to watch first.** The hop is the unfamiliar half of the
+control scheme, and a run ending with it false is a run where the player never
+used half the game. Read against `misread_rate`: false with unresolved swipes
+means the input was misread; false with no swipes at all means the lesson was
+missed. Those are opposite problems and no amount of level naming or content
+pacing fixes either.
 
 The interesting field is **`misread_rate`**. Every swipe begins as a tap, so
 the input layer reverses speculatively and rolls back once your finger

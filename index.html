@@ -1337,7 +1337,7 @@ function emberGap(){return Math.max(0.30,(1.35-dl()*0.003)/G.nRings);}
    there is always something new arriving. */
 /* Clock values. Wall-clock arrival for a player earning no difficulty nudge
    at all, which is the slowest the schedule ever runs:
-   20s ring2 · 50s twin · 80s gate · 106s ring3 · 133s drift · 173s blink
+   20s ring2 · 30s twin · 80s gate · 106s ring3 · 133s drift · 173s blink
    223s sliding gates · 278s flicker pairs · 343s storm
    The late tiers are compounds rather than new objects: gate, blink and drift
    are independent flags on the same shard, and update and draw already handle
@@ -1350,9 +1350,23 @@ function emberGap(){return Math.max(0.30,(1.35-dl()*0.003)/G.nRings);}
    board had filled to three shards, and met the third ring essentially never.
    A tester who played four rounds asked for "maybe three layers?" and for new
    power-ups: he was describing things that already shipped, from outside the
-   wall that hid them. And because the spawn pool below the old TWIN at dl 38
-   is 100% plain singles, his whole experience of the game was one obstacle
-   type on two rings. He reported that as "needs more stuff", correctly.
+   wall that hid them. And because the spawn pool below TWIN is 100% plain
+   singles — TWIN being the first tier that carries an alternative shape — his
+   whole experience of the game was one obstacle type on two rings. He reported
+   that as "needs more stuff", correctly.
+
+   TWIN IS THE SECOND HALF OF THAT FIX, and it turns out to be free. It sat at
+   dl 38, so the opening served one repeated object for 63 seconds; at dl 18 it
+   is 30. Measured rather than guessed: across 300 simulated runs per setting,
+   pulling it from dl 30 to 15 moved median survival by less than 2% (814s to
+   822s), left forced inputs per minute flat at 74, and killed nobody inside
+   the first 60 seconds at any setting — because a twin spends two slots of the
+   same shard cap rather than adding to it. dl 18 rather than 15 only so the
+   second ring at dl 12 gets a clear stretch first: twins are the tier that
+   makes the hop compulsory, and the lesson should land before the exam.
+   (The simulation hops optimally, so it understates how much a twin taxes a
+   player still learning the gesture. That is the reason for the gap, not the
+   spawn maths.)
 
    Pulling the front of the ladder in answers both, and it costs no difficulty:
    every pressure term — speedAt, shardCap, spawnGap, warnTime — keys off dl()
@@ -1365,7 +1379,7 @@ function emberGap(){return Math.max(0.30,(1.35-dl()*0.003)/G.nRings);}
 const TIERS=[
   {at:0,  type:'single',name:null},
   {at:12, type:null,    name:'SECOND RING', sub:'swipe up or down to switch track',rings:2},
-  {at:30, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 swipe to another ring'},
+  {at:18, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 swipe to another ring'},
   {at:52, type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 tap to turn back'},
   {at:78, type:null,    name:'THIRD RING',  sub:'inside is tighter, faster and higher',rings:3},
   {at:105,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
@@ -1747,6 +1761,14 @@ function die(){
     level:levelNum(),best_level:G.bestLevel,
     /* did the curriculum land: three placements is the whole intro set */
     pows_placed:G.powN,saw_warp:G.gotWarp,saw_nova:G.gotNova,
+    /* DID THE TEACHING LAND. The two verbs, per run. did_hop is the one that
+       matters: the hop is the unfamiliar gesture, it is now taught at 20s in
+       the calm, and a run that ends with did_hop false is a run where the
+       player never used half the control scheme — which no amount of level
+       naming or content pacing would have fixed. Read it against
+       misread_rate: hop false with unresolved swipes means the input was
+       misread, hop false with no swipes at all means the lesson was missed. */
+    did_hop:G.didHop,did_lap:G.didLap,did_reverse:G.didReverse,
     death_cause:G.lastHit,
     blocks:G.blocks,                  /* shields that saved a run */
     /* the input question: what fraction of swipes produced nothing */
