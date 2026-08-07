@@ -332,6 +332,12 @@ motion keeps every layer static, as always.
   but knocks you off your orbit. Never more than three power-ups pass without
   a shield.
 - **Slow-mo** (violet) — 4 seconds at 55% speed.
+- **Overcharge** — a full shield bank means you have been playing clean,
+  and the streak pays (playtester-designed, near-verbatim): while shields
+  are full, embers and on-beat taps pay DOUBLE, the pips ring gold, and
+  every overflow shield is worth +50 ("OVERCHARGED") instead of a token
+  +2. Reaching full announces it: "SHIELDS FULL — everything pays
+  double."
 - **Bass Bomb** (cyan) — every shard in the neighbourhood converts to light,
   and the low end drops: a pitch-fall boom into a one-bar heavy kick figure.
   The clear reuses the nova's conversion, so the shards pay the same.

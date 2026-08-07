@@ -1978,7 +1978,7 @@ function judgeTiming(x,y){
     if(MU&&MU.pay>0){
       const ex=8*(G.secMult||1);
       G.score+=ex;G.secScore+=ex;G.scorePop=Math.max(G.scorePop,0.6);
-    }else if(G.od>0||G.spot>0){
+    }else if(G.od>0||G.spot>0||G.shields>=shieldMax()){
       G.score+=8;G.scorePop=Math.max(G.scorePop,0.5);
     }
     const was=G.groove;
@@ -4046,7 +4046,7 @@ function update(dt){
       if(MU&&MU.pay>0){
         const ex=G.combo*(G.secMult||1);
         G.score+=ex;G.secScore+=ex;
-      }else if(G.od>0)G.score+=G.combo;   /* overdrive doubles the pickup */
+      }else if(G.od>0||G.shields>=shieldMax())G.score+=G.combo; /* overdrive — and a FULL shield bank — double the pickup */
       G.lapEmbers++;G.embers++;
       const p=posAt(s.a,radiusOf(s.ring));
       burst(p[0],p[1],COL.ember,14,150);
@@ -4123,9 +4123,23 @@ function update(dt){
         s.type==='bass'?COL.comet:COL.nova);
       if(s.type==='shield'){
         const span=panAt(p[0]);
-        if(G.shields>=shieldMax()){G.score+=2;popup(p[0],p[1]-20*u,'+2',COL.shield);
-          cueTone(function(w){beep(659,0.09,'sine',0.04,880,w,span,0.3);});}
-        else{G.shields++;popup(p[0],p[1]-20*u,'SHIELD \u00d7'+G.shields,COL.shield);}
+        /* OVERCHARGE (playtester Buch, near-verbatim: "if you're at full
+           shields... every next shield picked up is a big point bonus").
+           A full bank means you have been playing CLEAN — that streak now
+           pays: an overflow shield is worth +50, and while the bank stays
+           full, embers and on-beat taps pay double (see those sites). */
+        if(G.shields>=shieldMax()){
+          G.score+=50;G.scorePop=Math.max(G.scorePop,0.7);
+          popup(p[0],p[1]-20*u,'OVERCHARGED +50',COL.shield,1.2);
+          cueTone(function(w){
+            note(chTone(2),AC.currentTime+w,0.22,'triangle',0.030,2000,span);
+            note(chTone(4),AC.currentTime+w+S16,0.24,'sine',0.020,2200,-span);
+          });
+        }else{
+          G.shields++;popup(p[0],p[1]-20*u,'SHIELD \u00d7'+G.shields,COL.shield);
+          if(G.shields>=shieldMax())
+            say('SHIELDS FULL \u2014 everything pays double',2,7);
+        }
         burst(p[0],p[1],COL.shield,14,150);
         ripple(p[0],p[1],COL.shield);
         cueTone(function(w){beep(520,0.12,'triangle',0.06,780,w);});
@@ -5095,13 +5109,15 @@ function drawShieldBtn(){
      the pips spilling out of the button */
   const mx=shieldMax(),gap=Math.min(30*u,(r.w-30*u)/Math.max(1,mx-1));
   const x0=r.x+r.w/2-(mx-1)*gap/2;
+  const full=G.shields>=mx;
   for(let i=0;i<mx;i++){
     const on=i<G.shields,x=x0+i*gap;
     ctx.globalAlpha=on?pulse+0.35:0.16;
-    ctx.strokeStyle=COL.shield;ctx.lineWidth=on?2.2:1.4;
+    /* a FULL bank runs gold: the overcharge multiplier, visible at a glance */
+    ctx.strokeStyle=full?COL.ember:COL.shield;ctx.lineWidth=on?2.2:1.4;
     ctx.beginPath();ctx.arc(x,midY,9*u,0,TAU);ctx.stroke();
     if(on){
-      ctx.fillStyle=COL.shield;
+      ctx.fillStyle=full?COL.ember:COL.shield;
       ctx.beginPath();ctx.arc(x,midY,3.4*u,0,TAU);ctx.fill();
     }
   }
