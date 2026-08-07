@@ -61,7 +61,7 @@ card, and its own song:
 | Level | Name | Introduces | Song |
 |---|---|---|---|
 | 1 | LIFT OFF | the verbs, stars, the beat drop | A minor, the original groove |
-| 2 | INTO THE RINGS | gates, twins, golden laps, overdrive, drum breaks, the three musical orbs | G minor, swung sixteenths |
+| 2 | INTO THE RINGS | gates, twins, overdrive, drum breaks, bass bomb, meteor shower, spotlight | G minor, swung sixteenths |
 | 3 | THE STORM | drifters, blinkers, sliding gates, flicker pairs — endless | F minor, rolling four-on-the-floor |
 
 Survive to a level's finish line and a card celebrates the clear, names the
@@ -112,14 +112,13 @@ phrase replaces it. The first capture of a run announces itself: "YOUR
 BEAT IS IN THE SONG." Dodging in rhythm is composing.
 
 **The orbs earn their look.** The bass bomb is a subwoofer now — its cone
-slams on the landed beat; the echo is sound made visible, rings echoing
-outward from a bright throat; the meteor is a constellation in motion,
-satellites orbiting the core and shedding trails. (The playtest called the
-old echo "pretty lame looking." Fair.)
+slams on the landed beat; the meteor is a constellation in motion,
+satellites orbiting the core and shedding trails; the spotlight is a stage
+light, four rays sweeping round a bright bulb.
 
 **The braam is the signature voice.** The deep "whaaa" from the drop hit —
 sub boom under a swelling fifth-stack — now speaks at every big moment:
-level starts and completions, overdrive, golden lap payouts, novas, new
+level starts and completions, overdrive, novas, new
 layers, and (once the run warms up) breathing out of every bar-line bass
 note. The game's biggest sound is no longer reserved for one event.
 
@@ -336,10 +335,11 @@ motion keeps every layer static, as always.
 - **Bass Bomb** (cyan) — every shard in the neighbourhood converts to light,
   and the low end drops: a pitch-fall boom into a one-bar heavy kick figure.
   The clear reuses the nova's conversion, so the shards pay the same.
-- **Echo** (violet, trailing) — the ghost instrument plays your last riff
-  back, two points a note. The tape is whatever you actually played: every
-  reverse and hop records its scale degree, and the echo replays the last
-  eight through the dub delay.
+- **Spotlight** (white/violet) — four bars where YOU are the lead: your
+  instrument doubles and brightens, the band steps back a notch, every
+  tight tap pays double. A performance, not a transaction. (It replaced
+  the Echo orb, which the loop recorder made redundant, and which the
+  playtest didn't love.)
 - **Meteor Shower** (gold cluster) — six and a half seconds of star rain.
   Because ember tones land on the sixteenth grid, gathering a shower IS a
   drum fill.
@@ -355,12 +355,17 @@ spark, a breath of heat and a tick of build — passing shards on other rings
 in ordinary travel earns nothing, because a graze has to be a dodge or the
 spark means nothing. The spark is white-blue: red stays death's alone.
 
-**The golden lap.** Every minute and a half or so the current ring gilds and
-the game asks for one thing: finish the orbit. Any completed lap inside the
-thirteen-second window pays +150 on top of the orbit's normal payout, with
-the track pulsing gold on the landed beat and urgency flickering in as the
-window closes. Letting it expire costs nothing — it is an invitation, not an
-exam.
+**The finale.** Levels 1 and 2 end in a DUET, not a line on a clock. Near
+the finish the spawns hold, the music thins to the groove, and the band
+plays a two-bar phrase in the level's key while its rhythm lights up as
+marks around the outer ring — the ring becomes a sequencer, a sweep hand
+circling once per two bars. Then it is the player's turn: tap anywhere
+(timing, never aim) as the sweep crosses each mark. Three rounds; every
+answered note pays +40 and is sung back harmonised; answer well and the
+call gains a voice each round. Misses cost nothing and the level completes
+regardless — the finale decides the size of the send-off, never whether
+you advance. (It replaced the golden lap, which was a timer wearing a
+special moment's clothes.)
 - **Nova** (white) — a front expands from where you took it and turns what it
   touches into light. It converts on *contact*, not all at once: nearest
   shards first, each detonating as the wave reaches it, so the board comes
