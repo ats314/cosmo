@@ -1631,24 +1631,36 @@ function musicStep(i,t,k){
      almost the first bar, swelling with the run and the playing. */
   if(k>0.12||PLAY.heat>0.20||hot){
     const bg=0.026+0.020*Math.min(1,k+0.3*PLAY.heat);
+    /* the whaa: a saw swell breathing out of every bar-line bass note —
+       the drop's mouth, speaking continuously once the run warms up */
     if(beat===0){bassN(ch[0],t,0.30,bg);
-      /* the whaa: a saw swell breathing out of every bar-line bass note —
-         the drop's mouth, speaking continuously once the run warms up */
       if(k>0.35||hot)swellPad(ch[0],t,0.55,0.024+0.016*k,0);}
-    if(beat===2)bassN(ch[0],t+S16,0.16,bg*0.80);
-    if(beat===5)bassN(ch[3]/2,t,0.18,bg*0.85);
-    if(beat===7)bassN(ch[0]*0.75,t+S16,0.12,bg*0.70);
-    /* run hot and the line starts ROLLING — the genre's pumping eighths,
-       breathing against the bar-line pump */
-    if((k>0.5||PLAY.heat>0.5||hot)&&(beat===1||beat===3||beat===6))
-      bassN(ch[0],t,0.11,bg*0.45);
+    /* EACH LEVEL HAS ITS OWN BASSLINE — the largest single difference
+       between the three songs. L1 walks, L2 pushes off the beat (the
+       swung deep-house lean), L3 ROLLS relentless eighths. */
+    if(G.level===1){
+      if(beat===2)bassN(ch[0],t+S16,0.16,bg*0.80);
+      if(beat===5)bassN(ch[3]/2,t,0.18,bg*0.85);
+      if(beat===7)bassN(ch[0]*0.75,t+S16,0.12,bg*0.70);
+      if((k>0.5||PLAY.heat>0.5||hot)&&(beat===1||beat===3||beat===6))
+        bassN(ch[0],t,0.11,bg*0.45);
+    }else if(G.level===2){
+      if(beat===1)bassN(ch[0],t+S16,0.13,bg*0.65);
+      if(beat===3)bassN(ch[2]/2,t,0.17,bg*0.85);
+      if(beat===4)bassN(ch[0],t+S16,0.11,bg*0.55);
+      if(beat===6)bassN(ch[3]/2,t+S16,0.15,bg*0.80);
+    }else{
+      bassN(ch[0],t,beat%2?0.10:0.15,bg*(beat===0?1:(beat%2?0.5:0.72)));
+      if(beat===4)bassN(ch[2]/2,t,0.14,bg*0.80);
+      if(beat===7)bassN(ch[1]/2,t+S16,0.10,bg*0.55);
+    }
   }
   /* THE SOLO (playtest: "some keyboard solos"). After every payoff the lead
      answers over the afterglow: a written phrase with a slide into each
      note, running wet through the dub delay. The drop no longer ends —
      it hands off. */
   if(t<MU.glow){
-    const sd=SOLO[i%SOLO.length];
+    const sd=SOLOL[G.level-1][i%32];
     if(sd>=0){
       note(PENT[sd],t,0.20,'sawtooth',0.026,2800,(i%16<8)?-0.25:0.25,undefined,0.6);
       if(AC)beep(PENT[sd]*0.96,0.05,'sawtooth',0.010,PENT[sd],Math.max(0,t-AC.currentTime),0,0.2);
@@ -1708,6 +1720,26 @@ function musicStep(i,t,k){
     hat(t+S16,0.008,4400,0.032,0,0,7200);
     hat(t+S16*1.16,0.004,4800,0.03,0,0,7400);   /* the inner ring swings, as ghosts */
   }
+  /* the two-bar line: fold the last window of taps into the active loop */
+  if(i%16===0&&G.groove>=1){
+    const win={};let nw=0;
+    for(const e of PLAY.tape)if(t-e.at<8*SPB+0.25){win[e.c]=e.d;nw++;}
+    if(nw>=3&&nw<=10){
+      LOOP.pat=win;LOOP.n=nw;LOOP.until=t+16*SPB;   /* eight bars of life */
+      if(!LOOP.heard){LOOP.heard=true;say('YOUR BEAT IS IN THE SONG',2,10);}
+    }
+  }
+  if(LOOP.pat&&t<LOOP.until){
+    const p0=(i%16)*2;
+    for(let o=0;o<2;o++){
+      const dd=LOOP.pat[p0+o];
+      if(dd!==undefined){
+        const tt2=t+o*S16;
+        note(PENT[dd]*0.5,tt2,0.15,'triangle',0.017,900,0.15,undefined,0.5);
+        note(PENT[Math.min(13,dd+2)]*0.5,tt2,0.15,'square',0.010,800,-0.15,undefined,0.5);
+      }
+    }
+  }
   /* THE SCORE SWELLS. Strings breathe in on every other bar line and a
      soft riser turns each four-bar phrase into the next — the two moves
      trailer music is built from, at game volume. The swell sits on the
@@ -1715,11 +1747,19 @@ function musicStep(i,t,k){
   if((k>0.20||PLAY.heat>0.30||hot)&&beat===0)
     swellPad(bar%2?ch[3]*2:ch[2]*2,t,2.6,0.022+0.014*k,(bar%4<2)?-0.2:0.2);
   if((k>0.5||hot)&&bar%4===3&&beat===4)riser(t,2*SPB,0.016,1600);
-  /* EACH LEVEL IS ITS OWN SONG: key, chords and arp swap at startGame (the
-     bed retunes itself from CH), and the kit leans differently — level 2
-     swings its sixteenths, level 3 rolls four-on-the-floor everywhere. */
-  if(G.level===2&&(beat===2||beat===6))hat(t+S16*1.16,0.007,4400,0.03,0,0,7200);
-  if(G.level===3&&(beat===2||beat===6)&&ringOf()===0)kick(t,0.032);
+  /* EACH LEVEL IS ITS OWN SONG: key, chords, arp, bassline, riff and solo
+     all swap at startGame (the bed retunes itself from CH), and the kit has
+     a real identity per level — L2 swings with a soft clap lean, L3 drives
+     four-on-the-floor with an offbeat hat everywhere. */
+  if(G.level===2){
+    if(beat===2||beat===6)hat(t+S16*1.16,0.007,4400,0.03,0,0,7200);
+    if(beat===7)hat(t+S16,0.006,4200,0.03,0,0,7000);
+    if((k>0.35||hot)&&bar%2===1&&beat===4)snare(t,0.020,0.20);
+  }
+  if(G.level===3){
+    if((beat===2||beat===6)&&ringOf()===0)kick(t,0.032);
+    if((k>0.30||hot)&&beat%2===1)hat(t,0.008,4200,0.04,0,0.3,6800);
+  }
   /* THE SKY FLAVOURS THE KIT (playtest: "more electro beats"). Each palette
      band the run climbs through puts its own spin on the percussion: band 1
      swings its sixteenths, band 2 rides the classic offbeat open hat, band
@@ -1738,7 +1778,7 @@ function musicStep(i,t,k){
   if(G.score>=LAYER_AT[0]&&beat%2===0)
     note(ch[0],t+S16,0.10,'square',0.012,1200,beat%4?0.2:-0.2,undefined,0.35);
   if(G.score>=LAYER_AT[1]){
-    const rd=RIFF[(bar%2)*8+beat];
+    const rd=RIFFL[G.level-1][(bar%2)*8+beat];
     if(rd>=0)note(PENT[rd]*0.5,t,0.16,'sawtooth',0.016,1300,(bar%2)?0.24:-0.24,undefined,0.5);
   }
   if(G.score>=LAYER_AT[2]&&(beat===0||beat===3||beat===4||beat===6)){
@@ -1784,7 +1824,17 @@ function musicStep(i,t,k){
    uniformly. HOPOUT descends because outward means a LOWER ring index and a
    lower register — the old tables played the rising figure while moving down. */
 const REVSEQ=[0,2,4,5,4,2,3,1],HOPIN=[2,3,5,4],HOPOUT=[3,2,0,1];
-let PLAY={heat:0,idx:0,last:-9,slot:-1,bias:0,rec:[]};
+let PLAY={heat:0,idx:0,last:-9,slot:-1,bias:0,rec:[],tape:[]};
+/* THE LOOP RECORDER (the owner's idea, near-verbatim: "I ad lib beats —
+   what if my ad-libbed beats could be remembered and recorded into the
+   song with harmony?"). Every quantised input is remembered as a position
+   in a rolling two-bar cycle. At each two-bar line, if the last window
+   held a real phrase — three to ten on-beat-ish taps — it becomes the
+   ACTIVE LOOP, and the band plays it back, harmonised in thirds, an
+   octave below the player, through the dub delay, until it fades or a
+   new phrase replaces it. Waiting between two reds and clicking back and
+   forth in time IS composing now. */
+const LOOP={pat:null,n:0,until:0,heard:false};
 /* NEAREST sixteenth, not the next one. Snapping forward alone costs up to a
    full slot — 144ms at this tempo, past the point where a sound stops feeling
    attached to the tap that caused it. Snapping to the nearest halves the worst
@@ -1945,6 +1995,8 @@ function performerHit(kind,dir,ring){
   d=Math.max(0,d+[0,-1,1,0][((MU.step/8)|0)%4]);
   PLAY.idx++;
   PLAY.rec.push(d);if(PLAY.rec.length>10)PLAY.rec.shift(); /* the echo's tape */
+  PLAY.tape.push({c:((MU.step*2-Math.round((MU.next-slot)/S16))%32+32)%32,d:d,at:now});
+  if(PLAY.tape.length>14)PLAY.tape.shift();
   const p=posPlayer();
   const gr=judgeTiming(p[0],p[1]);
   /* THE FILL IS YOURS. During a drum break every input IS a drum: taps play
@@ -2224,17 +2276,17 @@ const PENT_BASE=PENT.slice();
    the game literally deepens the music. Progress persists; death retries
    the level you are on, so later levels are trainable without regrinding. */
 const LV=[
- {dl0:0,  end:40,  name:'LIFT OFF', key:1,
+ {dl0:0,  end:45,  name:'LIFT OFF', key:1,
   mech:[['tap','tap anywhere to turn around'],
         ['swipe','swipe up or down to change rings'],
         ['star','stars play the music \u2014 gather them'],
         ['beat','ride the beat drop when it comes']]},
- {dl0:40, end:110, name:'INTO THE RINGS', key:0.8909,
+ {dl0:45, end:140, name:'INTO THE RINGS', key:0.8909,
   mech:[['shard','gates and twin shards block the track'],
         ['star','golden laps pay a fat bonus'],
         ['beat','run hot: overdrive, drum breaks'],
         ['nova','bass bomb \u00b7 echo \u00b7 meteor shower']]},
- {dl0:110,end:Infinity,name:'THE STORM', key:0.7937,
+ {dl0:140,end:Infinity,name:'THE STORM', key:0.7937,
   mech:[['shard','drifters chase you'],
         ['shard','blinkers phase in and out'],
         ['shard','sliding gates, flicker pairs'],
@@ -2247,6 +2299,19 @@ const PROG=[
  [[87.31,174.61,207.65,261.63],[69.30,138.59,174.61,207.65],
   [103.83,207.65,261.63,311.13],[77.78,155.56,196,233.08]]];   /* Fm Db Ab Eb */
 const ARPL=[[0,2,4,2,3,2,4,3],[0,3,1,4,2,4,3,1],[0,1,3,2,4,2,3,1]];
+/* per-level written parts: the riff layer and the afterglow solo are
+   different tunes on each level, not the same tune transposed */
+const RIFFL=[
+ [0,-1,2,-1,3,-1,2,-1, 0,-1,2,-1,4,3,2,-1],
+ [0,-1,-1,3,-1,2,-1,-1, 1,-1,-1,3,-1,4,-1,2],
+ [0,2,-1,0,3,-1,0,2, 4,-1,3,2,-1,0,-1,-1]];
+const SOLOL=[
+ [7,-1,8,-1,9,-1,8,7, -1,5,-1,7,-1,-1,5,-1,
+  6,-1,7,-1,9,-1,10,-1, 9,8,-1,7,-1,5,-1,-1],
+ [5,-1,-1,7,-1,8,-1,-1, 9,-1,8,-1,7,-1,-1,5,
+  -1,6,-1,8,-1,-1,9,-1, 10,-1,9,8,-1,7,-1,-1],
+ [7,7,-1,9,-1,7,9,-1, 10,-1,9,-1,8,7,-1,-1,
+  5,-1,7,-1,8,-1,9,10, -1,9,-1,7,-1,5,-1,-1]];
 function applyLevelMusic(){
   const L=LV[G.level-1];
   for(let i=0;i<PENT.length;i++)PENT[i]=PENT_BASE[i]*L.key;
@@ -2536,11 +2601,11 @@ const TIERS=[
   {at:18, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 swipe to another ring'},
   {at:40, type:null,    name:'THIRD RING',  sub:'inside is tighter, faster and higher',rings:3},
   {at:52, type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 tap to turn back'},
-  {at:130,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
-  {at:185,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
-  {at:230,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
-  {at:280,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
-  {at:315,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
+  {at:155,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
+  {at:200,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
+  {at:245,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
+  {at:290,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
+  {at:330,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
 ];
 function tierIndex(){
   const d=dl();
@@ -2981,7 +3046,8 @@ function startGame(){
   G.sparkT=0;G.sparkN=0;
   G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;
   G.shower=0;G.showerT=0;G.gold=0;G.goldNext=75;
-  PLAY.rec.length=0;
+  PLAY.rec.length=0;PLAY.tape.length=0;
+  LOOP.pat=null;LOOP.n=0;LOOP.until=0;LOOP.heard=false;
   G.layerN=0;G.bandN=0;G.bandFx=0;G.sndAt=0;G.sndStr=null;
   G.flashT=0;G.meetNext=0;G.teachSoft=false;ANN.length=0;annNext=0;
   skyI=0;      /* the sky opens on band 0 — the ratchet re-deepens it as the run climbs */
@@ -4031,29 +4097,52 @@ function drawPow(x,y,s,al){
     blit(SPR.powWarpO,x,y,pulse,s.t*2,al);
     blit(SPR.powWarpI,x,y,1,-s.t*2+Math.PI/4,al);
   }else if(s.type==='bass'){
-    /* speaker rings: three concentric strokes breathing on the beat */
-    ctx.save();ctx.strokeStyle=COL.comet;ctx.lineWidth=1.8*u;
+    /* a subwoofer: the cone slams on the landed beat and the rings jump
+       with it — you can see the low end before you take it */
+    const th=1+(RM?0.10:0.42*G.beat);
+    ctx.save();ctx.strokeStyle=COL.comet;ctx.lineWidth=2.0*u;
     for(let ri=0;ri<3;ri++){
-      ctx.globalAlpha=al*(1-ri*0.26);
-      ctx.beginPath();ctx.arc(x,y,(4+ri*3.4)*u*pulse,0,TAU);ctx.stroke();
+      ctx.globalAlpha=al*(1-ri*0.24);
+      ctx.beginPath();ctx.arc(x,y,(3.6+ri*3.4)*u*th,0,TAU);ctx.stroke();
     }
-    ctx.globalAlpha=al;ctx.fillStyle=COL.comet;
-    ctx.beginPath();ctx.arc(x,y,2.6*u,0,TAU);ctx.fill();ctx.restore();
+    ctx.globalAlpha=al*0.9;ctx.fillStyle='#04263a';
+    ctx.beginPath();ctx.arc(x,y,3.2*u*th,0,TAU);ctx.fill();
+    ctx.fillStyle=COL.comet;
+    ctx.beginPath();ctx.arc(x,y,(1.6+0.9*(th-1)*3)*u,0,TAU);ctx.fill();
+    ctx.restore();
   }else if(s.type==='echo'){
-    /* a note and its fading repeats, circling — the delay drawn */
-    ctx.save();ctx.fillStyle=COL.warp;
-    for(let ri=2;ri>=0;ri--){
-      const off=ri*4.2*u;
-      ctx.globalAlpha=al*(1-ri*0.30);
-      ctx.beginPath();
-      ctx.arc(x-off*Math.cos(s.t*1.8),y-off*Math.sin(s.t*1.8),(4.4-ri*0.8)*u*pulse,0,TAU);
-      ctx.fill();
+    /* sound made visible: rings of a note echoing outward and dying, over
+       and over, with a bright throat — the delay as an object */
+    ctx.save();ctx.strokeStyle=COL.warp;ctx.lineWidth=1.8*u;
+    for(let ri=0;ri<3;ri++){
+      const ph2=((RM?0.4:s.t*0.85)+ri/3)%1;
+      ctx.globalAlpha=al*(1-ph2)*(1-ph2)*0.95;
+      ctx.beginPath();ctx.arc(x,y,(3+ph2*12)*u,0,TAU);ctx.stroke();
     }
+    ctx.globalAlpha=al;
+    ctx.fillStyle='#eaf1ff';
+    ctx.beginPath();ctx.arc(x,y,2.8*u*pulse,0,TAU);ctx.fill();
+    ctx.fillStyle=COL.warp;
+    ctx.beginPath();ctx.arc(x,y,1.7*u*pulse,0,TAU);ctx.fill();
     ctx.restore();
   }else if(s.type==='meteor'){
-    blit(SPR.ember,x,y,0.8*pulse,s.t,al);
-    blit(SPR.ember,x-6*u,y-5*u,0.5,s.t*1.4,al*0.8);
-    blit(SPR.ember,x+6*u,y-4*u,0.45,-s.t*1.2,al*0.7);
+    /* a little constellation in motion: two satellites orbit the core and
+       shed short trails — rain, promised */
+    blit(SPR.ember,x,y,0.85*pulse,s.t,al);
+    const oa=RM?0.8:s.t*2.4;
+    const sx=x+Math.cos(oa)*8.5*u,sy=y+Math.sin(oa)*8.5*u;
+    const tx=x+Math.cos(oa+2.6)*6.5*u,ty=y+Math.sin(oa+2.6)*6.5*u;
+    if(!RM){
+      ctx.save();ctx.strokeStyle=COL.ember;ctx.lineWidth=1.2*u;
+      ctx.globalAlpha=al*0.35;
+      ctx.beginPath();ctx.moveTo(sx,sy);
+      ctx.lineTo(sx-Math.cos(oa+1.57)*5*u,sy-Math.sin(oa+1.57)*5*u);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(tx,ty);
+      ctx.lineTo(tx-Math.cos(oa+4.17)*4*u,ty-Math.sin(oa+4.17)*4*u);ctx.stroke();
+      ctx.restore();ctx.globalAlpha=1;
+    }
+    blit(SPR.ember,sx,sy,0.45,s.t*1.4,al*0.85);
+    blit(SPR.ember,tx,ty,0.4,-s.t*1.2,al*0.7);
   }else{
     blit(SPR.powNova,x,y,1+0.10*Math.sin(s.t*5),s.t*1.2,al);
     ctx.save();ctx.globalAlpha=al;ctx.fillStyle=COL.nova;
