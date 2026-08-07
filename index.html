@@ -1867,59 +1867,33 @@ let PLAY={heat:0,idx:0,last:-9,slot:-1,bias:0,tape:[]};
    new phrase replaces it. Waiting between two reds and clicking back and
    forth in time IS composing now. */
 const LOOP={pat:null,n:0,until:0,heard:false};
-/* ---------- the finale: THE THREE LAST NOTES ----------
-   Execution round three, after the owner playtested the duet cold: "I
-   tapped along to match the beat and it didn't work... it made no sense."
-   The sequencer asked players to sight-read a syncopated phrase on an
-   instrument they had never seen — a musically natural response (tapping
-   the beat) FAILED it. Gone. The level now ends in the one timing device
-   the game drills every single run: a riser into a countdown, and a
-   single press on NOW!. Three last notes, each riser bigger than the
-   last, each judged with the drop-landing's own learned-latency window.
-   A perfect pays +150, a hit +60, a miss plays the note softly and costs
-   nothing — the level always completes. Nothing to decode, nothing
-   spatial, presses only. */
-const FIN={on:false,pend:false,done:false,step:0,score:0,hits:0,
-  voices:0,round:0,hitT:0,mode:'intro',expect:[]};
+/* ---------- the finale: THE STAR DIVE ----------
+   Execution round four, and this time it is not a minigame — it is the
+   game, concentrated, played as a REWARD: a beautiful new melody heard
+   before the next track. The duet demanded new literacy; the countdown
+   demanded none. Now the level's closing melody appears PHYSICALLY: a
+   trail of bright stars spiralling from the outer ring down to the inner
+   one, ending at a final star nearest the core. Players already chase
+   stars on pure instinct, so there is nothing to explain — orbit,
+   reverse, hop inward, and collecting the trail PERFORMS the ending:
+   each star is the next note of a cadence descending to the root, each
+   fourth star adds a voice, and the last one lands the full chord and
+   the braam as you arrive at the heart of the arena. Miss stars and the
+   ending plays thinner; a generous timeout completes the level
+   regardless; sweep every one for PERFECT ENDING. Both verbs, zero
+   words. */
+const FIN={on:false,pend:false,done:false,step:0,score:0,got:0,
+  voices:0,t0:0,trail:[]};
 function finStep(t){
   const fs=FIN.step++;
   const beat=fs%8;
   if(beat%2===0)BEATQ.push(t);
-  /* the floor runs the whole ceremony */
+  /* the floor rolls under the dive; voices join as the trail is gathered */
   if(beat===0){kick(t,0.050);bassN(CH[((fs/8)|0)%4][0],t,0.28,0.034);}
   if(beat===4)kick(t,0.036);
   if(beat%2===1)hat(t,0.009,4000,0.038,0,0.35,6800);
-  if(fs<8){FIN.mode='intro';return;}
-  if(fs>=68){FIN.on=false;FIN.done=true;G.finEnd=1;return;}
-  const rs=(fs-8)%20,rd=((fs-8)/20)|0;
-  if(rs===0){
-    FIN.round=rd;FIN.mode='build';
-    FIN.hitT=t+16*(SPB/2);   /* the NOW!, two bars out — the countdown reads this */
-    if(FIN.voices>=2)swellPad(chTone(2),t,2.2,0.030,0);
-  }
-  if(rs<16){
-    /* the rise: chord tones climbing, a highpass sweep, rolls at the top —
-       the drop's own language, so the body already knows what it means */
-    const q=rs/16;
-    if(rs%2===0)
-      note(chTone(2+((rs/4)|0)),t,0.15,'sawtooth',0.012+0.020*q,700+2600*q,(rs%4?0.2:-0.2));
-    hat(t,0.005+0.020*q,1400+3800*q,0.10,0.2);
-    if(FIN.voices>=1&&rs%2===1)
-      note(chTone(6),t,0.10,'square',0.008+0.008*q,2000,0.15);
-    if(rs>=12){snare(t,0.016+0.006*(rs-12),0.25);
-      if(rs>=14)snare(t+S16,0.020+0.006*(rs-12),0.30);}
-  }else if(rs===16){
-    FIN.mode='hit';
-    /* THE NOTE: the bar's whole chord, floor to crown */
-    kick(t,0.09);
-    note(chTone(0)/2,t,0.7,'sine',0.060,300);
-    note(chTone(2),t,0.5,'triangle',0.040,1600,-0.15);
-    note(chTone(3),t,0.5,'triangle',0.035,1700,0.15);
-    note(chTone(4),t,0.5,'square',0.022,2200,0);
-    hat(t,0.050,2400,0.5,0.5);
-    braam(0.030+0.012*rd);
-    FIN.expect.push({t:t,judged:false});
-  }
+  if(FIN.voices>=1&&beat===0)swellPad(chTone(2),t,2.0,0.024,0);
+  if(FIN.voices>=2&&beat%2===0)note(chTone(4),t,0.12,'square',0.010,1800,0.2);
 }
 /* NEAREST sixteenth, not the next one. Snapping forward alone costs up to a
    full slot — 144ms at this tempo, past the point where a sound stops feeling
@@ -2361,13 +2335,13 @@ const LV=[
   mech:[['tap','tap anywhere to turn around'],
         ['swipe','swipe up or down to change rings'],
         ['star','stars play the music \u2014 gather them'],
-        ['beat','finish: three last notes \u2014 tap on NOW!']]},
+        ['star','finish: follow the star trail to the core']]},
  {dl0:75, end:190, name:'INTO THE RINGS', key:0.8909,
   mech:[['shard','gates and twin shards block the track'],
         ['star','spotlight orb \u2014 you take the lead'],
         ['beat','run hot: overdrive, drum breaks'],
         ['nova','bass bomb \u2014 clears the lane'],
-        ['beat','the finale \u2014 tap the three last notes']]},
+        ['star','the finale \u2014 dive the star trail']]},
  {dl0:190,end:Infinity,name:'THE STORM', key:0.7937,
   mech:[['shard','drifters chase you'],
         ['shard','blinkers phase in and out'],
@@ -2769,7 +2743,7 @@ const G={
   runs:0,didReverse:false,didHop:false,didLap:false,
   teach:0,teachKind:null,teachHint:null,seen:{},campT:0, /* lessons + outer-ring camp clock */
   od:0,odT:0,odCool:0,odBrk:false,     /* overdrive: eighths left, heat clock, cooldown, break-due */
-  odGlow:0,brkGlow:0,                  /* backdrop envelopes: overdrive warmth, break dim */
+  odGlow:0,brkGlow:0,finGlow:0,        /* backdrop envelopes: overdrive, break dim, dive gold */
   spot:0,lastTapAt:-9,finEnd:0,        /* spotlight; last raw tap time; finale end flag */
   layerN:0,bandN:0,bandFx:0,           /* score layers unlocked; band-meter dot count + pulse */
   sndAt:0,sndStr:null,                 /* a NEW SOUND announcement waiting for its banner to clear */
@@ -3124,9 +3098,9 @@ function startGame(){
   G.teach=0;G.teachKind=null;G.teachHint=null;G.campT=0;G.holdD=0;G.hopHintT=0;G.coach=null;
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
   G.sparkT=0;G.sparkN=0;
-  G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;
+  G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;G.finGlow=0;
   G.spot=0;G.lastTapAt=-9;G.finEnd=0;
-  FIN.on=false;FIN.pend=false;FIN.done=false;FIN.step=0;FIN.score=0;FIN.hits=0;FIN.voices=0;FIN.round=0;FIN.hitT=0;FIN.mode='intro';FIN.expect.length=0;
+  FIN.on=false;FIN.pend=false;FIN.done=false;FIN.step=0;FIN.score=0;FIN.got=0;FIN.voices=0;FIN.t0=0;FIN.trail.length=0;
   PLAY.tape.length=0;
   LOOP.pat=null;LOOP.n=0;LOOP.until=0;LOOP.heard=false;
   G.layerN=0;G.bandN=0;G.bandFx=0;G.sndAt=0;G.sndStr=null;
@@ -3655,6 +3629,7 @@ function update(dt){
   G.bandFx=Math.max(0,G.bandFx-dt*1.6);
   G.odGlow+=(((G.od>0)?1:0)-G.odGlow)*Math.min(1,dt*2.5);
   G.brkGlow+=(((MU&&MU.brk>0)?1:0)-G.brkGlow)*Math.min(1,dt*7);
+  G.finGlow+=((FIN.on?1:0)-G.finGlow)*Math.min(1,dt*2);
   G.payOpen=Math.max(0,G.payOpen-dt*1.4);
   G.bgFade=Math.max(0,G.bgFade-dt/2.5);
   G.impactT=Math.max(0,G.impactT-dt);
@@ -3751,9 +3726,20 @@ function update(dt){
     if(!AC||!MU){
       if(dl()>=lvEnd){levelComplete();return;}
     }else if(!FIN.on&&!FIN.done&&dl()>=lvEnd-10&&(MU.pay<=0&&!MU.rise)){
-      FIN.on=true;FIN.pend=true;FIN.mode='intro';
-      FIN.score=0;FIN.hits=0;FIN.voices=0;FIN.round=0;FIN.hitT=0;
-      FIN.expect.length=0;
+      FIN.on=true;FIN.pend=true;
+      FIN.score=0;FIN.got=0;FIN.voices=0;FIN.t0=G.t;
+      /* THE TRAIL: twelve stars, five on the outer ring, four on the mid,
+         three on the inner — a spiral in the player's direction of travel,
+         each carrying the next note of a cadence that walks down to the
+         root. The shape asks for both verbs; the last star sits nearest
+         the core, so every level ends by diving into the music. */
+      FIN.trail.length=0;
+      const CAD=[4,3,2,4,3,2,1,3,2,1,0,0];
+      const dir0=G.dir,a0=G.angle+dir0*0.9;
+      for(let k2=0;k2<12;k2++){
+        const ringT=Math.min(k2<5?0:k2<9?1:2,G.nRings-1);
+        FIN.trail.push({a:a0+dir0*k2*0.62,ring:ringT,got:false,ci:CAD[k2]});
+      }
       if(MU&&AC)MU.cool=Math.max(MU.cool,AC.currentTime+40);
       /* THE STAGE CLEARS AND THE CEREMONY IS UNMISSABLE (playtest: "I
          didn't get the level ending mechanic at all"). A full banner with
@@ -3761,7 +3747,7 @@ function update(dt){
          pickups leave, and two intro bars pass with the sequencer fading
          in before the first call. The duet then narrates itself with a
          STANDING instruction line for its whole length. */
-      G.banner={str:'THE FINALE',sub:'three last notes \u2014 tap on NOW!',t:0};
+      G.banner={str:'THE FINALE',sub:'follow the stars to the core',t:0};
       G.stars.length=0;G.pows.length=0;
       for(const sp2 of G.spikes)if(sp2.phase===1){sp2.phase=2;sp2.t=0;}
       fireLift();
@@ -3769,28 +3755,51 @@ function update(dt){
     if(dl()>=lvEnd+30){levelComplete();return;}
 
   }
-  /* judge the last notes: one press near NOW!, on the same bias-corrected
-     clock the drop landing trained the player on */
-  if(FIN.expect.length&&AC){
-    for(const ex of FIN.expect)if(!ex.judged&&AC.currentTime>ex.t+0.40){
-      ex.judged=true;
-      const dv=Math.min(Math.abs(G.lastTapAt-ex.t),
-                        Math.abs((G.lastTapAt-PLAY.bias)-ex.t));
-      if(dv<=0.30){
-        const perfect=dv<=0.12,ptx=perfect?150:60;
-        FIN.hits++;FIN.score+=ptx;G.score+=ptx;
-        FIN.voices=Math.min(2,FIN.voices+1);   /* the next riser grows */
-        G.scorePop=Math.max(G.scorePop,0.7);
-        const hp=posPlayer();
-        popup(hp[0],hp[1]-24*u,(perfect?'PERFECT +':'+')+ptx,COL.warp,perfect?1.4:1.0);
-        if(perfect&&!RM){flashHit(0.5);G.stop=Math.max(G.stop,0.08);}
+  /* THE DIVE'S COLLECTOR: sweeping a trail star plays its cadence note on
+     the grid; the final star lands the chord; a timeout never traps the
+     level. Same swept-arc test the ordinary stars use. */
+  if(FIN.on&&FIN.trail.length){
+    const er2=effRing();
+    for(const st2 of FIN.trail){
+      if(st2.got||st2.ring!==er2)continue;
+      if(!sweptHit(st2.a,(24*u)/radiusOf(er2)))continue;
+      st2.got=true;FIN.got++;
+      const p2=posAt(st2.a,radiusOf(st2.ring));
+      burst(p2[0],p2[1],COL.ember,16,200);
+      ripple(p2[0],p2[1],COL.ember);
+      G.score+=30;FIN.score+=30;G.scorePop=Math.max(G.scorePop,0.6);
+      if(FIN.got%4===0)FIN.voices=Math.min(2,FIN.voices+1);
+      const ci2=st2.ci,isFinal=st2===FIN.trail[FIN.trail.length-1];
+      if(isFinal){
         cueTone(function(w){
-          note(chTone(4),AC.currentTime+w,0.30,'triangle',0.030,2200,0.2);
-          note(chTone(5),AC.currentTime+w,0.30,'sine',0.016,2000,-0.2);
+          const tf=AC.currentTime+w;
+          kick(tf,0.09);
+          note(chTone(0)/2,tf,0.8,'sine',0.060,300);
+          note(chTone(2),tf,0.6,'triangle',0.040,1600,-0.15);
+          note(chTone(3),tf,0.6,'triangle',0.035,1700,0.15);
+          note(chTone(4),tf,0.6,'square',0.022,2200,0);
+          hat(tf,0.050,2400,0.5,0.5);
         });
+        braam(0.06);
+        if(FIN.trail.every(function(q){return q.got;})){
+          G.score+=200;FIN.score+=200;
+          popup(p2[0],p2[1]-32*u,'PERFECT ENDING +200',COL.ember,1.5);
+          flashHit(0.55);
+        }
+        try{if(navigator.vibrate)navigator.vibrate([40,30,90]);}catch(e){}
+        FIN.on=false;FIN.done=true;G.finEnd=1;
+      }else{
+        popup(p2[0],p2[1]-20*u,'+30',COL.ember,0.85);
+        const cpan2=panAt(p2[0]);
+        cueTone(function(w){
+          const tt3=AC.currentTime+w;
+          note(chTone(ci2),tt3,0.22,'triangle',0.034,1800,cpan2,undefined,0.4);
+          note(chTone(ci2+2),tt3,0.20,'sine',0.016,1600,-cpan2);
+        });
+        try{if(navigator.vibrate)navigator.vibrate(8);}catch(e){}
       }
     }
-    while(FIN.expect.length&&FIN.expect[0].judged)FIN.expect.shift();
+    if(G.t-FIN.t0>32){FIN.on=false;FIN.done=true;G.finEnd=1;}
   }
   if(G.finEnd){
     G.finEnd=0;
@@ -4306,6 +4315,11 @@ function drawBloom(){
     const p=posAt(sp.a,radiusOf(sp.ring));
     bloomDot(g,p[0],p[1],11*u,COL.shard);
   }
+  if(FIN.on)for(const ts of FIN.trail){
+    if(ts.got)continue;
+    const p=posAt(ts.a,radiusOf(ts.ring));
+    bloomDot(g,p[0],p[1],12*u,COL.ember);
+  }
   for(const pw of G.pows){
     const p=posAt(pw.a,radiusOf(pw.ring));
     bloomDot(g,p[0],p[1],10*u,
@@ -4604,6 +4618,14 @@ function draw(){
   if(G.brkGlow>0.01){
     ctx.fillStyle='rgba(3,5,14,'+(0.30*G.brkGlow).toFixed(3)+')';
     ctx.fillRect(0,0,W,H);
+  }
+  /* the star dive gilds the room — the reward reads at a glance */
+  if(G.finGlow>0.01){
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    ctx.fillStyle='rgba(255,200,87,'+
+      ((RM?0.025:0.018+0.028*G.beat)*G.finGlow).toFixed(3)+')';
+    ctx.fillRect(0,0,W,H);
+    ctx.restore();
   }
   /* overdrive runs the room warm, throbbing on the landed beat */
   if(G.odGlow>0.01){
@@ -5457,31 +5479,52 @@ function drawHUD(){
       text(b.sub,cx,by+20*u,12*u,'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
     }
-    /* THE FINALE: a standing instruction and the countdown the game has
-       been teaching all run. One press on NOW!, three times, bigger each
-       time. Nothing to decode, nothing spatial. */
-    if(FIN.on&&!FIN.pend&&AC){
-      const fmsg=FIN.mode==='intro'?'THE FINALE':
-                 FIN.round>0?'AGAIN \u2014 BIGGER':'TAP ON NOW!';
-      ctx.globalAlpha=0.92;
-      textFx(fmsg,cx,cy-R-16*u,15*u,'800','#f4edff',COL.warp,
-        'rgba(180,150,255,0.5)',3);
-      ctx.globalAlpha=1;
-      if(FIN.hitT){
-        const cdt=FIN.hitT-(AC.currentTime-PLAY.bias);
-        if(cdt<=SPB*3&&cdt>-LAND_WIN){
-          if(cdt>0.02){
-            const n2=Math.ceil(cdt/SPB),f2=1-((cdt/SPB)%1||1);
-            ctx.globalAlpha=0.55+0.4*f2;
-            textFx(n2,cx,cy+16*u,(46+14*f2)*u,'800','#ffffff','#b9c8ff',
-              'rgba(180,150,255,0.5)',0);
-          }else{
-            textFx('NOW!',cx,cy+14*u,50*u,'800','#f4edff',COL.warp,
-              'rgba(180,150,255,0.65)',2);
-          }
-          ctx.globalAlpha=1;
+    /* THE STAR DIVE (the owner's framing: "almost like a reward, a
+       beautiful new melody heard before the next track"). The trail needs
+       no caption: a golden path threads the remaining stars, a guide line
+       runs from the comet to the next one, and the CORE visibly wakes —
+       warming and swelling as the melody is gathered — so the destination
+       glows brighter the closer the song gets to home. */
+    if(FIN.on&&FIN.trail.length){
+      let nxt=null;
+      for(const st3 of FIN.trail)if(!st3.got){nxt=st3;break;}
+      /* the path: faint gold thread through what remains */
+      ctx.save();ctx.strokeStyle=COL.ember;ctx.lineWidth=1.2*u;
+      ctx.globalAlpha=0.16;
+      ctx.beginPath();
+      let started=false;
+      for(const st3 of FIN.trail){
+        if(st3.got)continue;
+        const p3=posAt(st3.a,radiusOf(st3.ring));
+        if(!started){ctx.moveTo(p3[0],p3[1]);started=true;}
+        else ctx.lineTo(p3[0],p3[1]);
+      }
+      ctx.stroke();
+      if(nxt){
+        const pp=posPlayer(),pn=posAt(nxt.a,radiusOf(nxt.ring));
+        ctx.globalAlpha=0.26+(RM?0:0.14*G.beat);
+        ctx.beginPath();ctx.moveTo(pp[0],pp[1]);ctx.lineTo(pn[0],pn[1]);ctx.stroke();
+      }
+      ctx.restore();ctx.globalAlpha=1;
+      for(const st3 of FIN.trail){
+        if(st3.got)continue;
+        const p3=posAt(st3.a,radiusOf(st3.ring));
+        const big=st3===nxt?1.5+(RM?0:0.25*G.beat):1.1;
+        blit(SPR.ember,p3[0],p3[1],big,G.t*1.2,st3===nxt?1:0.75);
+        if(st3===nxt){
+          ctx.save();ctx.strokeStyle=COL.ember;
+          ctx.globalAlpha=0.5+(RM?0:0.3*G.beat);
+          ctx.lineWidth=1.6*u;
+          ctx.beginPath();ctx.arc(p3[0],p3[1],10*u,0,TAU);ctx.stroke();
+          ctx.restore();ctx.globalAlpha=1;
         }
       }
+      /* the core answers */
+      ctx.save();ctx.globalCompositeOperation='lighter';
+      ctx.globalAlpha=0.10+0.25*(FIN.got/12)+(RM?0:0.08*G.beat);
+      ctx.fillStyle=COL.ember;
+      ctx.beginPath();ctx.arc(cx,cy,(6+9*(FIN.got/12))*u,0,TAU);ctx.fill();
+      ctx.restore();ctx.globalAlpha=1;
     }
     /* THE COUNTDOWN. Three beats out the centre counts 3… 2… 1…, then NOW!
        through the landing window. A countdown is the one timing device that
