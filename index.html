@@ -2184,6 +2184,13 @@ function bedTick(dt){
   while(BEATQ.length&&BEATQ[0]<=t){BEATQ.shift();G.beat=1;}
   while(FINVQ.length&&FINVQ[0].at<=t){
     const fe=FINVQ.shift();FIN.vis[fe.slot]=Math.max(FIN.vis[fe.slot],fe.k);
+    /* SOUND-OFF PARITY: every CALL note ripples its mark, so the phrase is
+       watched as much as heard — the duet reads by eye alone when muted */
+    if(!RM&&fe.k>=1.5){
+      const fa=-Math.PI/2+(fe.slot/16)*TAU,fr=radiusOf(0)+24*u;
+      G.rings.push({x:cx+Math.cos(fa)*fr,y:cy+Math.sin(fa)*fr,
+        r:4*u,life:1,col:COL.warp,sp:170,dec:2.6});
+    }
   }
   if(FINVQ.length>40)FINVQ.length=0;
   while(DROPQ.length&&DROPQ[0]<=t){
@@ -3732,7 +3739,13 @@ function update(dt){
      finale somehow never latches. */
   const lvEnd=LV[G.level-1].end;
   if(lvEnd<1e9){
-    if(!FIN.on&&!FIN.done&&dl()>=lvEnd-10&&(!MU||(MU.pay<=0&&!MU.rise))){
+    /* AUDIO IS OPTIONAL. Muted play keeps the full duet — the audio clock
+       still runs and the sequencer speaks by eye. But if WebAudio itself
+       never came up, there is no grid to duet on: the level simply
+       completes at its finish line, the way it always used to. */
+    if(!AC||!MU){
+      if(dl()>=lvEnd){levelComplete();return;}
+    }else if(!FIN.on&&!FIN.done&&dl()>=lvEnd-10&&(MU.pay<=0&&!MU.rise)){
       FIN.on=true;FIN.pend=true;FIN.mode='intro';
       FIN.score=0;FIN.hits=0;FIN.rHits=0;FIN.voices=0;
       FIN.expect.length=0;FIN.vis.fill(0);
@@ -3749,6 +3762,7 @@ function update(dt){
       fireLift();
     }
     if(dl()>=lvEnd+30){levelComplete();return;}
+
   }
   /* judge the finale's answers: any input near a marked moment counts */
   if(FIN.expect.length&&AC){
@@ -5414,17 +5428,25 @@ function drawHUD(){
         ctx.lineTo(cx+Math.cos(sa)*(mr+9*u),cy+Math.sin(sa)*(mr+9*u));
         ctx.stroke();ctx.restore();
       }
+      const swp=RM?-9:(((AC.currentTime-FIN.t0)/(8*SPB))%1+1)%1*TAU-Math.PI/2;
       for(let sl=0;sl<16;sl++){
         if(ph3[sl]<0)continue;
         const aa=-Math.PI/2+(sl/16)*TAU;
         const v=FIN.vis[sl];
+        /* the answer telegraphs: a mark swells as the sweep bears down on
+           it, so the tap moment is readable with the sound off */
+        let sw=1;
+        if(FIN.mode==='resp'&&swp>-8){
+          let dd2=aa-swp;dd2=((dd2%TAU)+TAU)%TAU;
+          if(dd2<0.7)sw=1+0.55*(1-dd2/0.7);
+        }
         const mx=cx+Math.cos(aa)*mr,my2=cy+Math.sin(aa)*mr;
         ctx.globalAlpha=0.65;
         ctx.strokeStyle='rgba(200,215,255,0.8)';ctx.lineWidth=1.4*u;
-        ctx.beginPath();ctx.arc(mx,my2,4.4*u,0,TAU);ctx.stroke();
+        ctx.beginPath();ctx.arc(mx,my2,4.4*u*sw,0,TAU);ctx.stroke();
         ctx.globalAlpha=Math.min(1,0.55+0.35*v);
         ctx.fillStyle=v>=2.4?'#ffffff':COL.warp;
-        ctx.beginPath();ctx.arc(mx,my2,(3.0+1.0*Math.min(2,v))*u,0,TAU);ctx.fill();
+        ctx.beginPath();ctx.arc(mx,my2,(3.0+1.0*Math.min(2,v))*u*sw,0,TAU);ctx.fill();
       }
       ctx.globalAlpha=1;
       /* the standing instruction: the duet narrates itself the whole way */
@@ -5626,6 +5648,10 @@ function drawHUD(){
       if(dc>=1.6&&dc<4.2)hintGlyph('tap',dp[0],dp[1]-30*u,26*u);
       else if(dc>=5.2&&dc<10.6)hintGlyph('swipe',dp[0],dp[1]-30*u,26*u);
     }
+    ctx.globalAlpha=0.5;
+    text('best with sound on \u2014 never required',cx,bottomY-24*u,10*u,'600',
+      'rgba(200,215,255,0.8)',1);
+    ctx.globalAlpha=1;
     const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
     ctx.globalAlpha=pulse;
     text('TAP TO START',cx,bottomY,17*u,'800',COL.comet,4);
