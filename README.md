@@ -221,12 +221,48 @@ fades out on its own and a returning player never meets it. It is a ramp for
 learning the controls, not a difficulty change — from run four the game is
 exactly what it always was.
 
+**The sky keeps the beat.** One pulse scalar drives the whole backdrop off
+the landed beat: the galactic band breathes, the nebulae swell, the god rays
+lift, the twinklers and dust motes nod — quiet on an idle board, harder as
+the player runs hot, doubled through the payoff. Overdrive floods the room
+warm gold; the drum break drops it dark and the crash snaps the light back.
+Large audio impact and large visual impact are the same event now. Reduced
+motion keeps every layer static, as always.
+
 ## Power-ups
 
 - **Shield** (green) — banked, up to 3. Taking a hit spends one automatically
   but knocks you off your orbit. Never more than three power-ups pass without
   a shield.
 - **Slow-mo** (violet) — 4 seconds at 55% speed.
+- **Bass Bomb** (cyan) — every shard in the neighbourhood converts to light,
+  and the low end drops: a pitch-fall boom into a one-bar heavy kick figure.
+  The clear reuses the nova's conversion, so the shards pay the same.
+- **Echo** (violet, trailing) — the ghost instrument plays your last riff
+  back, two points a note. The tape is whatever you actually played: every
+  reverse and hop records its scale degree, and the echo replays the last
+  eight through the dub delay.
+- **Meteor Shower** (gold cluster) — six and a half seconds of star rain.
+  Because ember tones land on the sixteenth grid, gathering a shower IS a
+  drum fill.
+
+The three musical orbs join the spawn rotation after the intro curriculum
+(shield → slow-mo → nova) has run, each named by a first-encounter hint. The
+shield-pity rule is unchanged: never more than three placements without one.
+
+**The near miss.** Two honest shapes only: stopping just short of a shard on
+your own ring (the reverse that saved you), and sweeping past a shard on the
+ring you just left mid-hop (the hop that saved you). Either pays +3, a white
+spark, a breath of heat and a tick of build — passing shards on other rings
+in ordinary travel earns nothing, because a graze has to be a dodge or the
+spark means nothing. The spark is white-blue: red stays death's alone.
+
+**The golden lap.** Every minute and a half or so the current ring gilds and
+the game asks for one thing: finish the orbit. Any completed lap inside the
+thirteen-second window pays +150 on top of the orbit's normal payout, with
+the track pulsing gold on the landed beat and urgency flickering in as the
+window closes. Letting it expire costs nothing — it is an invitation, not an
+exam.
 - **Nova** (white) — a front expands from where you took it and turns what it
   touches into light. It converts on *contact*, not all at once: nearest
   shards first, each detonating as the wave reaches it, so the board comes
@@ -524,11 +560,31 @@ against the 3+3+2 world one tap sounds like three — and the figures are
 chord-aware, leaning with the bar's harmony (Am steady, F down, C up, G home)
 so a run of taps follows the song instead of circling a static position.
 
-**Embers play the band's own instrument.** The pickup was a sine ding over
-the music; it is now the arp's square voice, chord-aware, through the bed bus
-— it ducks, pans and mixes as part of the record, the instant touch is a
-shaker grain, and because the tones land on the sixteenth grid a chain of
-embers comes out as a fill run. The combo's crown note only appears at ×4+.
+**Embers play the band's own instrument — and now they GIVE.** The pickup
+was a sine ding, then a chord-aware square that still pitched UP with the
+combo: thinner the better you played ("way too twinkly", said the playtest).
+The voice now stays low and gets HEAVIER instead: a fat detuned pluck with a
+sub octave underneath, a kick thump from ×2, a short haptic tick from ×3,
+riding the dub delay. Weight, not sparkle, is the reward. It still ducks,
+pans and mixes as part of the record, and because the tones land on the
+sixteenth grid a chain of embers comes out as a fill run.
+
+**The dub delay.** One tempo-synced dotted-eighth delay with dark feedback
+hangs off the bed path, and the player's taps, the arp, the riff, the solo
+and the ember plucks all feed it — every note trails away in rhythm instead
+of stopping dead, which is most of what "groovy and relaxing" means in
+hardware terms. It sits BEFORE the drop's hole, so the silence swallows the
+echoes too and the discipline holds.
+
+**The groove floor.** A syncopated bass runs under the ordinary arrangement
+— the push a sixteenth after beat 2, the fifth answering on 5, a low
+approach note leaning into the next bar — sub triangle for headphones with
+one small square double a phone can carry. The hypnotic floor everything
+else sits on, present from the first minute, not just inside the payoff.
+
+**The solo.** After every payoff the lead answers over the afterglow: a
+written four-bar phrase with a slide into each note, wet through the delay.
+The drop no longer ends — it hands off.
 
 The rings **pulse on every quarter note**, because you cannot play to a beat you
 cannot find. The pulse brightens and shifts colour as the groove builds.
