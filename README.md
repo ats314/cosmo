@@ -1,4 +1,4 @@
-# Comet Loop
+# Cosmo
 
 A one-thumb arcade game that runs in a single HTML file. No build step, no
 dependencies, no assets — open it and play.
@@ -275,7 +275,7 @@ native share sheet where one exists and falls back to the clipboard, producing
 plain text:
 
 ```
-Comet Loop · LEVEL 10/10
+Cosmo · LEVEL 10/10
 ◆◆◆◆◆◆◆◆◆◆ STORM
 4300 points · 62 orbits · ×7 streak · 5:12
 https://ats314.github.io/cosmo/
@@ -387,16 +387,15 @@ one full pass of the ordinary arrangement — because a drop that happens
 constantly is not an event, but a second drop a run can never reach is not a
 mechanic either.
 
-**Landing and riding it.** The old design put the skill in one aimed tap at
-a centre target — a third verb in a two-verb game, demanding your eyes leave
-the danger at its loudest moment. Now the count-in lives on the beat ring at
-the comet (white-hot, swelling through the final bar), the landing is any
-move anywhere in a generous window on the same bias-corrected clock the
-groove uses, and a PERFECT doubles the whole section's earnings rather than
-paying a one-shot jackpot. The real money moved into **riding the section**:
-every tight-timed input through the payoff pays, embers pay double, and the
-tally lands as its closing statement — "DROP RIDDEN +N". Playing through the
-drop is the skill; nothing ever asks you to stop.
+**Landing it.** Family playtesting killed every clever sentence this feature
+ever carried — no wording about "the drop" survived contact with a
+first-time player. So the words are gone: three beats out, the centre counts
+**3… 2… 1… NOW!**, and any move — the tap or hop you were making anyway,
+anywhere on the screen — landed on NOW is a huge bonus (+300 perfect, +100
+close, judged on the groove's own bias-corrected clock). A perfect also
+quietly doubles everything earned during the payoff, where tight-timed
+inputs pay and embers pay double, tallied at the end as "BONUS +N". A
+countdown is the one timing device that has never needed a manual.
 
 **The crown.** The ring you fire the drop from sets how rich the section
 plays — never how much it pays, because depth's reward in this game is the
@@ -404,21 +403,18 @@ record itself. An inner-ring drop states the hook doubled at the octave with
 the full swing; an outer-ring drop plays it lean. Earn it anywhere; crown it
 inside.
 
-What arms one is the **build meter**, and nothing else. Four things fill it,
-one per style of play — gathering sparks, working the rings, playing in time,
-and closing clean orbits — and whichever contributed most names the drop when
-it lands. The meter decays, so it measures how you are playing *now* rather
-than how long you have survived. It is drawn as **eight segments** of the
-violet arc around the arena — the same circle the payoff sweep later drains,
-so earning and spending are one gauge — and each segment that snaps in names
-its cause at the comet ("+ORBIT", "+IN TIME") and sounds a step up the
-scale: eight audible, attributed steps to a drop, because a continuous meter
-is a derivative nobody can feel. It keeps filling while a drop is armed,
-rising or cooling down: nothing you do while the music is busy is discarded,
-it is banked toward the next one.
+**The drop is a timer the player accelerates.** The earning economy kept
+demanding to be understood, so it stopped being the story: a steady trickle
+guarantees a drop roughly every 50 seconds even for someone earning nothing,
+and everything the game considers playing well — gathering sparks, working
+the rings, tapping in time, closing orbits — pulls it sooner through the
+same meter, invisibly. The violet arc around the arena simply fills toward
+the next one (the payoff sweep later drains the same circle), and the only
+message the player ever sees is "BEAT DROP COMING…". Nothing earned while
+the music is busy is discarded; it counts toward the next.
 
 **Timing is rewarded, and never punished.** Each input is judged against the
-sixteenth grid; land tight and the **groove** chain climbs to ×8. An off-beat
+sixteenth grid; land tight and the **on-beat** chain climbs to ×8 (shown as "ON BEAT ×N" — playtesters had no idea what "groove" meant). An off-beat
 input simply earns nothing — the game already demands you tap when a shard
 arrives, and docking you for surviving at the wrong moment would force a choice
 between playing well and playing in time.
