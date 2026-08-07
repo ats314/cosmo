@@ -360,8 +360,12 @@ motion keeps every layer static, as always.
   double speed into an armed shard. Everything pays double while it burns.
 
 The musical orbs join the spawn rotation after the intro curriculum
-(shield → slow-mo → nova) has run, each named by a first-encounter hint. The
-shield-pity rule is unchanged: never more than three placements without one.
+(shield → slow-mo → nova) has run, each named by a first-encounter hint.
+On level 2 and up the FIRST placement after the curriculum is the
+hypernova, guaranteed, once per run — at a 10% roll the marquee item was
+optional content again (a 6000-point run met zero), which is the exact
+disease the curriculum exists to cure. The shield-pity rule is unchanged:
+never more than three placements without one.
 
 **The near miss.** Two honest shapes only: stopping just short of a shard on
 your own ring (the reverse that saved you), and sweeping past a shard on the
