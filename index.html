@@ -1458,6 +1458,25 @@ function gridNear(){
      auto-repeat stacked three or four notes into a single sixteenth. */
   return ((now-t)>s*0.5)?t+s:t;
 }
+/* ---------- everything lands on the grid ----------
+   The player's own inputs were always quantised; the game's REPLIES were not
+   — every ember, orbit, shield and milestone fired its beep at collision
+   time, a cloud of off-grid sounds over a quantised band. cueTone() is the
+   universal fix: the caller keeps its instant transient (feel), and hands
+   the tonal payload here to land on the sixteenth grid. One voice per slot;
+   a taken slot pushes to the next, so a fast ember chain comes out as an
+   actual sixteenth-note run — the player making music by moving. */
+const CUE={slot:0};
+function cueTone(fn){
+  if(!AC||!MU||!MU.next||AC.state!=='running'){fn(0);return;}
+  const now=AC.currentTime;
+  let t=Math.max(gridNear(),now+0.012);
+  /* a taken slot cascades to the next sixteenth (capped a beat out, so a
+     burst compresses rather than drifting away from its cause) */
+  if(CUE.slot>=t-1e-4&&CUE.slot-now<SPB)t=CUE.slot+S16;
+  CUE.slot=t;
+  fn(t-now);
+}
 /* ---------- groove ----------
    Reward for playing in time, and NEVER a penalty for not. An off-beat input
    simply earns nothing: the game already demands you tap when a shard arrives,
@@ -2175,6 +2194,7 @@ function popup(x,y,str,col,sz){G.pops.push({x,y,str,col,life:1,sz:sz||1});}
    at ~0.65s, which is long enough to read as a wave travelling outward, and
    the decay is slowed to match so the front still outlives the sweep. */
 const NOVA_SP=560;
+const NOVA_RUN={n:0,at:0,base:0};   /* the cascade's place in its grid run */
 /* The 560 figure was tuned on phone geometry, where 2R is ~334px. On a big
    viewport 2R can exceed what 560u/s crosses inside the invulnerability
    window, so the player could die inside their own blast and far shards
@@ -2205,13 +2225,24 @@ function novaConvert(s){
   burst(q[0],q[1],COL.ember,7,130);
   arcFlash(s.a,s.ring,COL.nova);
   arcFlash(s.a,ring,COL.ember);
-  /* each conversion pings, and because the wave reaches them at different
-     times the cascade sequences itself with no scheduling */
-  /* was a random pitch per shard, which stacked into a dissonant wash.
-     A minor pentatonic keeps a ten-shard cascade consonant however it lands. */
-  /* pinned to the original ten: extending PENT for the player's register must
-     not silently retune a ten-shard cascade up into it */
-  beep(PENT[(Math.random()*10)|0],0.11,'triangle',0.05,undefined,0,panAt(q[0]),1.2);
+  /* THE CASCADE IS A RUN NOW. Each conversion takes the next sixteenth slot
+     and the next pentatonic degree, so a ten-shard nova plays a strict
+     ascending sixteenth-note run up the scale — the wave's arrival order
+     picks the phrasing, the grid plays it. A gap of most of a second starts
+     a fresh run from the bottom. */
+  if(AC&&MU&&MU.next&&AC.state==='running'){
+    const now=AC.currentTime;
+    if(now-NOVA_RUN.at>0.8||NOVA_RUN.base<now){
+      NOVA_RUN.n=0;NOVA_RUN.base=Math.max(gridNear(),now+0.012);
+    }
+    NOVA_RUN.at=now;
+    const t=NOVA_RUN.base+NOVA_RUN.n*S16;
+    beep(PENT[Math.min(13,NOVA_RUN.n)],0.11,'triangle',0.05,undefined,
+      Math.max(0,t-now),panAt(q[0]),1.2);
+    NOVA_RUN.n++;
+  }else{
+    beep(PENT[(Math.random()*10)|0],0.11,'triangle',0.05,undefined,0,panAt(q[0]),1.2);
+  }
 }
 /* IGNITION. Completing an orbit sets the orbit alight: a head races the full
    circumference in the direction you were travelling, leaving a burning wake.
@@ -2226,8 +2257,10 @@ function checkMile(){
   if(Math.floor(G.score/50)>G.mile){
     G.mile=Math.floor(G.score/50);
     ripple(cx,cy,COL.ember);
-    beep(660,0.1,'triangle',0.06,990);
-    beep(880,0.12,'triangle',0.06,1320,0.09);
+    cueTone(function(w){
+      beep(660,0.1,'triangle',0.06,990,w);
+      beep(880,0.12,'triangle',0.06,1320,w+S16);
+    });
   }
 }
 
@@ -2258,6 +2291,15 @@ function mkSpike(a,ring,extra){
   const s={a:a,ring:ring,t:0,phase:0,bt:0,bo:0,va:0,gate:false,blink:false,
     warn:warnTime(),life:rand(2.6,4.4)*(age()<30?0.7:1)};
   if(extra)for(const k in extra)s[k]=extra[k];
+  /* THE THREAT ARMS ON THE GRID. The warn stretches by up to one eighth so
+     the instant a shard turns lethal lands on a beat subdivision — danger
+     arriving as a note in the arrangement rather than a random knock. */
+  if(AC&&MU&&MU.next&&AC.state==='running'){
+    const now=AC.currentTime,e=SPB/2;
+    let tb=MU.next;while(tb>now)tb-=e;
+    const over=((now+s.warn-tb)%e+e)%e;
+    if(over>1e-3)s.warn+=e-over;
+  }
   return s;
 }
 /* A gate exists to force a reversal, so it has to leave somewhere to reverse
@@ -2479,9 +2521,19 @@ function die(){
      A.world and never touches either node. */
   endSection();
   duckBed(0.05,0.9);
-  beep(220,0.5,'sawtooth',0.085,110);
-  beep(110,0.55,'triangle',0.06,66);
-  beep(1318,0.5,'sine',0.03,196,0.02);
+  /* THE ENDING IS A CADENCE. The impact is silent-instant (the flash and
+     freeze carry it); the falling figure lands on the next eighth, so even
+     dying happens in time with the record. */
+  let wd=0;
+  if(AC&&MU&&MU.next&&AC.state==='running'){
+    const now=AC.currentTime;let tb=MU.next;
+    while(tb>now+SPB/2)tb-=SPB/2;
+    if(tb<now)tb+=SPB/2;
+    wd=Math.max(0,tb-now);
+  }
+  beep(220,0.5,'sawtooth',0.085,110,wd);
+  beep(110,0.55,'triangle',0.06,66,wd);
+  beep(1318,0.5,'sine',0.03,196,wd+0.02);
   try{if(navigator.vibrate)navigator.vibrate(90);}catch(e){}
   const gest=GEST.tap+GEST.swipe+GEST.lateSwipe+GEST.unresolved;
   track('run_ended',{
@@ -2801,7 +2853,10 @@ function menuDemo(dt){
     G.hopFrom=radiusOf(G.ringI);G.hopFromI=G.ringI;G.ringI=0;G.hopP=0;}
   updateSpikes(dt,false);
 }
-const BLINK=1.15; /* dormant for the back 45% of each cycle */
+/* Exactly two beats (was an arbitrary 1.15s — within 4ms of the same feel,
+   but now a blinker flickers ON THE GRID: armed for a bar-fraction, dormant
+   for the rest, and a flicker pair alternates on the beat). */
+const BLINK=SPB*2;
 /* bt restarts at 0 the moment a shard arms, so a pair cannot be staggered by
    seeding bt — bo shifts where in the cycle it starts instead. */
 function blinkPhase(s){return (s.bt+(s.bo||0))%BLINK;}
@@ -2837,8 +2892,9 @@ function updateSpikes(sdt,lethal){
         G.didShield=true;G.didDodge=true;
         /* a save that sounded like a punishment: square falling to 90Hz sat
            in the death register and below what a phone reproduces */
+        /* the rescue is felt NOW; its confirming chime lands in time */
         beep(392,0.16,'triangle',0.075,588);
-        beep(784,0.20,'sine',0.055,1046,0.05);
+        cueTone(function(w){beep(784,0.20,'sine',0.055,1046,w);});
       }else{
         /* flags, not a stored type: twin and blinktwin are two independent
            shards, so a single one cannot report which pairing it came from */
@@ -3024,9 +3080,15 @@ function update(dt){
         :{x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.ember,sp:150+120*k,dec:1.6});
       burst(lp[0],lp[1],COL.ember,18+Math.round(14*k),190+90*k);
       duckBed(0.45,0.35);
-      beep(523,0.12,'triangle',0.07,784);
-      beep(784,0.12,'triangle',0.07,1046,0.1);
-      beep(1046,0.16,'triangle',0.07,1568,0.2);
+      /* the payout arpeggio walks up on sixteenths from the next grid point
+         — the game's biggest scoring phrase finally plays in time */
+      beep(523,0.05,'triangle',0.05,660);
+      cueTone(function(w){
+        beep(523,0.12,'triangle',0.07,784,w);
+        beep(784,0.12,'triangle',0.07,1046,w+S16);
+        beep(1046,0.16,'triangle',0.07,1568,w+2*S16);
+        if(st>=3)beep(1568,0.18,'triangle',0.05,2093,w+3*S16);
+      });
       /* thresholds, not a floor: `st>=5` fired on every fed orbit past the
          fifth, which at mid-run speed is roughly every three seconds */
       /* was `st===5||st===9||st===14` — exact values, so past 14 it could
@@ -3046,12 +3108,12 @@ function update(dt){
            round. Short enough not to break the rhythm of a 2.5s orbit. */
         if(!RM)G.stop=Math.max(G.stop,0.075);
         if(!RM)G.flash=Math.max(G.flash,0.16+0.10*k);
-        beep(1568,0.18,'triangle',0.05,2093,0.3);
+        /* the streak topper rides the same scheduled arpeggio above */
         try{if(navigator.vibrate)navigator.vibrate(18);}catch(e){}
       }
     }else{
       popup(lp[0],lp[1]-26*u,label,'rgba(200,215,255,0.7)');
-      beep(392,0.1,'triangle',0.04,440);
+      cueTone(function(w){beep(392,0.1,'triangle',0.04,440,w);});
     }
     G.lapEmbers=0;G.didLap=true;
     checkMile();
@@ -3086,13 +3148,17 @@ function update(dt){
       ripple(p[0],p[1],COL.ember);
       arcFlash(s.a,s.ring,COL.ember);
       popup(p[0],p[1]-20*u,'+'+G.combo,COL.ember);
-      /* THE EMBER RUN. Was 700Hz gliding to 1400 — the most repeated sound in
-         the game, 104 cents sharp of E5 and smeared across an octave by the
-         slide. Now the chain walks the pentatonic and RESOLVES on the octave:
-         G5 A5 C6 D6 E6 G6. The thing the player was already doing for score
-         produces a phrase with a cadence, at no timing cost whatsoever. */
-      beep(PENT[Math.min(9,3+G.combo)],0.09,'sine',0.06,0,0,panAt(p[0]),0.35);
-      beep(PENT[Math.min(13,5+G.combo)],0.10,'sine',0.05,0,0.045,panAt(p[0]),0.35);
+      /* THE EMBER RUN, ON THE GRID. The chain walks the pentatonic and
+         resolves on the octave — and the notes now LAND ON SIXTEENTHS via
+         cueTone, so gathering a string of embers plays an actual run instead
+         of a scatter. The tiny click stays instant: touch is felt now, tone
+         arrives in time. */
+      beep(2100,0.03,'square',0.02,0,0,panAt(p[0]),0.1);
+      const cb=G.combo,cpan=panAt(p[0]);
+      cueTone(function(w){
+        beep(PENT[Math.min(9,3+cb)],0.09,'sine',0.06,0,w,cpan,0.35);
+        beep(PENT[Math.min(13,5+cb)],0.10,'sine',0.05,0,w+0.045,cpan,0.35);
+      });
       build(0.016,'ember');
       checkMile();
     }
@@ -3106,12 +3172,13 @@ function update(dt){
       G.pows.splice(i,1);
       arcFlash(s.a,s.ring,s.type==='shield'?COL.shield:(s.type==='warp'?COL.warp:COL.nova));
       if(s.type==='shield'){
+        const span=panAt(p[0]);
         if(G.shields>=shieldMax()){G.score+=2;popup(p[0],p[1]-20*u,'+2',COL.shield);
-          beep(659,0.09,'sine',0.04,880,0,panAt(p[0]),0.3);}
+          cueTone(function(w){beep(659,0.09,'sine',0.04,880,w,span,0.3);});}
         else{G.shields++;popup(p[0],p[1]-20*u,'SHIELD \u00d7'+G.shields,COL.shield);}
         burst(p[0],p[1],COL.shield,14,150);
         ripple(p[0],p[1],COL.shield);
-        beep(520,0.12,'triangle',0.06,780);
+        cueTone(function(w){beep(520,0.12,'triangle',0.06,780,w);});
       }else if(s.type==='warp'){
         G.slow=4;G.gotWarp=true;
         popup(p[0],p[1]-20*u,'SLOW-MO',COL.warp);
@@ -3168,7 +3235,8 @@ function drawShardOutline(x,y,r,al,dash,core){
    of what the live shadowBlur cost. Pulse and rotation ride blit()'s args;
    the cores are plain fills, kept out of the pulse so the centre holds still. */
 function drawPow(x,y,s,al){
-  const pulse=1+0.15*Math.sin(s.t*5);
+  /* orbs breathe on the LANDED beat, not their own clock */
+  const pulse=1+(RM?0.10:0.15*G.beat);
   if(s.type==='shield'){
     blit(SPR.powShield,x,y,pulse,0,al);
     ctx.save();ctx.globalAlpha=al;ctx.fillStyle=COL.shield;
@@ -3264,7 +3332,8 @@ function drawRingGlow(){
      which ring you are on as plainly as the arrangement does */
   ctx.strokeStyle='rgb('+RINGS[Math.min(RINGS.length-1,effRing())].tint+')';
   for(const L of RING_LIT){
-    ctx.globalAlpha=L[1];
+    /* the light under the comet breathes with the landed beat */
+    ctx.globalAlpha=L[1]*(RM?1:1+0.30*G.beat);
     ctx.lineWidth=L[2]*u;
     ctx.beginPath();ctx.arc(cx,cy,rr,G.angle-L[0],G.angle+L[0]);ctx.stroke();
   }
@@ -3285,9 +3354,19 @@ function drawTail(){
     bw[i]=8*u*Math.pow(Math.max(p.life,0),0.7)*(0.16+0.84*i/(n-1));
   }
   /* Width, alpha, colour. The narrow pass runs near-white so the ribbon goes
-     hot at its centre and cools outward, the way anything incandescent does —
-     one flat cyan read as paint rather than as burning. */
-  const passes=[[2.5,0.075,COL.comet],[1.35,0.16,'#8ef2ff'],[0.6,0.34,'#e6fdff']];
+     hot at its centre and cools outward, the way anything incandescent does.
+     THE TRAIL IS THE GROOVE'S SCOREBOARD: as the chain climbs, the ribbon
+     tints from comet-cyan toward warp-violet, and during the payoff it runs
+     white-hot — the player's own wake reports how in-time they are. */
+  const gm=G.pay>0?1:Math.min(1,G.groove/8)*0.7;
+  const mix=function(a,b){
+    return 'rgb('+Math.round(a[0]+(b[0]-a[0])*gm)+','+
+      Math.round(a[1]+(b[1]-a[1])*gm)+','+Math.round(a[2]+(b[2]-a[2])*gm)+')';
+  };
+  const passes=[
+    [2.5,0.075,mix([93,240,255],[180,139,255])],
+    [1.35,0.16,mix([142,242,255],[214,190,255])],
+    [0.6,0.34,G.pay>0?'#ffffff':'#e6fdff']];
   ctx.save();
   ctx.globalCompositeOperation='lighter';
   for(let k=0;k<passes.length;k++){
@@ -3482,7 +3561,8 @@ function draw(){
       const shell=Math.max(0,1-Math.abs(r/R0-1.22)/0.5);
       let al=RM?0.10+0.18*shell
              :(0.05+0.30*shell)*(1+1.6*Math.pow(Math.max(0,Math.cos(a-G.angle)),4));
-      if(!RM&&G.pay>0)al*=(1+0.8*G.beat);
+      /* the dust nods on the landed beat once the player has found it */
+      if(!RM&&(G.pay>0||G.groove>0))al*=(1+0.7*G.beat*(G.pay>0?1:0.5));
       blit(SPR.mote,cx+Math.cos(a)*r+camX*1.1,cy+Math.sin(a)*r+camY*1.1,
         m.sz,0,Math.min(0.55,al));
     }
@@ -3507,7 +3587,10 @@ function draw(){
     ctx.globalCompositeOperation='lighter';
     const mine=effRing()===i;
     ctx.setLineDash([3*u,17*u]);
-    ctx.lineDashOffset=RM?0:-(G.t*(mine?90*u*G.dir:40*u))%(20*u);
+    /* the current TICKS rather than slides: one step per sixteenth on the
+       player's track (direction matching travel), per eighth elsewhere —
+       quantised motion is what makes the whole machine visibly on the beat */
+    ctx.lineDashOffset=RM?0:-(Math.floor(G.t/(mine?SPB/4:SPB/2))*5*u*(mine?G.dir:1))%(20*u);
     ctx.strokeStyle='rgb('+tn+')';ctx.lineWidth=2*u;
     ctx.globalAlpha=(mine?0.20:0.08)+0.10*G.pay;
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
@@ -3639,7 +3722,8 @@ function draw(){
     }
     if(!s.born&&s.t<0.3)al=s.t/0.3;
     else if(s.life-s.t<0.8)al=(s.life-s.t)/0.8;
-    blit(SPR.ember,p[0],p[1],1+0.18*Math.sin(s.t*6),s.t*1.5,al);
+    /* embers pulse on the landed beat — the collectibles keep time too */
+    blit(SPR.ember,p[0],p[1],1+(RM?0.10:0.16*G.beat),s.t*1.5,al);
   }
   ctx.globalCompositeOperation='source-over';
   /* power-ups */
@@ -3668,10 +3752,11 @@ function draw(){
     ctx.globalAlpha=base*0.9;ctx.lineWidth=2.2*u;
     ctx.beginPath();ctx.moveTo(i0[0],i0[1]);ctx.lineTo(i1[0],i1[1]);ctx.stroke();
     if(live&&!RM){
-      /* rungs crawling along the span sell it as powered rather than painted */
+      /* rungs crawling along the span sell it as powered rather than painted
+         — STEPPING once per eighth, so even the wall marches in time */
       ctx.globalAlpha=0.45;ctx.lineWidth=2.6*u;
       ctx.setLineDash([5*u,9*u]);
-      ctx.lineDashOffset=-(G.t*46*u)%(14*u);
+      ctx.lineDashOffset=-(Math.floor(G.t/(SPB/2))*7*u)%(14*u);
       ctx.beginPath();ctx.moveTo(i0[0],i0[1]);ctx.lineTo(i1[0],i1[1]);ctx.stroke();
     }
     ctx.restore();
@@ -3741,7 +3826,8 @@ function draw(){
   ctx.globalCompositeOperation='lighter';
   for(const L of G.laps){
     const t=1-Math.max(L.life,0);
-    const sweep=RM?TAU:Math.min(1,t/0.62)*TAU;
+    /* the ignition head runs the circumference in exactly ONE BEAT */
+    const sweep=RM?TAU:Math.min(1,t/SPB)*TAU;
     /* Offset outside the ring. On the ring it lands under the comet's own
        tail and reads as more trail; sitting just proud of it, gold against
        the tail's cyan, it reads as the orbit itself catching light. */
@@ -3822,7 +3908,8 @@ function draw(){
     ctx.restore();
     drawBeat(p);
     for(let k=0;k<G.shields;k++)
-      blit(SPR.shieldRing,p[0],p[1],(1.18+k*0.34)*(1+0.07*Math.sin(G.t*6-k*0.7)),0,pal*(0.72-k*0.16));
+      blit(SPR.shieldRing,p[0],p[1],
+        (1.18+k*0.34)*(1+0.04*Math.sin(G.t*6-k*0.7)+(RM?0:0.05*G.beat)),0,pal*(0.72-k*0.16));
     if(G.t<G.invuln){
       ctx.globalAlpha=Math.min(1,(G.invuln-G.t)*1.6)*0.55;
       ctx.strokeStyle=COL.shield;ctx.lineWidth=2;
@@ -4449,7 +4536,9 @@ function drawHUD(){
     const pipsShown=skip?G.tier+1:Math.max(0,Math.floor((td-0.55)/0.07));
     if(pipsShown>G.deadPips&&pipsShown<=G.tier+1){
       G.deadPips=pipsShown;
-      beep(620+44*pipsShown,0.05,'sine',0.028,undefined,0,0,0.2);
+      /* the ladder reveal walks the pentatonic — even the death screen is
+         in the game's key */
+      beep(PENT[Math.min(13,3+pipsShown)],0.06,'sine',0.03,undefined,0,0,0.2);
     }
     const lvAt=0.55+0.07*(G.tier+1);   /* the moment the last pip lands */
     if(el(0.45))drawLadder(cx,cy-104*u,G.tier,pipsShown);

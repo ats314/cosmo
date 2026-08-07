@@ -427,6 +427,31 @@ opens up, and that costs nothing.
 The rings **pulse on every quarter note**, because you cannot play to a beat you
 cannot find. The pulse brightens and shifts colour as the groove builds.
 
+**Everything lands on the grid — not just your inputs.** The game's replies
+used to fire at collision time: every ember, orbit payout, shield and
+milestone beeped the moment it happened, a cloud of off-grid sounds over a
+quantised band. Every scored event now keeps a tiny instant transient (touch
+is felt immediately, so nothing reads as lag) and lands its tonal payload on
+the sixteenth grid through one shared scheduler — one voice per slot, a taken
+slot cascading to the next, so gathering a string of embers plays an actual
+sixteenth-note run and the orbit payout walks its arpeggio up from the next
+grid point. The nova cascade is a strict ascending pentatonic run in
+sixteenths, the wave's arrival order picking the phrasing. Even dying is in
+time: the impact is carried by the flash and freeze, and the falling figure
+lands on the next eighth — a cadence, not a noise. The death screen's ladder
+pips walk the pentatonic too.
+
+**The world itself keeps time.** A blinker's cycle is exactly two beats (it
+was an arbitrary 1.15s — four milliseconds off, permanently out of phase), so
+flicker pairs alternate on the beat. A shard's warning stretches by up to one
+eighth so the instant it turns lethal lands on a beat subdivision — danger
+arrives as a note in the arrangement. The conduit current ticks one step per
+sixteenth under the player (per eighth elsewhere), the gate rungs march per
+eighth, orbs and embers pulse on the landed beat, the ring's lit arc breathes
+with it, the orbit-ignition head runs the circumference in exactly one beat,
+and the comet's trail is the groove's scoreboard — tinting from cyan toward
+violet as the chain climbs and running white-hot through the payoff.
+
 **Your inputs are part of the arrangement.** Every reverse and every hop
 already makes an immediate functional noise — that does not change, because
 delaying it would make the controls feel laggy. On top of it, each input places
