@@ -598,6 +598,32 @@ riding the dub delay. Weight, not sparkle, is the reward. It still ducks,
 pans and mixes as part of the record, and because the tones land on the
 sixteenth grid a chain of embers comes out as a fill run.
 
+**The palette has discipline now.** The verdict that survived every gain
+fix was "still way too sparkly and twinkling" — because sparkle is not a
+level, it is a vocabulary. A study of the reference genres (hypnotic/deep
+techno: limited palette of kick, sub bass, ONE dry offbeat hat plus
+ghosts, one or two evolving tonal layers; hypnosis from timed delays and
+slow filter movement, not from more notes) indicted the arrangement
+directly, so this is a subtraction-and-transposition pass, verified with
+an analyser on the master bus:
+
+- **Everything points DOWN now.** The arp, the player's instrument, and
+  every reward chime in the game — milestones, orbit payouts, golden lap,
+  drop-arming stabs, landing hits, power-up fanfares — dropped an octave.
+  Brightness was the game's reward language; depth is now.
+- **Two layers deleted outright** (the "drive" doubling square and the
+  offbeat "cover") — filling space is the dub delay's job.
+- **Hats are bandpassed ticks**, not cymbals: highpass alone can only THIN
+  a hat (measured: lowering the floor without a cap read as MORE sizzle),
+  so the rhythm hats live in a 4-7kHz band, fewer of them, quieter, with
+  the offbeat shaker echoed in time through the dub delay — the genre's
+  own trick. Crashes and the payoff keep full sheen: climaxes may sparkle.
+- **The room is dark**: a 3.2kHz lowpass on the reverb tail, the delay's
+  feedback tone down to 1.1kHz, and one very slow breath (a ~2.3-minute
+  sine) on the bed's cutoff so the texture moves the way the references do.
+- **The bass rolls when you run hot** — pumping eighths against the
+  bar-line sidechain.
+
 **The dub delay.** One tempo-synced dotted-eighth delay with dark feedback
 hangs off the bed path, and the player's taps, the arp, the riff, the solo
 and the ember plucks all feed it — every note trails away in rhythm instead

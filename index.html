@@ -806,6 +806,10 @@ function buildBus(){
   const send=c.createGain();send.gain.value=0.20;
   const verbTone=c.createBiquadFilter();
   verbTone.type='highpass';verbTone.frequency.value=420; /* keep the tail out of the mud */
+  /* ...and a lowpass above: a BRIGHT tail is why the game read as sparkly
+     even at matched levels — the deep genres keep the room dark */
+  const verbDark=c.createBiquadFilter();
+  verbDark.type='lowpass';verbDark.frequency.value=3200;
   /* THE DUB DELAY. The single biggest "groovy, relaxing synth" move there
      is: a tempo-synced dotted-eighth delay with dark feedback, so every note
      that feeds it trails away in rhythm instead of stopping dead. It hangs
@@ -815,12 +819,12 @@ function buildBus(){
   dly.delayTime.value=(60/104)*0.75;          /* dotted eighth at 104bpm */
   const dfb=c.createGain();dfb.gain.value=0.42;
   const dtone=c.createBiquadFilter();
-  dtone.type='lowpass';dtone.frequency.value=1500; /* each repeat darkens */
+  dtone.type='lowpass';dtone.frequency.value=1100; /* each repeat darkens hard */
   const dout=c.createGain();dout.gain.value=0.55;
   dly.connect(dtone);dtone.connect(dfb);dfb.connect(dly);
   dtone.connect(dout);dout.connect(bedDuck);
   world.connect(lim);bedDuck.connect(hole);hole.connect(pump);pump.connect(lim);pq.connect(lim);
-  send.connect(verb);verb.connect(verbTone);verbTone.connect(lim);
+  send.connect(verb);verb.connect(verbTone);verbTone.connect(verbDark);verbDark.connect(lim);
   lim.connect(makeup);makeup.connect(clip);clip.connect(out);out.connect(c.destination);
   out.gain.value=muted?0:1;      /* mute the BUS, never the clock — see toggleMute */
   A={out:out,world:world,send:send,lim:lim,bed:bedDuck,hole:hole,pump:pump,perf:perf,makeup:makeup,dly:dly};
@@ -989,7 +993,7 @@ function note(f,t,dur,type,g,cut,pan,bus,echo){
 }
 /* hz/dec/wet are optional and every original call site omits them. With them
    this same voice is a snare's noise body, an open hat, or the drop's riser. */
-function hat(t,g,hz,dec,wet){
+function hat(t,g,hz,dec,wet,e,lp){
   if(!A||!AC||!NOISE||muted)return;
   try{
     const s=AC.createBufferSource(),v=AC.createGain(),hp=AC.createBiquadFilter();
@@ -999,10 +1003,20 @@ function hat(t,g,hz,dec,wet){
     v.gain.setValueAtTime(0.0001,t);
     v.gain.exponentialRampToValueAtTime(g,t+0.004);
     v.gain.exponentialRampToValueAtTime(0.0001,t+d);
-    s.connect(hp);hp.connect(v);v.connect(A.bed);
+    /* lp: cap the band. Measured: lowering only the highpass WIDENS the
+       noise and reads as MORE sizzle — a dark shaker is a bandpass tick,
+       not a lower floor. The rhythm hats cap; crashes and the payoff keep
+       the full sheen, because those are the moments that may sparkle. */
+    let head=hp;
+    if(lp){const lo=AC.createBiquadFilter();lo.type='lowpass';lo.frequency.value=lp;
+      hp.connect(lo);head=lo;}
+    s.connect(hp);head.connect(v);v.connect(A.bed);
     if(wet){const sg=AC.createGain();sg.gain.value=wet;v.connect(sg);sg.connect(A.send);}
+    /* e: send into the dub delay — the genre's trick for hypnotic hats is a
+       TIMED delay, rhythmic space instead of more hits */
+    if(e&&A.dly){const eg=AC.createGain();eg.gain.value=e;v.connect(eg);eg.connect(A.dly);}
     s.start(t);s.stop(t+d+0.03);
-  }catch(e){}
+  }catch(e2){}
 }
 /* note() cannot sweep a pitch, so the kick is its own voice. The 400Hz START
    is the part a phone hears; the 48Hz body is a headphone bonus and never
@@ -1229,14 +1243,14 @@ function tryLand(){
     }
     burst(p[0],p[1],'#ffffff',30,420);
     burst(p[0],p[1],COL.warp,26,320);
-    note(PENT[11],AC.currentTime,0.5,'square',0.030,7000,0,A.perf);
-    note(PENT[9], AC.currentTime,0.6,'square',0.026,6000,0,A.perf);
+    note(PENT[11]*0.5,AC.currentTime,0.5,'square',0.030,3500,0,A.perf);
+    note(PENT[9]*0.5, AC.currentTime,0.6,'square',0.026,3000,0,A.perf);
     hat(AC.currentTime,0.055,3000,0.5,0.5);
     try{if(navigator.vibrate)navigator.vibrate([40,26,40,26,70]);}catch(e){}
   }else if(good){
     if(!RM)G.rings.push({x:p[0],y:p[1],r:10*u,life:1,col:COL.warp,sp:620,dec:1.3});
     burst(p[0],p[1],COL.warp,14,240);
-    note(PENT[9],AC.currentTime,0.34,'square',0.024,5200,0,A.perf);
+    note(PENT[9]*0.5,AC.currentTime,0.34,'square',0.024,2800,0,A.perf);
     try{if(navigator.vibrate)navigator.vibrate([26,20,40]);}catch(e){}
   }
 }
@@ -1248,8 +1262,8 @@ function armDrop(why,src){
       MU.pend=why;MU.pendSrc=src||null;G.sawDrop=true;
       G.armFx={why:why,t:0,banked:true};
       /* the earn is HEARD even when banked — quieter, same vocabulary */
-      note(PENT[8],AC.currentTime,0.26,'square',0.017,5600,-0.2);
-      note(PENT[5],AC.currentTime,0.20,'square',0.016,5600,0.2);
+      note(PENT[8]*0.5,AC.currentTime,0.26,'square',0.017,3000,-0.2);
+      note(PENT[5]*0.5,AC.currentTime,0.20,'square',0.016,3000,0.2);
       try{if(navigator.vibrate)navigator.vibrate(12);}catch(e){}
     }
     return;
@@ -1261,8 +1275,8 @@ function armDrop(why,src){
   /* The game's biggest promise used to be made in silence — a ripple and a
      buzz. The same two-note stab fireLift uses for a tier unlock, so the
      vocabulary for "something was just earned" stays one thing. */
-  note(PENT[8],AC.currentTime,0.30,'square',0.028,5600,-0.2);
-  note(PENT[5],AC.currentTime,0.22,'square',0.026,5600,0.2);
+  note(PENT[8]*0.5,AC.currentTime,0.30,'square',0.028,3000,-0.2);
+  note(PENT[5]*0.5,AC.currentTime,0.22,'square',0.026,3000,0.2);
   const p=posPlayer();
   ripple(p[0],p[1],COL.warp);
   try{if(navigator.vibrate)navigator.vibrate(18);}catch(e){}
@@ -1482,15 +1496,15 @@ function fireLift(){
   if(t<MU.liftEnd)return;
   MU.liftEnd=t+2*SPB*4;
   hat(t,0.055,3200,0.40,0.45);
-  note(PENT[8],t,0.40,'square',0.032,5600,-0.2);
-  note(PENT[5],t,0.40,'square',0.032,5600, 0.2);
+  note(PENT[8]*0.5,t,0.40,'square',0.032,3000,-0.2);
+  note(PENT[5]*0.5,t,0.40,'square',0.032,3000, 0.2);
   note(CH[0][0],t,0.60,'sawtooth',0.055,900);
 }
 /* ONE BAR OF DRUMS. The band steps out, the kit walks a fill down through
    tom-voiced triangles, and the player's inputs land on top as snares and
    kicks — see performerHit. The crash back in is scheduled by musicStep. */
 function breakStep(beat,t){
-  hat(t+S16,0.008,8800,0.035);          /* a 16th shaker keeps the grid audible */
+  hat(t+S16,0.008,4800,0.035,0,0,7600);  /* a 16th shaker keeps the grid audible */
   if(beat===0)kick(t,0.075);
   if(beat===1)hat(t,0.016,7200,0.05);
   if(beat===2){kick(t,0.050);hat(t,0.012,8000,0.04);}
@@ -1576,7 +1590,7 @@ function musicStep(i,t,k){
      own floor so the rise still arrives as an event. */
   if(MU.armed&&!MU.rise){
     const w8=(8-i%8)%8;                          /* eighths until the latch */
-    hat(t,Math.min(0.010,0.004+0.006*(1-w8/8)),8600,0.04);
+    hat(t,Math.min(0.008,0.003+0.005*(1-w8/8)),4600,0.04,0,0,7400);
   }
   /* overdrive and the payoff's afterglow hold open every gate the clock or
      the heat could — see G.od and MU.glow */
@@ -1621,6 +1635,10 @@ function musicStep(i,t,k){
     if(beat===2)bassN(ch[0],t+S16,0.16,bg*0.80);
     if(beat===5)bassN(ch[3]/2,t,0.18,bg*0.85);
     if(beat===7)bassN(ch[0]*0.75,t+S16,0.12,bg*0.70);
+    /* run hot and the line starts ROLLING — the genre's pumping eighths,
+       breathing against the bar-line pump */
+    if((k>0.5||PLAY.heat>0.5||hot)&&(beat===1||beat===3||beat===6))
+      bassN(ch[0],t,0.11,bg*0.45);
   }
   /* THE SOLO (playtest: "some keyboard solos"). After every payoff the lead
      answers over the afterglow: a written phrase with a slide into each
@@ -1644,26 +1662,23 @@ function musicStep(i,t,k){
      open every layer the clock would: playing hard means hearing more NOW. */
   const av=G.tier>=6?'sawtooth':'square';
   if((k>0.18||PLAY.heat>0.30||hot)&&beat%2===0){
-    note(PENT[ad],t,0.20,av,0.019+0.013*k,1000+1400*k,
-      (beat%4===0?-0.3:0.3),undefined,0.30);
-    /* the detuned partner is no longer a level-4 reward — the analog pair
-       IS the arp's voice; the levels still change the waveform above it */
-    note(PENT[ad]*1.006,t,0.20,'sawtooth',0.011+0.007*k,900+1200*k,
-      (beat%4===0?0.3:-0.3),undefined,0.30);
+    /* AN OCTAVE DOWN. The arp lived at 440-780Hz with a bright cut — the
+       melodic cloud that read as twinkle. At 220-390Hz a detuned pluck pair
+       through the dub delay is the hypnotic register the references live in. */
+    note(PENT[ad]*0.5,t,0.22,av,0.022+0.013*k,700+900*k,
+      (beat%4===0?-0.3:0.3),undefined,0.35);
+    note(PENT[ad]*0.503,t,0.22,'sawtooth',0.013+0.007*k,650+800*k,
+      (beat%4===0?0.3:-0.3),undefined,0.35);
   }
-  /* the drive the deleted clause used to add, moved onto the ON beat where it
-     cannot collide. Never beat 0 — that already carries the root and is the
-     loudest scheduled instant in the game. */
-  if((k>0.62||PLAY.heat>0.55||hot)&&beat%2===0&&beat!==0)
-    note(PENT[Math.min(4,ad+2)],t,0.11,'square',0.010+0.006*k,3000,
-      beat%4===2?0.3:-0.3);
+  /* the old "drive" doubling layer is deleted outright: the deep genres are
+     built from a LIMITED palette — kick, bass, one offbeat hat, one or two
+     tonal layers — and this was a second bright square adding nothing but
+     sparkle on top of the arp. Subtraction is the genre. */
   /* The chain opens the arrangement as it climbs, and the counter-line DROPS
      OUT at x7 — taking a layer away near the top is what makes the last two
      links feel like a held breath rather than just more music. */
   const gv=Math.max(0,G.groove-4);
-  if((k>0.45||gv>0||hot)&&(beat===2||beat===6))hat(t,0.020+0.012*k+0.006*gv);
-  if(gv>=2&&beat%2===1)hat(t,0.009+0.004*gv,8200,0.045);
-  if((k>0.45||PLAY.heat>0.35||hot)&&beat===4)hat(t,0.012);
+  if((k>0.45||gv>0||hot)&&(beat===2||beat===6))hat(t,0.016+0.008*k+0.004*gv,4200,0.05,0,0.35,7000);
   /* THE RING IS THE KIT. Subdivision alone was too polite — the hats sat at
      0.008 and the "inner is hotter" promise was inaudible on the device this
      ships to. Pattern reads louder than gain, so each ring now has a
@@ -1683,10 +1698,12 @@ function musicStep(i,t,k){
     if(beat===2||beat===6)kick(t,0.036);
     if(beat%2===1)note(ch[0]*2,t,0.12,'square',0.013,2400,0);
   }
-  if(rs>=1&&beat%2===1)hat(t,0.015,8600,0.038);
+  /* THE offbeat shaker — dry, dark, and echoed in time: the one hat the
+     genre keeps */
+  if(rs>=1&&beat%2===1)hat(t,0.011,4000,0.038,0,0.35,6800);
   if(rs>=2&&beat%2===0){
-    hat(t+S16,0.013,9000,0.032);
-    hat(t+S16*1.16,0.006,9400,0.03);   /* the inner ring swings */
+    hat(t+S16,0.008,4400,0.032,0,0,7200);
+    hat(t+S16*1.16,0.004,4800,0.03,0,0,7400);   /* the inner ring swings, as ghosts */
   }
   /* THE SCORE SWELLS. Strings breathe in on every other bar line and a
      soft riser turns each four-bar phrase into the next — the two moves
@@ -1700,8 +1717,8 @@ function musicStep(i,t,k){
      swings its sixteenths, band 2 rides the classic offbeat open hat, band
      3 leans heavy. Additive only — the ring's identity stays. */
   if(skyI===1&&(k>0.30||PLAY.heat>0.30||hot)&&(beat===2||beat===6))
-    hat(t+S16*1.16,0.008,8400,0.035);
-  if(skyI===2&&beat%2===1)hat(t,0.013,6600,0.11);
+    hat(t+S16*1.16,0.006,4400,0.035,0,0,7200);
+  if(skyI===2&&beat%2===1)hat(t,0.010,3600,0.11,0,0,6500);
   if(skyI===3){
     if(beat===0)kick(t,0.026);
     if(beat===4)snare(t,0.026,0.25);
@@ -1711,23 +1728,23 @@ function musicStep(i,t,k){
      points where another music layer is added. And so on."). Permanent for
      the run, each named as it arrives — see the layer ladder in update(). */
   if(G.score>=LAYER_AT[0]&&beat%2===0)
-    note(ch[0]*2,t+S16,0.09,'square',0.011,2400,beat%4?0.2:-0.2);
+    note(ch[0],t+S16,0.10,'square',0.012,1200,beat%4?0.2:-0.2,undefined,0.35);
   if(G.score>=LAYER_AT[1]){
     const rd=RIFF[(bar%2)*8+beat];
-    if(rd>=0)note(PENT[rd],t,0.14,'sawtooth',0.015,1900,(bar%2)?0.24:-0.24,undefined,0.5);
+    if(rd>=0)note(PENT[rd]*0.5,t,0.16,'sawtooth',0.016,1300,(bar%2)?0.24:-0.24,undefined,0.5);
   }
   if(G.score>=LAYER_AT[2]&&(beat===0||beat===3||beat===4||beat===6)){
     note(ch[0]/2,t,0.17,'sine',0.036,240);
     note(ch[0]*2,t,0.10,'square',0.012,1500);
   }
   if(G.score>=LAYER_AT[3]&&beat===7)
-    note(PENT[11],t+S16,0.18,'sine',0.010,8000,(bar%2)?0.35:-0.35);
+    note(PENT[11]*0.5,t+S16,0.22,'sine',0.010,3600,(bar%2)?0.35:-0.35,undefined,0.5);
   /* OVERDRIVE: eight bars of double-time — the eleventh notch. Every gate
      above is already held open (hot); this is the engine note itself. */
   if(G.od>0){
     G.od--;
-    hat(t,0.012,7200,0.045);
-    hat(t+S16,0.010,8000,0.04);
+    hat(t,0.009,4200,0.045,0,0,7000);
+    hat(t+S16,0.007,4600,0.04,0,0,7200);
     if(G.od===0)G.odBrk=true;   /* it ends the way a record ends: on the break */
   }
   /* 3 / 7 / 11 melodic events per bar still hold. The kit sits underneath
@@ -1736,9 +1753,9 @@ function musicStep(i,t,k){
      it, and fades out continuously as you engage — so the first thing you hear
      when you start working the controls is the machine stepping aside. Dull
      and quiet on purpose: 0.014 against the player's ~0.10. It is a cover. */
-  const cov=Math.max(0,1-PLAY.heat/0.30);
-  if(k>0.45&&beat%2===1&&cov>0.05)
-    note(PENT[ARP[(i+bar+3)%ARP.length]],t,0.16,'square',0.014*cov,1100,0);
+  /* the offbeat "cover" square is deleted too — filling the offbeat is the
+     dub delay's job now, and a delay tail is hypnotic where a fresh note is
+     just another sparkle */
   /* CNT[i%8] with i only ever 11 or 27 resolved to CNT[3] both times — one
      repeated pitch, not a line. Indexed by something that moves now, and
      dropped an octave so it sits below the player's floor. */
@@ -1863,8 +1880,8 @@ function judgeTiming(x,y){
          with the player's own note; silenced during the payoff, whose
          response bars already give their taps the lead voice. */
       if(!MU||MU.pay<=0)
-        note(PENT[Math.min(13,G.groove+4)],Math.max(PLAY.slot,AC.currentTime+0.012),
-          0.10,'sine',0.010+0.003*G.groove,6500,0,A.perf);
+        note(PENT[Math.min(13,G.groove+4)]*0.5,Math.max(PLAY.slot,AC.currentTime+0.012),
+          0.10,'sine',0.010+0.003*G.groove,3200,0,A.perf);
       /* THE SUMMIT PAYS. x8 used to arm the drop directly; when the build
          meter absorbed that route the ceremony was deleted and the top of
          the ladder became a dead end paying the same 0.021 as any rung. The
@@ -1959,20 +1976,21 @@ function performerHit(kind,dir,ring){
     /* your instrument changes with the track you are riding — warm saw on the
        outside, hard bright square on the inside */
     const rv=RINGS[rg];
-    note(PENT[d],t,0.13,rv.wave,g,(2400+2200*PLAY.heat)*(1+0.16*gr)*rv.cut,
-      panAt(p[0]),A.perf,0.35);
+    note(PENT[d]*0.5,t,0.15,rv.wave,g,(1500+1200*PLAY.heat)*(1+0.16*gr)*rv.cut,
+      panAt(p[0]),A.perf,0.4);
+    note(PENT[d],t,0.10,rv.wave,g*0.25,1800*rv.cut,panAt(p[0]),A.perf);
     /* A FIFTH UNDERNEATH, swelling with heat: one tap is a note, a flurry is
        a chord — the instrument fills out exactly as fast as the playing. */
-    note(PENT[Math.max(0,d-3)],t,0.11,rv.wave,g*(0.30+0.25*PLAY.heat),
-      1800*rv.cut,panAt(p[0]),A.perf);
+    note(PENT[Math.max(0,d-3)]*0.5,t,0.13,rv.wave,g*(0.35+0.28*PLAY.heat),
+      1100*rv.cut,panAt(p[0]),A.perf);
     /* the inner track gets an octave edge on top, so it reads as keener even
        on a phone speaker where the fundamental is doing the least work */
-    if(rg>=2)note(PENT[Math.min(13,d+3)],t,0.09,'sine',g*0.34,7200,panAt(p[0]),A.perf);
+    if(rg>=2)note(PENT[Math.min(13,d+3)]*0.5,t,0.09,'sine',g*0.30,3600,panAt(p[0]),A.perf);
     /* Once the groove is found, every tap earns a dotted-eighth echo panned
        opposite — the response-bar trick, generalised quietly: against the
        3+3+2 world a tap sounds like three, and mashing in time becomes a
        delay line the player is playing. */
-    if(gr>=2)note(PENT[d],t+3*S16,0.10,rv.wave,g*0.28,2000,-panAt(p[0]),A.perf);
+    if(gr>=2)note(PENT[d]*0.5,t+3*S16,0.10,rv.wave,g*0.28,1400,-panAt(p[0]),A.perf);
     /* THE BAND ANSWERS. Three sixteenths later — 433ms, an odd subdivision no
        player on the eighth grid can ever claim, and far past the ~50ms fusion
        threshold, so it reads as a second musician rather than a doubling of
@@ -2061,6 +2079,9 @@ function bedTick(dt){
     +((MU&&MU.armed&&!MU.rise)?260:0)    /* the armed wait audibly opens */
     +(G.od>0?420:0)+((MU&&t<MU.glow)?280:0); /* overdrive and afterglow run bright */
   if(MU&&MU.pay>0)cut=Math.min(cut,((PAY-MU.pay)>>3)<(MU.lateAt||4)?380:700);
+  /* the slow breath: textures in the reference genres move over MINUTES —
+     one gentle sine on the cutoff, ~2.3 minute period, nothing else */
+  if(playing)cut+=170*Math.sin(t*0.045);
   /* schedulePreDrop owns this param through the hole; do not fight it */
   if(!MU||t>=MU.lpLock)BED.lp.frequency.setTargetAtTime(cut,t,0.5);
   musicTick();
@@ -2667,8 +2688,8 @@ function checkMile(){
     G.mile=Math.floor(G.score/250);
     ripple(cx,cy,COL.ember);
     cueTone(function(w){
-      beep(660,0.1,'triangle',0.06,990,w);
-      beep(880,0.12,'triangle',0.06,1320,w+S16);
+      beep(330,0.10,'triangle',0.05,392,w);
+      beep(440,0.12,'triangle',0.05,523,w+S16);
     });
   }
 }
@@ -3363,8 +3384,8 @@ function updateSpikes(sdt,lethal){
       burst(gp[0],gp[1],'#bef4ff',8,220);
       PLAY.heat=Math.min(1,PLAY.heat+0.10);
       build(0.012,'orbit');
-      cueTone(function(w){hat(AC.currentTime+w,0.014,9500,0.03,0.3);
-        note(PENT[10],AC.currentTime+w,0.08,'sine',0.012,7000,panAt(gp[0]));});
+      cueTone(function(w){hat(AC.currentTime+w,0.010,6500,0.03,0.3);
+        note(PENT[10]*0.5,AC.currentTime+w,0.08,'sine',0.012,3500,panAt(gp[0]));});
       try{if(navigator.vibrate)navigator.vibrate(7);}catch(e){}
     }
   }
@@ -3489,8 +3510,8 @@ function update(dt){
     G.goldNext=85+Math.random()*25;G.gold=13;
     say('GOLDEN LAP \u2014 finish the orbit!',4,8);
     ripple(cx,cy,COL.ember);
-    cueTone(function(w){beep(880,0.12,'triangle',0.05,1174,w);
-      beep(1174,0.14,'triangle',0.05,1568,w+S16);});
+    cueTone(function(w){beep(440,0.12,'triangle',0.05,587,w);
+      beep(587,0.14,'triangle',0.05,784,w+S16);});
   }
   if(G.gold>0)G.gold-=dt;
   /* the layer ladder: a score crossing names the layer that just joined */
@@ -3499,8 +3520,8 @@ function update(dt){
     G.layerN=lyn;G.bandFx=1;
     say(LAYER_NAME[lyn-1],1,20);
     cueTone(function(w){
-      note(CH[0][0]*2,AC.currentTime+w,0.22,'sawtooth',0.030,2600,-0.2);
-      note(CH[0][2],AC.currentTime+w+S16,0.22,'sawtooth',0.026,3000,0.2);
+      note(CH[0][0],AC.currentTime+w,0.24,'sawtooth',0.030,1600,-0.2,undefined,0.4);
+      note(CH[0][2]*0.5,AC.currentTime+w+S16,0.24,'sawtooth',0.026,1800,0.2,undefined,0.4);
     });
   }
   /* a NEW SOUND is announced once its level banner has had the screen —
@@ -3621,12 +3642,12 @@ function update(dt){
       duckBed(0.45,0.35);
       /* the payout arpeggio walks up on sixteenths from the next grid point
          — the game's biggest scoring phrase finally plays in time */
-      beep(523,0.05,'triangle',0.05,660);
+      beep(262,0.05,'triangle',0.05,330);
       cueTone(function(w){
-        beep(523,0.12,'triangle',0.07,784,w);
-        beep(784,0.12,'triangle',0.07,1046,w+S16);
-        beep(1046,0.16,'triangle',0.07,1568,w+2*S16);
-        if(st>=3)beep(1568,0.18,'triangle',0.05,2093,w+3*S16);
+        beep(262,0.12,'triangle',0.07,392,w);
+        beep(392,0.12,'triangle',0.07,523,w+S16);
+        beep(523,0.16,'triangle',0.07,784,w+2*S16);
+        if(st>=3)beep(784,0.18,'triangle',0.05,1046,w+3*S16);
       });
       /* thresholds, not a floor: `st>=5` fired on every fed orbit past the
          fifth, which at mid-run speed is roughly every three seconds */
@@ -3662,9 +3683,9 @@ function update(dt){
       popup(lp[0],lp[1]-46*u,'GOLDEN LAP +150',COL.ember,1.6);
       if(!RM){flashHit(0.3);G.stop=Math.max(G.stop,0.08);
         G.rings.push({x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.ember,sp:420,dec:1.1,fat:1});}
-      cueTone(function(w){beep(1046,0.14,'triangle',0.08,1568,w);
-        beep(1568,0.20,'triangle',0.08,2093,w+S16);
-        beep(2093,0.30,'sine',0.06,2637,w+2*S16);});
+      cueTone(function(w){beep(523,0.14,'triangle',0.08,784,w);
+        beep(784,0.20,'triangle',0.08,1046,w+S16);
+        beep(1046,0.30,'sine',0.06,1318,w+2*S16);});
       build(0.10,'orbit');
       try{if(navigator.vibrate)navigator.vibrate([20,20,50]);}catch(e){}
     }
@@ -3712,7 +3733,7 @@ function update(dt){
          pickup is the arrangement gaining a note rather than a bell hitting
          it. The instant touch is a shaker grain; the tone lands on the
          sixteenth grid, so a chain of embers IS a fill run. */
-      hat(AC?AC.currentTime:0,0.006,8200,0.03);
+      hat(AC?AC.currentTime:0,0.005,4800,0.03,0,0,7600);
       if(G.combo>=3)try{if(navigator.vibrate)navigator.vibrate(6);}catch(e){}
       const cb=G.combo,cpan=panAt(p[0]);
       const eco=[0,-1,1,0][MU?((MU.step/8)|0)%4:0];
@@ -3730,10 +3751,9 @@ function update(dt){
              collecting IS soloing, which is the biggest "music is the key"
              payoff in the game for the smallest rule. */
           const d0=Math.max(0,Math.min(9,3+cb+eco));
-          note(PENT[d0],tt,0.14,'square',0.030,3200,cpan,A.perf);
-          note(PENT[Math.min(13,d0+2)],tt+S16,0.13,'square',0.026,3600,cpan*0.5,A.perf);
-          note(PENT[Math.min(13,d0+4)],tt+2*S16,0.16,'square',0.030,4200,-cpan,A.perf);
-          note(PENT[Math.min(13,d0+4)]*2,tt+2*S16,0.10,'sine',0.012,6000,-cpan,A.perf);
+          note(PENT[d0],tt,0.14,'square',0.030,2200,cpan,A.perf);
+          note(PENT[Math.min(13,d0+2)],tt+S16,0.13,'square',0.026,2400,cpan*0.5,A.perf);
+          note(PENT[Math.min(13,d0+4)],tt+2*S16,0.16,'square',0.030,2600,-cpan,A.perf);
         }else if(G.tier>=9){
           /* level ten: the stars are an electric guitar */
           gtr(f,tt,0.20,0.040+0.004*cb,cpan);
@@ -3756,7 +3776,7 @@ function update(dt){
         }
         /* the chain's crown: a high answer only when the combo is maxing */
         if(cb>=4&&!(MU&&MU.pay>0))
-          note(PENT[Math.min(13,8+eco)],tt+S16,0.12,'square',0.022,2600,cpan);
+          note(PENT[Math.min(13,8+eco)]*0.5,tt+S16,0.12,'square',0.022,1500,cpan);
       });
       build(0.016,'ember');
       checkMile();
@@ -3834,9 +3854,9 @@ function update(dt){
         burst(p[0],p[1],COL.ember,24,240);
         ripple(p[0],p[1],COL.ember);
         cueTone(function(w){
-          beep(784,0.10,'triangle',0.06,1046,w);
-          beep(1046,0.12,'triangle',0.06,1397,w+S16);
-          beep(1568,0.14,'triangle',0.06,2093,w+2*S16);
+          beep(392,0.10,'triangle',0.06,523,w);
+          beep(523,0.12,'triangle',0.06,698,w+S16);
+          beep(784,0.14,'triangle',0.06,1046,w+2*S16);
         });
         try{if(navigator.vibrate)navigator.vibrate(16);}catch(e){}
       }else{
