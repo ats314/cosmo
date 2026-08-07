@@ -5,6 +5,12 @@ dependencies, no assets — open it and play.
 
 **▶ [Play it](https://ats314.github.io/cosmo/)**
 
+> **Proprietary — all rights reserved.** Cosmo is a commercial product, not an
+> open-source project. This repository is public for playtesting only. No
+> permission is granted to use, copy, modify, host, redistribute, or build
+> derivative works from any part of it, and it is excluded from text and data
+> mining and from machine-learning training. See [LICENSE](LICENSE).
+
 You are a comet locked to a circular orbit. You cannot steer and you cannot
 stop. You get two verbs: reverse your direction, and hop between rings. Gather
 embers, dodge shards, and complete orbits.
