@@ -91,10 +91,18 @@ const RINGS=[
   /* outer */ {wave:'sawtooth',cut:1.00,lift:0,   sub:0, tint:'132,162,255'},
   /* mid   */ {wave:'square',  cut:1.18,lift:380, sub:1, tint:'128,206,255'},
   /* inner */ {wave:'square',  cut:1.42,lift:820, sub:2, tint:'168,240,255'}];
+/* SIX CLOUDS, NOT THREE, AND NO TWO ON THE SAME CLOCK. Three blobs on
+   near-identical LFOs read as three blobs sliding; six on incommensurate
+   periods read as weather. `sp` scales each one's drift rate and `dir` flips
+   the rotation of its drift basis, so the field never resolves into a
+   pattern the eye can predict. They cycle the three baked tints. */
 const nebulas=[
-  {x:0.22,y:0.25,r:0.55,c:'96,80,200',ph:0},
-  {x:0.80,y:0.70,r:0.60,c:'40,140,180',ph:2.1},
-  {x:0.65,y:0.15,r:0.45,c:'170,70,140',ph:4.0}
+  {x:0.22,y:0.25,r:0.55,ph:0,  sp:1.00,dir: 1,a:0.85},
+  {x:0.80,y:0.70,r:0.60,ph:2.1,sp:0.74,dir:-1,a:0.85},
+  {x:0.65,y:0.15,r:0.45,ph:4.0,sp:1.27,dir: 1,a:0.75},
+  {x:0.14,y:0.74,r:0.50,ph:1.2,sp:0.58,dir:-1,a:0.60},
+  {x:0.52,y:0.48,r:0.68,ph:5.3,sp:0.43,dir: 1,a:0.50},
+  {x:0.88,y:0.32,r:0.38,ph:3.1,sp:1.49,dir:-1,a:0.55}
 ];
 /* dust motes drifting in the shell of air the arena's light reaches — radii
    are stored as multiples of ring 0 so a resize never reshuffles them */
@@ -125,6 +133,14 @@ const SKY_BANDS=[
    neb:['150,70,190','96,80,200','120,100,220'],limb:'190,150,255'},
   {bg:['#241a28','#150f1e','#0e0a16','#06040c'],
    neb:['200,120,80','170,70,140','120,90,200'],limb:'255,200,140'}];
+/* ---- SKY MOTION. These three numbers are the whole feel of the backdrop.
+   SKY_SWELL  depth of the musical breath (0 = dead still, 1 = strong).
+   SKY_FLOW   how far the clouds wander, as a fraction of the screen.
+   SKY_RATE   master speed of every background LFO; lower is calmer.
+   The sky is deliberately quieter than the arena: the brief is alive and
+   relaxing, and every band still obeys the luminance rule above — none of
+   this may ever let the backdrop compete with a shard for "danger". ---- */
+const SKY_SWELL=0.62,SKY_FLOW=0.055,SKY_RATE=1;
 let skyI=0;
 function makeCanvas(w,h,fn){
   const c=document.createElement('canvas');
@@ -439,7 +455,7 @@ function buildSprites(bandOnly){
      than a one-second flash over the ordinary screen. */
   SPR.bg2=bakeBackdrop(['#231b3f','#151030','#0b081c','#05040e']);
   SPR.neb2=nebulas.map(function(n,i){
-    return bakeNebula(['150,110,255','90,80,220','190,90,200'][i]);
+    return bakeNebula(['150,110,255','90,80,220','190,90,200'][i%3]);
   });
   /* The wash that blooms behind the arena when the drop lands. */
   SPR.nebDrop=bakeNebula('180,139,255');
@@ -5083,6 +5099,26 @@ function drawBeat(p){
   ctx.restore();
 }
 /* ---------- draw ---------- */
+/* WHERE THE MUSIC IS, CONTINUOUSLY. Returns the position inside the four-bar
+   phrase in eighths (0..STEPS) as a float that advances smoothly, so the sky
+   can be driven by musical PHASE instead of by beat impulses.
+   The audio clock schedules ahead of the speaker, so MU.step is the next step
+   to be queued and MU.next is when it fires: the sound a player is hearing
+   right now is that far behind. Subtracting the lead-in gives the audible
+   position, and it stays continuous across a step boundary because MU.step
+   gains 1 at the same instant the lead-in does.
+   With no audio clock — muted tab, no WebAudio, the menu — it free-runs on
+   wall time at the same tempo. That is deliberate and load-bearing: a large
+   share of web players play with the sound off, and they should still see a
+   world that breathes in time rather than a dead one. */
+function musPos(){
+  const sd=SPB/2;
+  if(A&&AC&&MU&&MU.next&&AC.state==='running'&&G.state==='playing'){
+    const lead=(MU.next-AC.currentTime)/sd;
+    return ((MU.step-lead)%STEPS+STEPS)%STEPS;
+  }
+  return (G.t/sd)%STEPS;
+}
 function draw(){
   const amb=RM?0:G.t;
   if(SPR.bg)ctx.drawImage(SPR.bg.c,0,0,W,H);
@@ -5113,7 +5149,27 @@ function draw(){
      idle board, breathing when the player runs hot, doubled through the
      payoff, gold through overdrive — and the drum break drops the room dark
      (drawn after the motes). RM keeps every layer static, as always. */
-  const mpulse=RM?0:G.beat*(0.30+0.70*Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow));
+  /* THE SKY BREATHES, IT DOES NOT TWITCH. This was G.beat — an impulse that
+     spikes to 1 and decays in a fifth of a second, so every backdrop layer
+     flinched on the beat and then sat dead for the rest of it. It is a
+     continuous musical phase now: a smooth swell across the bar riding a
+     slower swell across the four-bar phrase, both cosines, so nothing in the
+     sky ever snaps. The peak is lower than the old impulse and the mean is
+     about the same — the backdrop reads calmer while never being still.
+     G.beat still drives the comet, the rings, the embers and the HUD. The
+     punch belongs in the arena; the groove belongs in the sky. */
+  /* Both swells PEAK on their downbeat (+cos, not -cos). Two reasons, and the
+     second is the one that matters: light arriving with the beat is what the
+     old impulse did and what "grooving" looks like — but also, phased this way
+     the two minima can never coincide. The bar troughs at mid-bar, where the
+     phrase is near its top; the phrase troughs at mid-phrase, where the bar is
+     exactly at its top. Inverted, both bottomed out together on the first beat
+     of every phrase and the sky went flat at the very moment the music landed. */
+  const mp=musPos();
+  const swBar=0.5+0.5*Math.cos(TAU*((mp%8)/8));       /* one bar   ~2.3s */
+  const swPhrase=0.5+0.5*Math.cos(TAU*(mp/STEPS));    /* four bars ~9.2s */
+  const energy=Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow);
+  const mpulse=RM?0:SKY_SWELL*(0.60*swBar+0.40*swPhrase)*(0.40+0.60*energy);
   /* THE GALACTIC BAND — deepest light in the scene, and it answers the drop */
   if(SPR.galaxy){
     ctx.globalAlpha=0.6*(1+0.30*mpulse);
@@ -5131,18 +5187,32 @@ function draw(){
     const ps=SPR.planet.w;
     ctx.drawImage(SPR.planet.c,-ps*0.55+sdx*0.15+camX*0.15,H-ps*0.42+sdy*0.15+camY*0.15,ps,ps);
   }
+  /* THE CLOUD FIELD FLOWS. Each cloud wandered a fixed 2%-of-screen circle on
+     one sine before, which the eye reads as an oscillation returning to where
+     it started — a loop, not weather. Each now rides a slow Lissajous whose
+     DIRECTION is itself rotating, so the path never closes; with six clouds on
+     incommensurate rates the field never resolves into a pattern.
+     Size breathes on the four-bar phrase rather than the beat, so the sky
+     swells with the arrangement instead of ticking with it. */
   if(SPR.neb)for(let i=0;i<nebulas.length;i++){
     const n=nebulas[i];
+    const sp=SPR.neb[i%SPR.neb.length];
+    const dr=amb*0.011*SKY_RATE*n.sp*n.dir+n.ph;   /* the turning drift basis */
+    const w1=Math.sin(amb*0.037*SKY_RATE*n.sp+n.ph);
+    const w2=Math.cos(amb*0.026*SKY_RATE*n.sp+n.ph*1.7);
+    const wob=RM?0:SKY_FLOW;
+    const nx=(n.x+wob*(w1*Math.cos(dr)-w2*Math.sin(dr)))*W;
+    const ny=(n.y+wob*(w1*Math.sin(dr)+w2*Math.cos(dr)))*H;
     /* the nebulae swell when the drop lands — the dangling hook, wired */
-    const nr=n.r*Math.max(W,H)*0.5*(1+(RM?0:0.18*G.dropFx+0.06*mpulse));
-    const nx=(n.x+0.02*Math.sin(amb*0.07+n.ph))*W;
-    const ny=(n.y+0.02*Math.cos(amb*0.05+n.ph))*H;
-    ctx.drawImage(SPR.neb[i].c,nx-nr,ny-nr,nr*2,nr*2);
+    const nr=n.r*Math.max(W,H)*0.5*
+      (1+(RM?0:0.18*G.dropFx+0.13*swPhrase+0.05*swBar));
+    ctx.globalAlpha=n.a;
+    ctx.drawImage(sp.c,nx-nr,ny-nr,nr*2,nr*2);
     if(dropA>0&&SPR.neb2){
-      ctx.globalAlpha=dropA;
-      ctx.drawImage(SPR.neb2[i].c,nx-nr,ny-nr,nr*2,nr*2);
-      ctx.globalAlpha=1;
+      ctx.globalAlpha=dropA*n.a;
+      ctx.drawImage(SPR.neb2[i%SPR.neb2.length].c,nx-nr,ny-nr,nr*2,nr*2);
     }
+    ctx.globalAlpha=1;
   }
   /* the warp wash behind the arena: blooms with the landing, sustains at low
      alpha while the section runs, drains with it. Suppressed under slow-mo
@@ -5202,7 +5272,10 @@ function draw(){
        rest of the game obeys. Gated on groove so a player who has not found
        the beat is not shown a pulsing sky, and strongest in the payoff. */
     let al=RM?0.4:(0.10+0.55*(0.5+0.5*Math.sin(amb*st.tw+st.ph)));
-    if(!RM&&st.r>1.2&&(G.groove>0||PLAY.heat>0.2))al*=(1+0.30*G.beat*(0.5+0.5*G.pay)+0.25*mpulse);
+    /* the glint stays — it is the one background element that agrees with the
+       grid — but most of the weight moved to the continuous swell, so the
+       field now rises and falls rather than blinking */
+    if(!RM&&st.r>1.2&&(G.groove>0||PLAY.heat>0.2))al*=(1+0.15*G.beat*(0.5+0.5*G.pay)+0.45*mpulse);
     ctx.globalAlpha=Math.min(1,al);
     ctx.beginPath();ctx.arc(st.x*W+sdx+pcx+camX,st.y*H+sdy+pcy+camY,st.r,0,TAU);ctx.fill();
   }
@@ -5219,7 +5292,7 @@ function draw(){
       let al=RM?0.10+0.18*shell
              :(0.05+0.30*shell)*(1+1.6*Math.pow(Math.max(0,Math.cos(a-G.angle)),4));
       /* the dust nods on the landed beat once the player has found it */
-      if(!RM&&(G.pay>0||G.groove>0||PLAY.heat>0.2))al*=(1+0.7*G.beat*(G.pay>0?1:0.5)+0.4*mpulse);
+      if(!RM&&(G.pay>0||G.groove>0||PLAY.heat>0.2))al*=(1+0.30*G.beat*(G.pay>0?1:0.5)+0.75*mpulse);
       blit(SPR.mote,cx+Math.cos(a)*r+camX*1.1,cy+Math.sin(a)*r+camY*1.1,
         m.sz,0,Math.min(0.55,al));
     }
