@@ -1212,6 +1212,7 @@ function build(amount,src){
     let best='ember',bv=-1;
     for(const k in G.buildSrc)if(G.buildSrc[k]>bv){bv=G.buildSrc[k];best=k;}
     G.buildSrc={ember:0,hop:0,time:0,orbit:0};
+    G.dropsEarned++;   /* earned here, once — the banked re-fire is the same drop */
     armDrop(BUILD_SRC[best],best);
   }
 }
@@ -1755,6 +1756,9 @@ function musicStep(i,t,k){
     const win={};let nw=0;
     for(const e of PLAY.tape)if(t-e.at<8*SPB+0.25){win[e.c]=e.ci;nw++;}
     if(nw>=3&&nw<=10){
+      /* count capture EVENTS, not the rolling re-captures while a loop is
+         already singing — "how often does a run put a beat in the song" */
+      if(!LOOP.pat||t>=LOOP.until)G.loopN++;
       LOOP.pat=win;LOOP.n=nw;LOOP.until=t+16*SPB;   /* eight bars of life */
       if(!LOOP.heard){LOOP.heard=true;say('YOUR BEAT IS IN THE SONG',2,10);}
     }
@@ -2808,6 +2812,9 @@ function tierIndex(){
   if(!G.didHop&&G.level<2&&G.state==='playing'&&i>1){
     if(!G.holdD)G.holdD=d;               /* set once, at first engagement */
     if(d-G.holdD<30)i=1;
+    /* the release valve fired with the hop still unlanded — the purest
+       "the hop lesson did not land" signal telemetry has */
+    else G.holdTimeout=true;
   }
   return i;
 }
@@ -2884,7 +2891,9 @@ const G={
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
-  didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,gotShield:false,hyperPlaced:false,
+  didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,gotShield:false,
+  gotBass:false,gotSpot:false,hyperPlaced:false,
+  dropsEarned:0,loopN:0,nearN:0,bestCombo:0,holdTimeout:false, /* play-style aggregates for run_ended */
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
   stop:0, /* hitstop: freezes the comet while the celebration plays */
   starT:0.6,spikeT:1.2,powT:6,powN:0,shake:0,flash:0,tier:0,banner:null,featT:0,
@@ -3384,6 +3393,8 @@ function startGame(){
      all. Each clears the instant the thing is done, so a veteran sees each for
      well under a second. */
   G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;G.gotShield=false;
+  G.gotBass=false;G.gotSpot=false;
+  G.dropsEarned=0;G.loopN=0;G.nearN=0;G.bestCombo=0;G.holdTimeout=false;
   G.hyperPlaced=false;G.bassPlaced=false;G.spotPlaced=false;
   G.didReverse=false;G.didHop=false;G.didLap=false;
   G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];G.novas=[];
@@ -3506,6 +3517,12 @@ function die(){
        on-beat chain's peak — the timing-skill numbers the balance
        questions keep needing */
     lands:G.lands,best_groove:G.bestGroove,
+    /* the conversion and engagement aggregates: earned drops vs landed,
+       whether the twin exam arrived by hop or by timeout, peak combo,
+       loop captures, deliberate dodges, and musical-orb pickups */
+    drops_earned:G.dropsEarned,hold_timeout:G.holdTimeout,
+    best_combo:G.bestCombo,loop_caught:G.loopN,near_misses:G.nearN,
+    got_bass:G.gotBass,got_spot:G.gotSpot,
     tier:G.tier,tier_name:tierLabel(),rings:G.nRings,
     /* the ordinal the player actually sees, so the funnel is readable without
        anyone having to remember that tier is zero-based */
@@ -3995,6 +4012,7 @@ function updateSpikes(sdt,lethal){
       s.grz=1;
       const gp=posPlayer();
       G.score+=3;
+      G.nearN++;
       popup(gp[0],gp[1]-20*u,'CLOSE +3','rgba(230,240,255,0.9)',0.85);
       burst(gp[0],gp[1],'#bef4ff',8,220);
       PLAY.heat=Math.min(1,PLAY.heat+0.10);
@@ -4491,6 +4509,7 @@ function update(dt){
     if(s.ring===er&&sweptHit(s.a,(22*u)/radiusOf(er))){
       G.stars.splice(i,1);
       G.combo=Math.min(G.combo+1,6);G.comboT=CW;
+      if(G.combo>G.bestCombo)G.bestCombo=G.combo;
       if(G.combo>=3)firstMeet('combo');   /* the multiplier names itself once */
       G.score+=G.combo;G.diff+=1;G.scorePop=1;
       /* embers ride the section too: doubled (×2 more on a perfect landing) */
@@ -4623,6 +4642,7 @@ function update(dt){
         ripple(p[0],p[1],COL.warp);
         beep(400,0.3,'sine',0.07,150);
       }else if(s.type==='bass'){
+        G.gotBass=true;
         /* BASS BOMB: every shard in the neighbourhood converts, and the low
            end drops — a pitch-fall boom into a one-bar heavy kick figure.
            The clear reuses novaConvert, so the shards pay like a nova's. */
@@ -4647,7 +4667,7 @@ function update(dt){
         /* SPOTLIGHT: four bars where YOU are the lead — your instrument
            doubles and brightens, the band steps back a notch, and every
            tight tap pays double. A performance, not a transaction. */
-        G.spot=16*SPB;
+        G.spot=16*SPB;G.gotSpot=true;
         cueState(true);
         popup(p[0],p[1]-24*u,'SPOTLIGHT!',COL.warp,1.5);
         burst(p[0],p[1],'#eaf1ff',20,220);

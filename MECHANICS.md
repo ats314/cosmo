@@ -90,4 +90,6 @@ curriculum pass so nothing new is ever met inside level 3.
 - **Telemetry** — `run_ended` carries `did_hop`/`death_cause`/`misread_rate`;
   `lesson_shown` and `card_shown` events, plus `killer_lesson_seen` /
   `killer_relessoned` / `lessons_shown` on `run_ended`, measure whether
-  teaching lands *(new)*.
+  teaching lands; `drops_earned`/`lands`, `hold_timeout`, `best_combo`,
+  `best_groove`, `loop_caught`, `near_misses` and the orb pickup flags
+  measure whether the taught systems get USED *(new)*.
