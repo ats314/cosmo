@@ -74,6 +74,32 @@ levels are trainable without regrinding, and a downward swipe on the intro
 card restarts the journey from level 1. Score carries across a single
 run's levels; by level 3 every current mechanic has been introduced.
 
+Playtest round two on levels: **1 and 2 run longer now** (finish lines at
+dl 45 and 140, roughly 80 seconds and a further two minutes-plus) so each
+batch of mechanics gets real practice time before the next; the storm
+threats moved out accordingly. And the three songs are **actually three
+arrangements**, not one tune transposed: each level has its own bassline
+(L1 walks, L2 pushes off the beat, L3 rolls relentless eighths), its own
+riff, its own afterglow solo, and its own kit identity (L2 swings with a
+soft clap lean, L3 drives an offbeat hat everywhere).
+
+**The loop recorder.** The owner's idea, near-verbatim: "if I'm stuck
+between two reds I just intuitively click back and forth along the beat —
+I ad-lib beats. What if my ad-libbed beats could be remembered and
+recorded into the song with harmony?" So they are. Every quantised input
+lands on a rolling two-bar tape; at each two-bar line, if the window held
+a real phrase (three to ten taps with the groove alive), it becomes the
+active loop and the band plays it back — harmonised in thirds, an octave
+below the player, through the dub delay — for eight bars or until a new
+phrase replaces it. The first capture of a run announces itself: "YOUR
+BEAT IS IN THE SONG." Dodging in rhythm is composing.
+
+**The orbs earn their look.** The bass bomb is a subwoofer now — its cone
+slams on the landed beat; the echo is sound made visible, rings echoing
+outward from a bright throat; the meteor is a constellation in motion,
+satellites orbiting the core and shedding trails. (The playtest called the
+old echo "pretty lame looking." Fair.)
+
 **The braam is the signature voice.** The deep "whaaa" from the drop hit —
 sub boom under a swelling fifth-stack — now speaks at every big moment:
 level starts and completions, overdrive, golden lap payouts, novas, new
@@ -116,11 +142,11 @@ Mechanics unlock on a schedule, each announced with a banner:
 | 33s | twin shards — too wide to outrun, hop over |
 | 73s | third ring |
 | 88s | gates — every ring blocked, reverse |
-| 166s | drifters — these ones move |
-| 221s | blinkers — they flicker, time your pass |
-| 266s | sliding gates — the wall slides, reverse early |
-| 316s | flicker pairs — one gap at a time, never both |
-| 351s | storm — no new tricks, just more of them |
+| 191s | drifters — these ones move |
+| 236s | blinkers — they flicker, time your pass |
+| 281s | sliding gates — the wall slides, reverse early |
+| 326s | flicker pairs — one gap at a time, never both |
+| 366s | storm — no new tricks, just more of them |
 
 Those times assume a player earning no difficulty nudge at all, which is the
 slowest the schedule ever runs; scoring well pulls everything forward by up
