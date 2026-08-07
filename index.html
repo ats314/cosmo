@@ -1631,7 +1631,10 @@ function musicStep(i,t,k){
      almost the first bar, swelling with the run and the playing. */
   if(k>0.12||PLAY.heat>0.20||hot){
     const bg=0.026+0.020*Math.min(1,k+0.3*PLAY.heat);
-    if(beat===0)bassN(ch[0],t,0.30,bg);
+    if(beat===0){bassN(ch[0],t,0.30,bg);
+      /* the whaa: a saw swell breathing out of every bar-line bass note —
+         the drop's mouth, speaking continuously once the run warms up */
+      if(k>0.35||hot)swellPad(ch[0],t,0.55,0.024+0.016*k,0);}
     if(beat===2)bassN(ch[0],t+S16,0.16,bg*0.80);
     if(beat===5)bassN(ch[3]/2,t,0.18,bg*0.85);
     if(beat===7)bassN(ch[0]*0.75,t+S16,0.12,bg*0.70);
@@ -1712,6 +1715,11 @@ function musicStep(i,t,k){
   if((k>0.20||PLAY.heat>0.30||hot)&&beat===0)
     swellPad(bar%2?ch[3]*2:ch[2]*2,t,2.6,0.022+0.014*k,(bar%4<2)?-0.2:0.2);
   if((k>0.5||hot)&&bar%4===3&&beat===4)riser(t,2*SPB,0.016,1600);
+  /* EACH LEVEL IS ITS OWN SONG: key, chords and arp swap at startGame (the
+     bed retunes itself from CH), and the kit leans differently — level 2
+     swings its sixteenths, level 3 rolls four-on-the-floor everywhere. */
+  if(G.level===2&&(beat===2||beat===6))hat(t+S16*1.16,0.007,4400,0.03,0,0,7200);
+  if(G.level===3&&(beat===2||beat===6)&&ringOf()===0)kick(t,0.032);
   /* THE SKY FLAVOURS THE KIT (playtest: "more electro beats"). Each palette
      band the run climbs through puts its own spin on the percussion: band 1
      swings its sixteenths, band 2 rides the classic offbeat open hat, band
@@ -2206,6 +2214,68 @@ function panAt(x){return Math.max(-1,Math.min(1,((x-cx)/(W*0.5))*0.55));}
    so nothing here can clash with anything else. */
 const PENT=[440,523.25,587.33,659.25,783.99,880,1046.5,1174.66,1318.5,1568,
             1760,2093,2349.32,2637];
+const PENT_BASE=PENT.slice();
+/* ---------- levels ----------
+   The run is three LEVELS now, each with a clear finish line on the
+   difficulty clock, an intro card naming the mechanics it will introduce,
+   and its own song — same 104bpm grid (the dub delay stays in time), but a
+   new key, new chords, new arp contour and a different lean to the kit.
+   Each level transposes DOWN (A minor, then G, then F): going deeper into
+   the game literally deepens the music. Progress persists; death retries
+   the level you are on, so later levels are trainable without regrinding. */
+const LV=[
+ {dl0:0,  end:40,  name:'LIFT OFF', key:1,
+  mech:[['tap','tap anywhere to turn around'],
+        ['swipe','swipe up or down to change rings'],
+        ['star','stars play the music \u2014 gather them'],
+        ['beat','ride the beat drop when it comes']]},
+ {dl0:40, end:110, name:'INTO THE RINGS', key:0.8909,
+  mech:[['shard','gates and twin shards block the track'],
+        ['star','golden laps pay a fat bonus'],
+        ['beat','run hot: overdrive, drum breaks'],
+        ['nova','bass bomb \u00b7 echo \u00b7 meteor shower']]},
+ {dl0:110,end:Infinity,name:'THE STORM', key:0.7937,
+  mech:[['shard','drifters chase you'],
+        ['shard','blinkers phase in and out'],
+        ['shard','sliding gates, flicker pairs'],
+        ['beat','everything \u2014 how far can you ride?']]}];
+const PROG=[
+ [[110,220,261.63,329.63],[87.31,174.61,220,261.63],
+  [130.81,261.63,329.63,392],[98,196,246.94,293.66]],          /* Am F C G  */
+ [[98,196,233.08,293.66],[77.78,155.56,196,233.08],
+  [116.54,233.08,293.66,349.23],[87.31,174.61,220,261.63]],    /* Gm Eb Bb F */
+ [[87.31,174.61,207.65,261.63],[69.30,138.59,174.61,207.65],
+  [103.83,207.65,261.63,311.13],[77.78,155.56,196,233.08]]];   /* Fm Db Ab Eb */
+const ARPL=[[0,2,4,2,3,2,4,3],[0,3,1,4,2,4,3,1],[0,1,3,2,4,2,3,1]];
+function applyLevelMusic(){
+  const L=LV[G.level-1];
+  for(let i=0;i<PENT.length;i++)PENT[i]=PENT_BASE[i]*L.key;
+  for(let j=0;j<4;j++)CH[j]=PROG[G.level-1][j];
+  for(let i=0;i<ARP.length;i++)ARP[i]=ARPL[G.level-1][i];
+}
+/* THE WHAAA. The braam from the drop hit — sub boom under a swelling
+   fifth-stack — promoted to the game's signature voice: level starts and
+   finishes, overdrive, golden laps, novas, new layers. Every big moment
+   speaks in the same deep breath the playtest kept pointing at. */
+function braam(g,pan){
+  if(!AC)return;
+  const f=CH[0][0],t0=AC.currentTime;
+  note(f*0.375,t0,0.9,'sine',g*1.1,320);
+  swellPad(f,t0+0.01,1.4,g,pan||0);
+  swellPad(f*1.5,t0+0.01,1.4,g*0.75,(pan||0)+0.15);
+}
+function levelComplete(){
+  if(G.state!=='playing')return;
+  G.state='lvend';G.lvT=G.t;
+  G.lvCard={done:true,next:G.level+1};
+  G.carryScore=G.score;
+  if(G.level+1>G.lvlMax){G.lvlMax=G.level+1;savePref('cometloop:gl',G.lvlMax);}
+  braam(0.07);
+  flashHit(0.6);
+  ripple(cx,cy,COL.ember);
+  if(!RM)G.rings.push({x:cx,y:cy,r:radiusOf(0),life:1,col:COL.ember,sp:420,dec:1.0,fat:1});
+  try{if(navigator.vibrate)navigator.vibrate([40,30,40,30,90]);}catch(e){}
+}
 
 /* ---------- persistence (no-ops gracefully if unavailable) ----------
    localStorage is the real store. window.storage is the async host API this
@@ -2222,6 +2292,8 @@ function loadPrefs(){
   if(!isNaN(r))G.runs=Math.max(G.runs,r);
   const lv=parseInt(readLocal('cometloop:level'),10);
   if(!isNaN(lv))G.bestLevel=Math.max(G.bestLevel,lv);
+  const gl=parseInt(readLocal('cometloop:gl'),10);
+  if(!isNaN(gl))G.lvlMax=Math.max(1,Math.min(3,gl));
   const m=readLocal('cometloop:muted');
   if(m!==null)muted=(m==='1');
   /* Deliberately never reset by startGame: it records whether this human has
@@ -2350,10 +2422,11 @@ function age(){return G.t-G.started;}
    Everything below is keyed off dl() — "difficulty seconds". */
 function dl(){
   const a=age()+Math.min(G.diff*0.22,40);
-  /* The first ~80 seconds advance the clock at 55% rate, so a new player gets
-     a long, low-pressure stretch to find the controls before the curve
-     engages. After that it runs at true seconds. (Was 60% over 70s — the
-     opening was still outrunning first-time players.) */
+  const base=LV[(G.level||1)-1].dl0;
+  /* each level re-runs the gentle opening ramp from its own floor */
+  return base+(a<80?a*0.55:44+(a-80));
+}
+function dlOld(a){
   return a<80?a*0.55:44+(a-80);
 }
 /* Speed is one axis among four, and a shallow one. The whole curve is
@@ -2529,6 +2602,7 @@ const G={
   state:'menu',t:0,started:0,deadT:0,
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
   bestLevel:1,newLevel:false, /* furthest tier ever reached, and this run's */
+  level:1,lvlMax:1,lvT:0,lvCard:null,carryScore:0, /* the three-level structure */
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
   orbits:0,bestStreak:0,shareFx:0, /* run summary, for the death screen and share */
   groove:0,grooveT:0,grooveFx:0,bestGroove:0,beat:0,dropFx:0, /* rhythm */
@@ -2892,6 +2966,11 @@ function spawnPow(){
 function startGame(){
   G.runs++;savePref('cometloop:runs',G.runs);
   G.state='playing';G.score=0;G.diff=0;G.newBest=false;G.scorePop=0;G.mile=0;
+  /* the level's song, and its head start: a level-2+ start opens with the
+     ladder already climbed to the level's floor — silently, because the
+     intro card just did the announcing */
+  applyLevelMusic();
+  if(G.carryScore){G.score=G.carryScore;G.mile=Math.floor(G.score/250);G.carryScore=0;}
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
@@ -2933,6 +3012,12 @@ function startGame(){
      shield on the board around 10s instead of 17s, which leaves room for all
      three of the intro power-ups inside a short run. */
   G.starT=0.5;G.spikeT=1.2;G.powT=4;G.powN=0;G.started=G.t;G.tier=0;G.banner=null;G.featT=G.t;
+  if(G.level>=2){
+    G.didHop=true;              /* reaching level 2 proved the verb */
+    G.tier=tierIndex();
+    for(let i=0;i<=G.tier;i++)if(TIERS[i].rings)G.nRings=Math.max(G.nRings,TIERS[i].rings);
+  }
+  skyI=G.level-1;
   beep(440,0.12,'sine',0.05,880);
 }
 function die(){
@@ -3133,7 +3218,7 @@ function runSummary(){
   /* The level leads and the score moves down a line. A shared score is a
      number nobody can place; a shared level is a claim that invites one back
      — "level 6" is answerable in a way "4300" is not. */
-  return 'Cosmo · LEVEL '+levelNum()+'/'+LEVEL_MAX+'\n'+
+  return 'Cosmo · LEVEL '+G.level+'/3\n'+
     bar+' '+tierLabel()+'\n'+
     G.score+' points · '+G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
     (G.bestGroove>=2?'on beat ×'+G.bestGroove+'\n':'')+
@@ -3194,7 +3279,13 @@ cv.addEventListener('pointerdown',function(e){
   e.preventDefault();ensureAudio();
   if(inMute(e.clientX,e.clientY)){toggleMute();return;}
   if(inShare(e.clientX,e.clientY)){doShare();return;} /* must precede the retry tap */
-  if(G.state==='menu'){startGame();return;}
+  if(G.state==='menu'){
+    /* past level 1, the menu leads to the level card, not straight in */
+    if(G.lvlMax>1){G.state='lvend';G.lvT=G.t;G.lvCard={done:false,next:G.lvlMax};}
+    else{G.level=1;startGame();}
+    return;
+  }
+  if(G.state==='lvend'){G.lvPt={y:e.clientY};return;}  /* decided at lift */
   if(G.state==='dead'){
     /* the first tap after the lockout fast-forwards the reveal; the next
        one retries — a fast retrier is never made to sit through it */
@@ -3241,6 +3332,17 @@ cv.addEventListener('pointermove',function(e){
   }
 });
 function pdEnd(e){
+  /* the level card: tap starts the level; a downward swipe restarts the
+     journey from level 1 (the training escape hatch) */
+  if(G.state==='lvend'&&G.lvPt){
+    const dy=e&&e.clientY!==undefined?e.clientY-G.lvPt.y:0;
+    G.lvPt=null;
+    if(G.t-G.lvT>0.6){
+      G.level=(dy>60*u&&!G.lvCard.done)?1:Math.min(3,G.lvCard.next);
+      startGame();braam(0.05);
+    }
+    return;
+  }
   if(pd&&e&&pd.id!==e.pointerId)return;
   if(pd){
     if(pd.swiped){
@@ -3276,8 +3378,12 @@ cv.addEventListener('contextmenu',function(e){e.preventDefault();});
 window.addEventListener('keydown',function(e){
   if(e.code==='Space'||e.code==='Enter'){
     e.preventDefault();ensureAudio();
-    if(G.state==='menu')startGame();
-    else if(G.state==='dead'){
+    if(G.state==='menu'){
+      if(G.lvlMax>1){G.state='lvend';G.lvT=G.t;G.lvCard={done:false,next:G.lvlMax};}
+      else{G.level=1;startGame();}
+    }else if(G.state==='lvend'){
+      if(G.t-G.lvT>0.6){G.level=Math.min(3,G.lvCard.next);startGame();braam(0.05);}
+    }else if(G.state==='dead'){
       if(G.t-G.deadT>0.6){if(!deadSeqDone())G.deadSkip=true;else startGame();}
     }
     else{tryLand();reverse(false);}   /* the reverse also lands the drop */
@@ -3479,11 +3585,14 @@ function update(dt){
 
   /* dir matters on the menu now: the demo reverses the comet for real */
   if(G.state==='menu'){G.sweep=0;G.angle+=0.8*dt*G.dir;pushTrail();menuDemo(dt);return;}
+  if(G.state==='lvend'){G.sweep=0;G.angle+=0.8*dt*G.dir;pushTrail();return;}
   if(G.state==='dead'){G.sweep=0;updateSpikes(dt,false);return;}
 
   /* playing */
   G.teach=Math.max(0,G.teach-dt);
   if(G.nRings>=3&&G.ringI===0)G.campT+=dt;else G.campT=0;
+  /* the finish line: survive to the level's end of the clock and it is DONE */
+  if(dl()>=LV[G.level-1].end){levelComplete();return;}
   /* OVERDRIVE — the eleventh notch. Keep the heat pinned for a full bar
      (about 2.3s of continuous playing) and the game tips into eight bars of
      double-time with every layer open, and embers and on-beat taps paying
@@ -3493,7 +3602,7 @@ function update(dt){
   if(G.odT>SPB*8&&G.t>G.odCool&&G.od<=0&&MU&&!MU.armed&&dl()>18){
     G.od=64;G.odT=0;G.odCool=G.t+45;
     say('OVERDRIVE \u00d72',3,6);
-    fireLift();
+    fireLift();braam(0.045);
     const op=posPlayer();burst(op[0],op[1],COL.warp,20,240);
     if(!RM){flashHit(0.2);
       G.rings.push({x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.warp,sp:260,dec:1.6});}
@@ -3519,6 +3628,7 @@ function update(dt){
   if(lyn>G.layerN){
     G.layerN=lyn;G.bandFx=1;
     say(LAYER_NAME[lyn-1],1,20);
+    braam(0.030);
     cueTone(function(w){
       note(CH[0][0],AC.currentTime+w,0.24,'sawtooth',0.030,1600,-0.2,undefined,0.4);
       note(CH[0][2]*0.5,AC.currentTime+w+S16,0.24,'sawtooth',0.026,1800,0.2,undefined,0.4);
@@ -3557,7 +3667,7 @@ function update(dt){
   const ti=tierIndex();
   if(ti>G.tier&&(!G.banner||G.banner.t>1.2)){
     G.tier++;G.featT=G.t;      /* the featuring grace clock — see pickType */
-    skyI=G.tier>=9?3:G.tier>=7?2:G.tier>=4?1:0;  /* the sky deepens with the ladder */
+    skyI=Math.max(G.level-1,G.tier>=9?3:G.tier>=7?2:G.tier>=4?1:0);  /* the sky deepens; each level floors it */
     const T=TIERS[G.tier];
     if(T.rings&&T.rings>G.nRings){
       G.nRings=T.rings;
@@ -3686,6 +3796,7 @@ function update(dt){
       cueTone(function(w){beep(523,0.14,'triangle',0.08,784,w);
         beep(784,0.20,'triangle',0.08,1046,w+S16);
         beep(1046,0.30,'sine',0.06,1318,w+2*S16);});
+      braam(0.040);
       build(0.10,'orbit');
       try{if(navigator.vibrate)navigator.vibrate([20,20,50]);}catch(e){}
     }
@@ -3883,6 +3994,7 @@ function update(dt){
         duckBed(0.10,0.6);
         beep(180,0.5,'sawtooth',0.07,1500);
         beep(90,0.55,'sine',0.06,45);
+        braam(0.05);
         beep(1250,0.15,'sine',0.05,1900,0.13);
         try{if(navigator.vibrate)navigator.vibrate([26,40,60]);}catch(e){}
       }
@@ -4996,7 +5108,7 @@ function drawHUD(){
     /* The level replaces BEST here. The score directly above is already the
        live number, and a second number you cannot affect this second is worth
        less than the one that says where in the game you are. */
-    text('LEVEL '+levelNum()+' · '+tierLabel(),cx,top+76*u,13*u,'700',
+    text('LEVEL '+G.level+' \u00b7 '+tierLabel(),cx,top+76*u,13*u,'700',
       'rgba(255,200,87,0.72)',2);
     /* THE BAND METER (playtest: nobody could tell there was more band to
        unlock). One dot per layer, lit as it joins the record: five violet
@@ -5143,7 +5255,7 @@ function drawHUD(){
          failure colour, which is a strange thing to do to the only reward the
          ladder ever hands out. Ember gold is what the game already uses for
          everything earned. */
-      text('LEVEL '+levelNum(),cx,by-19*u,12*u,'800','rgba(255,200,87,0.75)',3);
+      text('UNLOCKED',cx,by-19*u,12*u,'800','rgba(255,200,87,0.75)',3);
       text(b.str,cx,by,20*u,'800',COL.ember,4);
       text(b.sub,cx,by+20*u,12*u,'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
@@ -5244,6 +5356,36 @@ function drawHUD(){
       }
       ctx.globalAlpha=1;
     }
+  }else if(G.state==='lvend'){
+    const c2=G.lvCard||{done:false,next:1};
+    const L=LV[Math.min(2,c2.next-1)];
+    const a2=Math.min(1,(G.t-G.lvT)/0.35);
+    ctx.globalAlpha=a2;
+    let y2=cy-150*u;
+    if(c2.done){
+      text('LEVEL '+(c2.next-1)+' COMPLETE',cx,y2,24*u,'800',COL.ember,4);
+      text('score so far \u00b7 '+G.carryScore,cx,y2+22*u,12*u,'600',
+        'rgba(210,225,255,0.7)',1);
+      y2+=58*u;
+    }
+    text('LEVEL '+Math.min(3,c2.next),cx,y2,14*u,'800','rgba(255,200,87,0.8)',3);
+    text(L.name,cx,y2+26*u,22*u,'800','#eaf1ff',4);
+    let my=y2+62*u;
+    for(const m of L.mech){
+      hintGlyph(m[0],cx-112*u,my-5*u,16*u);
+      ctx.textAlign='left';
+      text(m[1],cx-94*u,my,11.5*u,'600','rgba(214,228,255,0.85)',0);
+      ctx.textAlign='center';
+      my+=26*u;
+    }
+    if(!c2.done&&c2.next>1)
+      text('swipe down \u2014 start over from level 1',cx,my+8*u,10.5*u,'600',
+        'rgba(200,215,255,0.45)',0);
+    const pulse2=RM?1:0.72+0.28*Math.sin(G.t*3);
+    ctx.globalAlpha=a2*pulse2;
+    text(c2.done?'TAP FOR LEVEL '+Math.min(3,c2.next):'TAP TO START',
+      cx,bottomY,17*u,'800',COL.comet,4);
+    ctx.globalAlpha=1;
   }else if(G.state==='menu'){
     const ty=Math.max(top+40*u,cy-R-46*u);
     text('COSMO',cx,ty,40*u,'800','#eaf1ff',12);
@@ -5256,8 +5398,8 @@ function drawHUD(){
        to beat and does not need a scoreboard before they have played. It rides
        directly under the title because it is identity, not a control \u2014 the key
        below is one uninterrupted list of things you can do. */
-    if(G.bestLevel>1){
-      text('BEST \u00b7 LEVEL '+G.bestLevel+' of '+LEVEL_MAX,cx,ty+20*u,12*u,'700',
+    if(G.lvlMax>1||G.best>0){
+      text('LEVEL '+G.lvlMax+' \u00b7 best '+G.best,cx,ty+20*u,12*u,'700',
         'rgba(255,200,87,0.7)',2);
     }
     /* The three orbs are rows now rather than the line "green saves you \u00b7
@@ -5278,7 +5420,7 @@ function drawHUD(){
        rows at a hardcoded y0 away from running off the bottom of a short
        phone; it now takes the gap between the title and TAP TO START and
        divides it, so adding a row shrinks the leading instead of overflowing. */
-    const kTop=ty+(G.bestLevel>1?34*u:22*u), kBot=bottomY-24*u;
+    const kTop=ty+((G.lvlMax>1||G.best>0)?34*u:22*u), kBot=bottomY-24*u;
     const rh=Math.min(24*u,Math.max(15*u,(kBot-kTop)/rows.length));
     const fs=Math.min(13*u,rh*0.56), gs=Math.min(20*u,rh*0.84);
     /* centred in the gap rather than pinned to the top of it: on a tall phone
@@ -5341,7 +5483,7 @@ function drawHUD(){
     const la=el(lvAt,0.15);
     if(la>0){
       ctx.globalAlpha=la;
-      text('LEVEL '+levelNum(),cx,cy-72*u,30*u*(skip?1:1+0.35*(1-la)),'800',COL.ember,5);
+      text('LEVEL '+G.level,cx,cy-72*u,30*u*(skip?1:1+0.35*(1-la)),'800',COL.ember,5);
       text(tierLabel(),cx,cy-52*u,11*u,'700','rgba(255,200,87,0.6)',3);
       ctx.globalAlpha=1;
     }
@@ -5353,7 +5495,7 @@ function drawHUD(){
     ctx.globalAlpha=el(lvAt+0.35);
     if(G.newLevel)text('FURTHEST YET',cx,cy+42*u,13*u,'700',COL.ember,3);
     else if(G.newBest)text('NEW BEST',cx,cy+42*u,13*u,'700',COL.ember,3);
-    else text('BEST LEVEL '+G.bestLevel+' · '+G.best,cx,cy+42*u,13*u,'600',
+    else text('BEST \u00b7 LEVEL '+G.lvlMax+' \u00b7 '+G.best,cx,cy+42*u,13*u,'600',
       'rgba(200,215,255,0.5)',2);
     ctx.globalAlpha=el(lvAt+0.5);
     text(G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime(),
