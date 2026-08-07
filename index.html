@@ -3406,9 +3406,10 @@ cv.addEventListener('pointerdown',function(e){
   if(inMute(e.clientX,e.clientY)){toggleMute();return;}
   if(inShare(e.clientX,e.clientY)){doShare();return;} /* must precede the retry tap */
   if(G.state==='menu'){
-    /* past level 1, the menu leads to the level card, not straight in */
-    if(G.lvlMax>1){G.state='lvend';G.lvT=G.t;G.lvCard={done:false,next:G.lvlMax};}
-    else{G.level=1;startGame();}
+    /* every visit begins at LIFT OFF — shared and borrowed phones kept
+       inheriting a device's unlock, and friends thought the game had skipped
+       level 1. Dying mid-run still retries the level you died on. */
+    G.level=1;startGame();
     return;
   }
   if(G.state==='lvend'){G.lvPt={y:e.clientY};return;}  /* decided at lift */
@@ -3458,13 +3459,11 @@ cv.addEventListener('pointermove',function(e){
   }
 });
 function pdEnd(e){
-  /* the level card: tap starts the level; a downward swipe restarts the
-     journey from level 1 (the training escape hatch) */
+  /* the level card between levels: any tap starts the next one */
   if(G.state==='lvend'&&G.lvPt){
-    const dy=e&&e.clientY!==undefined?e.clientY-G.lvPt.y:0;
     G.lvPt=null;
     if(G.t-G.lvT>0.6){
-      G.level=(dy>60*u&&!G.lvCard.done)?1:Math.min(3,G.lvCard.next);
+      G.level=Math.min(3,G.lvCard.next);
       startGame();braam(0.05);
     }
     return;
@@ -3505,8 +3504,7 @@ window.addEventListener('keydown',function(e){
   if(e.code==='Space'||e.code==='Enter'){
     e.preventDefault();ensureAudio();
     if(G.state==='menu'){
-      if(G.lvlMax>1){G.state='lvend';G.lvT=G.t;G.lvCard={done:false,next:G.lvlMax};}
-      else{G.level=1;startGame();}
+      G.level=1;startGame();
     }else if(G.state==='lvend'){
       if(G.t-G.lvT>0.6){G.level=Math.min(3,G.lvCard.next);startGame();braam(0.05);}
     }else if(G.state==='dead'){
@@ -5665,9 +5663,6 @@ function drawHUD(){
       ctx.textAlign='center';
       my+=26*u;
     }
-    if(!c2.done&&c2.next>1)
-      text('swipe down \u2014 start over from level 1',cx,my+8*u,10.5*u,'600',
-        'rgba(200,215,255,0.45)',0);
     const pulse2=RM?1:0.72+0.28*Math.sin(G.t*3);
     ctx.globalAlpha=a2*pulse2;
     textFx(c2.done?'TAP FOR LEVEL '+Math.min(3,c2.next):'TAP TO START',
@@ -5685,8 +5680,8 @@ function drawHUD(){
        to beat and does not need a scoreboard before they have played. It rides
        directly under the title because it is identity, not a control \u2014 the key
        below is one uninterrupted list of things you can do. */
-    if(G.lvlMax>1||G.best>0){
-      text('LEVEL '+G.lvlMax+' \u00b7 best '+G.best,cx,ty+20*u,12*u,'700',
+    if(G.best>0){
+      text('best \u00b7 '+G.best,cx,ty+20*u,12*u,'700',
         'rgba(255,200,87,0.7)',2);
     }
     /* The three orbs are rows now rather than the line "green saves you \u00b7
@@ -5707,7 +5702,7 @@ function drawHUD(){
        rows at a hardcoded y0 away from running off the bottom of a short
        phone; it now takes the gap between the title and TAP TO START and
        divides it, so adding a row shrinks the leading instead of overflowing. */
-    const kTop=ty+((G.lvlMax>1||G.best>0)?34*u:22*u), kBot=bottomY-24*u;
+    const kTop=ty+(G.best>0?34*u:22*u), kBot=bottomY-24*u;
     const rh=Math.min(24*u,Math.max(15*u,(kBot-kTop)/rows.length));
     const fs=Math.min(13*u,rh*0.56), gs=Math.min(20*u,rh*0.84);
     /* centred in the gap rather than pinned to the top of it: on a tall phone
