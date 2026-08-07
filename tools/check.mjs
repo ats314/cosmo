@@ -37,14 +37,18 @@ for (const dead of ['echo', 'meteor']) {
     fail.push(`teaching data references cut orb '${dead}'`);
   }
 }
-/* the curriculum rule: every tier unlocks by level 2's finish line (dl 190),
-   so level 3 introduces nothing — see MECHANICS.md */
+/* the curriculum rule: every tier unlocks by level 2's finish line, so
+   level 3 introduces nothing — see MECHANICS.md. The finish line is read
+   from the LV table itself so lengthening a level cannot break the guard. */
 const tiers = src.match(/const TIERS=\[([\s\S]*?)\];/);
-if (!tiers) fail.push('TIERS table not found');
+const lv = src.match(/const LV=\[([\s\S]*?)\];/);
+if (!tiers || !lv) fail.push('TIERS or LV table not found');
 else {
   const ats = [...tiers[1].matchAll(/at:\s*(\d+)/g)].map(m => +m[1]);
-  if (!ats.length || Math.max(...ats) > 190) {
-    fail.push(`a tier unlocks after dl 190 — level 3 must introduce nothing (ats: ${ats})`);
+  const ends = [...lv[1].matchAll(/end:\s*(\d+)/g)].map(m => +m[1]);
+  const l2end = Math.max(...ends);   /* level 3's end is Infinity, not numeric */
+  if (!ats.length || !ends.length || Math.max(...ats) > l2end) {
+    fail.push(`a tier unlocks after dl ${l2end} — level 3 must introduce nothing (ats: ${ats})`);
   }
 }
 

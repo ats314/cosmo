@@ -173,7 +173,7 @@ try {
   // ---- teaching invariants (the mechanic-explanations pass) ----
   // the curriculum rule: every tier is introduced by level 2's finish line,
   // and STORM sits exactly on level 3's floor — level 3 teaches nothing
-  if (!st('TIERS.every(t=>t.at<=190)')) throw new Error('a tier unlocks after level 2');
+  if (!st('TIERS.every(t=>t.at<=LV[1].end)')) throw new Error('a tier unlocks after level 2');
   if (st('TIERS[TIERS.length-1].at') !== st('LV[1].end')) throw new Error('STORM is not aligned to level 3\'s floor');
   // every spawnable formation and every reward orb carries a lesson
   if (!st("TIERS.every(t=>!t.type||!!MEET[t.type])")) throw new Error('a tier type has no MEET lesson');
