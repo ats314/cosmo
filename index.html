@@ -907,7 +907,8 @@ function buildBed(){
   NOISE=n;
   MU={next:0,step:0,chord:-1,armed:false,cool:0,
       chainT:0,     /* audio time the current groove chain began */
-      landT:0,      /* audio time the drop lands — the target to hit */
+      crown:0,      /* the ring the drop fired from — sets section richness */
+      landT:0,      /* audio time the drop lands — the moment to move on */
       landDone:0,   /* 0 unarmed, 1 hit, 2 spent */
       pend:null,    /* a drop earned while busy, waiting for the music to free up */
       pendSrc:null, /* the style that earned the banked drop, for its flavour */
@@ -1036,8 +1037,20 @@ function build(amount,src){
   G.build=Math.min(busy?0.96:1.5,G.build+amount);
   G.buildFx=1;   /* the arc blinks, so a contribution is seen the moment it lands */
   G.buildSrc[src]=(G.buildSrc[src]||0)+amount;
+  /* THE BUILDUP IS COUNTABLE. Eight segments; each one that snaps in names
+     its cause at the comet and sounds a step up the scale — eight audible,
+     attributed steps to a drop, instead of a derivative nobody can feel. */
+  const seg=Math.floor(Math.min(1,G.build)*8);
+  if(seg>G.buildSeg&&!busy){
+    G.buildSeg=seg;
+    const p=posPlayer();
+    popup(p[0],p[1]-30*u,'+'+({ember:'SPARKS',hop:'RINGS',time:'IN TIME',
+      orbit:'ORBIT'}[src]||'BUILD'),COL.warp,0.8);
+    cueTone(function(w){
+      beep(PENT[Math.min(13,3+seg)],0.08,'sine',0.035,undefined,w,0,0.3);});
+  }
   if(!busy&&G.build>=1){
-    G.build=0;
+    G.build=0;G.buildSeg=0;
     let best='ember',bv=-1;
     for(const k in G.buildSrc)if(G.buildSrc[k]>bv){bv=G.buildSrc[k];best=k;}
     G.buildSrc={ember:0,hop:0,time:0,orbit:0};
@@ -1053,39 +1066,31 @@ function build(amount,src){
    survival, only a prize on top of one.
    The tap is judged against the SAME learned latency bias the groove uses, so
    a slow phone does not decide whether anyone can hit it. */
-const LAND_WIN=0.30, LAND_PERFECT=0.10;
-function landRect(){return{x:cx,y:cy,r:46*u};}
-function landOpen(){
-  if(!MU||!AC||G.state!=='playing')return 0;
-  /* landDone means ALREADY PRESSED. Expiry is the time window alone: musicStep
-     schedules a lookahead ahead of the audio clock, so fireDrop runs in JS
-     before the instant it is scheduling — closing the window there killed the
-     target at exactly the moment the player was aiming for it. */
-  if(!MU.landT||MU.landDone)return 0;
-  /* The late edge is bias-corrected to match landDrop's judgement — gating on
-     the raw clock closed the window while the scoring maths still called the
-     same tap "good", so it fell through to a lap-destroying reverse. */
-  const d=MU.landT-(AC.currentTime-PLAY.bias);
-  return (d<SPB*4.4&&d>-LAND_WIN)?1:0;      /* the last bar, plus the late half of the window */
-}
-function inLand(x,y){
-  if(!landOpen())return false;
-  const r=landRect(),dx=x-r.x,dy=y-r.y;
-  return dx*dx+dy*dy<=r.r*r.r;
-}
-function landDrop(){
-  if(!landOpen())return;
+/* LANDING THE DROP IS ANY MOVE, ANYWHERE. The centre tap-target added a
+   third verb to a two-verb game — the one moment input suddenly had a
+   POSITION, dead centre, away from the danger, so landing it meant stopping
+   playing. Gone. Now any input inside the window around the downbeat — the
+   tap or hop you were making anyway, wherever your thumb is — IS the
+   landing, judged on the same bias-corrected clock the groove uses, and the
+   input still does its normal job: if survival wanted a hop, you hop, and
+   that hop lands the drop. No input costs nothing; the drop fires anyway.
+   A PERFECT doubles the whole section's earnings — the real money moved
+   into riding the section, so the landing is the count-in, not the exam. */
+const LAND_WIN=0.29, LAND_PERFECT=0.12;
+function tryLand(){
+  if(!MU||!AC||G.state!=='playing')return;
+  if(!MU.landT||MU.landDone)return;
+  const bt=AC.currentTime-PLAY.bias;
+  if(MU.landT-bt>LAND_WIN*1.5)return;   /* not an attempt yet — just play on */
+  if(bt-MU.landT>LAND_WIN)return;        /* window closed; silence, not blame */
   MU.landDone=2;
-  /* Judged at whichever frame flatters the player. The learned bias comes
-     from grid taps, which are quantised and so read systematically late —
-     charging that lag against a raw pointerdown consumed most of the perfect
-     window before human jitter even started. */
-  const dev=Math.min(Math.abs(AC.currentTime-MU.landT),
-                     Math.abs((AC.currentTime-PLAY.bias)-MU.landT));
+  const dev=Math.min(Math.abs(AC.currentTime-MU.landT),Math.abs(bt-MU.landT));
   const perfect=dev<LAND_PERFECT, good=dev<LAND_WIN;
-  const gain=perfect?200:good?75:0;
-  G.landFx={t:0,perfect:perfect,good:good,gain:gain,dev:+dev.toFixed(3)};
-  if(gain){G.score+=gain;G.scorePop=1;G.lands++;}
+  const gain=perfect?50:good?20:0;
+  G.landFx={t:0,perfect:perfect,good:good,gain:gain};
+  if(gain){G.score+=gain;G.scorePop=1;G.lands++;
+    if(!G.everLanded){G.everLanded=true;savePref('cometloop:landed','1');}}
+  if(perfect)G.secMult=2;
   const p=posPlayer();
   if(perfect){
     /* the whole screen answers */
@@ -1097,15 +1102,15 @@ function landDrop(){
       for(let i=0;i<G.nRings;i++)
         G.rings.push({x:cx,y:cy,r:radiusOf(i),life:1,col:COL.warp,sp:300,dec:1.1});
     }
-    burst(cx,cy,'#ffffff',30,420);
+    burst(p[0],p[1],'#ffffff',30,420);
     burst(p[0],p[1],COL.warp,26,320);
     note(PENT[11],AC.currentTime,0.5,'square',0.030,7000,0,A.perf);
     note(PENT[9], AC.currentTime,0.6,'square',0.026,6000,0,A.perf);
     hat(AC.currentTime,0.055,3000,0.5,0.5);
     try{if(navigator.vibrate)navigator.vibrate([40,26,40,26,70]);}catch(e){}
   }else if(good){
-    if(!RM)G.rings.push({x:cx,y:cy,r:10*u,life:1,col:COL.warp,sp:620,dec:1.3});
-    burst(cx,cy,COL.warp,14,240);
+    if(!RM)G.rings.push({x:p[0],y:p[1],r:10*u,life:1,col:COL.warp,sp:620,dec:1.3});
+    burst(p[0],p[1],COL.warp,14,240);
     note(PENT[9],AC.currentTime,0.34,'square',0.024,5200,0,A.perf);
     try{if(navigator.vibrate)navigator.vibrate([26,20,40]);}catch(e){}
   }
@@ -1176,6 +1181,12 @@ function fireDrop(t){
      early, and the other styles flavour their section in payoffStep — the
      name on the HUD finally has a sound attached. */
   MU.lateAt=MU.flavor==='time'?2:4;
+  /* THE CROWN. The ring you fire it from sets how rich the section plays —
+     never how much it pays. Depth's reward stays the record itself: an
+     inner-ring drop states the hook doubled at the octave with the full
+     swing; an outer-ring drop plays it lean. */
+  MU.crown=ringOf();
+  G.secScore=0;G.secMult=1;
   /* The sub was 1.30s and the single largest gain figure in the drop, at 55Hz
      — a third of the budget spent where the target device reproduces nothing,
      smearing across the first two bars of the hook it exists to introduce.
@@ -1235,12 +1246,14 @@ function payoffStep(t,ch,k){
   }else{
     if(ps===2||ps===6)snare(t,0.048*w,0.15);        /* per 2 beats: a 4x jump */
     hat(t,((ps===0||ps===4)?0.021:0.014)*w,7200,0.05);
-    if(k>0.35||PLAY.heat>0.34||MU.flavor==='hop'){
+    if(k>0.35||PLAY.heat>0.34||MU.flavor==='hop'||MU.crown>=2){
       hat(t+S16,0.009*w,7600,0.04);
-      /* a RINGS drop always swings — the style that earned it is audible */
-      if(PLAY.heat>0.34||MU.flavor==='hop')hat(t+S16*1.16,0.008*w,8200,0.04);   /* 58% swing */
+      /* a RINGS drop — or an inner-ring crown — always swings */
+      if(PLAY.heat>0.34||MU.flavor==='hop'||MU.crown>=2)hat(t+S16*1.16,0.008*w,8200,0.04);   /* 58% swing */
     }
   }
+  /* the crown's early-half lift: mid-ring adds the offbeat shimmer at once */
+  if(MU.crown>=1&&!late&&ps%2===0)hat(t+S16,0.008*w,8600,0.04);
   /* an ORBITS drop sustains: the chord tones stretch to match the style */
   const sus=MU.flavor==='orbit'?1.7:1;
   if(ps===0||ps===4)note(ch[1],t,(ps?0.20:0.32)*sus,'triangle',0.030*w,700);
@@ -1263,6 +1276,10 @@ function payoffStep(t,ch,k){
     if((s16===3||s16===11)&&PLAY.heat<=0.30)continue;
     const tt=t+j*S16,gap=alt?HOOKBG[(pb-4)*16+s16]:HOOKG[ix];
     lead(PENT[d],tt,gap>8?0.50:Math.min(0.34,0.06+0.075*gap),gh,5200,pan);
+    /* the inner-ring crown: the hook doubled at the octave (five pentatonic
+       degrees up), quieter and brighter — the fattest the record ever gets */
+    if(MU.crown>=2)
+      note(PENT[Math.min(13,d+5)],tt,0.20,'square',gh*0.40,6400,-pan*0.5);
     if(late&&k>0.30)
       note(PENT[Math.max(0,d-2)],tt,0.24,'triangle',gh*0.30,3400,-pan);
   }
@@ -1275,6 +1292,8 @@ function payoffStep(t,ch,k){
       lead(PENT[d],t+(s-4)*S16,0.26,gg,2600,-pan);}
   }
   MU.pay--;
+  /* the section runs out here: the ride's tally is its closing statement */
+  if(MU.pay===0&&G.secScore>0)G.secFx={total:G.secScore,t:0};
 }
 /* ONE undo for every abnormal path — death, mute, a backgrounded tab, a phone
    call, a new run started mid-section. Every field the section sets is cleared
@@ -1293,7 +1312,7 @@ function endSection(){
   const bankSrc=G.state==='playing'?(MU.pend?MU.pendSrc:MU.flavor):null;
   MU.pay=0;MU.payEnd=0;MU.payHits=0;MU.barHits=0;
   MU.armed=false;MU.rise=false;MU.riseI=0;MU.lpLock=0;MU.hushEnd=0;MU.liftEnd=0;
-  MU.pend=bank;MU.pendSrc=bank?bankSrc:null;MU.flavor=null;MU.lateAt=4;
+  MU.pend=bank;MU.pendSrc=bank?bankSrc:null;MU.flavor=null;MU.lateAt=4;MU.crown=0;
   MU.landT=0;MU.landDone=0;
   G.pay=0;G.payOpen=0;
   if(A&&AC){const t=AC.currentTime;
@@ -1513,6 +1532,13 @@ function judgeTiming(x,y){
   const dev=Math.abs(off-PLAY.bias);
   PLAY.bias+=(off-PLAY.bias)*0.18;  /* learns the device, and the player */
   if(dev<TIGHT){
+    /* RIDING THE SECTION IS THE SCORE. During the payoff every tight hit
+       pays — not just climbs — multiplied by a perfect landing. Playing
+       through the drop is the skill; nothing asks you to stop. */
+    if(MU&&MU.pay>0){
+      const ex=8*(G.secMult||1);
+      G.score+=ex;G.secScore+=ex;G.scorePop=Math.max(G.scorePop,0.6);
+    }
     const was=G.groove;
     G.groove=Math.min(8,G.groove+1);
     G.grooveT=G.t+2.8;
@@ -1854,6 +1880,7 @@ function loadPrefs(){
   /* Whether this human has ever landed a hop — the rehearsal only interrupts
      a run for someone the gesture has never once worked for. */
   if(readLocal('cometloop:hopped')==='1')G.everHopped=true;
+  if(readLocal('cometloop:landed')==='1')G.everLanded=true;
   const st=parseInt(readLocal('cometloop:struggle'),10);
   if(!isNaN(st))G.struggle=st;
   /* which formation types this device has already been introduced to */
@@ -2119,8 +2146,9 @@ const G={
   groove:0,grooveT:0,grooveFx:0,bestGroove:0,beat:0,dropFx:0, /* rhythm */
   armFx:null,sayFx:null,
   pay:0,payOpen:0,didGroove:false,                            /* the payoff section */
-  build:0,buildFx:0,buildSrc:{ember:0,hop:0,time:0,orbit:0},  /* the build meter */
-  landFx:null,lands:0,                                        /* landing the drop */
+  build:0,buildFx:0,buildSeg:0,buildSrc:{ember:0,hop:0,time:0,orbit:0}, /* the build meter */
+  landFx:null,lands:0,everLanded:false,                       /* landing the drop */
+  secScore:0,secMult:1,secFx:null,                            /* riding the section */
   embers:0,blocks:0,phases:0,lastHit:'none', /* telemetry counters */
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
@@ -2441,7 +2469,8 @@ function startGame(){
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
-  G.build=0;G.buildFx=0;G.buildSrc={ember:0,hop:0,time:0,orbit:0};G.landFx=null;G.lands=0;
+  G.build=0;G.buildFx=0;G.buildSeg=0;G.buildSrc={ember:0,hop:0,time:0,orbit:0};
+  G.landFx=null;G.lands=0;G.secScore=0;G.secMult=1;G.secFx=null;
   G.teach=0;G.teachKind=null;G.teachHint=null;G.holdD=0;G.hopHintT=0;G.coach=null;
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
   G.sparkT=0;G.sparkN=0;
@@ -2722,10 +2751,6 @@ cv.addEventListener('pointerdown',function(e){
   e.preventDefault();ensureAudio();
   if(inMute(e.clientX,e.clientY)){toggleMute();return;}
   if(inShare(e.clientX,e.clientY)){doShare();return;} /* must precede the retry tap */
-  /* Dead centre and only live for one bar per drop, so it can hardly ever
-     swallow a reverse someone needed — and the rest of the screen still
-     reverses, as the mute and share buttons already establish. */
-  if(inLand(e.clientX,e.clientY)){landDrop();return;}
   if(G.state==='menu'){startGame();return;}
   if(G.state==='dead'){
     /* the first tap after the lockout fast-forwards the reveal; the next
@@ -2734,6 +2759,7 @@ cv.addEventListener('pointerdown',function(e){
     return;
   }
   if(pd)return; /* one gesture at a time: a second finger can't double-reverse */
+  tryLand();     /* any input in the window lands the drop — and still plays */
   const saved={lap:G.lapAcc,streak:G.lapStreak,dr:G.didReverse};
   reverse(true); /* direction flips instantly; sound and sparks wait */
   pd={id:e.pointerId,x:e.clientX,y:e.clientY,saved:saved,ang:G.angle,far:0,radial:0,swiped:false};
@@ -2811,16 +2837,13 @@ window.addEventListener('keydown',function(e){
     else if(G.state==='dead'){
       if(G.t-G.deadT>0.6){if(!deadSeqDone())G.deadSkip=true;else startGame();}
     }
-    /* the drop target answers the keyboard too — Space during the window is
-       the landing, not a lap-destroying reverse */
-    else if(landOpen())landDrop();
-    else reverse(false);
+    else{tryLand();reverse(false);}   /* the reverse also lands the drop */
   }else if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='ArrowLeft'||e.code==='KeyA'){
     e.preventDefault();
-    if(G.state==='playing')hop(-1);
+    if(G.state==='playing'){tryLand();hop(-1);}
   }else if(e.code==='ArrowDown'||e.code==='KeyS'||e.code==='ArrowRight'||e.code==='KeyD'){
     e.preventDefault();
-    if(G.state==='playing')hop(1);
+    if(G.state==='playing'){tryLand();hop(1);}
   }else if(e.code==='KeyM'){
     toggleMute();
   }
@@ -2920,6 +2943,10 @@ function update(dt){
   if(MU&&MU.pay<=0)G.build=Math.max(0,G.build-dt*0.011);
   if(G.sayFx){G.sayFx.t+=dt;if(G.sayFx.t>1.8)G.sayFx=null;}
   if(G.landFx){G.landFx.t+=dt;if(G.landFx.t>1.9)G.landFx=null;}
+  if(G.secFx){G.secFx.t+=dt;if(G.secFx.t>2.2)G.secFx=null;}
+  /* the segment counter follows decay down, with a little hysteresis so a
+     threshold is never re-announced on jitter */
+  G.buildSeg=Math.min(G.buildSeg,Math.floor(Math.min(1,G.build)*8));
   /* stop playing and the groove lets go, so it always reflects what you are
      doing now rather than something you did a minute ago */
   if(G.groove>0&&G.t>G.grooveT){G.groove--;G.grooveT=G.t+0.7;}
@@ -3142,6 +3169,11 @@ function update(dt){
       G.stars.splice(i,1);
       G.combo=Math.min(G.combo+1,6);G.comboT=CW;
       G.score+=G.combo;G.diff+=1;G.scorePop=1;
+      /* embers ride the section too: doubled (×2 more on a perfect landing) */
+      if(MU&&MU.pay>0){
+        const ex=G.combo*(G.secMult||1);
+        G.score+=ex;G.secScore+=ex;
+      }
       G.lapEmbers++;G.embers++;
       const p=posAt(s.a,radiusOf(s.ring));
       burst(p[0],p[1],COL.ember,14,150);
@@ -3412,9 +3444,18 @@ function drawBeat(p){
   const ph=beatPhase();if(ph<0)return;
   /* fades back for a veteran who has clearly found it, and stays for everyone
      else. It is a teaching aid first and an ornament second. */
-  const vis=(G.runs>6&&G.bestGroove>=5)?0.45:1;
+  let vis=(G.runs>6&&G.bestGroove>=5)?0.45:1;
+  /* THE COUNT-IN. Through the final bar before the drop lands, this same
+     ring — at the comet, where the eyes already are — turns white-hot and
+     swells beat by beat. The landing is read where you play, never at a
+     target. */
+  let cd=-1;
+  if(MU&&MU.landT&&!MU.landDone&&AC)cd=MU.landT-(AC.currentTime-PLAY.bias);
+  const cin=(cd>-LAND_WIN&&cd<SPB*4)?1-Math.max(0,cd)/(SPB*4):0;
+  if(cin>0)vis=1+1.4*cin;
   ctx.save();ctx.globalCompositeOperation='lighter';
-  ctx.strokeStyle=(G.groove>=3||G.pay>0)?COL.warp:'rgba(200,225,255,1)';
+  ctx.strokeStyle=cin>0?'#ffffff':
+    ((G.groove>=3||G.pay>0)?COL.warp:'rgba(200,225,255,1)');
   if(RM){
     /* one opacity step per beat is 1.73Hz — far below any flash threshold,
        and it still carries the anticipation */
@@ -3632,13 +3673,28 @@ function draw(){
   else if(G.state==='playing'&&MU&&(G.build>0.01||MU.armed||MU.rise||MU.pend)){
     const pending=MU.armed||MU.rise||MU.pend;
     ctx.save();
-    ctx.globalAlpha=pending?(RM?0.40:0.28+0.18*(0.5+0.5*Math.sin(G.t*4)))
-                           :Math.min(0.42,0.10+0.26*G.build+0.25*G.buildFx);
     ctx.strokeStyle=pending?'#eaf1ff':COL.warp;
     ctx.lineWidth=3+(RM?0:2.5*G.buildFx);
-    ctx.beginPath();
-    ctx.arc(cx,cy,radiusOf(0)+13*u,-Math.PI/2,-Math.PI/2+TAU*(pending?1:Math.min(1,G.build)));
-    ctx.stroke();ctx.restore();
+    if(pending){
+      ctx.globalAlpha=RM?0.40:0.28+0.18*(0.5+0.5*Math.sin(G.t*4));
+      ctx.beginPath();
+      ctx.arc(cx,cy,radiusOf(0)+13*u,-Math.PI/2,-Math.PI/2+TAU);
+      ctx.stroke();
+    }else{
+      /* EIGHT SEGMENTS, so the meter is countable at a glance: snapped
+         segments solid, the one in progress dimmer, gaps between. */
+      const bl=Math.min(1,G.build),sa=TAU/8,gap=0.035;
+      for(let k=0;k<8;k++){
+        const f=Math.max(0,Math.min(1,bl*8-k));
+        if(f<=0)break;
+        ctx.globalAlpha=(f>=1?Math.min(0.45,0.22+0.25*G.buildFx):0.12);
+        ctx.beginPath();
+        ctx.arc(cx,cy,radiusOf(0)+13*u,
+          -Math.PI/2+k*sa+gap,-Math.PI/2+k*sa+gap+(sa-2*gap)*f);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
   }
   /* THE ARENA CORE LAMP — the light source the whole scene answers to. It
      breathes on the landed beat and flares when the drop hits; clamped so
@@ -4167,6 +4223,10 @@ function hintText(){
      told that red kills or that shields save. */
   /* a first-encounter lesson owns the slot while its dilation runs */
   if(G.teachHint&&G.teach>0)return G.teachHint;
+  /* the count-in teaches itself until the first landing ever sticks */
+  if(!G.everLanded&&MU&&MU.landT&&!MU.landDone&&AC&&
+     MU.landT-(AC.currentTime-PLAY.bias)<SPB*4)
+    return {t:'move on the drop — any move lands it',g:'beat'};
   if(!G.didReverse)return {t:'tap anywhere to turn around',g:'tap'};
   for(const pw of G.pows){
     if(pw.type==='warp'&&!G.gotWarp)return {t:'this one slows everything down',g:'warp'};
@@ -4267,7 +4327,7 @@ function drawHUD(){
        Landscape used to overprint all of them through the IN TIME counter. */
     const bannerCentred=G.banner&&(cy-R-30*u)<top+177*u;
     const sayCentred=G.sayFx&&(cy-R-16*u)<top+152*u;
-    const centreBusy=landOpen()||G.landFx||bannerCentred||(!roomy&&G.armFx)||sayCentred;
+    const centreBusy=G.landFx||G.secFx||bannerCentred||(!roomy&&G.armFx)||sayCentred;
     if(G.groove>=1){
       ctx.globalAlpha=Math.min(1,0.45+0.12*G.groove)*(0.8+0.2*G.grooveFx);
       text('IN TIME \u00d7'+G.groove,cx,top+136*u,13*u*(1+0.12*G.grooveFx),'800',COL.warp,2);
@@ -4356,45 +4416,28 @@ function drawHUD(){
       text(b.sub,cx,by+20*u,12*u,'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
     }
-    /* THE TARGET. A ring converges on the rim and touches it exactly as the
-       drop lands, so the timing is something you watch rather than guess —
-       the same language as the beat ring around the comet. */
-    if(landOpen()){
-      const lr=landRect(),d=MU.landT-AC.currentTime;
-      const app=Math.max(0,Math.min(1,1-d/(SPB*4)));      /* 0 far out, 1 on the beat */
-      ctx.save();
-      ctx.globalCompositeOperation='lighter';
-      /* the rim */
-      ctx.globalAlpha=0.30+0.45*app;
-      ctx.strokeStyle=COL.warp;ctx.lineWidth=(1.8+2.2*app)*u;
-      ctx.beginPath();ctx.arc(lr.x,lr.y,lr.r,0,TAU);ctx.stroke();
-      /* the incoming ring */
-      if(d>0){
-        ctx.globalAlpha=0.25+0.6*app;
-        ctx.strokeStyle='#ffffff';ctx.lineWidth=(1.4+2.6*app)*u;
-        ctx.beginPath();ctx.arc(lr.x,lr.y,lr.r+(1-app)*72*u,0,TAU);ctx.stroke();
-      }
-      /* the word, only while it is still reachable */
-      ctx.globalCompositeOperation='source-over';
-      ctx.globalAlpha=0.55+0.45*app;
-      text(d>0?'TAP ON THE DROP':'NOW',lr.x,lr.y+4*u,
-        (d>0?10.5:14)*u,'800','#eaf3ff',2);
-      ctx.restore();ctx.globalAlpha=1;
-    }
-    /* THE PAYOFF. Its own moment, at a size nothing else in the game uses. */
+    /* THE LANDING RESULT — and the section tally when the payoff runs out.
+       The old aimed target is gone; the count-in lives on the beat ring at
+       the comet (see drawBeat). */
     if(G.landFx){
       const f=G.landFx,a=Math.min(1,f.t/0.12)*Math.min(1,(1.9-f.t)/0.7);
       ctx.globalAlpha=Math.max(0,a);
       const pop=1+0.35*Math.max(0,1-f.t*4);
       if(f.perfect){
         text('PERFECT DROP',cx,cy-14*u,26*u*pop,'800',COL.warp,6);
-        text('+'+f.gain,cx,cy+22*u,34*u*pop,'800','#ffffff',3);
+        text('×2 SECTION',cx,cy+22*u,20*u*pop,'800','#ffffff',3);
       }else if(f.good){
         text('ON THE DROP',cx,cy-8*u,20*u*pop,'800',COL.warp,4);
         text('+'+f.gain,cx,cy+18*u,22*u*pop,'800','#eaf3ff',2);
-      }else{
-        text('MISSED IT',cx,cy,16*u,'800','rgba(210,225,255,0.55)',3);
       }
+      ctx.globalAlpha=1;
+    }
+    if(G.secFx){
+      const f=G.secFx,a=Math.min(1,f.t/0.14)*Math.min(1,(2.2-f.t)/0.7);
+      ctx.globalAlpha=Math.max(0,a);
+      const pop=1+0.3*Math.max(0,1-f.t*4);
+      text('DROP RIDDEN',cx,cy-10*u,18*u*pop,'800',COL.warp,4);
+      text('+'+f.total,cx,cy+20*u,26*u*pop,'800','#eaf3ff',2);
       ctx.globalAlpha=1;
     }
     const hintO=centreBusy?null:hintText();
@@ -4472,6 +4515,7 @@ function drawHUD(){
        anyone who cannot separate violet from white on a phone in sunlight. */
     const rows=[['tap','tap anywhere to turn around'],
                 ['swipe','swipe up or down to change ring'],
+                ['swipe','inside is tighter — and the music gets hotter'],
                 ['star','collect stars \u2014 a full orbit pays big'],
                 ['shard','red kills you'],
                 ['shield','a shield takes one hit for you'],

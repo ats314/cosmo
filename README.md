@@ -16,11 +16,13 @@ embers, dodge shards, and complete orbits.
 | Reverse | tap anywhere | `Space` / `Enter` |
 | Hop outward | swipe away from the centre | `↑` `W` `←` `A` |
 | Hop inward | swipe toward the centre | `↓` `S` `→` `D` |
-| Land the drop | tap the centre target | `Space` / `Enter` |
+| Land the drop | any move on the downbeat | any move |
 | Mute | tap the speaker | `M` |
 
-While the drop target is open, `Space` is the landing rather than a reverse —
-the keyboard player gets the same bonus path the thumb does.
+There is no aimed input anywhere in this game. Landing the drop is any move —
+the tap or hop you were making anyway, wherever your thumb is — inside the
+window around the downbeat, and the move still does its normal job: if
+survival wanted a hop right then, that hop lands the drop.
 
 Swipes are read **radially** — measured against the line from the centre
 through the comet — so "away from the middle" always means outward no matter
@@ -385,15 +387,35 @@ one full pass of the ordinary arrangement — because a drop that happens
 constantly is not an event, but a second drop a run can never reach is not a
 mechanic either.
 
+**Landing and riding it.** The old design put the skill in one aimed tap at
+a centre target — a third verb in a two-verb game, demanding your eyes leave
+the danger at its loudest moment. Now the count-in lives on the beat ring at
+the comet (white-hot, swelling through the final bar), the landing is any
+move anywhere in a generous window on the same bias-corrected clock the
+groove uses, and a PERFECT doubles the whole section's earnings rather than
+paying a one-shot jackpot. The real money moved into **riding the section**:
+every tight-timed input through the payoff pays, embers pay double, and the
+tally lands as its closing statement — "DROP RIDDEN +N". Playing through the
+drop is the skill; nothing ever asks you to stop.
+
+**The crown.** The ring you fire the drop from sets how rich the section
+plays — never how much it pays, because depth's reward in this game is the
+record itself. An inner-ring drop states the hook doubled at the octave with
+the full swing; an outer-ring drop plays it lean. Earn it anywhere; crown it
+inside.
+
 What arms one is the **build meter**, and nothing else. Four things fill it,
 one per style of play — gathering sparks, working the rings, playing in time,
 and closing clean orbits — and whichever contributed most names the drop when
 it lands. The meter decays, so it measures how you are playing *now* rather
-than how long you have survived. It is drawn as the violet arc around the
-arena — the same circle the payoff sweep later drains, so earning and
-spending are one gauge — and it keeps filling while a drop is armed, rising
-or cooling down: nothing you do while the music is busy is discarded, it is
-banked toward the next one.
+than how long you have survived. It is drawn as **eight segments** of the
+violet arc around the arena — the same circle the payoff sweep later drains,
+so earning and spending are one gauge — and each segment that snaps in names
+its cause at the comet ("+ORBIT", "+IN TIME") and sounds a step up the
+scale: eight audible, attributed steps to a drop, because a continuous meter
+is a derivative nobody can feel. It keeps filling while a drop is armed,
+rising or cooling down: nothing you do while the music is busy is discarded,
+it is banked toward the next one.
 
 **Timing is rewarded, and never punished.** Each input is judged against the
 sixteenth grid; land tight and the **groove** chain climbs to ×8. An off-beat
