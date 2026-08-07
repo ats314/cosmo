@@ -695,6 +695,22 @@ riding the dub delay. Weight, not sparkle, is the reward. It still ducks,
 pans and mixes as part of the record, and because the tones land on the
 sixteenth grid a chain of embers comes out as a fill run.
 
+**The chord is the instrument.** The deepest playtest note — "I don't
+feel the game being harmonious with my movements... general music theory
+is off" — had a precise cause: player inputs walked the pentatonic SCALE,
+which is in key but indifferent to the bar's chord. Melodically safe,
+harmonically nowhere. Everything the player triggers now resolves through
+chTone(): taps cycle the sounding chord's own voicing, hops arpeggiate it
+up or down, the ring raises the octave, the harmony-under note is another
+chord tone, star pickups climb the chord with the combo, the loop
+recorder records chord-tone INDICES so a recorded loop transposes itself
+through the progression like a chord-following arpeggiator, and the
+finale's call phrase is chordal by construction — it can never clash with
+its own accompaniment. A nailed finale round is answered with the bar's
+whole chord. Registers are capped across the solo and payoff licks
+("too many high notes"): measured on the master bus, the 1-4kHz band
+dropped a further 3.2dB with the low end held.
+
 **The palette has discipline now.** The verdict that survived every gain
 fix was "still way too sparkly and twinkling" — because sparkle is not a
 level, it is a vocabulary. A study of the reference genres (hypnotic/deep
