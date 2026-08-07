@@ -372,22 +372,21 @@ ancient browser), the duet is skipped and the level completes at its
 plain finish line the way it always used to — nothing about progression
 ever requires a speaker.
 
-**The finale.** Levels 1 and 2 end in a DUET, not a line on a clock.
-Playtest round two made it unmissable: latching now clears the whole stage
-(threats fade, pickups leave, spawns hold), posts a full THE FINALE banner
-with reading time, gives the sequencer two intro bars to fade in, and a
-STANDING instruction line narrates the entire duet — LISTEN… through the
-calls, PLAY IT BACK — tap with the sweep through the answers. Near
-the finish the music thins to the groove, and the band
-plays a two-bar phrase in the level's key while its rhythm lights up as
-marks around the outer ring — the ring becomes a sequencer, a sweep hand
-circling once per two bars. Then it is the player's turn: tap anywhere
-(timing, never aim) as the sweep crosses each mark. Three rounds; every
-answered note pays +40 and is sung back harmonised; answer well and the
-call gains a voice each round. Misses cost nothing and the level completes
-regardless — the finale decides the size of the send-off, never whether
-you advance. (It replaced the golden lap, which was a timer wearing a
-special moment's clothes.)
+**The finale: the three last notes.** Two rounds of execution taught the
+lesson the hard way — a rotating sequencer asked players to sight-read a
+syncopated phrase on an instrument they had never seen, and the owner's
+own playtest ("I tapped along to match the beat and it didn't work... it
+made no sense") killed it. The level now ends in the ONE timing device
+the game drills every single run: a riser into a countdown, and a single
+press on NOW!. Three last notes, each riser bigger than the last (a hit
+grows the next one's voices), each judged on the same bias-corrected
+clock as the drop landing — perfect +150, hit +60, and a miss plays the
+note softly and costs nothing: the level always completes. The stage
+still clears, the banner still explains ("three last notes — tap on
+NOW!"), and a standing TAP ON NOW! line holds through every build.
+Presses only; nothing to decode; nothing spatial. (The finale replaced
+the golden lap, which was a timer wearing a special moment's clothes.)
+
 - **Nova** (white) — a front expands from where you took it and turns what it
   touches into light. It converts on *contact*, not all at once: nearest
   shards first, each detonating as the wave reaches it, so the board comes
