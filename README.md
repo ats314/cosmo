@@ -235,31 +235,47 @@ Speed keeps climbing after the unlocks run out. The exponential is within
 (capped at 4.2 rad/s). Without it a long run flattens into a plateau that only
 ever ends from a lapse in attention rather than from pressure.
 
-## Levels
+## The two ladders
 
-The ladder is ten levels, and it is the same ten tiers the game has always
-climbed — `TIERS`, `tierIndex()`, `G.tier` — but until now the only places the
-ordinal ever surfaced were the clipboard and an analytics endpoint that ships
-switched off. The player doing the climbing was never told the number.
+There are two ordinals inside this game and only one of them is a level.
 
-A tester put the case better than the design did:
+`TIERS` / `tierIndex()` / `G.tier` is the **unlock ladder**: ten rungs naming
+what has been introduced so far — SECOND RING, TWIN SHARDS, GATES, … STORM.
+`LV` / `G.level` is the **level**, the 1–3 structure above with the cards and
+the songs. The unlock ladder is a mechanism; the level is what the player is
+told.
+
+A tester made the case for telling them an ordinal at all:
 
 > I just think clearing the board using level tiers might be more rewarding as
 > a sense of accomplishment than just trying to get a higher score each time.
 > For whatever reason, reaching level "XYZ" seems more memorable and rewarding
 > than just a highest score. Levels are more distinct, you know?
 
-He is right, and the reason is that a score is a cardinal you cannot repeat
+That is right, and the reason is that a score is a cardinal you cannot repeat
 from memory while a level is an ordinal you can say out loud, compare against
-someone else, and come back for. So the level now appears under the score in
-play, leads the death screen in ember gold with the tier named beneath it,
-leads the share text, and persists as `cometloop:level` — "BEST · LEVEL 6 of
-10" on the menu, and **FURTHEST YET** in place of NEW BEST when a run sets it.
+someone else, and come back for. So the level appears under the score in play,
+leads the death screen in ember gold with the current unlock rung named
+beneath it, leads the share text, and persists as `cometloop:gl` — "BEST ·
+LEVEL 2 · 4300" on the death screen, and **FURTHEST YET** in place of NEW BEST
+when a run reaches deeper than the device ever has.
 
-The ten-pip ladder is drawn on the death screen with the reached levels
-filled. The empty half is the point as much as the full half: a player who
-dies on level 3 can see that seven more exist, which is the one thing a bare
-score can never tell them.
+**Both ladders used to call themselves "level" in the same eyeline.** The
+death screen printed `LEVEL 2` directly under a ten-pip bar filled to eight,
+and FURTHEST YET was decided on the tier ladder — the scale the screen never
+names — so a device whose record was level 3 could die on level 2 at a deeper
+tier and be congratulated for getting further. The pip bar had stopped saying
+anything anyway: the curriculum pass folded every tier into levels 1–2, so it
+saturated the moment level 3 opened and stayed full for the rest of an endless
+level. Everything the player reads is the level now — three pips, one per
+level, filled to the one this run reached — and the record moves at death
+beside the high score, so the badge fires exactly once and a retry of the same
+level stays quiet. The unlock ladder keeps `tier` and `tierLabel()` and never
+calls itself a level again, telemetry included. `smoke.mjs` asserts all of it.
+
+The empty pips are the point as much as the filled ones: a player who dies on
+level 1 can see that two more exist, which is the one thing a bare score can
+never tell them.
 
 None of this touches the simulation. It changes what the game *says* about
 itself, not what it does.
@@ -935,10 +951,16 @@ is now a minor pentatonic.
 
 The game reports anonymous gameplay counters to PostHog (US cloud) so
 playtests can be read instead of retold: a pageview per visit, `run_ended`
-on every death (score, level, run length, death cause, the two-verb usage
+on every death (score, game level, run length, death cause, the two-verb usage
 counts and the swipe-misread rate — the "did the teaching land" numbers),
 `level_cleared` on every finish line (with the Star Dive tally, 11 being
-the perfect ending), and `share_tapped`. The teaching pipeline reports on
+the perfect ending), and `share_tapped`. **One name per ordinal:**
+`game_level` is the 1–3 level on every event that carries it, and the
+ten-rung unlock ladder is only ever `tier`. `run_ended` used to send `level`
+holding `tier + 1` while `level_cleared` sent `level` holding 1–3 — one
+property name, two scales, two events. The ambiguous name is retired rather
+than redefined, so no historical row silently changes meaning; `tier` carried
+the same number all along. The teaching pipeline reports on
 itself now too: `lesson_shown` fires when a first-encounter lesson actually
 completes its display (type, soft form or not, whether it was a death-
 triggered re-offer, seconds into the run), `card_shown` fires when a level
@@ -1140,15 +1162,25 @@ Scores persist to `localStorage`.
 ## Checks
 
 ```sh
-node tools/check.mjs
-node tools/smoke.mjs
+node tools/check.mjs       # parses, elements, teaching-data drift
+node tools/smoke.mjs       # loads and plays the game headlessly
+node tools/dropcheck.mjs   # the build meter still delivers drops
+node tools/curriculum.mjs  # nothing is left untaught by level 3
 ```
 
-`check.mjs` confirms the inline script still parses and that the elements it
-looks up by ID are still in the document. `smoke.mjs` goes further: it loads
-the game into a stubbed DOM and actually plays it — the menu demo, taps,
-committed and aborted swipes, the keyboard, several simulated minutes of a
-run, a landscape resize, a tab background/foreground, a death, the death
-screen's fast-forward tap and a retry — asserting the state machine comes
+All four run on every pull request; only `main` goes on to publish.
+
+`check.mjs` confirms the inline script still parses, that the elements it
+looks up by ID are still in the document, and that the teaching tables have
+not gone stale — no lesson pointing at a cut orb, no tier unlocking after
+level 2's finish line. `smoke.mjs` goes further: it loads the game into a
+stubbed DOM and actually plays it — the menu demo, taps, committed and
+aborted swipes, the keyboard, several simulated minutes of a run, a landscape
+resize, a tab background/foreground, a death, the death screen's fast-forward
+tap and a retry, a level-2 start and its retry card, and the level ladder's
+agreement with the FURTHEST YET badge — asserting the state machine comes
 through each transition intact. No browser, no dependencies; audio stays off,
-which also exercises every audio guard.
+which also exercises every audio guard. `dropcheck.mjs` re-runs that harness
+with a stubbed AudioContext and fails if the build meter stops delivering beat
+drops at a playable cadence. `curriculum.mjs` plays a whole run headlessly and
+fails if level 3 ever opens with a mechanic the player was never shown.

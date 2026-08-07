@@ -2482,9 +2482,12 @@ function levelComplete(){
   G.state='lvend';G.lvT=G.t;
   G.lvCard={done:true,next:G.level+1};
   G.carryScore=G.score;
-  if(G.level+1>G.lvlMax){G.lvlMax=G.level+1;savePref('cometloop:gl',G.lvlMax);}
+  /* the deepest-level record is written where every other record is — at
+     death, beside G.best — so the announcement can fire exactly once. Bumping
+     it here instead meant the record had already moved by the time the death
+     screen tried to compare against it. */
   track('level_cleared',{
-    level:G.level,score:G.score,run_index:G.runs,
+    game_level:G.level,score:G.score,run_index:G.runs,
     seconds:Math.round(G.t-G.started),
     /* how the Star Dive went: 11 is the perfect ending */
     fin_got:(FIN.on||FIN.done)?FIN.got:null,
@@ -2510,8 +2513,9 @@ function loadPrefs(){
   if(!isNaN(b))G.best=Math.max(G.best,b);
   const r=parseInt(readLocal('cometloop:runs'),10);
   if(!isNaN(r))G.runs=Math.max(G.runs,r);
-  const lv=parseInt(readLocal('cometloop:level'),10);
-  if(!isNaN(lv))G.bestLevel=Math.max(G.bestLevel,lv);
+  /* `cometloop:level` is retired and deliberately NOT read: it held the
+     ten-rung tier ordinal, so a device that stored a 7 under it would read
+     back as level 7 of 3. `cometloop:gl` is the one level record. */
   const gl=parseInt(readLocal('cometloop:gl'),10);
   if(!isNaN(gl))G.lvlMax=Math.max(1,Math.min(3,gl));
   const m=readLocal('cometloop:muted');
@@ -2541,9 +2545,9 @@ function loadPrefs(){
       const v=r&&parseInt(r.value,10);
       if(v&&!isNaN(v))G.runs=Math.max(G.runs,v);
     }).catch(function(){});
-    window.storage.get('cometloop:level').then(function(r){
+    window.storage.get('cometloop:gl').then(function(r){
       const v=r&&parseInt(r.value,10);
-      if(v&&!isNaN(v))G.bestLevel=Math.max(G.bestLevel,v);
+      if(v&&!isNaN(v))G.lvlMax=Math.max(G.lvlMax,Math.min(3,v));
     }).catch(function(){});
     window.storage.get('cometloop:muted').then(function(r){
       if(r)muted=(r.value==='1');
@@ -2877,8 +2881,9 @@ const SND_SEEN={}; /* voices announced this visit — by crossing or level start
 const G={
   state:'menu',t:0,started:0,deadT:0,
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
-  bestLevel:1,newLevel:false, /* furthest tier ever reached, and this run's */
-  level:1,lvlMax:1,lvT:0,lvCard:null,carryScore:0, /* the three-level structure */
+  newLevel:false, /* did this run reach deeper than any before it */
+  level:1,lvlMax:1,lvT:0,lvCard:null,carryScore:0, /* the three-level structure,
+    and the deepest level ever reached — the only level record there is */
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
   orbits:0,bestStreak:0,shareFx:0, /* run summary, for the death screen and share */
   groove:0,grooveT:0,grooveFx:0,bestGroove:0,beat:0,dropFx:0, /* rhythm */
@@ -3472,9 +3477,16 @@ function die(){
   if(!RM){const pk=posPlayer();G.impactT=0.13;G.killer={x:pk[0],y:pk[1]};}
   /* Checked before the score, and reported instead of it when both land: a
      player who just got further than they ever have should be told THAT, not
-     handed a number. Level 1 is where every run starts, so it is never news. */
-  G.newLevel=levelNum()>G.bestLevel&&levelNum()>1;
-  if(levelNum()>G.bestLevel){G.bestLevel=levelNum();savePref('cometloop:level',G.bestLevel);}
+     handed a number. Measured on G.level — the ordinal the screen actually
+     prints — because it used to be measured on the tier ladder, which the
+     screen never names: a device whose record was level 3 could die on level 2
+     at a deeper tier and be congratulated for getting further.
+     The record moves HERE, next to G.best at the top of die() rather than at
+     the finish line, so the line fires exactly once and every retry of the
+     same level after it stays quiet. G.lvlMax never drops below 1, so level 1
+     — where every run starts — can never be news. */
+  G.newLevel=G.level>G.lvlMax;
+  if(G.newLevel){G.lvlMax=G.level;savePref('cometloop:gl',G.lvlMax);}
   if(!RM){G.shake=16;G.flash=0.9;}
   const p=posPlayer();
   burst(p[0],p[1],COL.shard,26,240);
@@ -3523,10 +3535,15 @@ function die(){
     drops_earned:G.dropsEarned,hold_timeout:G.holdTimeout,
     best_combo:G.bestCombo,loop_caught:G.loopN,near_misses:G.nearN,
     got_bass:G.gotBass,got_spot:G.gotSpot,
+    /* two ladders, two names, never the word `level` for the tier one: `tier`
+       is the zero-based UNLOCK ladder (what has been introduced), `game_level`
+       is the 1-3 structure the player is told about. `level` used to be sent
+       here holding tier+1 while `level_cleared` sent it holding 1-3 — one
+       property name, two scales, across two events. It is retired rather than
+       redefined so no historical row silently changes meaning; `tier` carried
+       the same number all along. */
     tier:G.tier,tier_name:tierLabel(),rings:G.nRings,
-    /* the ordinal the player actually sees, so the funnel is readable without
-       anyone having to remember that tier is zero-based */
-    level:levelNum(),best_level:G.bestLevel,
+    game_level:G.level,best_game_level:G.lvlMax,
     /* did the curriculum land: three placements is the whole intro set */
     pows_placed:G.powN,saw_warp:G.gotWarp,saw_nova:G.gotNova,saw_hyper:G.gotHyper,
     /* DID THE TEACHING LAND. The two verbs, per run. did_hop is the one that
@@ -3604,8 +3621,8 @@ function retry(){
 }
 /* one dismissal path for every card: sets the level and reports the read —
    how long a card was actually on screen is the channel's whole funnel.
-   game_level (1-3) deliberately does NOT reuse run_ended's `level`, which
-   is the ten-rung tier ordinal — two scales, two names. */
+   game_level (1-3) is the name every event uses for this ordinal; the tier
+   ladder is only ever `tier` — two scales, two names, no overlap. */
 function cardDone(){
   const c=G.lvCard||{done:false,next:1};
   G.level=Math.min(3,c.next);
@@ -3704,25 +3721,34 @@ function tierLabel(){
   for(let i=G.tier;i>=0;i--)if(TIERS[i].name)return TIERS[i].name;
   return 'FIRST ORBIT';
 }
-/* THE ORDINAL. The ladder has been computed on every run since the tiers went
-   in — G.tier ratchets in update(), tierLabel() names it, and runSummary()
-   renders a ten-position bar of it — but the only places it ever surfaced were
-   the clipboard and an analytics endpoint that ships switched off. The player
-   climbing it was never told the number.
-   A tester put the reason better than the design did: "reaching level XYZ
-   seems more memorable and rewarding than just a highest score. Levels are
-   more distinct." A score is a cardinal you cannot repeat from memory; a level
-   is an ordinal you can say out loud, compare, and come back for. This costs
-   one function and some text — the simulation underneath is untouched. */
-const LEVEL_MAX=TIERS.length;
-function levelNum(){return G.tier+1;}
+/* THE ORDINAL, AND WHICH ONE. A tester put the case for naming one at all
+   better than the design did: "reaching level XYZ seems more memorable and
+   rewarding than just a highest score. Levels are more distinct." A score is a
+   cardinal you cannot repeat from memory; a level is an ordinal you can say
+   out loud, compare, and come back for.
+   THERE ARE TWO LADDERS IN HERE AND ONLY ONE OF THEM IS CALLED A LEVEL.
+   G.tier is the ten-rung UNLOCK ladder — which shapes have been introduced —
+   and tierLabel() names its current rung. G.level is the 1-3 structure the
+   player is actually told about: the intro card, the HUD, the share text, the
+   death headline. Both used to surface as "level" in the same places at once:
+   the death screen printed LEVEL 2 directly under a ten-pip bar filled to
+   eight, and the share text pasted a ten-position bar under "LEVEL 2/3".
+   Everything the player reads is G.level now, and the tier ladder keeps its
+   own name. The pip bar had stopped saying anything anyway — the curriculum
+   pass folded every tier into levels 1-2, so it saturates the moment level 3
+   opens and stays full for the rest of an endless level. */
+const LEVEL_MAX=LV.length;
+/* seconds between two pips landing on the death screen — read by the reveal,
+   by the LEVEL punch-in that waits for the last pip, and by the lockout that
+   waits for all three */
+const PIPDT=0.16;
 function runSummary(){
   let bar='';
-  for(let i=0;i<TIERS.length;i++)bar+=(i<=G.tier?'◆':'◇');
+  for(let i=0;i<LEVEL_MAX;i++)bar+=(i<G.level?'◆':'◇');
   /* The level leads and the score moves down a line. A shared score is a
      number nobody can place; a shared level is a claim that invites one back
-     — "level 6" is answerable in a way "4300" is not. */
-  return 'Cosmo · LEVEL '+G.level+'/3\n'+
+     — "level 2 of 3" is answerable in a way "4300" is not. */
+  return 'Cosmo · LEVEL '+G.level+'/'+LEVEL_MAX+'\n'+
     bar+' '+tierLabel()+'\n'+
     G.score+' points · '+G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
     (G.bestGroove>=2?'on beat ×'+G.bestGroove+'\n':'')+
@@ -3763,7 +3789,7 @@ function inMute(x,y){
    can never land on a control that has not appeared yet. */
 function deadSeqDone(){
   if(RM||G.deadSkip)return true;
-  return (G.t-G.deadT)>0.55+0.07*(G.tier+1)+0.9;
+  return (G.t-G.deadT)>0.55+PIPDT*G.level+0.9;
 }
 /* Sits above TAP TO RETRY, and shares the same 0.6s lockout so a frantic
    retry tap right after dying can never land on it by accident. */
@@ -5898,18 +5924,20 @@ function hintText(){
   return null;
 }
 
-/* THE LADDER, DRAWN. Ten pips, one per tier, filled up to where this run got
+/* THE LADDER, DRAWN. One pip per LEVEL, filled up to the one this run reached
    — the same rotated-square idiom as the lap-ember pips, so the game says
-   "progress" one way rather than two. The empty half is the point as much as
-   the full half: a player who dies on level 3 can see that seven more exist,
-   which is the thing a bare score can never tell them. */
-/* `shown` caps how many filled pips have appeared yet — the death screen
-   fills them one at a time. Callers that want them all pass tier+1. */
-function drawLadder(x,y,tier,shown){
-  const pipW=13*u,x0=x-(LEVEL_MAX-1)*pipW/2;
+   "progress" one way rather than two. It counts the same ladder as the LEVEL
+   printed under it; it used to count the ten tiers instead, which put two
+   different ordinals in the same eyeline. The empty pips are the point as much
+   as the filled ones: a player who dies on level 1 can see that two more
+   exist, which is the thing a bare score can never tell them.
+   `shown` caps how many filled pips have appeared yet — the death screen
+   fills them one at a time. Callers that want them all pass G.level. */
+function drawLadder(x,y,level,shown){
+  const pipW=20*u,x0=x-(LEVEL_MAX-1)*pipW/2;
   for(let i=0;i<LEVEL_MAX;i++){
     ctx.save();ctx.translate(x0+i*pipW,y);ctx.rotate(Math.PI/4);
-    const on=i<=tier&&i<(shown===undefined?tier+1:shown);
+    const on=i<level&&i<(shown===undefined?level:shown);
     ctx.globalAlpha=on?0.95:0.25;
     if(on){ctx.fillStyle=COL.ember;ctx.fillRect(-3.4*u,-3.4*u,6.8*u,6.8*u);}
     else{ctx.strokeStyle='rgba(200,215,255,0.9)';ctx.lineWidth=1.2;
@@ -6395,15 +6423,15 @@ function drawHUD(){
        Sequenced off G.t-G.deadT, which keeps running while dead. */
     const td=G.t-G.deadT,skip=RM||G.deadSkip;
     const el=function(at,dur){return skip?1:Math.max(0,Math.min(1,(td-at)/(dur||0.18)));};
-    const pipsShown=skip?G.tier+1:Math.max(0,Math.floor((td-0.55)/0.07));
-    if(pipsShown>G.deadPips&&pipsShown<=G.tier+1){
+    const pipsShown=skip?G.level:Math.max(0,Math.floor((td-0.55)/PIPDT));
+    if(pipsShown>G.deadPips&&pipsShown<=G.level){
       G.deadPips=pipsShown;
       /* the ladder reveal walks the pentatonic — even the death screen is
          in the game's key */
       beep(PENT[Math.min(13,3+pipsShown)],0.06,'sine',0.03,undefined,0,0,0.2);
     }
-    const lvAt=0.55+0.07*(G.tier+1);   /* the moment the last pip lands */
-    if(el(0.45))drawLadder(cx,cy-104*u,G.tier,pipsShown);
+    const lvAt=0.55+PIPDT*G.level;   /* the moment the last pip lands */
+    if(el(0.45))drawLadder(cx,cy-104*u,G.level,pipsShown);
     const la=el(lvAt,0.15);
     if(la>0){
       ctx.globalAlpha=la;

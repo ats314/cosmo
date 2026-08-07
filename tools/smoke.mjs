@@ -221,6 +221,32 @@ try {
   fire('pointerup', pev(13, 200, 400, 'pointerup'));
   if (st('G.state') !== 'playing' || st('G.level') !== 2) throw new Error('card tap did not restart level 2');
   console.log('level-2 retry card ok');
+
+  // ONE LADDER, AND IT IS THE LEVEL LADDER. The death screen prints LEVEL n,
+  // draws one pip per level, and decides FURTHEST YET — all three have to be
+  // the same ordinal. They were not: the pips and the badge ran on the
+  // ten-rung tier ladder under a headline naming the 1-3 level, so a device
+  // whose record was level 3 could die on level 2 and be congratulated for
+  // getting further. These assertions are what stops that drifting back.
+  if (st('LEVEL_MAX') !== st('LV.length')) throw new Error('the drawn ladder is not the level ladder, LEVEL_MAX=' + st('LEVEL_MAX'));
+  const dieAt = (level, record) => {
+    st(`G.state='playing';G.level=${level};G.lvlMax=${record};G.score=0;G.started=G.t;G.lastHit=null`);
+    st('die()');
+    return st('G.newLevel');
+  };
+  if (dieAt(1, 1)) throw new Error('level 1 announced FURTHEST YET — every run starts there');
+  if (!dieAt(2, 1)) throw new Error('a first level-2 death did not announce FURTHEST YET');
+  if (st('G.lvlMax') !== 2 || store['cometloop:gl'] !== '2') throw new Error('the level record did not move at death');
+  if (dieAt(2, 2)) throw new Error('FURTHEST YET fired again at a depth already recorded');
+  if (dieAt(2, 3)) throw new Error('a level-2 death beat a level-3 record');
+  if (store['cometloop:level'] !== undefined) throw new Error('the retired tier-scale level key was written');
+  // the shared bar counts the same ladder the shared headline names
+  st("G.level=2;G.tier=5;G.score=1234;G.deadT=G.t");
+  const share = st('runSummary()');
+  if (!/LEVEL 2\/3/.test(share) || (share.match(/[◆◇]/g) || []).length !== st('LEVEL_MAX')) {
+    throw new Error('share text and its bar disagree on the ladder: ' + share.split('\n').slice(0, 2).join(' / '));
+  }
+  console.log('level ladder + FURTHEST YET ok');
 } catch (e) {
   console.error('RUNTIME FAILED:', e.stack.split('\n').slice(0, 6).join('\n'));
   process.exit(1);
