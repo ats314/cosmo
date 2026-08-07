@@ -183,7 +183,7 @@ ladder now fits inside levels 1–2 (the curriculum rule):
 | L1 +73s | third ring |
 | L2 +18s | gates — every ring blocked, reverse |
 | L2 +58s | drifters — these ones move |
-| L2 +98s | blinkers — they flicker, time your pass |
+| L2 +90s | blinkers — they flicker, time your pass |
 | L2 +112s | sliding gates — the wall slides, reverse early |
 | L2 +134s | flicker pairs — one gap at a time, never both |
 | L3 +0s | storm — no new tricks, everything at once |
