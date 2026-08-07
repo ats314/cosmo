@@ -372,81 +372,24 @@ ancient browser), the duet is skipped and the level completes at its
 plain finish line the way it always used to — nothing about progression
 ever requires a speaker.
 
-**The finale: the three last notes.** Two rounds of execution taught the
-lesson the hard way — a rotating sequencer asked players to sight-read a
-syncopated phrase on an instrument they had never seen, and the owner's
-own playtest ("I tapped along to match the beat and it didn't work... it
-made no sense") killed it. The level now ends in the ONE timing device
-the game drills every single run: a riser into a countdown, and a single
-press on NOW!. Three last notes, each riser bigger than the last (a hit
-grows the next one's voices), each judged on the same bias-corrected
-clock as the drop landing — perfect +150, hit +60, and a miss plays the
-note softly and costs nothing: the level always completes. The stage
-still clears, the banner still explains ("three last notes — tap on
-NOW!"), and a standing TAP ON NOW! line holds through every build.
-Presses only; nothing to decode; nothing spatial. (The finale replaced
-the golden lap, which was a timer wearing a special moment's clothes.)
-
-- **Nova** (white) — a front expands from where you took it and turns what it
-  touches into light. It converts on *contact*, not all at once: nearest
-  shards first, each detonating as the wave reaches it, so the board comes
-  apart as a cascade rather than in a single frame. Because the wave reaches
-  each shard at a different moment, the conversion pings sequence themselves
-  with no scheduling. You are invulnerable while it sweeps — you are standing
-  inside your own blast.
-
-  **Its speed was tuned to the wrong distance.** The front ran at 1600, picked
-  so it clears a screen diagonal inside its lifetime — but no shard is ever out
-  on the diagonal. The blast is centred on the comet and every shard sits
-  inside the ring system, so the farthest is 2R away: 334px on a 390px phone,
-  crossed in **0.225s**. The cascade this was all written to produce finished
-  in thirteen frames and the front then spent another half second expanding
-  through empty space. At 560 the same sweep takes ~0.65s, which is long enough
-  to read as a wave travelling outward, and the invulnerability window was
-  widened to outlast it.
-
-  **And the embers now land on your ring.** Converting in place looked right
-  and paid almost nothing: embers are only collectable on the ring you are on,
-  so on a three-ring board two thirds of a nova's output was scenery that
-  expired five seconds later. A six-shard nova returned about two reachable
-  embers — twelve points, against the eighty-six a maxed orbit pays, for the
-  rarest thing in the game. They now arrive on your own track at the angle the
-  shard held, which turns the same blast into a guaranteed ember run: the combo
-  climbs, the pentatonic phrase resolves, and `lapEmbers` feeds the orbit
-  payout and the build meter. The conversion burst still fires out where the
-  shard actually was, so the light reads as travelling from the danger onto
-  your lane.
-
-## After a run
-
-The death itself has a beat now: two or three frames of flat white with the
-collision silhouetted in it, the shockwave playing in the open for half a
-second before the scrim comes up — it used to reach 80% black while the
-explosion was still happening. Then the screen assembles rather than
-appearing: the ladder pips fill one at a time, each with its tick, the level
-punches in as the last one lands, the score counts up underneath, and the
-stats fade in last. Any tap past the lockout fast-forwards the whole thing;
-reduced motion renders the finished screen immediately.
-
-The death screen leads with the **level**, names the tier under it, and draws
-the ten-pip ladder with your run filled in — then the score, then orbits, best
-streak and elapsed time. It offers a **SHARE** button that hands off to the
-native share sheet where one exists and falls back to the clipboard, producing
-plain text:
-
-```
-Cosmo · LEVEL 10/10
-◆◆◆◆◆◆◆◆◆◆ STORM
-4300 points · 62 orbits · ×7 streak · 5:12
-https://ats314.github.io/cosmo/
-```
-
-Text rather than an image, deliberately: it survives every messaging app, can
-be quoted in a reply, and travels further than a bare link does. The bar
-reports how far the run got without spoiling the tiers you have not reached.
-
-## Telemetry
-
+**The finale: the star dive.** Three executions taught the shape of the
+answer. The duet demanded new literacy (sight-reading a sequencer); the
+countdown demanded none ("you just tell the player when to tap with
+words? This isn't good game design"); the right ending is THE GAME,
+concentrated, played as a reward — the owner's framing: "almost like a
+beautiful new melody heard before the next track." At the finish line
+the stage clears and the level's closing melody appears PHYSICALLY: a
+trail of twelve bright stars spiralling from the outer ring to the inner
+one, threaded by a golden path, with a guide line running from the comet
+to the next star and the CORE visibly waking — warming and swelling — as
+the melody is gathered. Players chase stars on instinct, so nothing is
+explained: orbit, reverse, hop inward, and collecting the trail performs
+a cadence descending to the root, +30 a note, a voice added every fourth
+star, the whole sky gilding. The final star, nearest the core, lands the
+full chord and the braam — every level ends by diving into the music.
+Sweep all twelve for PERFECT ENDING +200; miss some and the ending plays
+thinner; a generous timeout completes the level regardless. Both verbs,
+zero words.
 **Off by default.** `POSTHOG_KEY` is empty in this repo, so a clone sends
 nothing anywhere and every `track()` call short-circuits before it does
 anything. Paste a PostHog project key into that constant to switch it on; a
