@@ -21,6 +21,9 @@ jobs:
         with:
           node-version: '20'
       - run: node tools/check.mjs
+      # Loads the game in a stubbed DOM, plays several simulated minutes of
+      # input, death and retry — catches the runtime errors a parse cannot.
+      - run: node tools/smoke.mjs
 
   deploy:
     # Only main publishes; pull requests get the check alone.

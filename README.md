@@ -613,7 +613,14 @@ Scores persist to `localStorage`.
 
 ```sh
 node tools/check.mjs
+node tools/smoke.mjs
 ```
 
-Confirms the inline script still parses and that the elements it looks up by
-ID are still in the document.
+`check.mjs` confirms the inline script still parses and that the elements it
+looks up by ID are still in the document. `smoke.mjs` goes further: it loads
+the game into a stubbed DOM and actually plays it — the menu demo, taps,
+committed and aborted swipes, the keyboard, several simulated minutes of a
+run, a landscape resize, a tab background/foreground, a death, the death
+screen's fast-forward tap and a retry — asserting the state machine comes
+through each transition intact. No browser, no dependencies; audio stays off,
+which also exercises every audio guard.
