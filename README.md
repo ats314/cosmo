@@ -446,6 +446,30 @@ would have become the whole game. On the way up a full chain totals 36, so it
 stays a garnish beside embers and orbits. The real reward is that the music
 opens up, and that costs nothing.
 
+**The ring is the kit.** Subdivision alone was too polite — the per-ring hats
+sat at gains the target phone cannot reproduce, so "inner is hotter" was a
+promise the speaker broke. Each ring now has a rhythmic identity: the outer
+rides clean, the mid ring gains a half-time kick and a low fifth leaning into
+the turn, the inner runs a four-on-the-floor with a moving octave bass and a
+swung sixteenth. Pattern reads louder than gain: a drum kit assembling under
+you as you dive is unmissable at any volume. And the hop itself is cut on the
+grid like a DJ transition — a bright two-grain sweep inward, a breathing one
+outward, with the arriving track flashing under the comet — so the change is
+marked the moment it happens, not discovered a bar later.
+
+**Taps are an instrument, not a click.** Every reverse now carries a fifth
+underneath that swells with engagement (one tap is a note, a flurry is a
+chord), earns a dotted-eighth echo panned opposite once the groove is found —
+against the 3+3+2 world one tap sounds like three — and the figures are
+chord-aware, leaning with the bar's harmony (Am steady, F down, C up, G home)
+so a run of taps follows the song instead of circling a static position.
+
+**Embers play the band's own instrument.** The pickup was a sine ding over
+the music; it is now the arp's square voice, chord-aware, through the bed bus
+— it ducks, pans and mixes as part of the record, the instant touch is a
+shaker grain, and because the tones land on the sixteenth grid a chain of
+embers comes out as a fill run. The combo's crown note only appears at ×4+.
+
 The rings **pulse on every quarter note**, because you cannot play to a beat you
 cannot find. The pulse brightens and shifts colour as the groove builds.
 
