@@ -1415,13 +1415,21 @@ function musicStep(i,t,k){
      late in a run, which is exactly when the player is working hardest, and
      put the band's square on top of the player's note in the same register. */
   const ad=ARP[(i+bar)%ARP.length];
-  if(k>0.18&&beat%2===0)
-    note(PENT[ad],t,0.20,'square',0.015+0.011*k,1200+1800*k,
+  /* THE STARS CHANGE VOICE AS YOU CLIMB (Hunter's idea): one instrument
+     early, a detuned synth pair by level 4, a sawtooth lead by level 7 —
+     same key, same degrees, a band that grows up with the run. And heat can
+     open every layer the clock would: playing hard means hearing more NOW. */
+  const av=G.tier>=6?'sawtooth':'square';
+  if((k>0.18||PLAY.heat>0.30)&&beat%2===0){
+    note(PENT[ad],t,0.20,av,0.015+0.011*k,1200+1800*k,
       (beat%4===0?-0.3:0.3));
+    if(G.tier>=3)note(PENT[ad]*1.006,t,0.20,av,0.008,1000+1500*k,
+      (beat%4===0?0.3:-0.3));
+  }
   /* the drive the deleted clause used to add, moved onto the ON beat where it
      cannot collide. Never beat 0 — that already carries the root and is the
      loudest scheduled instant in the game. */
-  if(k>0.62&&beat%2===0&&beat!==0)
+  if((k>0.62||PLAY.heat>0.55)&&beat%2===0&&beat!==0)
     note(PENT[Math.min(4,ad+2)],t,0.11,'square',0.010+0.006*k,3000,
       beat%4===2?0.3:-0.3);
   /* The chain opens the arrangement as it climbs, and the counter-line DROPS
@@ -1430,7 +1438,7 @@ function musicStep(i,t,k){
   const gv=Math.max(0,G.groove-4);
   if((k>0.45||gv>0)&&(beat===2||beat===6))hat(t,0.020+0.012*k+0.006*gv);
   if(gv>=2&&beat%2===1)hat(t,0.009+0.004*gv,8200,0.045);
-  if(k>0.45&&beat===4)hat(t,0.012);
+  if((k>0.45||PLAY.heat>0.35)&&beat===4)hat(t,0.012);
   /* THE RING IS THE KIT. Subdivision alone was too polite — the hats sat at
      0.008 and the "inner is hotter" promise was inaudible on the device this
      ships to. Pattern reads louder than gain, so each ring now has a
@@ -1444,6 +1452,7 @@ function musicStep(i,t,k){
     if(beat===0)kick(t,0.042);
     if(beat===4)kick(t,0.034);
     if(beat===3)note(ch[3]/2,t,0.18,'triangle',0.020,900);
+    if(beat===6)note(ch[0]*2,t,0.10,'square',0.010,2200,0);
   }
   if(rg2>=2){
     if(beat===2||beat===6)kick(t,0.036);
@@ -1466,7 +1475,7 @@ function musicStep(i,t,k){
   /* CNT[i%8] with i only ever 11 or 27 resolved to CNT[3] both times — one
      repeated pitch, not a line. Indexed by something that moves now, and
      dropped an octave so it sits below the player's floor. */
-  if(k>0.72&&gv<3&&beat===3&&(bar%2===1)){
+  if((k>0.72||PLAY.heat>0.65)&&gv<3&&beat===3&&(bar%2===1)){
     note(PENT[CNT[((i/4)|0)%CNT.length]]/2,t,0.55,'triangle',0.030,2200,0.15);
   }
 }
@@ -1708,7 +1717,10 @@ function musicTick(){
   /* A phrase cannot be resumed across an unknown gap, so the rest of the
      section is forfeited rather than replayed compressed. */
   if(!MU.next||MU.next<now-0.4){endSection();MU.next=now+0.06;MU.step=0;MU.chord=-1;}
-  const k=Math.min(1,dl()/340);
+  /* FRONT-LOADED, at playtester insistence ("the music is THE key — front
+     load it"): the layering used to reach full ~6 minutes in, which nobody
+     ever heard. Full band now arrives inside the runs people actually have. */
+  const k=Math.min(1,dl()/150);
   let guard=0;
   while(MU.next<now+0.16&&guard++<16){
     musicStep(MU.step,MU.next,k);
@@ -1720,7 +1732,7 @@ function bedTick(dt){
   if(!BED||!AC)return;
   const t=AC.currentTime;
   const playing=G.state==='playing';
-  const k=playing?Math.min(1,dl()/380):0;
+  const k=playing?Math.min(1,dl()/170):0;
   /* not gated on muted: the bus already is, and gating here made unmuting
      produce a 0.9s pad swell that read as a fade-in rather than a switch */
   /* THE DEADLINE. bedTick runs from update() unconditionally, so this catches
@@ -2113,8 +2125,8 @@ const TIERS=[
   {at:0,  type:'single',name:null},
   {at:12, type:null,    name:'SECOND RING', sub:'swipe up or down to switch track',rings:2},
   {at:18, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 swipe to another ring'},
+  {at:40, type:null,    name:'THIRD RING',  sub:'inside is tighter, faster and higher',rings:3},
   {at:52, type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 tap to turn back'},
-  {at:78, type:null,    name:'THIRD RING',  sub:'inside is tighter, faster and higher',rings:3},
   {at:105,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
   {at:145,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
   {at:195,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
@@ -2196,7 +2208,7 @@ const G={
   stop:0, /* hitstop: freezes the comet while the celebration plays */
   starT:0.6,spikeT:1.2,powT:6,powN:0,shake:0,flash:0,tier:0,banner:null,
   runs:0,didReverse:false,didHop:false,didLap:false,
-  teach:0,teachKind:null,teachHint:null,seen:{}, /* first-encounter lessons */
+  teach:0,teachKind:null,teachHint:null,seen:{},campT:0, /* lessons + outer-ring camp clock */
   holdD:0,hopHintT:0,                   /* the hop lesson: gate, hint clock */
   everHopped:false,struggle:0,coach:null,  /* lifetime hop pref, struggle streak, death coaching */
   bgFade:0,revFlip:0,impactT:0,killer:null, /* sky crossfade, reverse flip, death impact */
@@ -2509,7 +2521,7 @@ function startGame(){
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
   G.build=0;G.buildFx=0;G.buildSeg=0;G.buildSrc={ember:0,hop:0,time:0,orbit:0};
   G.landFx=null;G.lands=0;G.secScore=0;G.secMult=1;G.secFx=null;
-  G.teach=0;G.teachKind=null;G.teachHint=null;G.holdD=0;G.hopHintT=0;G.coach=null;
+  G.teach=0;G.teachKind=null;G.teachHint=null;G.campT=0;G.holdD=0;G.hopHintT=0;G.coach=null;
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
   G.sparkT=0;G.sparkN=0;
   skyI=0;      /* the sky opens on band 0 — the ratchet re-deepens it as the run climbs */
@@ -3066,6 +3078,7 @@ function update(dt){
 
   /* playing */
   G.teach=Math.max(0,G.teach-dt);
+  if(G.nRings>=3&&G.ringI===0)G.campT+=dt;else G.campT=0;
   if(G.teach<=0&&G.teachHint)G.teachHint=null;
   /* Effects run on dt, gameplay on sdt — so during hitstop the comet holds
      still while the ignition keeps playing. That contrast is the impact.
@@ -3239,9 +3252,20 @@ function update(dt){
       const cb=G.combo,cpan=panAt(p[0]);
       const eco=[0,-1,1,0][MU?((MU.step/8)|0)%4:0];
       cueTone(function(w){
-        const tt=AC.currentTime+w;
-        note(PENT[Math.max(0,Math.min(9,3+cb+eco))],tt,0.16,'square',
-          0.030+0.004*cb,1400+300*cb,cpan);
+        const tt=AC.currentTime+w,f=PENT[Math.max(0,Math.min(9,3+cb+eco))];
+        if(G.tier>=6){
+          /* levels 7+: a sawtooth lead with an octave bite and a slide-in
+             attack — the stars have become the guitar */
+          note(f,tt,0.16,'sawtooth',0.026+0.004*cb,1800+340*cb,cpan);
+          note(f*2,tt,0.10,'square',0.014,3400,cpan);
+          beep(f*0.94,0.05,'sawtooth',0.012,f,w,cpan,0.2);
+        }else if(G.tier>=3){
+          /* levels 4-6: a detuned synth pair — the note grew shoulders */
+          note(f,tt,0.16,'square',0.024+0.004*cb,1500+300*cb,cpan);
+          note(f*1.007,tt,0.16,'sawtooth',0.016,1300+300*cb,cpan);
+        }else{
+          note(f,tt,0.16,'square',0.030+0.004*cb,1400+300*cb,cpan);
+        }
         /* the chain's crown: a high answer only when the combo is maxing */
         if(cb>=4)note(PENT[Math.min(13,8+eco)],tt+S16,0.12,'square',0.022,2600,cpan);
       });
@@ -4312,6 +4336,9 @@ function hintText(){
   /* didGroove is the LIFETIME flag behind the one-time IN TIME popup; the
      prompt keys off this run's own chain, so it still reminds someone who
      learned it weeks ago and has not used it today. */
+  /* three rings up and camped on the outside: name what they are missing */
+  if(G.nRings>=3&&G.campT>25)
+    return {t:'dive in \u2014 the music runs hotter inside',g:'swipe'};
   if(G.bestGroove<2&&a>28&&G.groove<2)return {t:'tap in time with the beat',g:'beat'};
   /* Named at the ARC, where the answer actually is, and earlier — waiting
      until 34s meant most players never saw why a drop happened. */
