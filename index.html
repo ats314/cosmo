@@ -69,11 +69,31 @@ const LAP_EMB_MAX=4; /* embers per orbit that still raise the payout */
 
 let W=0,H=0,DPR=1,cx=0,cy=0,R=0,u=1,safeTop=0,safeBot=0;
 let bgStars=[];
+/* Ring 0 is the outermost. Adding a ring adds a higher index further in, so
+   existing rings never move when a new one appears. Declared ahead of the
+   sprite cache because the initial bake (which runs from the first resize())
+   needs the ratios for the conduit sprites. */
+const RADII=[1.0,0.76,0.545];
+const RING_MULT=[1,1,1]; /* set e.g. [1,1.5,2] to pay more for riding inside */
+/* EACH RING IS AN INSTRUMENT — see the audio section for why these move. */
+const RINGS=[
+  /* outer */ {wave:'sawtooth',cut:1.00,lift:0,   sub:0, tint:'132,162,255'},
+  /* mid   */ {wave:'square',  cut:1.18,lift:260, sub:1, tint:'128,206,255'},
+  /* inner */ {wave:'square',  cut:1.42,lift:620, sub:2, tint:'168,240,255'}];
 const nebulas=[
   {x:0.22,y:0.25,r:0.55,c:'96,80,200',ph:0},
   {x:0.80,y:0.70,r:0.60,c:'40,140,180',ph:2.1},
   {x:0.65,y:0.15,r:0.45,c:'170,70,140',ph:4.0}
 ];
+/* dust motes drifting in the shell of air the arena's light reaches — radii
+   are stored as multiples of ring 0 so a resize never reshuffles them */
+const MOTES=[];
+for(let i=0;i<44;i++)MOTES.push({ang:Math.random()*TAU,rr:1.08+Math.random()*0.67,
+  ph:Math.random()*TAU,sp:(0.5+Math.random()*1.1)*(Math.random()<0.5?-1:1),
+  sz:0.5+Math.random()*0.6});
+/* a fixed flicker table for the comet's furnace core — random at bake, so
+   the flicker never costs a Math.random() per frame */
+const FLK=[];for(let i=0;i<16;i++)FLK.push(Math.random());
 
 /* ---------- sprite cache (shadowBlur is done once, not every frame) ---------- */
 const SPR={};
@@ -159,9 +179,12 @@ function bakeNebula(c){
   });
 }
 /* Oversized so a plane can drift without exposing an edge; `which` picks the
-   depth tiers baked into it. */
-function bakeStars(pad,which){
-  return makeCanvas(W+pad*2,H+pad*2,function(g,w,h){
+   depth tiers baked into it. `soft` renders at a third of the size and lets
+   the upscale blur it — the far plane reads as out of focus, which is the
+   whole depth cue, with no filter dependency. `gax` sprinkles extra crisp
+   specks along the galactic axis so pinpricks ride over the band's glow. */
+function bakeStars(pad,which,soft,gax){
+  const paint=function(g,w,h){
     for(const st of starField){
       if(which.indexOf(st.tier)<0)continue;
       const x=st.x*w,y=st.y*h;
@@ -174,50 +197,246 @@ function bakeStars(pad,which){
       g.fillStyle='rgba('+st.c+','+st.a.toFixed(3)+')';
       g.beginPath();g.arc(x,y,st.r,0,TAU);g.fill();
     }
+    if(gax){
+      const ca=Math.cos(GAX),sa=Math.sin(GAX);
+      for(let i=0;i<90;i++){
+        const t=(i/90-0.5)*Math.hypot(w,h);
+        const off=(Math.random()+Math.random()-1)*0.12*h;
+        const x=w/2+ca*t-sa*off,y=h/2+sa*t+ca*off;
+        g.fillStyle='rgba(210,228,255,'+(0.10+Math.random()*0.35).toFixed(3)+')';
+        g.beginPath();g.arc(x,y,0.4+Math.random()*0.8,0,TAU);g.fill();
+      }
+    }
+  };
+  if(!soft)return makeCanvas(W+pad*2,H+pad*2,paint);
+  const w=W+pad*2,h=H+pad*2;
+  const small=makeCanvas(Math.ceil(w/3),Math.ceil(h/3),function(g){
+    g.save();g.scale(1/3,1/3);paint(g,w,h);g.restore();
+  });
+  return makeCanvas(w,h,function(g){
+    g.drawImage(small.c,0,0,w,h);      /* the 3x upscale IS the blur */
   });
 }
-function buildSprites(){
+/* THE GALACTIC BAND — the screenshot anchor. A structured diagonal of light
+   with dark dust lanes carved out of it, baked at half resolution (the
+   upscale softens it exactly the way a distant glow should be soft). */
+let GAX=0;
+function bakeGalaxy(band){
+  const w=W+56,h=H+56;
+  const c=document.createElement('canvas');
+  c.width=Math.ceil(w/2);c.height=Math.ceil(h/2);
+  const g=c.getContext('2d');
+  g.setTransform(0.5,0,0,0.5,0,0);
+  g.save();
+  g.translate(w/2,h/2);g.rotate(GAX);
+  const L=Math.hypot(w,h);
+  g.globalCompositeOperation='lighter';
+  for(const [wd,al] of [[0.34,0.05],[0.18,0.08],[0.08,0.12]]){
+    const gr=g.createLinearGradient(0,-h*wd,0,h*wd);
+    gr.addColorStop(0,'rgba('+band.limb+',0)');
+    gr.addColorStop(0.5,'rgba('+band.limb+','+al+')');
+    gr.addColorStop(1,'rgba('+band.limb+',0)');
+    g.fillStyle=gr;g.fillRect(-L/2,-h*wd,L,h*wd*2);
+  }
+  for(let i=0;i<220;i++){
+    const t=(Math.random()-0.5)*L,off=(Math.random()+Math.random()-1)*0.15*h;
+    g.fillStyle='rgba(214,230,255,'+(0.1+Math.random()*0.4).toFixed(3)+')';
+    g.beginPath();g.arc(t,off,0.4+Math.random()*0.7,0,TAU);g.fill();
+  }
+  /* the dust lanes: darkness carved OUT of the light is what reads as a
+     galaxy rather than a stripe */
+  g.globalCompositeOperation='destination-out';
+  for(let i=0;i<8;i++){
+    const t=(Math.random()-0.5)*L*0.8,off=(Math.random()-0.5)*0.10*h;
+    g.save();g.translate(t,off);g.rotate((Math.random()-0.5)*0.4);
+    g.scale(3+Math.random()*3,1);
+    const r=10+Math.random()*22;
+    const gr=g.createRadialGradient(0,0,0,0,0,r);
+    gr.addColorStop(0,'rgba(0,0,0,'+(0.5+Math.random()*0.35).toFixed(2)+')');
+    gr.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle=gr;g.beginPath();g.arc(0,0,r,0,TAU);g.fill();
+    g.restore();
+  }
+  g.restore();
+  return {c:c,w:w,h:h};
+}
+/* value-noise seed for the planet's surface, built once per page */
+let NSEED=null;
+function noiseSeed(){
+  if(NSEED)return NSEED;
+  const c=document.createElement('canvas');c.width=96;c.height=96;
+  const g=c.getContext('2d');
+  g.fillStyle='#808080';g.fillRect(0,0,96,96);
+  for(let i=0;i<180;i++){
+    const l=Math.random()<0.5;
+    g.fillStyle='rgba('+(l?'255,255,255':'0,0,0')+','+(0.06+Math.random()*0.08).toFixed(3)+')';
+    g.fillRect(Math.random()*96,Math.random()*96,2+Math.random()*8,2+Math.random()*8);
+  }
+  NSEED=c;return c;
+}
+/* THE PLANET — half the screen's short side, textured, lit by the arena.
+   Baked at device scale 1: the upscale at draw time is its depth of field. */
+function bakePlanet(band){
+  const pr=Math.round(0.5*Math.min(W,H));
+  const c=document.createElement('canvas');
+  c.width=pr*2;c.height=pr*2;
+  const g=c.getContext('2d');
+  const base=g.createRadialGradient(pr*0.8,pr*0.8,0,pr,pr,pr);
+  base.addColorStop(0,'#182338');
+  base.addColorStop(0.7,'#0b1224');
+  base.addColorStop(1,'#05070f');
+  g.fillStyle=base;g.beginPath();g.arc(pr,pr,pr*0.97,0,TAU);g.fill();
+  g.save();
+  g.beginPath();g.arc(pr,pr,pr*0.97,0,TAU);g.clip();
+  /* three octaves of the seed give the surface a mottled cloud read */
+  g.globalCompositeOperation='overlay';
+  for(const [sc,al] of [[2.6,0.20],[1.3,0.12],[0.65,0.08]]){
+    g.globalAlpha=al;
+    g.drawImage(noiseSeed(),pr-pr*sc,pr-pr*sc,pr*sc*2,pr*sc*2);
+  }
+  g.globalAlpha=1;g.globalCompositeOperation='source-over';
+  /* gas bands, tilted with the light */
+  g.save();g.translate(pr,pr);g.rotate(-0.35);
+  for(let i=0;i<4;i++){
+    g.strokeStyle='rgba('+band.limb+','+(0.05+Math.random()*0.04).toFixed(3)+')';
+    g.lineWidth=(0.06+Math.random()*0.06)*pr;
+    g.beginPath();g.ellipse(0,(i-1.5)*0.42*pr,pr*1.05,pr*0.5,0,0,TAU);g.stroke();
+  }
+  g.restore();
+  /* the terminator: lit crescent faces the arena, texture survives only
+     inside it — one key light for the whole scene */
+  const th=Math.atan2(-1,1.2);   /* the arena sits up-right of the anchor */
+  const lx=pr+Math.cos(th)*pr*0.9,ly=pr+Math.sin(th)*pr*0.9;
+  const term=g.createRadialGradient(lx,ly,pr*0.15,lx,ly,pr*1.9);
+  term.addColorStop(0,'rgba(4,6,14,0)');
+  term.addColorStop(0.45,'rgba(4,6,14,0.35)');
+  term.addColorStop(1,'rgba(4,6,14,0.94)');
+  g.fillStyle=term;g.fillRect(0,0,pr*2,pr*2);
+  g.restore();
+  /* atmosphere, then the lit limb itself */
+  g.globalCompositeOperation='lighter';
+  const at=g.createRadialGradient(pr,pr,pr*0.92,pr,pr,pr*1.1);
+  at.addColorStop(0,'rgba('+band.limb+',0)');
+  at.addColorStop(0.5,'rgba('+band.limb+',0.15)');
+  at.addColorStop(1,'rgba('+band.limb+',0)');
+  g.fillStyle=at;g.beginPath();g.arc(pr,pr,pr*1.1,0,TAU);g.fill();
+  g.strokeStyle='rgba('+band.limb+',0.55)';g.lineWidth=2.5;
+  g.beginPath();g.arc(pr,pr,pr*0.97,th-0.9,th+0.9);g.stroke();
+  return {c:c,w:pr*2,h:pr*2};
+}
+/* GOD RAYS from the hub: born OUTSIDE the ring stack (the inner hole in the
+   mask guarantees they never cross the play annulus), dying before the
+   corners. Two counter-rotated blits of this at draw time shimmer. */
+function bakeRays(band){
+  const side=4.4*R;
+  const c=document.createElement('canvas');
+  c.width=Math.ceil(side/2);c.height=Math.ceil(side/2);
+  const g=c.getContext('2d');
+  g.setTransform(0.5,0,0,0.5,0,0);
+  g.translate(side/2,side/2);
+  let a=0;
+  for(let i=0;i<24;i++){
+    const w=0.04+Math.random()*0.09;
+    g.fillStyle='rgba('+band.limb+','+(0.05+Math.random()*0.05).toFixed(3)+')';
+    g.beginPath();g.moveTo(0,0);g.arc(0,0,2.2*R,a,a+w);g.closePath();g.fill();
+    a+=w+0.06+Math.random()*0.14;
+  }
+  g.globalCompositeOperation='destination-in';
+  const die=g.createRadialGradient(0,0,0.5*R,0,0,2.2*R);
+  die.addColorStop(0,'rgba(0,0,0,1)');
+  die.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=die;g.fillRect(-side/2,-side/2,side,side);
+  const hole=g.createRadialGradient(0,0,0.55*R,0,0,0.9*R);
+  hole.addColorStop(0,'rgba(0,0,0,0)');
+  hole.addColorStop(1,'rgba(0,0,0,1)');
+  g.fillStyle=hole;g.fillRect(-side/2,-side/2,side,side);
+  return {c:c,w:side,h:side};
+}
+/* FOG BANKS, with the clearing the arena's own light has burned around the
+   ring stack — the "it sits IN air" statement. */
+function bakeFog(band,seed){
+  const pad=40,w=W+pad*2,h=H+pad*2;
+  const c=document.createElement('canvas');
+  c.width=Math.ceil(w/2);c.height=Math.ceil(h/2);
+  const g=c.getContext('2d');
+  g.setTransform(0.5,0,0,0.5,0,0);
+  const n=10+seed*2;
+  for(let i=0;i<n;i++){
+    /* weighted toward edges so the middle stays airy even before the burn */
+    const ex=Math.random()<0.5?Math.random()*0.35:0.65+Math.random()*0.35;
+    const ey=Math.random();
+    const sp=SPR.neb[i%SPR.neb.length];
+    const s=(1.5+Math.random()*1.5)*280;
+    const flat=i>=n-2;
+    g.globalAlpha=0.35+Math.random()*0.35;
+    g.drawImage(sp.c,ex*w-s*(flat?1.5:0.5),ey*h-s*(flat?0.4:0.5),
+      s*(flat?3:1),s*(flat?0.8:1));
+  }
+  g.globalAlpha=1;
+  g.globalCompositeOperation='destination-out';
+  const burn=g.createRadialGradient(cx+pad,cy+pad,radiusOf(0)+30*u,
+                                    cx+pad,cy+pad,radiusOf(0)*1.8);
+  burn.addColorStop(0,'rgba(0,0,0,1)');
+  burn.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=burn;g.fillRect(0,0,w,h);
+  return {c:c,w:w,h:h,pad:pad};
+}
+/* THE GRADE: baked photographic finish — corner falloff that clears the ring
+   stack, a horizon lift, a bias along the galactic axis. One quarter-res
+   blit per frame. */
+function bakeGrade(band){
+  const c=document.createElement('canvas');
+  c.width=Math.max(1,Math.ceil(W/4));c.height=Math.max(1,Math.ceil(H/4));
+  const g=c.getContext('2d');
+  g.setTransform(0.25,0,0,0.25,0,0);
+  const fall=g.createRadialGradient(cx,cy,Math.min(W,H)*0.55,cx,cy,Math.max(W,H)*0.95);
+  fall.addColorStop(0,'rgba(2,4,10,0)');
+  fall.addColorStop(1,'rgba(2,4,10,0.42)');
+  g.fillStyle=fall;g.fillRect(0,0,W,H);
+  const lift=g.createLinearGradient(0,H*0.8,0,H);
+  lift.addColorStop(0,'rgba('+band.limb+',0)');
+  lift.addColorStop(1,'rgba('+band.limb+',0.05)');
+  g.fillStyle=lift;g.fillRect(0,H*0.8,W,H*0.2);
+  g.save();g.translate(cx,cy);g.rotate(GAX);
+  const bias=g.createLinearGradient(0,-H*0.6,0,H*0.6);
+  bias.addColorStop(0,'rgba('+band.limb+',0.045)');
+  bias.addColorStop(1,'rgba(2,4,10,0.05)');
+  g.fillStyle=bias;g.fillRect(-W,-H,W*2,H*2);
+  g.restore();
+  return {c:c,w:W,h:H};
+}
+function buildSprites(bandOnly){
   buildStarField();
   const band=SKY_BANDS[skyI];
+  GAX=Math.atan2(H,W)+0.35;
+  /* BAND-KEYED SET — everything tinted by the ladder's palette, cheap enough
+     to rebake together on the banner frame. The nebulae bake from the BAND's
+     tints now (they used to bake from the fixed seed colours, so the palette
+     bands never actually recoloured them — dead data, found in review). */
   SPR.bg=bakeBackdrop(band.bg);
+  SPR.neb=band.neb.map(function(c){return bakeNebula(c);});
+  SPR.galaxy=bakeGalaxy(band);
+  SPR.planet=bakePlanet(band);
+  SPR.rays=bakeRays(band);
+  SPR.fogA=bakeFog(band,1);
+  SPR.fogB=bakeFog(band,2);
+  SPR.grade=bakeGrade(band);
+  if(bandOnly)return;
+  /* BAND-INDEPENDENT SET below: baked on load and real resizes only. */
   /* The payoff section owns a second sky. Baked here, drawn only while a
      section plays — the drop flips the world into a state that LASTS, rather
      than a one-second flash over the ordinary screen. */
   SPR.bg2=bakeBackdrop(['#231b3f','#151030','#0b081c','#05040e']);
-  SPR.neb=nebulas.map(function(n){return bakeNebula(n.c);});
   SPR.neb2=nebulas.map(function(n,i){
     return bakeNebula(['150,110,255','90,80,220','190,90,200'][i]);
   });
   /* The wash that blooms behind the arena when the drop lands. */
   SPR.nebDrop=bakeNebula('180,139,255');
   /* TWO DEPTH PLANES, so orbiting actually parallaxes the sky: the dim small
-     stars barely move while the bright haloed ones ride a comet-coupled
-     offset. The three tiers always existed in the data; baking them into one
-     canvas was what threw the depth away. */
-  SPR.starsFar=bakeStars(8,[0]);
+     stars barely move (and bake soft — the far plane is out of focus) while
+     the bright haloed ones ride a comet-coupled offset, pin sharp. */
+  SPR.starsFar=bakeStars(8,[0],true,true);
   SPR.starsNear=bakeStars(28,[1,2]);
-  /* ONE LANDMARK. A distant body gives the sky scale and a place to be, and
-     its lit limb carries the band tint, so it witnesses the run's progress
-     alongside the palette. Mostly off-canvas in the lower-left, kept near
-     field-black so it never competes with the play space. */
-  SPR.planet=(function(){
-    const pr=Math.round(0.35*Math.min(W,H));
-    return makeCanvas(pr*2,pr*2,function(g){
-      const gr=g.createRadialGradient(pr*0.8,pr*0.8,0,pr,pr,pr);
-      gr.addColorStop(0,'#0d1424');
-      gr.addColorStop(0.72,'#080d19');
-      gr.addColorStop(1,'#04060e');
-      g.fillStyle=gr;g.beginPath();g.arc(pr,pr,pr*0.97,0,TAU);g.fill();
-      /* the halo, then the limb: a thin bright arc facing the arena */
-      const hg=g.createRadialGradient(pr,pr,pr*0.9,pr,pr,pr);
-      hg.addColorStop(0,'rgba('+band.limb+',0)');
-      hg.addColorStop(0.85,'rgba('+band.limb+',0.10)');
-      hg.addColorStop(1,'rgba('+band.limb+',0)');
-      g.fillStyle=hg;g.beginPath();g.arc(pr,pr,pr,0,TAU);g.fill();
-      g.strokeStyle='rgba('+band.limb+',0.45)';g.lineWidth=1.6;
-      g.beginPath();g.arc(pr,pr,pr*0.97,-1.9,-0.3);g.stroke();
-    });
-  })();
   SPR.ember=makeSprite(9*u+24,function(g){
     const hr=22*u;
     const gr=g.createRadialGradient(0,0,0,0,0,hr);
@@ -237,25 +456,26 @@ function buildSprites(){
     g.beginPath();g.arc(0,0,2.6*u,0,TAU);g.fill();
   });
   /* Shards get a lit facet and a rim so they read as solid crystal against
-     all the glow — threats should feel heavier than collectibles. */
+     all the glow — threats should feel heavier than collectibles. ONE KEY
+     LIGHT: the bright face sits at -x, and the draw rotates each crystal to
+     its ring angle, so every shard is lit by the arena's own lamp. */
   SPR.shard=makeSprite(11*u+26,function(g){
-    const R0=11*u,hr=R0*2.3;
+    const R0=11*u,hr=R0*2.3,d=R0*0.7*Math.SQRT2;
     const gr=g.createRadialGradient(0,0,0,0,0,hr);
     gr.addColorStop(0,'rgba(255,93,115,0.45)');
     gr.addColorStop(0.42,'rgba(255,93,115,0.16)');
     gr.addColorStop(1,'rgba(255,93,115,0)');
     g.fillStyle=gr;g.beginPath();g.arc(0,0,hr,0,TAU);g.fill();
-    g.rotate(Math.PI/4);
-    const q=R0*0.7;
-    const lg=g.createLinearGradient(-q,-q,q,q);
+    const lg=g.createLinearGradient(-d,0,d,0);
     lg.addColorStop(0,'#ff9dab');
     lg.addColorStop(0.48,'#ff5d73');
     lg.addColorStop(1,'#c53a52');
-    g.fillStyle=lg;g.fillRect(-q,-q,q*2,q*2);
-    g.strokeStyle='rgba(255,198,208,0.7)';g.lineWidth=1.2;
-    g.strokeRect(-q,-q,q*2,q*2);
+    const dia=function(){g.beginPath();
+      g.moveTo(-d,0);g.lineTo(0,-d);g.lineTo(d,0);g.lineTo(0,d);g.closePath();};
+    g.fillStyle=lg;dia();g.fill();
+    g.strokeStyle='rgba(255,198,208,0.7)';g.lineWidth=1.2;dia();g.stroke();
     g.strokeStyle='rgba(255,255,255,0.20)';g.lineWidth=1;
-    g.beginPath();g.moveTo(-q,q);g.lineTo(q,-q);g.stroke();
+    g.beginPath();g.moveTo(0,-d);g.lineTo(0,d);g.stroke();
   });
   /* SHARD FAMILIES. One sprite served four behaviours; now each kin keeps the
      red-crystal halo (the taught lesson is colour-keyed) and varies only its
@@ -268,10 +488,11 @@ function buildSprites(){
     gr.addColorStop(0.42,'rgba(255,93,115,0.16)');
     gr.addColorStop(1,'rgba(255,93,115,0)');
     g.fillStyle=gr;g.beginPath();g.arc(0,0,hr,0,TAU);g.fill();
+    /* bright trails at -x, matching the key light; the point leads */
     const lg=g.createLinearGradient(-R0*0.6,0,R0,0);
-    lg.addColorStop(0,'#c53a52');
+    lg.addColorStop(0,'#ff9dab');
     lg.addColorStop(0.5,'#ff5d73');
-    lg.addColorStop(1,'#ff9dab');
+    lg.addColorStop(1,'#c53a52');
     g.fillStyle=lg;
     g.beginPath();
     g.moveTo(R0*0.95,0);g.lineTo(-R0*0.55,R0*0.62);
@@ -280,25 +501,27 @@ function buildSprites(){
     g.strokeStyle='rgba(255,198,208,0.7)';g.lineWidth=1.2;g.stroke();
   });
   SPR.shardBlink=makeSprite(11*u+26,function(g){
-    const R0=11*u,hr=R0*2.3,q=R0*0.7;
+    const R0=11*u,hr=R0*2.3,d=R0*0.7*Math.SQRT2;
     const gr=g.createRadialGradient(0,0,0,0,0,hr);
     gr.addColorStop(0,'rgba(255,93,115,0.45)');
     gr.addColorStop(0.42,'rgba(255,93,115,0.16)');
     gr.addColorStop(1,'rgba(255,93,115,0)');
     g.fillStyle=gr;g.beginPath();g.arc(0,0,hr,0,TAU);g.fill();
-    g.rotate(Math.PI/4);
-    const lg=g.createLinearGradient(-q,-q,q,q);
+    const lg=g.createLinearGradient(-d,0,d,0);
     lg.addColorStop(0,'#ff9dab');
     lg.addColorStop(0.48,'#ff5d73');
     lg.addColorStop(1,'#c53a52');
     g.fillStyle=lg;
-    /* the rim band: outer square minus the hollow core */
+    /* the rim band: outer diamond minus the hollow core */
     g.beginPath();
-    g.rect(-q,-q,q*2,q*2);
-    g.rect(-q*0.42,q*0.42,q*0.84,-q*0.84);   /* wound backwards = the hole */
+    g.moveTo(-d,0);g.lineTo(0,-d);g.lineTo(d,0);g.lineTo(0,d);g.closePath();
+    const h2=d*0.42;
+    g.moveTo(-h2,0);g.lineTo(0,h2);g.lineTo(h2,0);g.lineTo(0,-h2);g.closePath();
     g.fill('evenodd');
     g.strokeStyle='rgba(255,198,208,0.7)';g.lineWidth=1.2;
-    g.strokeRect(-q,-q,q*2,q*2);
+    g.beginPath();
+    g.moveTo(-d,0);g.lineTo(0,-d);g.lineTo(d,0);g.lineTo(0,d);g.closePath();
+    g.stroke();
     g.fillStyle='rgba(255,93,115,0.9)';
     g.beginPath();g.arc(0,0,1.8*u,0,TAU);g.fill();
   });
@@ -372,6 +595,76 @@ function buildSprites(){
     vg.addColorStop(1,'rgba(140,90,255,0.16)');
     g.fillStyle=vg;g.fillRect(0,0,W,H);
   });
+  /* CONDUIT RINGS. Each orbit is a baked cross-section — dark channel walls,
+     a hot core line, a soft halo — so the track reads as a machine of energy
+     rather than a pencil stroke, and the dark walls lift every ember and
+     shard sitting on it. Core alpha stays under the gameplay objects'. */
+  SPR.ringCh=RADII.map(function(f,i){
+    const rr=R*f,t=RINGS[i].tint;
+    const T=t.split(',').map(function(v){return Math.min(255,(+v)+55);}).join(',');
+    return makeSprite(rr+26*u,function(g){
+      const gr=g.createRadialGradient(0,0,Math.max(1,rr-14*u),0,0,rr+14*u);
+      gr.addColorStop(0,'rgba('+t+',0)');
+      gr.addColorStop(0.30,'rgba(4,7,16,0.50)');
+      gr.addColorStop(0.46,'rgba('+t+',0.10)');
+      gr.addColorStop(0.50,'rgba('+T+',0.34)');
+      gr.addColorStop(0.54,'rgba('+t+',0.10)');
+      gr.addColorStop(0.70,'rgba(4,7,16,0.50)');
+      gr.addColorStop(1,'rgba('+t+',0)');
+      g.fillStyle=gr;
+      const s=rr+26*u;
+      g.fillRect(-s,-s,s*2,s*2);
+      g.strokeStyle='rgba('+t+',0.15)';g.lineWidth=1;
+      g.beginPath();g.arc(0,0,rr-8*u,0,TAU);g.stroke();
+      g.beginPath();g.arc(0,0,rr+8*u,0,TAU);g.stroke();
+    });
+  });
+  /* the hub lamp the whole scene is lit by */
+  SPR.core=makeSprite(46*u,function(g){
+    for(const L of [[44,'120,160,255',0.07],[14,'150,190,255',0.20],[3,'220,235,255',0.5]]){
+      const gr=g.createRadialGradient(0,0,0,0,0,L[0]*u);
+      gr.addColorStop(0,'rgba('+L[1]+','+L[2]+')');
+      gr.addColorStop(1,'rgba('+L[1]+',0)');
+      g.fillStyle=gr;g.beginPath();g.arc(0,0,L[0]*u,0,TAU);g.fill();
+    }
+    g.fillStyle='#eef6ff';g.beginPath();g.arc(0,0,1.5*u,0,TAU);g.fill();
+  });
+  /* the comet's furnace core, flickered over the base teardrop */
+  SPR.cometHot=makeSprite(8*u+8,function(g){
+    const gr=g.createRadialGradient(1.3*u,0,0,1.3*u,0,5*u);
+    gr.addColorStop(0,'rgba(255,255,255,0.9)');
+    gr.addColorStop(1,'rgba(190,250,255,0)');
+    g.fillStyle=gr;g.beginPath();g.arc(1.3*u,0,5*u,0,TAU);g.fill();
+    g.fillStyle='#ffffff';
+    g.beginPath();
+    g.arc(1.3*u,0,4*u,-Math.PI/2,Math.PI/2);
+    g.quadraticCurveTo(-1.6*u,2.2*u,-6.3*u,0);
+    g.quadraticCurveTo(-1.6*u,-2.2*u,1.3*u,-4*u);
+    g.closePath();g.fill();
+  });
+  /* a fat annular shockwave for the moments that earn one */
+  SPR.shock=(function(){
+    const c=document.createElement('canvas');c.width=128;c.height=128;
+    const g=c.getContext('2d');
+    const gr=g.createRadialGradient(64,64,0,64,64,64);
+    gr.addColorStop(0.60,'rgba(235,245,255,0)');
+    gr.addColorStop(0.78,'rgba(235,245,255,0.55)');
+    gr.addColorStop(1,'rgba(235,245,255,0)');
+    g.fillStyle=gr;g.fillRect(0,0,128,128);
+    return {c:c,s:128};
+  })();
+  /* a mote of lit dust, and a conduit node pip */
+  SPR.mote=makeSprite(5*u+4,function(g){
+    const gr=g.createRadialGradient(0,0,0,0,0,5*u);
+    gr.addColorStop(0,'rgba(214,232,255,0.8)');
+    gr.addColorStop(1,'rgba(214,232,255,0)');
+    g.fillStyle=gr;g.beginPath();g.arc(0,0,5*u,0,TAU);g.fill();
+  });
+  SPR.pip=makeSprite(3.5*u+8,function(g){
+    g.shadowColor='rgb(150,190,255)';g.shadowBlur=6;
+    g.fillStyle='rgba(190,215,255,0.9)';
+    g.beginPath();g.arc(0,0,1.7*u,0,TAU);g.fill();
+  });
 }
 
 function resize(){
@@ -411,7 +704,7 @@ function resize(){
        on the same frame as the tier banner, where a long frame is invisible. */
     const bandOnly=sprU===u&&sprDPR===DPR&&sprW===W&&sprH===H&&sprBand!==-1;
     const old=bandOnly?SPR.bg:null;
-    buildSprites();
+    buildSprites(bandOnly);
     if(old){SPR.bgOld=old;G.bgFade=RM?0:1;}
     sprU=u;sprDPR=DPR;sprW=W;sprH=H;sprBand=skyI;
   }
@@ -419,25 +712,11 @@ function resize(){
 window.addEventListener('resize',resize);resize();
 
 function angDist(a,b){const d=Math.abs((a-b)%TAU);return d>Math.PI?TAU-d:d;}
-/* Ring 0 is the outermost. Adding a ring adds a higher index further in, so
-   existing rings never move when a new one appears. */
-/* The inner ring was half the outer one, and a shard's hit width is
-   (18.5u)/radius RADIANS — so it blocked twice the angular fraction there and
-   held roughly a third fewer embers. Lifting it to 0.545 of a larger R makes
-   the innermost track about 42% wider than it was without touching a single
-   difficulty constant. */
-const RADII=[1.0,0.76,0.545];
-const RING_MULT=[1,1,1]; /* set e.g. [1,1.5,2] to pay more for riding inside */
-/* EACH RING IS AN INSTRUMENT. Nothing about the payout differs between them,
-   so the only honest way to say "inside is hotter" is to make it SOUND hotter.
-   Going in raises the register (performerHit already transposes by ring),
-   brightens the timbre from a warm saw to a hard square, opens the pad, and —
-   the part you feel rather than hear — doubles the subdivision underneath you.
-   The tempo never changes. Only how finely the bar is cut. */
-const RINGS=[
-  /* outer */ {wave:'sawtooth',cut:1.00,lift:0,   sub:0, tint:'132,162,255'},
-  /* mid   */ {wave:'square',  cut:1.18,lift:260, sub:1, tint:'128,206,255'},
-  /* inner */ {wave:'square',  cut:1.42,lift:620, sub:2, tint:'168,240,255'}];
+/* RADII and RINGS are declared up top, before the sprite cache — the initial
+   bake needs them. The inner ring was lifted to 0.545 of a larger R so the
+   innermost track is ~42% wider than it once was; each ring is an instrument
+   (performerHit transposes by ring, the sub doubles, the pad opens) — the
+   tempo never changes, only how finely the bar is cut. */
 function ringOf(){return G.state==='playing'?Math.min(RINGS.length-1,effRing()):0;}
 function radiusOf(i){return R*RADII[i];}
 function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r];}
@@ -560,7 +839,11 @@ const ARP=[0,2,4,2,3,2,4,3],CNT=[7,5,4,5,7,8,7,5];
    rationing device — see armDrop. Long enough that the ordinary arrangement
    is heard again between payoffs; short enough that earning one means having
    one. */
-const PAY=64,S16=SPB/4,PAYLEN=PAY*(SPB/2),PAYREST=20;
+/* PAYREST was 20s, which with the 18.5s section put a second drop 38.5s from
+   the first — beyond what most runs survive, so in practice a run's meter
+   only ever paid once and "keep playing to fill the build" read as broken.
+   Four bars of ordinary arrangement is still a real breath between sections. */
+const PAY=64,S16=SPB/4,PAYLEN=PAY*(SPB/2),PAYREST=9.24;
 /* 8 bars x 16 sixteenths of PENT degrees, -1 = rest. The accents are 3+3+2 and
    share not one position with ARP's straight eighths, which is what makes it
    read as a different piece of music rather than the same music louder. */
@@ -634,6 +917,7 @@ function buildBed(){
       payEnd:0,     /* audio-clock deadline, so no stall path can strand it */
       payN:0,payHits:0,barHits:0,barN:0,
       rise:false,   /* a FULL two-bar rise is locked in */
+      riseI:0,      /* the bar line the rise latched on */
       lpLock:0,hushEnd:0,chainBar:-1,liftEnd:0};
 }
 /* One-shot musical voice. Separate from beep() because music needs a filter
@@ -742,11 +1026,17 @@ const BUILD_SRC={ember:'GATHERING SPARKS',hop:'WORKING THE RINGS',
                  time:'PLAYING IN TIME',orbit:'CLEAN ORBITS'};
 function build(amount,src){
   if(!MU||G.state!=='playing')return;
-  if(MU.pay>0||MU.rise||MU.armed||MU.pend)return;   /* not while one is already coming */
-  G.build+=amount;
+  /* NOTHING EARNED IS DISCARDED — including while a drop is pending. The old
+     early-return froze the meter at zero through the whole latch + section +
+     cooldown, so half of all good play fed nothing and the bar looked dead.
+     While one drop is in flight the meter keeps filling toward the NEXT,
+     holding just under full; the moment the music frees up, the next
+     contribution tips it over. */
+  const busy=MU.pay>0||MU.rise||MU.armed||MU.pend;
+  G.build=Math.min(busy?0.96:1.5,G.build+amount);
   G.buildFx=1;   /* the arc blinks, so a contribution is seen the moment it lands */
   G.buildSrc[src]=(G.buildSrc[src]||0)+amount;
-  if(G.build>=1){
+  if(!busy&&G.build>=1){
     G.build=0;
     let best='ember',bv=-1;
     for(const k in G.buildSrc)if(G.buildSrc[k]>bv){bv=G.buildSrc[k];best=k;}
@@ -802,7 +1092,7 @@ function landDrop(){
     if(!RM){
       G.stop=Math.max(G.stop,0.16);
       G.flash=Math.max(G.flash,0.85);G.shake=Math.max(G.shake,22);
-      G.rings.push({x:cx,y:cy,r:10*u,life:1,col:'#ffffff',sp:1500,dec:0.85});
+      G.rings.push({x:cx,y:cy,r:10*u,life:1,col:'#ffffff',sp:1500,dec:0.85,fat:1});
       G.rings.push({x:cx,y:cy,r:10*u,life:1,col:COL.warp,sp:820,dec:1.0});
       for(let i=0;i<G.nRings;i++)
         G.rings.push({x:cx,y:cy,r:radiusOf(i),life:1,col:COL.warp,sp:300,dec:1.1});
@@ -1002,7 +1292,7 @@ function endSection(){
     (MU.pend||((MU.armed||MU.rise)?(MU.why||'DROP EARNED'):null)):null;
   const bankSrc=G.state==='playing'?(MU.pend?MU.pendSrc:MU.flavor):null;
   MU.pay=0;MU.payEnd=0;MU.payHits=0;MU.barHits=0;
-  MU.armed=false;MU.rise=false;MU.lpLock=0;MU.hushEnd=0;MU.liftEnd=0;
+  MU.armed=false;MU.rise=false;MU.riseI=0;MU.lpLock=0;MU.hushEnd=0;MU.liftEnd=0;
   MU.pend=bank;MU.pendSrc=bank?bankSrc:null;MU.flavor=null;MU.lateAt=4;
   MU.landT=0;MU.landDone=0;
   G.pay=0;G.payOpen=0;
@@ -1042,20 +1332,25 @@ function musicStep(i,t,k){
   }
   if(beat===0)MU.barN++;
   if(MU.pay>0){payoffStep(t,ch,k);return;}
-  /* A two-bar rise, LATCHED. `MU.armed && bar===3` gave between zero and eight
-     eighths of runway depending purely on which eighth you happened to arm on:
-     arm at bar 3 beat 7 and the drop arrived one eighth later with no rise and
-     no hush at all. The latch guarantees the full run-up every time. */
-  if(MU.armed&&i===16&&!MU.rise)MU.rise=true;
-  if(MU.rise&&i===24)schedulePreDrop(t+8*(SPB/2));
-  if(MU.rise&&i===0){fireDrop(t);payoffStep(t,ch,k);return;}
-  const rise=MU.rise&&i>=16;
+  /* A two-bar rise, latched at the NEXT BAR LINE. The old fixed latch at
+     i===16 meant arming just after it waited a full 32-eighth cycle — up to
+     9.2 SILENT seconds between "DROP EARNED" and anything audible happening,
+     which is the window most players died in and the reason the meter read
+     as broken. Any bar boundary works for the seam: the section is exactly
+     8 bars, so it still ends on a downbeat with the chord walk aligned. The
+     full two-bar run-up is guaranteed either way; worst case is now one bar
+     of ordinary music, not four. */
+  if(MU.armed&&!MU.rise&&i%8===0){MU.rise=true;MU.riseI=i;}
+  const rn=MU.rise?(((i-MU.riseI)%32)+32)%32:-1;   /* eighths since the latch */
+  if(rn===8)schedulePreDrop(t+8*(SPB/2));
+  if(rn===16){fireDrop(t);payoffStep(t,ch,k);return;}
+  const rise=MU.rise;
   if(beat%2===0)BEATQ.push(t);          /* quarter notes, for the visual pulse */
   if(rise){
     /* THE RISE, AND NOTHING ELSE. It measured -19.8dB against an ordinary
        bar's -19.6 because the arp, counter-line and root kept playing
        underneath it. The return is the entire fix. */
-    const n=i-16,q=n/16;
+    const n=rn,q=n/16;
     if(n<14){                            /* eighths 14 and 15 are the hole */
       note(PENT[Math.min(9,1+Math.round(n*0.62))],t,0.15,'sawtooth',
         0.014+0.041*q,700+7300*q,n%2?0.22:-0.22);
@@ -1074,8 +1369,8 @@ function musicStep(i,t,k){
      in says "something is coming" the whole way. Capped near the riser hat's
      own floor so the rise still arrives as an event. */
   if(MU.armed&&!MU.rise){
-    const w8=((16-i%32)+32)%32;                  /* eighths until the latch */
-    hat(t,Math.min(0.010,0.004+0.006*(1-w8/32)),8600,0.04);
+    const w8=(8-i%8)%8;                          /* eighths until the latch */
+    hat(t,Math.min(0.010,0.004+0.006*(1-w8/8)),8600,0.04);
   }
   /* The root was the loudest figure in the loop and a phone reproduced almost
      none of it: 110Hz on a TRIANGLE (harmonics fall as 1/n²) through a 900Hz
@@ -1378,7 +1673,7 @@ function bedTick(dt){
       G.flash=Math.max(G.flash,0.34);G.shake=Math.max(G.shake,9);
       for(let i=0;i<G.nRings;i++)
         G.rings.push({x:cx,y:cy,r:radiusOf(i),life:1,col:COL.warp,sp:230,dec:1.3});
-      G.rings.push({x:cx,y:cy,r:12*u,life:1,col:'#ffffff',sp:640,dec:1.2});
+      G.rings.push({x:cx,y:cy,r:12*u,life:1,col:'#ffffff',sp:640,dec:1.2,fat:1});
     }
     const q=posPlayer();burst(q[0],q[1],COL.warp,26,300);
     try{if(navigator.vibrate)navigator.vibrate([34,30,70]);}catch(e){}
@@ -1542,6 +1837,9 @@ function loadPrefs(){
   if(readLocal('cometloop:hopped')==='1')G.everHopped=true;
   const st=parseInt(readLocal('cometloop:struggle'),10);
   if(!isNaN(st))G.struggle=st;
+  /* which formation types this device has already been introduced to */
+  const sn=readLocal('cometloop:seen');
+  if(sn)for(const k of sn.split(','))if(k)G.seen[k]=1;
   try{
     if(!window.storage||!window.storage.get)return;
     window.storage.get('cometloop:best').then(function(r){
@@ -1622,10 +1920,11 @@ function age(){return G.t-G.started;}
    Everything below is keyed off dl() — "difficulty seconds". */
 function dl(){
   const a=age()+Math.min(G.diff*0.22,40);
-  /* The first ~70 seconds advance the clock at 60% rate, so a new player gets
+  /* The first ~80 seconds advance the clock at 55% rate, so a new player gets
      a long, low-pressure stretch to find the controls before the curve
-     engages. After that it runs at true seconds. */
-  return a<70?a*0.6:42+(a-70);
+     engages. After that it runs at true seconds. (Was 60% over 70s — the
+     opening was still outrunning first-time players.) */
+  return a<80?a*0.55:44+(a-80);
 }
 /* Speed is one axis among four, and a shallow one. The whole curve is
    stretched so a run has room to breathe: half of it is spent below 2.0.
@@ -1635,18 +1934,25 @@ function dl(){
 const SPEED_MAX=4.2;
 function speedAt(){
   const d=dl();
-  return Math.min(SPEED_MAX,1.40+1.60*(1-Math.exp(-d/190))+Math.max(0,d-250)*0.0015);
+  /* opens at 1.30 rather than 1.40 — the first orbits should feel like a
+     glide, not a chase; the ceiling and the tail of the curve are untouched */
+  return Math.min(SPEED_MAX,1.30+1.70*(1-Math.exp(-d/190))+Math.max(0,d-250)*0.0015);
 }
-function warnTime(){return Math.max(1.0,1.90-dl()*0.0028);}
+/* Early warns run 2.35s (was 1.90) so a new player has a full extra beat to
+   read the pulse before it becomes a crystal; the late floor is unchanged. */
+function warnTime(){return Math.max(1.0,2.35-dl()*0.0042);}
 function shardCap(){
   const d=dl();
   /* A single ring can carry more shards than the same count spread over two,
      so the opening is denser but simpler rather than sparse and slow.
      farFromAll keeps 0.5rad between shards, so a ring tops out near 12 —
-     10 across three rings stays placeable. */
-  return d<10?2:d<20?3:d<40?4:d<70?5:d<110?6:d<160?7:d<230?8:d<320?9:10;
+     10 across three rings stays placeable. The front of this ramp starts at
+     ONE: the first threat arrives alone, and pairs only exist once the tap
+     has had something real to answer. */
+  return d<8?1:d<20?2:d<32?3:d<48?4:d<70?5:d<110?6:d<160?7:d<230?8:d<320?9:10;
 }
-function spawnGap(){return Math.max(0.80,2.1-dl()*0.0035);}
+/* was 2.1-d*0.0035: the same late floor arrives via a gentler opening */
+function spawnGap(){return Math.max(0.80,2.6-dl()*0.005);}
 /* EVERY RUN OPENS QUIETLY. This used to fade out by the fourth run, so a
    returning player was dropped straight into a moving board with no room to
    re-find the controls — and anyone handed the phone at run twelve got no
@@ -1668,7 +1974,7 @@ function rookie(){
    The ramp goes back to being a ramp. A first run still opens at 11s, and by
    the fourth it is 4.5s — quicker than the 4s+5s it ever was for a newcomer,
    and back to a game that starts when you press start. */
-function firstShardAt(){return 4.5+6.5*rookie();}
+function firstShardAt(){return 4.5+8.5*rookie();}
 /* Embers land on a random ring but you can only reach the one you are on,
    so both the cap and the spawn rate scale with ring count. Without this,
    adding a ring silently cuts your scoring rate while raising difficulty. */
@@ -1805,7 +2111,8 @@ const G={
   stop:0, /* hitstop: freezes the comet while the celebration plays */
   starT:0.6,spikeT:1.2,powT:6,powN:0,shake:0,flash:0,tier:0,banner:null,
   runs:0,didReverse:false,didHop:false,didLap:false,
-  teach:0,holdD:0,hopHintT:0,           /* the hop lesson: rehearsal, gate, hint clock */
+  teach:0,teachKind:null,teachHint:null,seen:{}, /* first-encounter lessons */
+  holdD:0,hopHintT:0,                   /* the hop lesson: gate, hint clock */
   everHopped:false,struggle:0,coach:null,  /* lifetime hop pref, struggle streak, death coaching */
   bgFade:0,revFlip:0,impactT:0,killer:null, /* sky crossfade, reverse flip, death impact */
   deadPips:0,deadSkip:false             /* death-screen reveal sequencing */
@@ -1975,9 +2282,32 @@ function reverseEscape(minArc){
   }
   return false;
 }
+/* EVERY MECHANIC EXPLAINS ITSELF THE FIRST TIME IT EVER APPEARS. The banner
+   names a new tier, but it competes with the thing it is announcing — so the
+   first spawn of each formation type (once per device, persisted) dilates
+   time for ~3 seconds, holds further spawns, and puts the one relevant
+   sentence dead centre while the new thing is actually on screen. Acting
+   ends nothing here — the lesson simply expires; it is a pause, not a test. */
+const MEET={
+  single:  {t:'red kills you — get out of its lane',g:'shard'},
+  twin:    {t:'too wide to outrun — swipe to another ring',g:'swipe'},
+  gate:    {t:'every ring is blocked — tap to turn back',g:'tap'},
+  drift:   {t:'this one slides — keep moving',g:'shard'},
+  blink:   {t:'harmless while dim — cross it then',g:'shard'},
+  driftgate:{t:'the wall slides — turn back early',g:'tap'},
+  blinktwin:{t:'only one is ever solid — wait your moment',g:'shard'}};
+function firstMeet(type){
+  if(G.seen[type]||!MEET[type])return;
+  G.seen[type]=1;
+  savePref('cometloop:seen',Object.keys(G.seen).join(','));
+  G.teach=Math.max(G.teach,2.8);
+  G.teachKind='see';
+  G.teachHint=MEET[type];
+}
 function spawnSpike(){
   let type=pickType();
   if((type==='gate'||type==='driftgate')&&!reverseEscape(GATE_ESCAPE))type='single';
+  firstMeet(type);
   const clear=age()<26?1.5:1.1;
   for(let i=0;i<18;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
@@ -2070,8 +2400,9 @@ function startGame(){
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
   G.build=0;G.buildFx=0;G.buildSrc={ember:0,hop:0,time:0,orbit:0};G.landFx=null;G.lands=0;
-  G.teach=0;G.holdD=0;G.hopHintT=0;G.coach=null;
+  G.teach=0;G.teachKind=null;G.teachHint=null;G.holdD=0;G.hopHintT=0;G.coach=null;
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
+  G.sparkT=0;G.sparkN=0;
   skyI=0;      /* the sky opens on band 0 — the ratchet re-deepens it as the run climbs */
   pd=null;     /* a finger held across the death screen must not steer the new run */
   BEATQ.length=0;DROPQ.length=0;
@@ -2140,7 +2471,7 @@ function die(){
   G.rings.push({x:p[0],y:p[1],r:30*u,life:0.6,col:COL.comet});
   /* one wide, fast, slow-fading front that outruns the rest — the moment
      needs a beat that carries past the edge of the ring system */
-  if(!RM)G.rings.push({x:p[0],y:p[1],r:8*u,life:1,col:'#ffffff',sp:560,dec:1.15});
+  if(!RM)G.rings.push({x:p[0],y:p[1],r:8*u,life:1,col:'#ffffff',sp:560,dec:1.15,fat:1});
   /* landed at 50Hz — inaudible on a phone, so the most important moment in
      the game ended by simply vanishing. Now it lands somewhere you can hear. */
   /* order matters: hand A.hole back first, then let the death duck take the
@@ -2409,7 +2740,8 @@ function pdEnd(e){
       /* Swiped and got nothing. This is the misread rate worth watching.
          During the hop rehearsal a failed swipe extends the lesson instead
          of just thudding. */
-      else{GEST.unresolved++;bump();if(G.teach>0)G.teach=Math.min(8,G.teach+2.5);}
+      else{GEST.unresolved++;bump();
+        if(G.teach>0&&G.teachKind==='hop')G.teach=Math.min(8,G.teach+2.5);}
     }else{
       GEST.tap++;
       commitReverseFX();
@@ -2602,6 +2934,7 @@ function update(dt){
 
   /* playing */
   G.teach=Math.max(0,G.teach-dt);
+  if(G.teach<=0&&G.teachHint)G.teachHint=null;
   /* Effects run on dt, gameplay on sdt — so during hitstop the comet holds
      still while the ignition keeps playing. That contrast is the impact.
      The hop rehearsal dilates the same way slow-mo does: the comet at a
@@ -2631,7 +2964,7 @@ function update(dt){
          the radial guide draws at the comet — the one place the rotating
          gesture can actually be shown. First landed hop ends it instantly;
          the cap means it can never stall a run. */
-      if(G.nRings===2&&!G.didHop&&!G.everHopped)G.teach=8;
+      if(G.nRings===2&&!G.didHop&&!G.everHopped){G.teach=8;G.teachKind='hop';}
     }
     if(T.name){
       G.banner={str:T.name,sub:T.sub,t:0};
@@ -2646,6 +2979,21 @@ function update(dt){
   G.sweep=G.speed*sdt;
   G.angle=(G.angle+G.dir*G.speed*sdt)%TAU;
   pushTrail();
+  /* the furnace sheds: a stream of sparks off the comet's tail, denser
+     during the payoff, one in four ember-gold */
+  if(!RM){
+    G.sparkT-=dt;
+    if(G.sparkT<=0){
+      G.sparkT=rand(0.07,0.14)*(G.pay>0?0.5:1);
+      G.sparkN=(G.sparkN||0)+1;
+      const hx=Math.cos(G.angle+Math.PI/2*G.dir),hy=Math.sin(G.angle+Math.PI/2*G.dir);
+      const sp2=posPlayer();
+      G.parts.push({x:sp2[0]-hx*7*u,y:sp2[1]-hy*7*u,
+        vx:-hx*rand(40,95)+rand(-30,30),vy:-hy*rand(40,95)+rand(-30,30),
+        life:1,dec:rand(2.6,4.0),col:G.sparkN%4===3?COL.ember:'#bef4ff',
+        size:rand(1,1.9)*u});
+    }
+  }
 
   /* full orbit: 360 degrees of travel without reversing (hops allowed).
      Payout scales with the embers gathered during it, so a bare orbit is
@@ -2893,6 +3241,8 @@ function drawBloom(){
     bloomDot(g,p[0],p[1],17*u,'#7ce9ff');
     bloomDot(g,p[0],p[1],8*u,'#ffffff');
   }
+  /* the hub lamp blooms too, harder while the drop is landing */
+  bloomDot(g,cx,cy,(9+9*G.dropFx)*u,'#9db9ff');
   g.setTransform(1,0,0,1,0,0);
   ctx.save();
   ctx.globalCompositeOperation='lighter';
@@ -3027,11 +3377,23 @@ function draw(){
     ctx.drawImage(SPR.bg2.c,0,0,W,H);
     ctx.globalAlpha=1;
   }
-  /* the landmark: deepest plane, slowest drift */
   const sdx=RM?0:Math.sin(amb*0.030)*17,sdy=RM?0:Math.cos(amb*0.023)*17;
+  /* the camera dolly: the world drifts a few pixels on a long sine so no
+     frame is ever static; each plane rides it by its depth */
+  const camX=RM?0:Math.sin(amb*0.16)*3*u,camY=RM?0:Math.cos(amb*0.127)*3*u;
+  /* THE GALACTIC BAND — deepest light in the scene, and it answers the drop */
+  if(SPR.galaxy){
+    ctx.drawImage(SPR.galaxy.c,-28+sdx*0.2+camX*0.2,-28+sdy*0.2+camY*0.2,SPR.galaxy.w,SPR.galaxy.h);
+    if(!RM&&dropA>0){
+      ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.25*dropA;
+      ctx.drawImage(SPR.galaxy.c,-28+sdx*0.2+camX*0.2,-28+sdy*0.2+camY*0.2,SPR.galaxy.w,SPR.galaxy.h);
+      ctx.restore();
+    }
+  }
+  /* the landmark: half the short side now, textured, lit by the arena */
   if(SPR.planet){
     const ps=SPR.planet.w;
-    ctx.drawImage(SPR.planet.c,-ps*0.42+sdx*0.15,H-ps*0.55+sdy*0.15,ps,ps);
+    ctx.drawImage(SPR.planet.c,-ps*0.42+sdx*0.15+camX*0.15,H-ps*0.55+sdy*0.15+camY*0.15,ps,ps);
   }
   if(SPR.neb)for(let i=0;i<nebulas.length;i++){
     const n=nebulas[i];
@@ -3056,13 +3418,46 @@ function draw(){
     ctx.drawImage(SPR.nebDrop.c,cx-wr,cy-wr,wr*2,wr*2);
     ctx.globalAlpha=1;
   }
-  /* TWO STAR PLANES. The dim stars barely move; the bright ones ride the
-     full drift plus a comet-coupled slide, so orbiting visibly rotates the
-     viewer past the near sky. G.angle is continuous through hops and
-     reverses, so the coupling needs no smoothing. */
+  /* GOD RAYS. Two counter-rotated passes of the baked fan shimmer against
+     each other; the drop throws them wide. Born outside the ring stack —
+     the baked inner hole keeps the play annulus clean. */
+  if(SPR.rays){
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    ctx.translate(cx,cy);
+    const rs=SPR.rays.w;
+    if(RM){
+      ctx.globalAlpha=0.10;
+      ctx.drawImage(SPR.rays.c,-rs/2,-rs/2,rs,rs);
+    }else{
+      ctx.rotate(amb*0.011);
+      ctx.globalAlpha=Math.min(0.7,0.16+0.5*G.dropFx+0.15*G.pay);
+      const s1=1+0.25*G.dropFx;
+      ctx.drawImage(SPR.rays.c,-rs/2*s1,-rs/2*s1,rs*s1,rs*s1);
+      ctx.rotate(-amb*0.018+1.3);
+      ctx.globalAlpha=Math.min(0.7,0.10+0.3*G.dropFx);
+      const s2=1.06+0.3*G.dropFx;
+      ctx.drawImage(SPR.rays.c,-rs/2*s2,-rs/2*s2,rs*s2,rs*s2);
+    }
+    ctx.restore();
+  }
+  /* DEPTH PLANES, interleaved with the fog banks. The dim stars are baked
+     soft (out of focus); the burn carved out of each fog bank keeps the air
+     visibly cleared around the arena. */
   const pcx=RM?0:-Math.cos(G.angle)*7*u,pcy=RM?0:-Math.sin(G.angle)*7*u;
-  if(SPR.starsFar)ctx.drawImage(SPR.starsFar.c,-8+sdx*0.3,-8+sdy*0.3,SPR.starsFar.w,SPR.starsFar.h);
-  if(SPR.starsNear)ctx.drawImage(SPR.starsNear.c,-28+sdx+pcx,-28+sdy+pcy,SPR.starsNear.w,SPR.starsNear.h);
+  const fogAl=0.5*(1-0.5*Math.min(1,G.dropFx+0.6*G.pay))*(G.tsCur<0.98?0.6:1);
+  if(SPR.starsFar)ctx.drawImage(SPR.starsFar.c,-8+sdx*0.3+camX*0.3,-8+sdy*0.3+camY*0.3,SPR.starsFar.w,SPR.starsFar.h);
+  if(SPR.fogA){
+    ctx.globalAlpha=RM?0.4:fogAl;
+    ctx.drawImage(SPR.fogA.c,-40+sdx*0.6+camX*0.6,-40+sdy*0.6+camY*0.6,SPR.fogA.w,SPR.fogA.h);
+    ctx.globalAlpha=1;
+  }
+  if(SPR.starsNear)ctx.drawImage(SPR.starsNear.c,-28+sdx+pcx+camX,-28+sdy+pcy+camY,SPR.starsNear.w,SPR.starsNear.h);
+  if(SPR.fogB&&!RM){
+    ctx.globalAlpha=fogAl*0.8;
+    ctx.drawImage(SPR.fogB.c,-40+sdx*1.4+pcx*1.6+camX*1.4,-40+sdy*1.4+pcy*1.6+camY*1.4,SPR.fogB.w,SPR.fogB.h);
+    ctx.globalAlpha=1;
+  }
   ctx.globalCompositeOperation='lighter';
   ctx.fillStyle='#dcebff';
   for(const st of bgStars){
@@ -3073,25 +3468,55 @@ function draw(){
     let al=RM?0.4:(0.10+0.55*(0.5+0.5*Math.sin(amb*st.tw+st.ph)));
     if(!RM&&st.r>1.2&&G.groove>0)al*=(1+0.30*G.beat*(0.5+0.5*G.pay));
     ctx.globalAlpha=Math.min(1,al);
-    ctx.beginPath();ctx.arc(st.x*W+sdx+pcx,st.y*H+sdy+pcy,st.r,0,TAU);ctx.fill();
+    ctx.beginPath();ctx.arc(st.x*W+sdx+pcx+camX,st.y*H+sdy+pcy+camY,st.r,0,TAU);ctx.fill();
+  }
+  /* DUST MOTES in the lit shell around the arena: each drifts on its own
+     orbit outside the outer ring, brightens inside the lamp's shell and
+     under the sweep of light that leads the comet, and nods on the landed
+     beat during the payoff. 44 tiny blits. */
+  if(SPR.mote){
+    const R0=radiusOf(0);
+    for(const m of MOTES){
+      const a=m.ang+amb*m.sp*0.03;
+      const r=Math.max(1.08*R0+16*u,m.rr*R0+6*u*Math.sin(amb*0.4+m.ph));
+      const shell=Math.max(0,1-Math.abs(r/R0-1.22)/0.5);
+      let al=RM?0.10+0.18*shell
+             :(0.05+0.30*shell)*(1+1.6*Math.pow(Math.max(0,Math.cos(a-G.angle)),4));
+      if(!RM&&G.pay>0)al*=(1+0.8*G.beat);
+      blit(SPR.mote,cx+Math.cos(a)*r+camX*1.1,cy+Math.sin(a)*r+camY*1.1,
+        m.sz,0,Math.min(0.55,al));
+    }
   }
   ctx.globalCompositeOperation='source-over';
   ctx.globalAlpha=1;
 
   ctx.save();
+  ctx.translate(camX,camY);   /* the world rides the dolly; HUD stays pinned */
   if(G.shake>0)ctx.translate(rand(-G.shake,G.shake)*0.5,rand(-G.shake,G.shake)*0.5);
 
-  /* orbit rings */
+  /* ORBIT RINGS AS CONDUITS: the baked cross-section (dark channel walls, a
+     hot core, a halo) replaces the two wide strokes; current visibly flows
+     along each track, fastest and brightest under the player; node pips
+     breathe on the landed beat. The crisp 1.3px stroke and the payoff
+     recolour still draw over the top. */
   for(let i=0;i<G.nRings;i++){
     const rr=radiusOf(i),on=(G.hopP>=1&&G.ringI===i);
-    /* Each track carries its own colour, cooling from deep blue on the outside
-       to a keen cyan-white inside — the same axis the sound moves along, so
-       the picture and the arrangement are saying one thing rather than two. */
     const tn=RINGS[Math.min(RINGS.length-1,i)].tint;
-    ctx.strokeStyle='rgba('+tn+',0.045)';ctx.lineWidth=13;
+    if(SPR.ringCh&&SPR.ringCh[i])blit(SPR.ringCh[i],cx,cy,1,0,on?1.0:0.6);
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    const mine=effRing()===i;
+    ctx.setLineDash([3*u,17*u]);
+    ctx.lineDashOffset=RM?0:-(G.t*(mine?90*u*G.dir:40*u))%(20*u);
+    ctx.strokeStyle='rgb('+tn+')';ctx.lineWidth=2*u;
+    ctx.globalAlpha=(mine?0.20:0.08)+0.10*G.pay;
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
-    ctx.strokeStyle='rgba('+tn+','+(on?0.145:0.065)+')';ctx.lineWidth=4.5;
-    ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
+    ctx.setLineDash([]);
+    if(SPR.pip)for(let k=0;k<8;k++){
+      const pp=posAt(k*TAU/8,rr);
+      blit(SPR.pip,pp[0],pp[1],1,0,RM?0.14:0.10+(G.groove>0?0.35*G.beat:0));
+    }
+    ctx.restore();
     /* The arena changes colour for the whole section — static, so it is safe
        under reduced motion. Bright enough to read on a phone now, and
        breathing with the landed beat (the visual half of the pump). */
@@ -3124,19 +3549,23 @@ function draw(){
   else if(G.state==='playing'&&MU&&(G.build>0.01||MU.armed||MU.rise||MU.pend)){
     const pending=MU.armed||MU.rise||MU.pend;
     ctx.save();
-    ctx.globalAlpha=pending?(RM?0.30:0.18+0.12*(0.5+0.5*Math.sin(G.t*4)))
-                           :Math.min(0.30,0.08+0.16*G.build+0.22*G.buildFx);
+    ctx.globalAlpha=pending?(RM?0.40:0.28+0.18*(0.5+0.5*Math.sin(G.t*4)))
+                           :Math.min(0.42,0.10+0.26*G.build+0.25*G.buildFx);
     ctx.strokeStyle=pending?'#eaf1ff':COL.warp;
-    ctx.lineWidth=2.5+(RM?0:2.0*G.buildFx);
+    ctx.lineWidth=3+(RM?0:2.5*G.buildFx);
     ctx.beginPath();
     ctx.arc(cx,cy,radiusOf(0)+13*u,-Math.PI/2,-Math.PI/2+TAU*(pending?1:Math.min(1,G.build)));
     ctx.stroke();ctx.restore();
   }
+  /* THE ARENA CORE LAMP — the light source the whole scene answers to. It
+     breathes on the landed beat and flares when the drop hits; clamped so
+     its glow never reaches the innermost lane even at the small-R floor. */
   ctx.globalCompositeOperation='lighter';
-  ctx.fillStyle='rgba(120,160,255,0.5)';
-  ctx.beginPath();ctx.arc(cx,cy,2.6,0,TAU);ctx.fill();
-  ctx.fillStyle='rgba(120,160,255,0.10)';
-  ctx.beginPath();ctx.arc(cx,cy,8,0,TAU);ctx.fill();
+  if(SPR.core){
+    const S=Math.min(1,radiusOf(G.nRings-1)/(50*u));
+    blit(SPR.core,cx,cy,RM?S:S*(1+0.18*G.beat+0.5*G.dropFx),0,
+      RM?0.55:Math.min(1,0.55+0.25*G.beat+0.3*G.pay));
+  }
   ctx.globalCompositeOperation='source-over';
   drawRingGlow();
 
@@ -3158,7 +3587,7 @@ function draw(){
      the hop rehearsal it appears PROACTIVELY at the comet's live position,
      rotating with it — the one place the rotating gesture can be shown —
      and brightens on a pulse while the lesson is live. */
-  const teachGuide=G.teach>0&&!(pd&&pd.far>12);
+  const teachGuide=G.teach>0&&G.teachKind==='hop'&&!(pd&&pd.far>12);
   if(((pd&&pd.far>12)||teachGuide)&&G.state==='playing'&&G.nRings>1){
     const ga=teachGuide?G.angle:pd.ang;
     const ca=Math.cos(ga),sa=Math.sin(ga);
@@ -3267,9 +3696,11 @@ function draw(){
         /* three kin, one halo: the silhouette says the behaviour, the shared
            red glow keeps "red kills you" a single lesson. Gate segments keep
            the plain crystal — the bar already tells their story. */
-        if(s.blink&&!s.gate)blit(SPR.shardBlink,p[0],p[1],1,0,1);
+        /* rotated to the ring angle, so the baked bright face always looks
+           back at the hub — one key light across the whole board */
+        if(s.blink&&!s.gate)blit(SPR.shardBlink,p[0],p[1],1,s.a,1);
         else if(s.va&&!s.gate)blit(SPR.shardDrift,p[0],p[1],1,s.a+(s.va>0?Math.PI/2:-Math.PI/2),1);
-        else blit(SPR.shard,p[0],p[1],1,0,1);
+        else blit(SPR.shard,p[0],p[1],1,s.a,1);
       }else{
         /* Dormant blinker: hollow, with a core that FILLS as re-arm nears —
            q runs 1→0 across the window, and the old alpha followed it, so
@@ -3280,7 +3711,7 @@ function draw(){
       }
     }else{
       const k=s.t/FADE;
-      blit(SPR.shard,p[0],p[1],1-k*0.4,0,1-k);
+      blit(SPR.shard,p[0],p[1],1-k*0.4,s.a,1-k);
     }
   }
   /* NOVA FRONT: a wide soft leading edge with a hard bright rim inside it,
@@ -3337,9 +3768,14 @@ function draw(){
     ctx.strokeStyle=a.col;ctx.lineWidth=(1+4*lf)*u;
     ctx.beginPath();ctx.arc(cx,cy,radiusOf(a.ring),a.a-half,a.a+half);ctx.stroke();
   }
-  /* ripples */
+  /* ripples — the big earned moments carry a fat baked annulus instead of a
+     hairline stroke */
   for(const r of G.rings){
     const lf=Math.max(r.life,0);
+    if(r.fat&&SPR.shock){
+      blit(SPR.shock,r.x,r.y,r.r/48,0,lf*0.8);
+      continue;
+    }
     ctx.globalAlpha=lf*0.55;
     ctx.strokeStyle=r.col;ctx.lineWidth=1+2*lf;
     ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,TAU);ctx.stroke();
@@ -3372,6 +3808,16 @@ function draw(){
     ctx.globalAlpha=pal;
     const cd=SPR.comet.s;
     ctx.drawImage(SPR.comet.c,-cd/2,-cd/2,cd,cd);
+    /* the furnace: a white-hot core flickering at 24Hz over the teardrop —
+       the comet reads as a genuinely hot object, not a lit shape */
+    if(SPR.cometHot){
+      ctx.globalCompositeOperation='lighter';
+      const f=RM?0.6:FLK[(G.t*24|0)&15];
+      const hs=SPR.cometHot.s*(RM?1:1+0.07*f);
+      ctx.globalAlpha=pal*(RM?0.7:0.55+0.35*f);
+      ctx.drawImage(SPR.cometHot.c,-hs/2,-hs/2,hs,hs);
+      ctx.globalCompositeOperation='source-over';
+    }
     ctx.globalAlpha=1;
     ctx.restore();
     drawBeat(p);
@@ -3423,6 +3869,10 @@ function draw(){
   ctx.globalAlpha=1;
   ctx.restore();
 
+  /* THE GRADE: one quarter-res blit of baked photographic finish — corner
+     falloff that tames stray bloom, a horizon lift, a band-axis bias. Above
+     the game, below the scrim and HUD. */
+  if(SPR.grade)ctx.drawImage(SPR.grade.c,0,0,W,H);
   /* slow-mo tint — baked; this was the file's last per-frame gradient */
   if(G.tsCur<0.98&&SPR.slowTint){
     ctx.globalAlpha=Math.min(1,(1-G.tsCur)/0.45);
@@ -3628,6 +4078,8 @@ function hintText(){
      itself times out into alternation after ten unanswered seconds — it used
      to hold the slot forever, so the player who could not hop was also never
      told that red kills or that shields save. */
+  /* a first-encounter lesson owns the slot while its dilation runs */
+  if(G.teachHint&&G.teach>0)return G.teachHint;
   if(!G.didReverse)return {t:'tap anywhere to turn around',g:'tap'};
   for(const pw of G.pows){
     if(pw.type==='warp'&&!G.gotWarp)return {t:'this one slows everything down',g:'warp'};
@@ -3664,7 +4116,9 @@ function hintText(){
      prompt keys off this run's own chain, so it still reminds someone who
      learned it weeks ago and has not used it today. */
   if(G.bestGroove<2&&a>28&&G.groove<2)return {t:'tap in time with the beat',g:'beat'};
-  if(!G.sawDrop&&a>34&&G.build>0.25)return {t:'keep playing to fill the build',g:'build'};
+  /* Named at the ARC, where the answer actually is, and earlier — waiting
+     until 34s meant most players never saw why a drop happened. */
+  if(!G.sawDrop&&G.build>0.15)return {t:'the violet ring is charging your drop',g:'build'};
   return null;
 }
 

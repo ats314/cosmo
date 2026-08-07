@@ -45,22 +45,25 @@ the score you turned around to protect.
 
 Difficulty is a clock, not a score. Playing well nudges it forward slightly,
 but the nudge is capped, so a good run can never accelerate you into a wall.
-The first ~70 seconds advance at 60% rate to give a new player room to find
-the controls.
+The first ~80 seconds advance at 55% rate to give a new player room to find
+the controls, the opening speed is a glide rather than a chase, the first
+threat arrives alone (the shard cap starts at one), early warning pulses run
+almost half a second longer, and spawns open at 2.6s apart instead of 2.1 —
+all of it converging on the same late game, none of it touching the ceiling.
 
 Mechanics unlock on a schedule, each announced with a banner:
 
 | ≈ | Unlock |
 |---|---|
-| 20s | second ring |
-| 30s | twin shards — too wide to outrun, hop over |
-| 80s | gates — every ring blocked, reverse |
-| 106s | third ring |
-| 133s | drifters — these ones move |
-| 173s | blinkers — they flicker, time your pass |
-| 223s | sliding gates — the wall slides, reverse early |
-| 278s | flicker pairs — one gap at a time, never both |
-| 343s | storm — no new tricks, just more of them |
+| 22s | second ring |
+| 33s | twin shards — too wide to outrun, hop over |
+| 88s | gates — every ring blocked, reverse |
+| 114s | third ring |
+| 141s | drifters — these ones move |
+| 181s | blinkers — they flicker, time your pass |
+| 231s | sliding gates — the wall slides, reverse early |
+| 286s | flicker pairs — one gap at a time, never both |
+| 351s | storm — no new tricks, just more of them |
 
 Those times assume a player earning no difficulty nudge at all, which is the
 slowest the schedule ever runs; scoring well pulls everything forward by up
@@ -161,6 +164,14 @@ drowning at 30 seconds was the entire run, so "red kills you" and the shield
 lesson never showed for exactly the person who needed them. The orb-naming
 hints now outrank it while an orb is on the board, and after ten unanswered
 seconds it alternates with the survival lessons on a slow cycle.
+
+**Every formation teaches itself on first contact.** The first time a twin,
+gate, drifter, blinker, sliding gate or flicker pair ever spawns on a device,
+time dilates for about three seconds, further spawns hold, and the one
+relevant sentence sits dead centre with its glyph while the new thing is
+actually on screen — "every ring is blocked — tap to turn back" arrives while
+the first gate is visibly barring every ring. Acting ends nothing; it is a
+pause, not a test, and it never repeats.
 
 **The death screen coaches.** It already knew what killed you, whether you
 ever changed rings, and how long you lasted; now it says the one most useful
@@ -364,17 +375,25 @@ never state the hook identically. And earned always stays earned: a drop
 interrupted by a mute, a backgrounded tab or a stall goes back to the bank
 and fires when the music is next free, instead of silently vanishing.
 
-It always fires on a downbeat. Earning one *arms* it and it goes off at the top
-of the next cycle, so there is up to nine seconds of anticipation. A drop that
-arrived mid-bar would not be a drop, it would be a noise. There is a 20s
-cooldown, because a drop that happens constantly is not an event.
+It always fires on a downbeat. Earning one *arms* it, the rise latches at the
+next bar line, and the hit lands two bars later — about five to seven seconds
+of anticipation, never the up-to-fourteen the old fixed latch could produce,
+which was long enough that most players died holding a full meter and
+reasonably concluded the whole mechanic was broken. A drop that arrived
+mid-bar would not be a drop, it would be a noise. The cooldown is four bars —
+one full pass of the ordinary arrangement — because a drop that happens
+constantly is not an event, but a second drop a run can never reach is not a
+mechanic either.
 
 What arms one is the **build meter**, and nothing else. Four things fill it,
 one per style of play — gathering sparks, working the rings, playing in time,
 and closing clean orbits — and whichever contributed most names the drop when
 it lands. The meter decays, so it measures how you are playing *now* rather
-than how long you have survived, and it is on screen throughout, so "how am I
-causing this" never needs answering twice.
+than how long you have survived. It is drawn as the violet arc around the
+arena — the same circle the payoff sweep later drains, so earning and
+spending are one gauge — and it keeps filling while a drop is armed, rising
+or cooling down: nothing you do while the music is busy is discarded, it is
+banked toward the next one.
 
 **Timing is rewarded, and never punished.** Each input is judged against the
 sixteenth grid; land tight and the **groove** chain climbs to ×8. An off-beat
@@ -499,20 +518,38 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   power-up orbs and the slow-mo vignette are each rendered to an offscreen
   canvas at startup and blitted thereafter. They rebuild only when the scale
   unit, DPR, window size, or sky band actually changes.
-- **The sky has depth and a clock.** The star field's three brightness tiers
-  bake to two planes: the dim stars barely drift while the bright ones ride
-  the full drift plus a small offset coupled to the comet's orbital angle, so
-  orbiting visibly rotates you past the near sky. A distant planet — dark
-  body, thin lit limb in the current palette's tint — anchors the lower-left
-  corner on the deepest plane. And the palette itself is banded to the
-  ladder: indigo at the start, teal at THIRD RING, violet at SLIDING GATES,
-  ember-warmed at STORM, each arriving as a 2.5s crossfade on the same frame
-  as its banner. Every band keeps the field at or below the opening band's
-  luminance and stays out of the red family, so a shard's word for "danger"
-  is never contested. The live twinklers glint on the *landed* beat (gated
-  on the groove being found), and when a drop lands the nebulae swell and a
-  warp-coloured wash blooms behind the arena, sustaining while the section
-  plays and draining with it.
+- **The arena is the lamp.** The whole scene answers one light source — the
+  hub. A structured galactic band with carved dust lanes crosses the sky
+  corner-to-corner; a god-ray fan (born *outside* the ring stack, masked so
+  it can never cross the play annulus) counter-rotates against a second copy
+  of itself and throws wide when the drop lands; two fog banks drift with a
+  clearing visibly burned around the rings; forty-four dust motes orbit in
+  the lit shell, brightening under the sweep of light that leads the comet;
+  and a baked photographic grade (corner falloff, horizon lift, band-axis
+  bias) finishes the frame in one quarter-res blit. Every shard's baked
+  bright face is rotated to look back at the hub — one key light across the
+  whole board.
+- **The sky has depth and a clock.** Five planes: the galaxy deepest, then a
+  half-screen textured planet (noise-octave surface, gas bands, a terminator
+  whose lit crescent faces the arena), blur-baked far stars, crisp near
+  stars riding a comet-coupled offset, and the near fog. A slow camera dolly
+  drifts the world a few pixels on a long sine so no frame is ever static —
+  the HUD stays pinned, and bloom rides inside the same transform so it
+  never smears. The palette is banded to the ladder — indigo, teal at THIRD
+  RING, violet at SLIDING GATES, ember at STORM — and the band now retints
+  the nebulae, galaxy, rays, planet limb and grade together (the nebulae
+  previously baked from fixed seed colours; the band tints were dead data).
+  Red stays reserved for danger in every band.
+- **The rings are conduits.** Each orbit is a baked cross-section — dark
+  channel walls, a hot core line, a halo — with current visibly flowing
+  along it (fastest and brightest under the player, direction matching
+  travel) and eight node pips that breathe on the landed beat. The dark
+  walls darken the field around each track, which lifts every ember and
+  shard sitting on it. The hub lamp itself breathes on the beat and flares
+  with the drop; the comet gained a furnace core flickering at 24Hz and
+  sheds a spark stream that turns ember-gold one grain in four. The big
+  earned moments (drop landings, perfect lands, death) ride a fat baked
+  shockwave annulus instead of a hairline ripple.
 - **The comet has a body.** A teardrop rotated to its heading rather than
   three concentric discs: a committed reverse sweeps the nose end-for-end
   through the radial over 90ms (never on the speculative flip, so a rolled-

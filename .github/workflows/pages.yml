@@ -24,6 +24,9 @@ jobs:
       # Loads the game in a stubbed DOM, plays several simulated minutes of
       # input, death and retry — catches the runtime errors a parse cannot.
       - run: node tools/smoke.mjs
+      # Same harness with a stubbed AudioContext: asserts the build meter
+      # actually delivers drops at a playable cadence.
+      - run: node tools/dropcheck.mjs
 
   deploy:
     # Only main publishes; pull requests get the check alone.
