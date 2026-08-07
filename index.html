@@ -2396,6 +2396,13 @@ function levelComplete(){
   G.lvCard={done:true,next:G.level+1};
   G.carryScore=G.score;
   if(G.level+1>G.lvlMax){G.lvlMax=G.level+1;savePref('cometloop:gl',G.lvlMax);}
+  track('level_cleared',{
+    level:G.level,score:G.score,run_index:G.runs,
+    seconds:Math.round(G.t-G.started),
+    /* how the Star Dive went: 11 is the perfect ending */
+    fin_got:(FIN.on||FIN.done)?FIN.got:null,
+    fin_perfect:(FIN.on||FIN.done)&&FIN.got>=11
+  });
   braam(0.07);
   flashHit(0.6);
   ripple(cx,cy,COL.ember);
@@ -2461,23 +2468,29 @@ function savePref(k,v){
 }
 
 /* ---------- telemetry ----------
-   OFF until POSTHOG_KEY is filled in: a clone of this file sends nothing
-   anywhere, and every call below short-circuits. Anonymous gameplay counters
-   only — no autocapture, no session recording, no cookies. Everything is
-   wrapped, and the loader stays silent on error, so an ad blocker or a dead
-   network can never take the game down with it. */
-const POSTHOG_KEY='';                          /* paste a project key to enable */
+   Anonymous gameplay counters only — no autocapture, no session recording,
+   no cookies, no names. The key is a PostHog project token: write-only by
+   design, safe to sit in a public file. TELE_OK keeps local copies quiet —
+   a file:// or localhost clone (dev, tests) sends nothing anywhere.
+   Everything is wrapped, and the loader stays silent on error, so an ad
+   blocker or a dead network can never take the game down with it. */
+const POSTHOG_KEY='phc_mqJcEAXMtZfZSfEFta3QrkyEXWRK3y7qjipqTX8UjcCj';
 const POSTHOG_HOST='https://us.i.posthog.com';
+const TELE_OK=(function(){
+  try{return location.protocol!=='file:'&&
+    !/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname);}
+  catch(e){return false;}
+})();
 let phReady=false,phQueue=[];
 function track(name,props){
-  if(!POSTHOG_KEY)return;
+  if(!POSTHOG_KEY||!TELE_OK)return;
   try{
     if(phReady&&window.posthog)window.posthog.capture(name,props);
     else if(phQueue.length<40)phQueue.push([name,props]);
   }catch(e){}
 }
 function loadTelemetry(){
-  if(!POSTHOG_KEY)return;
+  if(!POSTHOG_KEY||!TELE_OK)return;
   try{
     const s=document.createElement('script');
     s.async=true;s.src=POSTHOG_HOST+'/static/array.js';

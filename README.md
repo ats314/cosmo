@@ -791,6 +791,21 @@ rescued. The death itself fell to 50Hz and so ended by vanishing. The nova
 cascade picked a random pitch per shard and stacked into a dissonant wash; it
 is now a minor pentatonic.
 
+## Telemetry
+
+The game reports anonymous gameplay counters to PostHog (US cloud) so
+playtests can be read instead of retold: a pageview per visit, `run_ended`
+on every death (score, level, run length, death cause, the two-verb usage
+counts and the swipe-misread rate — the "did the teaching land" numbers),
+`level_cleared` on every finish line (with the Star Dive tally, 11 being
+the perfect ending), and `share_tapped`. No autocapture, no session
+recording, no cookies, no names — the embedded key is a write-only project
+token, safe in a public file by design. A copy served from `file://` or
+localhost sends nothing at all, which keeps development and the test
+harnesses out of the data. If the loader is blocked (ad blockers commonly
+block analytics hosts) the game plays on unaffected — telemetry is a
+listener, never a dependency.
+
 ## Running locally
 
 Any static server works. `file://` works too, except that Chrome's storage
