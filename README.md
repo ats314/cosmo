@@ -573,9 +573,10 @@ together.
 **The ring is the kit.** Subdivision alone was too polite — the per-ring hats
 sat at gains the target phone cannot reproduce, so "inner is hotter" was a
 promise the speaker broke. Each ring now has a rhythmic identity: the outer
-rides clean, the mid ring gains a half-time kick and a low fifth leaning into
-the turn, the inner runs a four-on-the-floor with a moving octave bass and a
-swung sixteenth. Pattern reads louder than gain: a drum kit assembling under
+rides the heartbeat (one kick per bar — it used to be silent, which measured
+as the single biggest reason ordinary play never hit), the mid ring gains a
+half-time kick and a low fifth leaning into the turn, the inner runs a
+four-on-the-floor with a moving octave bass and a swung sixteenth. Pattern reads louder than gain: a drum kit assembling under
 you as you dive is unmissable at any volume. And the hop itself is cut on the
 grid like a DJ transition — a bright two-grain sweep inward, a breathing one
 outward, with the arriving track flashing under the comet — so the change is
@@ -604,11 +605,30 @@ of stopping dead, which is most of what "groovy and relaxing" means in
 hardware terms. It sits BEFORE the drop's hole, so the silence swallows the
 echoes too and the discipline holds.
 
-**The groove floor.** A syncopated bass runs under the ordinary arrangement
-— the push a sixteenth after beat 2, the fifth answering on 5, a low
-approach note leaning into the next bar — sub triangle for headphones with
-one small square double a phone can carry. The hypnotic floor everything
-else sits on, present from the first minute, not just inside the payoff.
+**The whole record hits now.** The final playtest round was blunt: "the
+drop hits — literally nothing else does." Measured on the master bus with
+an analyser, ordinary play peaked 4.7dB under the section, and the cause
+was structural: the kit only assembled as you dove inward, so the DEFAULT
+outer ring had no kick at all; the bass floor was a polite triangle; and
+the sidechain pump ran only inside the payoff. Three fixes, one idea —
+the drop's production values run all game:
+
+- **The heartbeat**: ring 0 carries one kick per bar from the start and a
+  second at half band. Inner rings still stack their patterns on top —
+  inner stays hotter, but nowhere is silent.
+- **The bass is a synth**: bassN() — saw growl, sine sub, square glint for
+  the phone, note()'s closing filter as the envelope — walks root / push /
+  fifth / approach from almost the first bar.
+- **The record breathes all game**: every bar-line kick dips the band
+  ~1.5dB and lets it back, the genre's inhale, with the player's perf bus
+  standing above it. The bed runs louder and brighter (0.17+0.26k, floor
+  520Hz), the string swell breathes every bar, and the arp is a detuned
+  analog pair at every level.
+
+Measured after: ordinary-play peaks rose 3.3dB (p95 −17.2 → −13.9 dBFS),
+within 2.5dB of the section's — while the section keeps its identity
+through the hush, the hook, and the doubled backbeat, which no RMS
+average can flatten.
 
 **The solo.** After every payoff the lead answers over the afterglow: a
 written four-bar phrase with a slide into each note, wet through the delay.
