@@ -1545,7 +1545,7 @@ function musicStep(i,t,k){
   if(rn===8)schedulePreDrop(t+8*(SPB/2));
   if(rn===16){fireDrop(t);payoffStep(t,ch,k);return;}
   const rise=MU.rise;
-  if(FIN.on&&FIN.pend&&i%16===0){FIN.pend=false;FIN.step=0;FIN.t0=t;}
+  if(FIN.on&&FIN.pend&&i%16===0){FIN.pend=false;FIN.step=0;}
   if(FIN.on&&!FIN.pend){finStep(t);return;}
   if(beat%2===0)BEATQ.push(t);          /* quarter notes, for the visual pulse */
   /* THE DRUM BREAK (playtest: "more percussion breakdowns"). Play hot and
@@ -1867,64 +1867,59 @@ let PLAY={heat:0,idx:0,last:-9,slot:-1,bias:0,tape:[]};
    new phrase replaces it. Waiting between two reds and clicking back and
    forth in time IS composing now. */
 const LOOP={pat:null,n:0,until:0,heard:false};
-/* ---------- the finale ----------
-   Levels 1 and 2 end in a DUET, not a line on a clock. Near the finish the
-   spawns hold, the music thins to the groove, and the band plays a two-bar
-   phrase in the level's key while its rhythm lights up as marks around the
-   outer ring — the ring becomes a sequencer, a sweep hand circling once
-   per two bars. Then it is the player's turn: tap (anywhere — timing, not
-   aim) as the sweep crosses each mark. Three rounds; every answered note
-   pays +40 and is sung back harmonised; answer well and the call gains a
-   voice each round. Misses cost nothing and the level completes
-   regardless — the finale decides the size of the send-off, never whether
-   you advance. */
-/* Phrase entries are CHORD-TONE indices (see chTone), resolved against
-   whichever chord is sounding when the note plays — the call can never
-   clash with its own accompaniment, which the old pentatonic phrases
-   could. */
-const FINP=[
- [4,-1,5,-1,6,-1,5,4, -1,-1,5,-1,4,-1,-1,-1],
- [4,-1,-1,6,-1,4,-1,7, -1,6,-1,-1,4,-1,6,-1],
- [6,6,-1,5,-1,6,-1,7, -1,-1,6,5,-1,4,-1,-1]];
-const FINN=FINP.map(function(a){let n=0;for(const v of a)if(v>=0)n++;return n;});
-const FIN={on:false,pend:false,done:false,step:0,score:0,hits:0,rHits:0,
-  voices:0,t0:0,mode:'intro',expect:[],vis:new Array(16).fill(0)};
-const FINVQ=[];
+/* ---------- the finale: THE THREE LAST NOTES ----------
+   Execution round three, after the owner playtested the duet cold: "I
+   tapped along to match the beat and it didn't work... it made no sense."
+   The sequencer asked players to sight-read a syncopated phrase on an
+   instrument they had never seen — a musically natural response (tapping
+   the beat) FAILED it. Gone. The level now ends in the one timing device
+   the game drills every single run: a riser into a countdown, and a
+   single press on NOW!. Three last notes, each riser bigger than the
+   last, each judged with the drop-landing's own learned-latency window.
+   A perfect pays +150, a hit +60, a miss plays the note softly and costs
+   nothing — the level always completes. Nothing to decode, nothing
+   spatial, presses only. */
+const FIN={on:false,pend:false,done:false,step:0,score:0,hits:0,
+  voices:0,round:0,hitT:0,mode:'intro',expect:[]};
 function finStep(t){
   const fs=FIN.step++;
-  const fs2=fs-16;              /* two INTRO bars come before the first call */
-  const beat=fs%8,ph=FINP[G.level-1];
-  if(fs2===0||fs2%32===0)FIN.t0=t;     /* re-anchor the sweep each cycle */
+  const beat=fs%8;
   if(beat%2===0)BEATQ.push(t);
-  /* the thin groove: the stage, not the show */
+  /* the floor runs the whole ceremony */
   if(beat===0){kick(t,0.050);bassN(CH[((fs/8)|0)%4][0],t,0.28,0.034);}
   if(beat===4)kick(t,0.036);
   if(beat%2===1)hat(t,0.009,4000,0.038,0,0.35,6800);
-  if(fs2<0){FIN.mode='intro';return;}
-  const slot=fs2%16,call=(fs2%32)<16;
-  FIN.mode=call?'call':'resp';
-  if(fs2%32===16)FIN.rHits=0;
-  const d=ph[slot];
-  if(d>=0){
-    if(call){
-      lead(chTone(d),t,0.24,0.045,3600,(slot%4<2)?-0.2:0.2);
-      if(FIN.voices>=1)note(chTone(d+2),t,0.20,'square',0.016,2800,0.2);
-      if(FIN.voices>=2)note(chTone(Math.max(0,d-4)),t,0.24,'sawtooth',0.016,900,-0.2,undefined,0.4);
-      FINVQ.push({at:t,slot:slot,k:1.6});
-    }else{
-      FIN.expect.push({t:t,slot:slot,judged:false});
-      FINVQ.push({at:t,slot:slot,k:1});
-    }
+  if(fs<8){FIN.mode='intro';return;}
+  if(fs>=68){FIN.on=false;FIN.done=true;G.finEnd=1;return;}
+  const rs=(fs-8)%20,rd=((fs-8)/20)|0;
+  if(rs===0){
+    FIN.round=rd;FIN.mode='build';
+    FIN.hitT=t+16*(SPB/2);   /* the NOW!, two bars out — the countdown reads this */
+    if(FIN.voices>=2)swellPad(chTone(2),t,2.2,0.030,0);
   }
-  if(fs2%32===31&&FIN.rHits>=Math.ceil(FINN[G.level-1]*0.6)){
-    FIN.voices=Math.min(2,FIN.voices+1);
-    /* a nailed round is answered with the bar's whole chord — the duet
-       agreeing with you out loud */
-    note(chTone(2),t,0.5,'triangle',0.030,1400,-0.15);
-    note(chTone(3),t,0.5,'triangle',0.026,1500,0.15);
-    note(chTone(4),t,0.5,'square',0.018,1800,0);
+  if(rs<16){
+    /* the rise: chord tones climbing, a highpass sweep, rolls at the top —
+       the drop's own language, so the body already knows what it means */
+    const q=rs/16;
+    if(rs%2===0)
+      note(chTone(2+((rs/4)|0)),t,0.15,'sawtooth',0.012+0.020*q,700+2600*q,(rs%4?0.2:-0.2));
+    hat(t,0.005+0.020*q,1400+3800*q,0.10,0.2);
+    if(FIN.voices>=1&&rs%2===1)
+      note(chTone(6),t,0.10,'square',0.008+0.008*q,2000,0.15);
+    if(rs>=12){snare(t,0.016+0.006*(rs-12),0.25);
+      if(rs>=14)snare(t+S16,0.020+0.006*(rs-12),0.30);}
+  }else if(rs===16){
+    FIN.mode='hit';
+    /* THE NOTE: the bar's whole chord, floor to crown */
+    kick(t,0.09);
+    note(chTone(0)/2,t,0.7,'sine',0.060,300);
+    note(chTone(2),t,0.5,'triangle',0.040,1600,-0.15);
+    note(chTone(3),t,0.5,'triangle',0.035,1700,0.15);
+    note(chTone(4),t,0.5,'square',0.022,2200,0);
+    hat(t,0.050,2400,0.5,0.5);
+    braam(0.030+0.012*rd);
+    FIN.expect.push({t:t,judged:false});
   }
-  if(fs2>=95){FIN.on=false;FIN.done=true;G.finEnd=1;}
 }
 /* NEAREST sixteenth, not the next one. Snapping forward alone costs up to a
    full slot — 144ms at this tempo, past the point where a sound stops feeling
@@ -2203,17 +2198,6 @@ function bedTick(dt){
      settles rather than latching */
   PLAY.heat=Math.max(0,PLAY.heat-dt*0.34);
   while(BEATQ.length&&BEATQ[0]<=t){BEATQ.shift();G.beat=1;}
-  while(FINVQ.length&&FINVQ[0].at<=t){
-    const fe=FINVQ.shift();FIN.vis[fe.slot]=Math.max(FIN.vis[fe.slot],fe.k);
-    /* SOUND-OFF PARITY: every CALL note ripples its mark, so the phrase is
-       watched as much as heard — the duet reads by eye alone when muted */
-    if(!RM&&fe.k>=1.5){
-      const fa=-Math.PI/2+(fe.slot/16)*TAU,fr=radiusOf(0)+24*u;
-      G.rings.push({x:cx+Math.cos(fa)*fr,y:cy+Math.sin(fa)*fr,
-        r:4*u,life:1,col:COL.warp,sp:170,dec:2.6});
-    }
-  }
-  if(FINVQ.length>40)FINVQ.length=0;
   while(DROPQ.length&&DROPQ[0]<=t){
     DROPQ.shift();G.dropFx=1;
     /* the world answers the downbeat */
@@ -2377,13 +2361,13 @@ const LV=[
   mech:[['tap','tap anywhere to turn around'],
         ['swipe','swipe up or down to change rings'],
         ['star','stars play the music \u2014 gather them'],
-        ['beat','finish: play the band\u2019s phrase back']]},
+        ['beat','finish: three last notes \u2014 tap on NOW!']]},
  {dl0:75, end:190, name:'INTO THE RINGS', key:0.8909,
   mech:[['shard','gates and twin shards block the track'],
         ['star','spotlight orb \u2014 you take the lead'],
         ['beat','run hot: overdrive, drum breaks'],
         ['nova','bass bomb \u2014 clears the lane'],
-        ['beat','the finale \u2014 answer the band to finish']]},
+        ['beat','the finale \u2014 tap the three last notes']]},
  {dl0:190,end:Infinity,name:'THE STORM', key:0.7937,
   mech:[['shard','drifters chase you'],
         ['shard','blinkers phase in and out'],
@@ -3142,7 +3126,7 @@ function startGame(){
   G.sparkT=0;G.sparkN=0;
   G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;
   G.spot=0;G.lastTapAt=-9;G.finEnd=0;
-  FIN.on=false;FIN.pend=false;FIN.done=false;FIN.step=0;FIN.score=0;FIN.hits=0;FIN.rHits=0;FIN.voices=0;FIN.expect.length=0;FIN.vis.fill(0);FINVQ.length=0;
+  FIN.on=false;FIN.pend=false;FIN.done=false;FIN.step=0;FIN.score=0;FIN.hits=0;FIN.voices=0;FIN.round=0;FIN.hitT=0;FIN.mode='intro';FIN.expect.length=0;
   PLAY.tape.length=0;
   LOOP.pat=null;LOOP.n=0;LOOP.until=0;LOOP.heard=false;
   G.layerN=0;G.bandN=0;G.bandFx=0;G.sndAt=0;G.sndStr=null;
@@ -3768,8 +3752,8 @@ function update(dt){
       if(dl()>=lvEnd){levelComplete();return;}
     }else if(!FIN.on&&!FIN.done&&dl()>=lvEnd-10&&(MU.pay<=0&&!MU.rise)){
       FIN.on=true;FIN.pend=true;FIN.mode='intro';
-      FIN.score=0;FIN.hits=0;FIN.rHits=0;FIN.voices=0;
-      FIN.expect.length=0;FIN.vis.fill(0);
+      FIN.score=0;FIN.hits=0;FIN.voices=0;FIN.round=0;FIN.hitT=0;
+      FIN.expect.length=0;
       if(MU&&AC)MU.cool=Math.max(MU.cool,AC.currentTime+40);
       /* THE STAGE CLEARS AND THE CEREMONY IS UNMISSABLE (playtest: "I
          didn't get the level ending mechanic at all"). A full banner with
@@ -3777,7 +3761,7 @@ function update(dt){
          pickups leave, and two intro bars pass with the sequencer fading
          in before the first call. The duet then narrates itself with a
          STANDING instruction line for its whole length. */
-      G.banner={str:'THE FINALE',sub:'listen \u2014 then play it back',t:0};
+      G.banner={str:'THE FINALE',sub:'three last notes \u2014 tap on NOW!',t:0};
       G.stars.length=0;G.pows.length=0;
       for(const sp2 of G.spikes)if(sp2.phase===1){sp2.phase=2;sp2.t=0;}
       fireLift();
@@ -3785,26 +3769,29 @@ function update(dt){
     if(dl()>=lvEnd+30){levelComplete();return;}
 
   }
-  /* judge the finale's answers: any input near a marked moment counts */
+  /* judge the last notes: one press near NOW!, on the same bias-corrected
+     clock the drop landing trained the player on */
   if(FIN.expect.length&&AC){
-    for(const ex of FIN.expect)if(!ex.judged&&AC.currentTime>ex.t+0.26){
+    for(const ex of FIN.expect)if(!ex.judged&&AC.currentTime>ex.t+0.40){
       ex.judged=true;
-      if(Math.abs(PLAY.slot-ex.t)<0.20||Math.abs(G.lastTapAt-ex.t)<0.26){
-        FIN.hits++;FIN.rHits++;FIN.score+=40;G.score+=40;
-        G.scorePop=Math.max(G.scorePop,0.6);
+      const dv=Math.min(Math.abs(G.lastTapAt-ex.t),
+                        Math.abs((G.lastTapAt-PLAY.bias)-ex.t));
+      if(dv<=0.30){
+        const perfect=dv<=0.12,ptx=perfect?150:60;
+        FIN.hits++;FIN.score+=ptx;G.score+=ptx;
+        FIN.voices=Math.min(2,FIN.voices+1);   /* the next riser grows */
+        G.scorePop=Math.max(G.scorePop,0.7);
         const hp=posPlayer();
-        popup(hp[0],hp[1]-22*u,'+40',COL.warp,0.9);
-        FIN.vis[ex.slot]=3;
-        const hd=FINP[G.level-1][ex.slot];
+        popup(hp[0],hp[1]-24*u,(perfect?'PERFECT +':'+')+ptx,COL.warp,perfect?1.4:1.0);
+        if(perfect&&!RM){flashHit(0.5);G.stop=Math.max(G.stop,0.08);}
         cueTone(function(w){
-          note(chTone(hd),AC.currentTime+w,0.18,'triangle',0.026,2400,0.2);
-          note(chTone(hd+1),AC.currentTime+w,0.18,'sine',0.014,2200,-0.2);
+          note(chTone(4),AC.currentTime+w,0.30,'triangle',0.030,2200,0.2);
+          note(chTone(5),AC.currentTime+w,0.30,'sine',0.016,2000,-0.2);
         });
       }
     }
     while(FIN.expect.length&&FIN.expect[0].judged)FIN.expect.shift();
   }
-  for(let fi=0;fi<16;fi++)FIN.vis[fi]=Math.max(0,FIN.vis[fi]-dt*2.2);
   if(G.finEnd){
     G.finEnd=0;
     if(FIN.score>0)popup(cx,cy-40*u,'FINALE +'+FIN.score,COL.ember,1.5);
@@ -5470,51 +5457,31 @@ function drawHUD(){
       text(b.sub,cx,by+20*u,12*u,'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
     }
-    /* THE FINALE'S SEQUENCER: the phrase's rhythm as marks around the
-       outer ring, a sweep hand circling once per two bars. Call marks
-       pulse violet as the band plays them; answered marks flash white. */
+    /* THE FINALE: a standing instruction and the countdown the game has
+       been teaching all run. One press on NOW!, three times, bigger each
+       time. Nothing to decode, nothing spatial. */
     if(FIN.on&&!FIN.pend&&AC){
-      const ph3=FINP[G.level-1],mr=radiusOf(0)+24*u;
-      if(!RM&&FIN.mode!=='intro'){
-        const prog=(((AC.currentTime-FIN.t0)/(8*SPB))%1+1)%1;
-        const sa=-Math.PI/2+prog*TAU;
-        ctx.save();ctx.strokeStyle='rgba(234,241,255,0.75)';ctx.lineWidth=2.6*u;
-        ctx.beginPath();
-        ctx.moveTo(cx+Math.cos(sa)*(mr-9*u),cy+Math.sin(sa)*(mr-9*u));
-        ctx.lineTo(cx+Math.cos(sa)*(mr+9*u),cy+Math.sin(sa)*(mr+9*u));
-        ctx.stroke();ctx.restore();
-      }
-      const swp=RM?-9:(((AC.currentTime-FIN.t0)/(8*SPB))%1+1)%1*TAU-Math.PI/2;
-      for(let sl=0;sl<16;sl++){
-        if(ph3[sl]<0)continue;
-        const aa=-Math.PI/2+(sl/16)*TAU;
-        const v=FIN.vis[sl];
-        /* the answer telegraphs: a mark swells as the sweep bears down on
-           it, so the tap moment is readable with the sound off */
-        let sw=1;
-        if(FIN.mode==='resp'&&swp>-8){
-          let dd2=aa-swp;dd2=((dd2%TAU)+TAU)%TAU;
-          if(dd2<0.7)sw=1+0.55*(1-dd2/0.7);
-        }
-        sw*=1+(RM?0:0.08*G.beat);
-        const mx=cx+Math.cos(aa)*mr,my2=cy+Math.sin(aa)*mr;
-        ctx.globalAlpha=0.65;
-        ctx.strokeStyle='rgba(200,215,255,0.8)';ctx.lineWidth=1.4*u;
-        ctx.beginPath();ctx.arc(mx,my2,4.4*u*sw,0,TAU);ctx.stroke();
-        ctx.globalAlpha=Math.min(1,0.55+0.35*v);
-        ctx.fillStyle=v>=2.4?'#ffffff':COL.warp;
-        ctx.beginPath();ctx.arc(mx,my2,(3.0+1.0*Math.min(2,v))*u*sw,0,TAU);ctx.fill();
-      }
-      ctx.globalAlpha=1;
-      /* the standing instruction: the duet narrates itself the whole way */
-      const fmsg=FIN.mode==='resp'?'PLAY IT BACK \u2014 tap with the sweep':
-                 FIN.mode==='call'?'LISTEN\u2026':'THE FINALE';
+      const fmsg=FIN.mode==='intro'?'THE FINALE':
+                 FIN.round>0?'AGAIN \u2014 BIGGER':'TAP ON NOW!';
       ctx.globalAlpha=0.92;
-      textFx(fmsg,cx,cy-R-16*u,15*u,'800',
-        FIN.mode==='resp'?'#f4edff':'#ffffff',
-        FIN.mode==='resp'?COL.warp:'#9fd8ff',
-        FIN.mode==='resp'?'rgba(180,150,255,0.55)':'rgba(125,228,255,0.4)',3);
+      textFx(fmsg,cx,cy-R-16*u,15*u,'800','#f4edff',COL.warp,
+        'rgba(180,150,255,0.5)',3);
       ctx.globalAlpha=1;
+      if(FIN.hitT){
+        const cdt=FIN.hitT-(AC.currentTime-PLAY.bias);
+        if(cdt<=SPB*3&&cdt>-LAND_WIN){
+          if(cdt>0.02){
+            const n2=Math.ceil(cdt/SPB),f2=1-((cdt/SPB)%1||1);
+            ctx.globalAlpha=0.55+0.4*f2;
+            textFx(n2,cx,cy+16*u,(46+14*f2)*u,'800','#ffffff','#b9c8ff',
+              'rgba(180,150,255,0.5)',0);
+          }else{
+            textFx('NOW!',cx,cy+14*u,50*u,'800','#f4edff',COL.warp,
+              'rgba(180,150,255,0.65)',2);
+          }
+          ctx.globalAlpha=1;
+        }
+      }
     }
     /* THE COUNTDOWN. Three beats out the centre counts 3… 2… 1…, then NOW!
        through the landing window. A countdown is the one timing device that
