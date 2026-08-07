@@ -59,8 +59,8 @@ Mechanics unlock on a schedule, each announced with a banner:
 |---|---|
 | 22s | second ring |
 | 33s | twin shards — too wide to outrun, hop over |
+| 73s | third ring |
 | 88s | gates — every ring blocked, reverse |
-| 114s | third ring |
 | 141s | drifters — these ones move |
 | 181s | blinkers — they flicker, time your pass |
 | 231s | sliding gates — the wall slides, reverse early |
@@ -441,6 +441,17 @@ per tight hit made forty taps worth 320 against 86 for a maxed orbit — rhythm
 would have become the whole game. On the way up a full chain totals 36, so it
 stays a garnish beside embers and orbits. The real reward is that the music
 opens up, and that costs nothing.
+
+**The arrangement is front-loaded.** Playtesting was unanimous — the music
+is the game, and the layering used to reach full strength around six minutes
+in, which nobody ever heard. The full band now arrives inside the runs
+people actually have (~2.5 minutes), engagement can open every layer the
+clock would (playing hard means hearing more, immediately), and the third
+ring — the hottest kit — lands at ~73s instead of 114, one level before the
+gates. And the stars change voice as you climb, one instrument per act: a
+clean square early, a detuned synth pair from level 4, a sawtooth lead with
+a slide-in attack from level 7 — same key, same degrees, a band that grows
+up with the run.
 
 **The ring is the kit.** Subdivision alone was too polite — the per-ring hats
 sat at gains the target phone cannot reproduce, so "inner is hotter" was a
