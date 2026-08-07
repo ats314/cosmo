@@ -68,11 +68,14 @@ Survive to a level's finish line and a card celebrates the clear, names the
 next level, and lists the mechanics it will introduce — teaching moved to a
 calm screen instead of mid-combat. Each level transposes DOWN a whole step
 (A → G → F): going deeper into the game literally deepens the music, with
-the same 104bpm grid so the dub delay never falls out of time. Progress
-persists (`cometloop:gl`); death retries the level you are on, so later
-levels are trainable without regrinding, and a downward swipe on the intro
-card restarts the journey from level 1. Score carries across a single
-run's levels; by level 3 every current mechanic has been introduced.
+the same 104bpm grid so the dub delay never falls out of time. Every visit
+starts at level 1 — the game used to resume a device's highest unlock from
+the menu, and playtesters on shared or borrowed phones read that as "the
+game skipped level 1," so the resume was cut. Within a run nothing is
+lost: death retries the level you died on, and the best score and deepest
+level reached are still remembered (`cometloop:best`, `cometloop:gl`) as
+records on the death screen. Score carries across a single run's levels;
+by level 3 every current mechanic has been introduced.
 
 Playtest round three on levels: **1 and 2 run longer again** (finish lines
 at dl 75 and 190 — about 1:50 for level 1 and a further ~2:30 for level 2,
