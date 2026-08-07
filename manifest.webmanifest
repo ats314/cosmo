@@ -1,7 +1,7 @@
 {
-  "name": "Comet Loop",
-  "short_name": "Comet Loop",
-  "description": "A one-thumb arcade game. Tap to reverse, swipe to hop rings, play in time.",
+  "name": "Cosmo",
+  "short_name": "Cosmo",
+  "description": "A one-thumb arcade where every move makes the music.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
