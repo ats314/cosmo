@@ -74,10 +74,27 @@ levels are trainable without regrinding, and a downward swipe on the intro
 card restarts the journey from level 1. Score carries across a single
 run's levels; by level 3 every current mechanic has been introduced.
 
-Playtest round two on levels: **1 and 2 run longer now** (finish lines at
-dl 45 and 140, roughly 80 seconds and a further two minutes-plus) so each
-batch of mechanics gets real practice time before the next; the storm
-threats moved out accordingly. And the three songs are **actually three
+Playtest round three on levels: **1 and 2 run longer again** (finish lines
+at dl 75 and 190 — about 1:50 for level 1 and a further ~2:30 for level 2,
+"by the time you get into the song, it's over" being the note) so each song
+has time to land; gates moved into level 2 proper and the storm threats
+moved out accordingly.
+
+**The arranging pass.** "Too many sounds clashing" had a findable cause:
+the octave-down warmth pass had stacked the arp, the riff, the loop
+recorder and half the chimes into the same 200-400Hz band, over TWO
+basslines (the synth bass plus the score-layer bass playing a different
+pattern). The fix is arrangement discipline, not more subtraction:
+- **One bass.** The third score layer is a held sub DRONE now (one note a
+  bar, pure weight) instead of a second bassline fighting the first.
+- **One tenant per band.** The riff REPLACES the arp when it unlocks —
+  the arrangement evolves rather than accumulates. The pulse layer moved
+  up into its own pluck slot; the loop recorder sings in the player's own
+  octave (harmonising with yourself) and steps aside during the solo.
+- **Call and response on the downbeat.** The bar-line whaa breathes on
+  even bars, the string swell answers on odd ones, and the root's bright
+  octave double is deleted — the downbeat is no longer twelve oscillators
+  deep. And the three songs are **actually three
 arrangements**, not one tune transposed: each level has its own bassline
 (L1 walks, L2 pushes off the beat, L3 rolls relentless eighths), its own
 riff, its own afterglow solo, and its own kit identity (L2 swings with a
@@ -141,12 +158,12 @@ Mechanics unlock on a schedule, each announced with a banner:
 | 22s | second ring |
 | 33s | twin shards — too wide to outrun, hop over |
 | 73s | third ring |
-| 88s | gates — every ring blocked, reverse |
-| 191s | drifters — these ones move |
-| 236s | blinkers — they flicker, time your pass |
-| 281s | sliding gates — the wall slides, reverse early |
-| 326s | flicker pairs — one gap at a time, never both |
-| 366s | storm — no new tricks, just more of them |
+| 121s | gates — every ring blocked, reverse |
+| 241s | drifters — these ones move |
+| 286s | blinkers — they flicker, time your pass |
+| 331s | sliding gates — the wall slides, reverse early |
+| 376s | flicker pairs — one gap at a time, never both |
+| 416s | storm — no new tricks, just more of them |
 
 Those times assume a player earning no difficulty nudge at all, which is the
 slowest the schedule ever runs; scoring well pulls everything forward by up
@@ -593,8 +610,8 @@ degrees throughout — a band that grows up with the run.
 reaches 2000 points add a new electro synth layer that maintains until they
 get 3000 where another is added, and so on." Four permanent layers join at
 600 / 1,400 / 2,400 / 3,600 — an offbeat electro pulse, a two-bar synth
-riff, a real bass line (sub sine for headphones doubled an octave up for
-phone speakers, which reproduce nothing below ~400Hz), and a high shimmer.
+riff, a held sub drone (one note a bar, pure weight under the mix), and a
+high shimmer.
 Each is named in gold as it arrives. A row of dots under the level readout —
 the band meter — shows every layer currently in the record: five violet for
 the arrangement's own gates, gold for the bought ones, the newest pulsing.
