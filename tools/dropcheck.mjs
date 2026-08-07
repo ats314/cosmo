@@ -18,7 +18,7 @@ function param(v) {
 function node() {
   return { connect() {}, disconnect() {}, start() {}, stop() {},
     gain: param(1), frequency: param(440), detune: param(0), Q: param(1),
-    pan: param(0), threshold: param(0), knee: param(0), ratio: param(1),
+    pan: param(0), delayTime: param(0), threshold: param(0), knee: param(0), ratio: param(1),
     attack: param(0), release: param(0), type: '', curve: null, oversample: '',
     buffer: null, loop: false };
 }
@@ -34,6 +34,7 @@ class FakeAC {
   createWaveShaper() { return node(); }
   createConvolver() { return node(); }
   createStereoPanner() { return node(); }
+  createDelay() { return node(); }
   createBuffer(ch, len, sr) { return { getChannelData: () => new Float32Array(len) }; }
 }
 

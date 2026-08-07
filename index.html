@@ -806,11 +806,24 @@ function buildBus(){
   const send=c.createGain();send.gain.value=0.20;
   const verbTone=c.createBiquadFilter();
   verbTone.type='highpass';verbTone.frequency.value=420; /* keep the tail out of the mud */
+  /* THE DUB DELAY. The single biggest "groovy, relaxing synth" move there
+     is: a tempo-synced dotted-eighth delay with dark feedback, so every note
+     that feeds it trails away in rhythm instead of stopping dead. It hangs
+     off the bed path BEFORE the hole, so the drop's silence swallows the
+     echoes too — the discipline holds. */
+  const dly=c.createDelay(1.2);
+  dly.delayTime.value=(60/104)*0.75;          /* dotted eighth at 104bpm */
+  const dfb=c.createGain();dfb.gain.value=0.38;
+  const dtone=c.createBiquadFilter();
+  dtone.type='lowpass';dtone.frequency.value=1500; /* each repeat darkens */
+  const dout=c.createGain();dout.gain.value=0.55;
+  dly.connect(dtone);dtone.connect(dfb);dfb.connect(dly);
+  dtone.connect(dout);dout.connect(bedDuck);
   world.connect(lim);bedDuck.connect(hole);hole.connect(pump);pump.connect(lim);pq.connect(lim);
   send.connect(verb);verb.connect(verbTone);verbTone.connect(lim);
   lim.connect(makeup);makeup.connect(clip);clip.connect(out);out.connect(c.destination);
   out.gain.value=muted?0:1;      /* mute the BUS, never the clock — see toggleMute */
-  A={out:out,world:world,send:send,lim:lim,bed:bedDuck,hole:hole,pump:pump,perf:perf,makeup:makeup};
+  A={out:out,world:world,send:send,lim:lim,bed:bedDuck,hole:hole,pump:pump,perf:perf,makeup:makeup,dly:dly};
   buildBed();
 }
 /* The bed. Filter movement carries the escalation, never amplitude: a slow
@@ -844,6 +857,10 @@ const LAYER_AT=[1000,2000,3000,4500];
 const LAYER_NAME=['NEW LAYER: PULSE','NEW LAYER: SYNTH RIFF',
                   'NEW LAYER: BASS','NEW LAYER: SHIMMER'];
 const RIFF=[0,-1,2,-1,3,-1,2,-1, 0,-1,2,-1,4,3,2,-1];
+/* The written solo the lead plays over every payoff's afterglow — a four-bar
+   phrase in eighths (-1 rests), arcing up and resolving down. */
+const SOLO=[7,-1,8,-1,9,-1,8,7, -1,5,-1,7,-1,-1,5,-1,
+            6,-1,7,-1,9,-1,10,-1, 9,8,-1,7,-1,5,-1,-1];
 /* ---------- the payoff section ----------
    A drop is not a moment, it is a DOOR. What was shipped fired six voices for
    1.3s and then returned to exactly the arrangement it had been playing, so
@@ -948,7 +965,7 @@ function buildBed(){
 /* One-shot musical voice. Separate from beep() because music needs a filter
    and a longer tail, and because it must route through the bed's duck so a
    nova pushes the score out of the way along with everything else. */
-function note(f,t,dur,type,g,cut,pan,bus){
+function note(f,t,dur,type,g,cut,pan,bus,echo){
   if(!A||!AC||muted)return;
   try{
     const o=AC.createOscillator(),v=AC.createGain(),lp=AC.createBiquadFilter();
@@ -965,6 +982,8 @@ function note(f,t,dur,type,g,cut,pan,bus){
     /* The player's voice goes out drier. Wet reads as far away, dry reads as
        close, and close is what "mine" sounds like. Half the trick is here. */
     const sg=AC.createGain();sg.gain.value=bus?0.28:0.5;tail.connect(sg);sg.connect(A.send);
+    /* the optional dub send: 0..1 of this voice into the delay loop */
+    if(echo&&A.dly){const eg=AC.createGain();eg.gain.value=echo;tail.connect(eg);eg.connect(A.dly);}
     o.start(t);o.stop(t+dur+0.02);
   }catch(e){}
 }
@@ -1086,6 +1105,7 @@ function gtr(f,t,dur,g,pan){
     if(pan&&AC.createStereoPanner){const sp=AC.createStereoPanner();sp.pan.value=pan;v.connect(sp);tail=sp;}
     tail.connect(A.bed);
     const sg=AC.createGain();sg.gain.value=0.4;tail.connect(sg);sg.connect(A.send);
+    if(A.dly){const eg=AC.createGain();eg.gain.value=0.3;tail.connect(eg);eg.connect(A.dly);}
   }catch(e){}
 }
 /* ---------- the drop ----------
@@ -1522,7 +1542,8 @@ function musicStep(i,t,k){
     return;
   }
   /* the crash brings the record back exactly on the downbeat after the break */
-  if(MU.brkEnd){MU.brkEnd=false;hat(t,0.055,2600,0.5,0.5);}
+  if(MU.brkEnd){MU.brkEnd=false;hat(t,0.055,2600,0.5,0.5);
+    if(!RM)G.flash=Math.max(G.flash,0.18);}
   if(rise){
     /* THE RISE, AND NOTHING ELSE. It measured -19.8dB against an ordinary
        bar's -19.6 because the arp, counter-line and root kept playing
@@ -1549,6 +1570,9 @@ function musicStep(i,t,k){
     const w8=(8-i%8)%8;                          /* eighths until the latch */
     hat(t,Math.min(0.010,0.004+0.006*(1-w8/8)),8600,0.04);
   }
+  /* overdrive and the payoff's afterglow hold open every gate the clock or
+     the heat could — see G.od and MU.glow */
+  const hot=G.od>0||t<MU.glow;
   /* The root was the loudest figure in the loop and a phone reproduced almost
      none of it: 110Hz on a TRIANGLE (harmonics fall as 1/n²) through a 900Hz
      lowpass leaves the 3rd at 330Hz, under the rolloff. Two voices now — the
@@ -1556,6 +1580,30 @@ function musicStep(i,t,k){
   if(beat===0||beat===6){
     note(ch[0],t,beat===0?0.42:0.22,'triangle',0.055,900);
     note(ch[0]*4,t,beat===0?0.30:0.16,'square',0.020,2600,0);
+  }
+  /* THE GROOVE FLOOR (playtest: "we are losing the cool, groovy, relaxing
+     synth vibe" — and "more bass"). A syncopated bass under the ordinary
+     arrangement, not just the payoff: the push lands a sixteenth after
+     beat 2, the fifth answers on 5, and a low approach note leans into the
+     next bar. Sub-register triangle for headphones with one small square
+     double a phone can carry. This is the hypnotic floor everything else
+     sits on. */
+  if(k>0.26||PLAY.heat>0.25||hot){
+    if(beat===2){note(ch[0],t+S16,0.14,'triangle',0.030,700,0);
+      note(ch[0]*2,t+S16,0.08,'square',0.009,1400,0);}
+    if(beat===5)note(ch[3]/2,t,0.15,'triangle',0.026,600,0);
+    if(beat===7)note(ch[0]*0.75,t+S16,0.10,'sine',0.020,480,0);
+  }
+  /* THE SOLO (playtest: "some keyboard solos"). After every payoff the lead
+     answers over the afterglow: a written phrase with a slide into each
+     note, running wet through the dub delay. The drop no longer ends —
+     it hands off. */
+  if(t<MU.glow){
+    const sd=SOLO[i%SOLO.length];
+    if(sd>=0){
+      note(PENT[sd],t,0.20,'sawtooth',0.026,2800,(i%16<8)?-0.25:0.25,undefined,0.6);
+      if(AC)beep(PENT[sd]*0.96,0.05,'sawtooth',0.010,PENT[sd],Math.max(0,t-AC.currentTime),0,0.2);
+    }
   }
   /* THE MACHINE OWNS THE BEAT; THE PLAYER OWNS THE OFFBEAT. The arp is pinned
      to even eighths at every difficulty — the old ||k>0.62 filled every slot
@@ -1566,15 +1614,12 @@ function musicStep(i,t,k){
      early, a detuned synth pair by level 4, a sawtooth lead by level 7 —
      same key, same degrees, a band that grows up with the run. And heat can
      open every layer the clock would: playing hard means hearing more NOW. */
-  /* overdrive and the payoff's afterglow hold open every gate the clock or
-     the heat could — see G.od and MU.glow */
-  const hot=G.od>0||t<MU.glow;
   const av=G.tier>=6?'sawtooth':'square';
   if((k>0.18||PLAY.heat>0.30||hot)&&beat%2===0){
-    note(PENT[ad],t,0.20,av,0.015+0.011*k,1200+1800*k,
-      (beat%4===0?-0.3:0.3));
-    if(G.tier>=3)note(PENT[ad]*1.006,t,0.20,av,0.008,1000+1500*k,
-      (beat%4===0?0.3:-0.3));
+    note(PENT[ad],t,0.20,av,0.015+0.011*k,1000+1400*k,
+      (beat%4===0?-0.3:0.3),undefined,0.30);
+    if(G.tier>=3)note(PENT[ad]*1.006,t,0.20,av,0.008,900+1200*k,
+      (beat%4===0?0.3:-0.3),undefined,0.30);
   }
   /* the drive the deleted clause used to add, moved onto the ON beat where it
      cannot collide. Never beat 0 — that already carries the root and is the
@@ -1639,7 +1684,7 @@ function musicStep(i,t,k){
     note(ch[0]*2,t+S16,0.09,'square',0.011,2400,beat%4?0.2:-0.2);
   if(G.score>=LAYER_AT[1]){
     const rd=RIFF[(bar%2)*8+beat];
-    if(rd>=0)note(PENT[rd],t,0.14,'sawtooth',0.012,1900,(bar%2)?0.24:-0.24);
+    if(rd>=0)note(PENT[rd],t,0.14,'sawtooth',0.015,1900,(bar%2)?0.24:-0.24,undefined,0.5);
   }
   if(G.score>=LAYER_AT[2]&&(beat===0||beat===3||beat===4||beat===6)){
     note(ch[0]/2,t,0.17,'sine',0.036,240);
@@ -1684,7 +1729,7 @@ function musicStep(i,t,k){
    uniformly. HOPOUT descends because outward means a LOWER ring index and a
    lower register — the old tables played the rising figure while moving down. */
 const REVSEQ=[0,2,4,5,4,2,3,1],HOPIN=[2,3,5,4],HOPOUT=[3,2,0,1];
-let PLAY={heat:0,idx:0,last:-9,slot:-1,bias:0};
+let PLAY={heat:0,idx:0,last:-9,slot:-1,bias:0,rec:[]};
 /* NEAREST sixteenth, not the next one. Snapping forward alone costs up to a
    full slot — 144ms at this tempo, past the point where a sound stops feeling
    attached to the tap that caused it. Snapping to the nearest halves the worst
@@ -1844,6 +1889,7 @@ function performerHit(kind,dir,ring){
      static position — the instrument finally listens to the record. */
   d=Math.max(0,d+[0,-1,1,0][((MU.step/8)|0)%4]);
   PLAY.idx++;
+  PLAY.rec.push(d);if(PLAY.rec.length>10)PLAY.rec.shift(); /* the echo's tape */
   const p=posPlayer();
   const gr=judgeTiming(p[0],p[1]);
   /* THE FILL IS YOURS. During a drum break every input IS a drum: taps play
@@ -1884,7 +1930,7 @@ function performerHit(kind,dir,ring){
        outside, hard bright square on the inside */
     const rv=RINGS[rg];
     note(PENT[d],t,0.13,rv.wave,g,(2400+2200*PLAY.heat)*(1+0.16*gr)*rv.cut,
-      panAt(p[0]),A.perf);
+      panAt(p[0]),A.perf,0.35);
     /* A FIFTH UNDERNEATH, swelling with heat: one tap is a note, a flurry is
        a chord — the instrument fills out exactly as fast as the playing. */
     note(PENT[Math.max(0,d-3)],t,0.11,rv.wave,g*(0.30+0.25*PLAY.heat),
@@ -2413,6 +2459,9 @@ const G={
   runs:0,didReverse:false,didHop:false,didLap:false,
   teach:0,teachKind:null,teachHint:null,seen:{},campT:0, /* lessons + outer-ring camp clock */
   od:0,odT:0,odCool:0,odBrk:false,     /* overdrive: eighths left, heat clock, cooldown, break-due */
+  odGlow:0,brkGlow:0,                  /* backdrop envelopes: overdrive warmth, break dim */
+  shower:0,showerT:0,                  /* meteor shower: seconds left, spawn clock */
+  gold:0,goldNext:75,                  /* golden lap: window left, time to next offer */
   layerN:0,bandN:0,bandFx:0,           /* score layers unlocked; band-meter dot count + pulse */
   sndAt:0,sndStr:null,                 /* a NEW SOUND announcement waiting for its banner to clear */
   holdD:0,hopHintT:0,                   /* the hop lesson: gate, hint clock */
@@ -2621,7 +2670,10 @@ const MEET={
   drift:   {t:'this one slides — keep moving',g:'shard'},
   blink:   {t:'harmless while dim — cross it then',g:'shard'},
   driftgate:{t:'the wall slides — turn back early',g:'tap'},
-  blinktwin:{t:'only one is ever solid — wait your moment',g:'shard'}};
+  blinktwin:{t:'only one is ever solid — wait your moment',g:'shard'},
+  bass:  {t:'bass bomb — clears the lane, drops the low end',g:'nova'},
+  echo:  {t:'echo — plays your last riff back for points',g:'warp'},
+  meteor:{t:'meteor shower — catch everything',g:'star'}};
 function firstMeet(type){
   if(G.seen[type]||!MEET[type])return;
   G.seen[type]=1;
@@ -2701,13 +2753,16 @@ function spawnPow(){
   }else if(G.sinceShield>=3){
     type='shield'; /* pity: never more than 3 power-ups without a shield */
   }else{
+    /* the family expansion: three musical orbs join the rotation */
     const rr=Math.random();
-    type=rr<0.4?'shield':(rr<0.75?'warp':'nova');
+    type=rr<0.30?'shield':rr<0.48?'warp':rr<0.62?'nova':
+         rr<0.76?'bass':rr<0.88?'echo':'meteor';
   }
   for(let i=0;i<24;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
     if(farFromAll(a,ring,0.6,sep(ring,3.2),sep(ring,3.0))){
       G.pows.push({a,ring,t:0,life:7,type});
+      if(type==='bass'||type==='echo'||type==='meteor')firstMeet(type);
       G.sinceShield=(type==='shield')?0:G.sinceShield+1;
       /* counts PLACEMENTS, not pickups: a player who misses the slow-mo still
          advances the curriculum, or a run spent dodging would serve nothing
@@ -2730,7 +2785,9 @@ function startGame(){
   G.teach=0;G.teachKind=null;G.teachHint=null;G.campT=0;G.holdD=0;G.hopHintT=0;G.coach=null;
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
   G.sparkT=0;G.sparkN=0;
-  G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;
+  G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;
+  G.shower=0;G.showerT=0;G.gold=0;G.goldNext=75;
+  PLAY.rec.length=0;
   G.layerN=0;G.bandN=0;G.bandFx=0;G.sndAt=0;G.sndStr=null;
   skyI=0;      /* the sky opens on band 0 — the ratchet re-deepens it as the run climbs */
   pd=null;     /* a finger held across the death screen must not steer the new run */
@@ -3195,6 +3252,26 @@ function updateSpikes(sdt,lethal){
         die();
       }
     }
+    /* THE NEAR MISS. Two honest shapes only: stopping just short of a shard
+       on your own ring (the reverse that saved you), and sweeping past a
+       shard on the ring you just left mid-hop (the hop that saved you).
+       Passing shards on other rings in ordinary travel earns nothing — a
+       graze has to be a dodge, or the spark means nothing. Never red. */
+    else if(lethal&&s.phase===1&&armed(s)&&!s.grz&&G.t>=G.invuln&&(
+        (s.ring===er&&sweptHit(s.a,tol+(10*u)/pr))||
+        (G.hopP<1&&s.ring===G.hopFromI&&s.ring!==er&&sweptHit(s.a,tol))
+      )){
+      s.grz=1;
+      const gp=posPlayer();
+      G.score+=3;
+      popup(gp[0],gp[1]-20*u,'CLOSE +3','rgba(230,240,255,0.9)',0.85);
+      burst(gp[0],gp[1],'#bef4ff',8,220);
+      PLAY.heat=Math.min(1,PLAY.heat+0.10);
+      build(0.012,'orbit');
+      cueTone(function(w){hat(AC.currentTime+w,0.014,9500,0.03,0.3);
+        note(PENT[10],AC.currentTime+w,0.08,'sine',0.012,7000,panAt(gp[0]));});
+      try{if(navigator.vibrate)navigator.vibrate(7);}catch(e){}
+    }
   }
 }
 function update(dt){
@@ -3207,6 +3284,8 @@ function update(dt){
   G.buildFx=Math.max(0,G.buildFx-dt*2.2);
   G.dropFx=Math.max(0,G.dropFx-dt*1.1);
   G.bandFx=Math.max(0,G.bandFx-dt*1.6);
+  G.odGlow+=(((G.od>0)?1:0)-G.odGlow)*Math.min(1,dt*2.5);
+  G.brkGlow+=(((MU&&MU.brk>0)?1:0)-G.brkGlow)*Math.min(1,dt*7);
   G.payOpen=Math.max(0,G.payOpen-dt*1.4);
   G.bgFade=Math.max(0,G.bgFade-dt/2.5);
   G.impactT=Math.max(0,G.impactT-dt);
@@ -3302,6 +3381,22 @@ function update(dt){
     if(!RM){G.flash=Math.max(G.flash,0.2);
       G.rings.push({x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.warp,sp:260,dec:1.6});}
   }
+  /* METEOR SHOWER: the sky rains stars on a fast clock while it lasts */
+  if(G.shower>0){
+    G.shower-=dt;G.showerT-=dt;
+    if(G.showerT<=0){G.showerT=0.26;spawnStar();}
+  }
+  /* GOLDEN LAP: every minute and a half or so, one orbit turns gold — finish
+     a full lap inside the window for a fat bonus. Expiring costs nothing. */
+  G.goldNext-=dt;
+  if(G.goldNext<=0&&G.gold<=0&&dl()>30){
+    G.goldNext=85+Math.random()*25;G.gold=13;
+    G.sayFx={str:'GOLDEN LAP \u2014 finish the orbit!',t:0};
+    ripple(cx,cy,COL.ember);
+    cueTone(function(w){beep(880,0.12,'triangle',0.05,1174,w);
+      beep(1174,0.14,'triangle',0.05,1568,w+S16);});
+  }
+  if(G.gold>0)G.gold-=dt;
   /* the layer ladder: a score crossing names the layer that just joined */
   let lyn=0;for(let li=0;li<LAYER_AT.length;li++)if(G.score>=LAYER_AT[li])lyn++;
   if(lyn>G.layerN){
@@ -3461,6 +3556,20 @@ function update(dt){
       popup(lp[0],lp[1]-26*u,label,'rgba(200,215,255,0.7)');
       cueTone(function(w){beep(392,0.1,'triangle',0.04,440,w);});
     }
+    /* the golden lap pays on ANY completed orbit inside the window — the
+       invitation was "finish the orbit", so finishing is the whole test */
+    if(G.gold>0){
+      G.gold=0;
+      G.score+=150;G.scorePop=1;
+      popup(lp[0],lp[1]-46*u,'GOLDEN LAP +150',COL.ember,1.6);
+      if(!RM){G.flash=Math.max(G.flash,0.3);G.stop=Math.max(G.stop,0.08);
+        G.rings.push({x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.ember,sp:420,dec:1.1,fat:1});}
+      cueTone(function(w){beep(1046,0.14,'triangle',0.08,1568,w);
+        beep(1568,0.20,'triangle',0.08,2093,w+S16);
+        beep(2093,0.30,'sine',0.06,2637,w+2*S16);});
+      build(0.10,'orbit');
+      try{if(navigator.vibrate)navigator.vibrate([20,20,50]);}catch(e){}
+    }
     G.lapEmbers=0;G.didLap=true;
     checkMile();
   }
@@ -3506,10 +3615,17 @@ function update(dt){
          it. The instant touch is a shaker grain; the tone lands on the
          sixteenth grid, so a chain of embers IS a fill run. */
       hat(AC?AC.currentTime:0,0.006,8200,0.03);
+      if(G.combo>=3)try{if(navigator.vibrate)navigator.vibrate(6);}catch(e){}
       const cb=G.combo,cpan=panAt(p[0]);
       const eco=[0,-1,1,0][MU?((MU.step/8)|0)%4:0];
       cueTone(function(w){
-        const tt=AC.currentTime+w,f=PENT[Math.max(0,Math.min(9,3+cb+eco))];
+        /* THE PICKUP GIVES NOW (playtest: "way too twinkly"). The old voice
+           pitched UP with the combo — thinner the better you played. This
+           one stays low and gets HEAVIER: a fat detuned pluck with a sub
+           octave underneath and a kick thump from x2, riding the dub delay.
+           Weight, not sparkle, is the reward. */
+        const tt=AC.currentTime+w,f=PENT[Math.max(0,Math.min(7,2+(cb>>1)+eco))];
+        if(cb>=2)kick(tt,0.020);
         if(MU&&MU.pay>0){
           /* THE PAYOFF MAKES YOU THE SOLOIST. During the section a pickup
              fires a three-note run up the scale on the player's own bus —
@@ -3523,19 +3639,22 @@ function update(dt){
         }else if(G.tier>=9){
           /* level ten: the stars are an electric guitar */
           gtr(f,tt,0.20,0.034+0.004*cb,cpan);
+          note(f*0.5,tt,0.18,'sine',0.026+0.004*cb,520,cpan);
           if(cb>=3)gtr(f*2,tt+S16,0.14,0.020,-cpan);
         }else if(G.tier>=6){
-          /* levels 7+: a sawtooth lead with an octave bite and a slide-in
-             attack — the stars have become the guitar */
-          note(f,tt,0.16,'sawtooth',0.026+0.004*cb,1800+340*cb,cpan);
-          note(f*2,tt,0.10,'square',0.014,3400,cpan);
+          /* levels 7-9: the sawtooth lead, now with the sub underneath */
+          note(f,tt,0.20,'sawtooth',0.030+0.005*cb,1500+260*cb,cpan,undefined,0.5);
+          note(f*0.5,tt,0.18,'sine',0.026+0.004*cb,520,cpan);
           beep(f*0.94,0.05,'sawtooth',0.012,f,w,cpan,0.2);
         }else if(G.tier>=3){
-          /* levels 4-6: a detuned synth pair — the note grew shoulders */
-          note(f,tt,0.16,'square',0.024+0.004*cb,1500+300*cb,cpan);
-          note(f*1.007,tt,0.16,'sawtooth',0.016,1300+300*cb,cpan);
+          /* levels 4-6: the detuned pair, grown a floor */
+          note(f,tt,0.20,'square',0.032+0.005*cb,1300+240*cb,cpan,undefined,0.5);
+          note(f*1.007,tt,0.20,'sawtooth',0.020,1100+240*cb,-cpan*0.5,undefined,0.4);
+          note(f*0.5,tt,0.18,'sine',0.026+0.004*cb,520,cpan);
         }else{
-          note(f,tt,0.16,'square',0.030+0.004*cb,1400+300*cb,cpan);
+          note(f,tt,0.20,'square',0.034+0.005*cb,1200+220*cb,cpan,undefined,0.5);
+          note(f*1.005,tt,0.20,'sawtooth',0.014,900,cpan*0.5,undefined,0.4);
+          note(f*0.5,tt,0.18,'sine',0.026+0.004*cb,500,cpan);
         }
         /* the chain's crown: a high answer only when the combo is maxing */
         if(cb>=4&&!(MU&&MU.pay>0))
@@ -3552,7 +3671,11 @@ function update(dt){
     if(s.ring===er&&sweptHit(s.a,(22*u)/radiusOf(er))){
       const p=posAt(s.a,radiusOf(s.ring));
       G.pows.splice(i,1);
-      arcFlash(s.a,s.ring,s.type==='shield'?COL.shield:(s.type==='warp'?COL.warp:COL.nova));
+      arcFlash(s.a,s.ring,
+        s.type==='shield'?COL.shield:
+        s.type==='warp'||s.type==='echo'?COL.warp:
+        s.type==='bass'?COL.comet:
+        s.type==='meteor'?COL.ember:COL.nova);
       if(s.type==='shield'){
         const span=panAt(p[0]);
         if(G.shields>=shieldMax()){G.score+=2;popup(p[0],p[1]-20*u,'+2',COL.shield);
@@ -3567,6 +3690,57 @@ function update(dt){
         burst(p[0],p[1],COL.warp,14,150);
         ripple(p[0],p[1],COL.warp);
         beep(400,0.3,'sine',0.07,150);
+      }else if(s.type==='bass'){
+        /* BASS BOMB: every shard in the neighbourhood converts, and the low
+           end drops — a pitch-fall boom into a one-bar heavy kick figure.
+           The clear reuses novaConvert, so the shards pay like a nova's. */
+        for(let j=G.spikes.length-1;j>=0;j--)
+          if(angDist(G.spikes[j].a,G.angle)<1.05)novaConvert(G.spikes.splice(j,1)[0]);
+        popup(p[0],p[1]-24*u,'BASS BOMB!',COL.comet,1.5);
+        burst(p[0],p[1],COL.comet,24,260);
+        ripple(p[0],p[1],COL.comet);
+        if(!RM){G.shake=Math.max(G.shake,8);G.flash=Math.max(G.flash,0.22);
+          G.rings.push({x:p[0],y:p[1],r:10*u,life:1,col:COL.comet,sp:520,dec:1.2,fat:1});}
+        duckBed(0.25,0.5);
+        beep(160,0.6,'sine',0.10,40);
+        cueTone(function(w){
+          const t0=AC.currentTime+w;
+          note(CH[0][0]/2,t0,0.5,'sine',0.055,300);
+          kick(t0,0.085);kick(t0+SPB,0.070);
+          kick(t0+SPB*1.5,0.055);kick(t0+SPB*2,0.080);
+          note(CH[0][0]/2,t0+SPB*2,0.5,'sine',0.045,280);
+        });
+        try{if(navigator.vibrate)navigator.vibrate([30,30,60]);}catch(e){}
+      }else if(s.type==='echo'){
+        /* ECHO: the ghost instrument plays your last riff back, two points a
+           note — the tape is whatever you actually played (see PLAY.rec). */
+        const seq=PLAY.rec.length>=3?PLAY.rec.slice(-8):[4,6,8,9];
+        G.score+=2*seq.length;G.scorePop=Math.max(G.scorePop,0.7);
+        popup(p[0],p[1]-20*u,'ECHO +'+(2*seq.length),COL.warp,1.2);
+        burst(p[0],p[1],COL.warp,16,180);
+        ripple(p[0],p[1],COL.warp);
+        cueTone(function(w){
+          for(let j=0;j<seq.length;j++){
+            const fd=PENT[Math.min(13,seq[j])],te=AC.currentTime+w+j*2*S16;
+            note(fd,te,0.16,'triangle',0.024,2400,(j%2)?0.3:-0.3,undefined,0.6);
+            note(fd,te,0.12,'square',0.012,1800,(j%2)?-0.2:0.2,undefined,0.6);
+          }
+        });
+        try{if(navigator.vibrate)navigator.vibrate(14);}catch(e){}
+      }else if(s.type==='meteor'){
+        /* METEOR SHOWER: six and a half seconds of star rain — pure
+           collection joy, and because ember tones ride the sixteenth grid a
+           gathered shower IS a drum fill. */
+        G.shower=6.5;G.showerT=0;
+        popup(p[0],p[1]-24*u,'METEOR SHOWER!',COL.ember,1.5);
+        burst(p[0],p[1],COL.ember,24,240);
+        ripple(p[0],p[1],COL.ember);
+        cueTone(function(w){
+          beep(784,0.10,'triangle',0.06,1046,w);
+          beep(1046,0.12,'triangle',0.06,1397,w+S16);
+          beep(1568,0.14,'triangle',0.06,2093,w+2*S16);
+        });
+        try{if(navigator.vibrate)navigator.vibrate(16);}catch(e){}
       }else{
         /* The front does the converting — see novaBlast/novaConvert. */
         G.gotNova=true;
@@ -3626,6 +3800,30 @@ function drawPow(x,y,s,al){
   }else if(s.type==='warp'){
     blit(SPR.powWarpO,x,y,pulse,s.t*2,al);
     blit(SPR.powWarpI,x,y,1,-s.t*2+Math.PI/4,al);
+  }else if(s.type==='bass'){
+    /* speaker rings: three concentric strokes breathing on the beat */
+    ctx.save();ctx.strokeStyle=COL.comet;ctx.lineWidth=1.8*u;
+    for(let ri=0;ri<3;ri++){
+      ctx.globalAlpha=al*(1-ri*0.26);
+      ctx.beginPath();ctx.arc(x,y,(4+ri*3.4)*u*pulse,0,TAU);ctx.stroke();
+    }
+    ctx.globalAlpha=al;ctx.fillStyle=COL.comet;
+    ctx.beginPath();ctx.arc(x,y,2.6*u,0,TAU);ctx.fill();ctx.restore();
+  }else if(s.type==='echo'){
+    /* a note and its fading repeats, circling — the delay drawn */
+    ctx.save();ctx.fillStyle=COL.warp;
+    for(let ri=2;ri>=0;ri--){
+      const off=ri*4.2*u;
+      ctx.globalAlpha=al*(1-ri*0.30);
+      ctx.beginPath();
+      ctx.arc(x-off*Math.cos(s.t*1.8),y-off*Math.sin(s.t*1.8),(4.4-ri*0.8)*u*pulse,0,TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }else if(s.type==='meteor'){
+    blit(SPR.ember,x,y,0.8*pulse,s.t,al);
+    blit(SPR.ember,x-6*u,y-5*u,0.5,s.t*1.4,al*0.8);
+    blit(SPR.ember,x+6*u,y-4*u,0.45,-s.t*1.2,al*0.7);
   }else{
     blit(SPR.powNova,x,y,1+0.10*Math.sin(s.t*5),s.t*1.2,al);
     ctx.save();ctx.globalAlpha=al;ctx.fillStyle=COL.nova;
@@ -3680,7 +3878,11 @@ function drawBloom(){
   }
   for(const pw of G.pows){
     const p=posAt(pw.a,radiusOf(pw.ring));
-    bloomDot(g,p[0],p[1],10*u,pw.type==='shield'?COL.shield:(pw.type==='warp'?COL.warp:COL.nova));
+    bloomDot(g,p[0],p[1],10*u,
+      pw.type==='shield'?COL.shield:
+      pw.type==='warp'||pw.type==='echo'?COL.warp:
+      pw.type==='bass'?COL.comet:
+      pw.type==='meteor'?COL.ember:COL.nova);
   }
   for(const pt of G.parts){
     if(pt.life<=0)continue;
@@ -3851,13 +4053,20 @@ function draw(){
   /* the camera dolly: the world drifts a few pixels on a long sine so no
      frame is ever static; each plane rides it by its depth */
   const camX=RM?0:Math.sin(amb*0.16)*3*u,camY=RM?0:Math.cos(amb*0.127)*3*u;
+  /* THE SKY KEEPS THE BEAT (playtest: "match large visual impact to large
+     audio impact"). One pulse scalar drives the whole backdrop: quiet on an
+     idle board, breathing when the player runs hot, doubled through the
+     payoff, gold through overdrive — and the drum break drops the room dark
+     (drawn after the motes). RM keeps every layer static, as always. */
+  const mpulse=RM?0:G.beat*(0.30+0.70*Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow));
   /* THE GALACTIC BAND — deepest light in the scene, and it answers the drop */
   if(SPR.galaxy){
-    ctx.globalAlpha=0.6;
+    ctx.globalAlpha=0.6*(1+0.30*mpulse);
     ctx.drawImage(SPR.galaxy.c,-28+sdx*0.2+camX*0.2,-28+sdy*0.2+camY*0.2,SPR.galaxy.w,SPR.galaxy.h);
     ctx.globalAlpha=1;
-    if(!RM&&dropA>0){
-      ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.25*dropA;
+    if(!RM&&(dropA>0||G.odGlow>0.01)){
+      ctx.save();ctx.globalCompositeOperation='lighter';
+      ctx.globalAlpha=Math.min(0.35,0.25*dropA+0.18*G.odGlow);
       ctx.drawImage(SPR.galaxy.c,-28+sdx*0.2+camX*0.2,-28+sdy*0.2+camY*0.2,SPR.galaxy.w,SPR.galaxy.h);
       ctx.restore();
     }
@@ -3870,7 +4079,7 @@ function draw(){
   if(SPR.neb)for(let i=0;i<nebulas.length;i++){
     const n=nebulas[i];
     /* the nebulae swell when the drop lands — the dangling hook, wired */
-    const nr=n.r*Math.max(W,H)*0.5*(1+(RM?0:0.18*G.dropFx));
+    const nr=n.r*Math.max(W,H)*0.5*(1+(RM?0:0.18*G.dropFx+0.06*mpulse));
     const nx=(n.x+0.02*Math.sin(amb*0.07+n.ph))*W;
     const ny=(n.y+0.02*Math.cos(amb*0.05+n.ph))*H;
     ctx.drawImage(SPR.neb[i].c,nx-nr,ny-nr,nr*2,nr*2);
@@ -3903,11 +4112,11 @@ function draw(){
       ctx.drawImage(SPR.rays.c,-rs/2,-rs/2,rs,rs);
     }else{
       ctx.rotate(amb*0.011);
-      ctx.globalAlpha=Math.min(0.7,0.06+0.55*G.dropFx+0.15*G.pay);
+      ctx.globalAlpha=Math.min(0.7,0.06+0.55*G.dropFx+0.15*G.pay+0.12*mpulse+0.18*G.odGlow);
       const s1=1+0.25*G.dropFx;
       ctx.drawImage(SPR.rays.c,-rs/2*s1,-rs/2*s1,rs*s1,rs*s1);
       ctx.rotate(-amb*0.018+1.3);
-      ctx.globalAlpha=Math.min(0.7,0.04+0.32*G.dropFx);
+      ctx.globalAlpha=Math.min(0.7,0.04+0.32*G.dropFx+0.08*mpulse+0.12*G.odGlow);
       const s2=1.06+0.3*G.dropFx;
       ctx.drawImage(SPR.rays.c,-rs/2*s2,-rs/2*s2,rs*s2,rs*s2);
     }
@@ -3938,7 +4147,7 @@ function draw(){
        rest of the game obeys. Gated on groove so a player who has not found
        the beat is not shown a pulsing sky, and strongest in the payoff. */
     let al=RM?0.4:(0.10+0.55*(0.5+0.5*Math.sin(amb*st.tw+st.ph)));
-    if(!RM&&st.r>1.2&&G.groove>0)al*=(1+0.30*G.beat*(0.5+0.5*G.pay));
+    if(!RM&&st.r>1.2&&(G.groove>0||PLAY.heat>0.2))al*=(1+0.30*G.beat*(0.5+0.5*G.pay)+0.25*mpulse);
     ctx.globalAlpha=Math.min(1,al);
     ctx.beginPath();ctx.arc(st.x*W+sdx+pcx+camX,st.y*H+sdy+pcy+camY,st.r,0,TAU);ctx.fill();
   }
@@ -3955,12 +4164,26 @@ function draw(){
       let al=RM?0.10+0.18*shell
              :(0.05+0.30*shell)*(1+1.6*Math.pow(Math.max(0,Math.cos(a-G.angle)),4));
       /* the dust nods on the landed beat once the player has found it */
-      if(!RM&&(G.pay>0||G.groove>0))al*=(1+0.7*G.beat*(G.pay>0?1:0.5));
+      if(!RM&&(G.pay>0||G.groove>0||PLAY.heat>0.2))al*=(1+0.7*G.beat*(G.pay>0?1:0.5)+0.4*mpulse);
       blit(SPR.mote,cx+Math.cos(a)*r+camX*1.1,cy+Math.sin(a)*r+camY*1.1,
         m.sz,0,Math.min(0.55,al));
     }
   }
   ctx.globalCompositeOperation='source-over';
+  /* the drum break drops the room dark — the spotlight moves to the kit —
+     and the crash snaps the light back (musicStep flashes on the crash) */
+  if(G.brkGlow>0.01){
+    ctx.fillStyle='rgba(3,5,14,'+(0.30*G.brkGlow).toFixed(3)+')';
+    ctx.fillRect(0,0,W,H);
+  }
+  /* overdrive runs the room warm, throbbing on the landed beat */
+  if(G.odGlow>0.01){
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    ctx.fillStyle='rgba(255,170,60,'+
+      (RM?0.030*G.odGlow:(0.028+0.045*G.beat)*G.odGlow).toFixed(3)+')';
+    ctx.fillRect(0,0,W,H);
+    ctx.restore();
+  }
   ctx.globalAlpha=1;
   /* THE CALM POOL. The whole sky stack dims under the play space — a baked
      feathered darkening behind the ring stack, so the arena sits on a quiet
@@ -4056,6 +4279,13 @@ function draw(){
   drawRingGlow();
 
   /* lap progress arc — colour reports how well fed this orbit is */
+  /* the golden lap gilds the whole track while its window runs */
+  if(G.state==='playing'&&G.gold>0){
+    const ga=RM?0.35:Math.min(0.6,0.25+0.20*G.beat+(G.gold<3?0.25*Math.sin(G.t*10):0));
+    ctx.save();ctx.globalAlpha=ga;
+    ctx.strokeStyle=COL.ember;ctx.lineWidth=3*u;
+    ctx.beginPath();ctx.arc(cx,cy,radiusOf(G.ringI),0,TAU);ctx.stroke();ctx.restore();
+  }
   if(G.state==='playing'&&G.lapAcc>0.05){
     const lr=curR()+6*u;
     let a0,a1;
