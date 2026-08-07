@@ -388,8 +388,14 @@ a cadence descending to the root, +30 a note, a voice added every fourth
 star, the whole sky gilding. The final star, nearest the core, lands the
 full chord and the braam — every level ends by diving into the music.
 Sweep all twelve for PERFECT ENDING +200; miss some and the ending plays
-thinner; a generous timeout completes the level regardless. Both verbs,
-zero words.
+thinner; a generous 45-second timeout — the dive's own clock, and the
+ONLY clock: a leftover difficulty-time backstop from the previous design
+was guillotining the dive seconds in when a drop section happened to be
+running at the threshold, which was the owner's "it ended before I got 2
+stars" — completes the level regardless. The ending itself lands when the
+melody is HOME: all twelve gathered, or the core star reached with at
+least nine in hand; grabbing the core early just plays its root note and
+the dive continues. Both verbs, zero words.
 **Off by default.** `POSTHOG_KEY` is empty in this repo, so a clone sends
 nothing anywhere and every `track()` call short-circuits before it does
 anything. Paste a PostHog project key into that constant to switch it on; a

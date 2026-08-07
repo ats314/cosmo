@@ -3752,7 +3752,6 @@ function update(dt){
       for(const sp2 of G.spikes)if(sp2.phase===1){sp2.phase=2;sp2.t=0;}
       fireLift();
     }
-    if(dl()>=lvEnd+30){levelComplete();return;}
 
   }
   /* THE DIVE'S COLLECTOR: sweeping a trail star plays its cadence note on
@@ -3769,8 +3768,23 @@ function update(dt){
       ripple(p2[0],p2[1],COL.ember);
       G.score+=30;FIN.score+=30;G.scorePop=Math.max(G.scorePop,0.6);
       if(FIN.got%4===0)FIN.voices=Math.min(2,FIN.voices+1);
-      const ci2=st2.ci,isFinal=st2===FIN.trail[FIN.trail.length-1];
-      if(isFinal){
+      const ci2=st2.ci;
+      popup(p2[0],p2[1]-20*u,'+30',COL.ember,0.85);
+      const cpan2=panAt(p2[0]);
+      cueTone(function(w){
+        const tt3=AC.currentTime+w;
+        note(chTone(ci2),tt3,0.22,'triangle',0.034,1800,cpan2,undefined,0.4);
+        note(chTone(ci2+2),tt3,0.20,'sine',0.016,1600,-cpan2);
+      });
+      try{if(navigator.vibrate)navigator.vibrate(8);}catch(e){}
+      /* THE ENDING LANDS when the melody is HOME: all twelve gathered, or
+         the core star reached with most of the tune in hand. Grabbing the
+         final star early just plays its root note and the dive continues —
+         the reward is never cut short by a shortcut (the bug the owner
+         hit: 'it ended before I got like 2 golden stars'). */
+      const coreStar=FIN.trail[FIN.trail.length-1];
+      const all=FIN.got>=FIN.trail.length;
+      if(all||(coreStar.got&&FIN.got>=9)){
         cueTone(function(w){
           const tf=AC.currentTime+w;
           kick(tf,0.09);
@@ -3781,25 +3795,18 @@ function update(dt){
           hat(tf,0.050,2400,0.5,0.5);
         });
         braam(0.06);
-        if(FIN.trail.every(function(q){return q.got;})){
+        if(all){
           G.score+=200;FIN.score+=200;
           popup(p2[0],p2[1]-32*u,'PERFECT ENDING +200',COL.ember,1.5);
           flashHit(0.55);
         }
         try{if(navigator.vibrate)navigator.vibrate([40,30,90]);}catch(e){}
         FIN.on=false;FIN.done=true;G.finEnd=1;
-      }else{
-        popup(p2[0],p2[1]-20*u,'+30',COL.ember,0.85);
-        const cpan2=panAt(p2[0]);
-        cueTone(function(w){
-          const tt3=AC.currentTime+w;
-          note(chTone(ci2),tt3,0.22,'triangle',0.034,1800,cpan2,undefined,0.4);
-          note(chTone(ci2+2),tt3,0.20,'sine',0.016,1600,-cpan2);
-        });
-        try{if(navigator.vibrate)navigator.vibrate(8);}catch(e){}
       }
     }
-    if(G.t-FIN.t0>32){FIN.on=false;FIN.done=true;G.finEnd=1;}
+    /* the dive's own clock is the only clock — 45 unhurried seconds, then
+       the level completes with whatever ending was gathered */
+    if(G.t-FIN.t0>45){FIN.on=false;FIN.done=true;G.finEnd=1;}
   }
   if(G.finEnd){
     G.finEnd=0;
