@@ -859,7 +859,7 @@ const ARP=[0,2,4,2,3,2,4,3],CNT=[7,5,4,5,7,8,7,5];
    eighths; -1 rests) that stays under the player's register floor. */
 const LAYER_AT=[600,1400,2400,3600];
 const LAYER_NAME=['NEW LAYER: PULSE','NEW LAYER: SYNTH RIFF',
-                  'NEW LAYER: BASS','NEW LAYER: SHIMMER'];
+                  'NEW LAYER: SUB','NEW LAYER: SHIMMER'];
 const RIFF=[0,-1,2,-1,3,-1,2,-1, 0,-1,2,-1,4,3,2,-1];
 /* The written solo the lead plays over every payoff's afterglow — a four-bar
    phrase in eighths (-1 rests), arcing up and resolving down. */
@@ -1599,10 +1599,11 @@ function musicStep(i,t,k){
      none of it: 110Hz on a TRIANGLE (harmonics fall as 1/n²) through a 900Hz
      lowpass leaves the 3rd at 330Hz, under the rolloff. Two voices now — the
      sub for headphones, and a real one two octaves up that a speaker can play. */
-  if(beat===0||beat===6){
+  /* the root is the sub's job alone — its bright octave double is gone;
+     bassN's square glint already gives the speaker its handle, and two
+     voices saying "root" every bar was the start of the mud */
+  if(beat===0||beat===6)
     note(ch[0],t,beat===0?0.42:0.22,'triangle',0.055,900);
-    note(ch[0]*4,t,beat===0?0.30:0.16,'square',0.020,2600,0);
-  }
   /* THE HEARTBEAT (playtest, final round: "the drop hits — literally
      nothing else does"). Measured on the master bus, ordinary play peaked
      4.7dB under the section, and the cause was structural: the kit only
@@ -1634,7 +1635,9 @@ function musicStep(i,t,k){
     /* the whaa: a saw swell breathing out of every bar-line bass note —
        the drop's mouth, speaking continuously once the run warms up */
     if(beat===0){bassN(ch[0],t,0.30,bg);
-      if(k>0.35||hot)swellPad(ch[0],t,0.55,0.024+0.016*k,0);}
+      /* the whaa breathes on EVEN bars; the strings answer on the odd
+         ones — call and response instead of a pile on every downbeat */
+      if((k>0.35||hot)&&bar%2===0)swellPad(ch[0],t,0.55,0.026+0.016*k,0);}
     /* EACH LEVEL HAS ITS OWN BASSLINE — the largest single difference
        between the three songs. L1 walks, L2 pushes off the beat (the
        swung deep-house lean), L3 ROLLS relentless eighths. */
@@ -1677,13 +1680,15 @@ function musicStep(i,t,k){
      open every layer the clock would: playing hard means hearing more NOW. */
   const av=G.tier>=6?'sawtooth':'square';
   if((k>0.18||PLAY.heat>0.30||hot)&&beat%2===0){
-    /* AN OCTAVE DOWN. The arp lived at 440-780Hz with a bright cut — the
-       melodic cloud that read as twinkle. At 220-390Hz a detuned pluck pair
-       through the dub delay is the hypnotic register the references live in. */
-    note(PENT[ad]*0.5,t,0.22,av,0.022+0.013*k,700+900*k,
-      (beat%4===0?-0.3:0.3),undefined,0.35);
-    note(PENT[ad]*0.503,t,0.22,'sawtooth',0.013+0.007*k,650+800*k,
-      (beat%4===0?0.3:-0.3),undefined,0.35);
+    /* AN OCTAVE DOWN — and ONE tenant per band: when the riff layer
+       unlocks it REPLACES the arp in this register instead of stacking on
+       it. The arrangement evolves; it does not accumulate. */
+    if(G.score<LAYER_AT[1]){
+      note(PENT[ad]*0.5,t,0.22,av,0.022+0.013*k,700+900*k,
+        (beat%4===0?-0.3:0.3),undefined,0.35);
+      note(PENT[ad]*0.503,t,0.22,'sawtooth',0.013+0.007*k,650+800*k,
+        (beat%4===0?0.3:-0.3),undefined,0.35);
+    }
   }
   /* the old "drive" doubling layer is deleted outright: the deep genres are
      built from a LIMITED palette — kick, bass, one offbeat hat, one or two
@@ -1729,14 +1734,17 @@ function musicStep(i,t,k){
       if(!LOOP.heard){LOOP.heard=true;say('YOUR BEAT IS IN THE SONG',2,10);}
     }
   }
-  if(LOOP.pat&&t<LOOP.until){
+  if(LOOP.pat&&t<LOOP.until&&t>=MU.glow){
+    /* the player's ghost sings in the player's own octave — harmonising
+       with yourself, not crowding the arp's band — and steps aside while
+       the afterglow solo has the floor */
     const p0=(i%16)*2;
     for(let o=0;o<2;o++){
       const dd=LOOP.pat[p0+o];
       if(dd!==undefined){
         const tt2=t+o*S16;
-        note(PENT[dd]*0.5,tt2,0.15,'triangle',0.017,900,0.15,undefined,0.5);
-        note(PENT[Math.min(13,dd+2)]*0.5,tt2,0.15,'square',0.010,800,-0.15,undefined,0.5);
+        note(PENT[dd],tt2,0.15,'triangle',0.014,1600,0.15,undefined,0.4);
+        note(PENT[Math.min(13,dd+2)],tt2,0.15,'sine',0.009,1400,-0.15);
       }
     }
   }
@@ -1744,8 +1752,8 @@ function musicStep(i,t,k){
      soft riser turns each four-bar phrase into the next — the two moves
      trailer music is built from, at game volume. The swell sits on the
      chord's third, so the harmony is finally VOICED rather than implied. */
-  if((k>0.20||PLAY.heat>0.30||hot)&&beat===0)
-    swellPad(bar%2?ch[3]*2:ch[2]*2,t,2.6,0.022+0.014*k,(bar%4<2)?-0.2:0.2);
+  if((k>0.20||PLAY.heat>0.30||hot)&&beat===0&&bar%2===1)
+    swellPad(bar%4===1?ch[2]*2:ch[3]*2,t,2.6,0.024+0.014*k,(bar%4<2)?-0.2:0.2);
   if((k>0.5||hot)&&bar%4===3&&beat===4)riser(t,2*SPB,0.016,1600);
   /* EACH LEVEL IS ITS OWN SONG: key, chords, arp, bassline, riff and solo
      all swap at startGame (the bed retunes itself from CH), and the kit has
@@ -1776,15 +1784,20 @@ function musicStep(i,t,k){
      points where another music layer is added. And so on."). Permanent for
      the run, each named as it arrives — see the layer ladder in update(). */
   if(G.score>=LAYER_AT[0]&&beat%2===0)
-    note(ch[0],t+S16,0.10,'square',0.012,1200,beat%4?0.2:-0.2,undefined,0.35);
+    note(ch[0]*2,t+S16,0.10,'square',0.011,1000,beat%4?0.2:-0.2,undefined,0.35);
   if(G.score>=LAYER_AT[1]){
+    /* the arp's successor — same register, richer tune (see the arp gate) */
     const rd=RIFFL[G.level-1][(bar%2)*8+beat];
-    if(rd>=0)note(PENT[rd]*0.5,t,0.16,'sawtooth',0.016,1300,(bar%2)?0.24:-0.24,undefined,0.5);
+    if(rd>=0){
+      note(PENT[rd]*0.5,t,0.18,'sawtooth',0.018,1200,(bar%2)?0.24:-0.24,undefined,0.5);
+      note(PENT[rd]*0.503,t,0.18,'square',0.010,900,(bar%2)?-0.2:0.2);
+    }
   }
-  if(G.score>=LAYER_AT[2]&&(beat===0||beat===3||beat===4||beat===6)){
-    note(ch[0]/2,t,0.17,'sine',0.036,240);
-    note(ch[0]*2,t,0.10,'square',0.012,1500);
-  }
+  /* the third layer was a SECOND bassline playing a different pattern
+     against bassN — the single worst clash in the mix. It is a held sub
+     drone now: one voice, one note per bar, pure weight under everything. */
+  if(G.score>=LAYER_AT[2]&&beat===0)
+    note(ch[0]/2,t,1.5,'triangle',0.020,300,0);
   if(G.score>=LAYER_AT[3]&&beat===7)
     note(PENT[11]*0.5,t+S16,0.22,'sine',0.010,3600,(bar%2)?0.35:-0.35,undefined,0.5);
   /* OVERDRIVE: eight bars of double-time — the eleventh notch. Every gate
@@ -2276,17 +2289,17 @@ const PENT_BASE=PENT.slice();
    the game literally deepens the music. Progress persists; death retries
    the level you are on, so later levels are trainable without regrinding. */
 const LV=[
- {dl0:0,  end:45,  name:'LIFT OFF', key:1,
+ {dl0:0,  end:75,  name:'LIFT OFF', key:1,
   mech:[['tap','tap anywhere to turn around'],
         ['swipe','swipe up or down to change rings'],
         ['star','stars play the music \u2014 gather them'],
         ['beat','ride the beat drop when it comes']]},
- {dl0:45, end:140, name:'INTO THE RINGS', key:0.8909,
+ {dl0:75, end:190, name:'INTO THE RINGS', key:0.8909,
   mech:[['shard','gates and twin shards block the track'],
         ['star','golden laps pay a fat bonus'],
         ['beat','run hot: overdrive, drum breaks'],
         ['nova','bass bomb \u00b7 echo \u00b7 meteor shower']]},
- {dl0:140,end:Infinity,name:'THE STORM', key:0.7937,
+ {dl0:190,end:Infinity,name:'THE STORM', key:0.7937,
   mech:[['shard','drifters chase you'],
         ['shard','blinkers phase in and out'],
         ['shard','sliding gates, flicker pairs'],
@@ -2519,7 +2532,7 @@ function shardCap(){
      has had something real to answer. */
   /* the 5->6->7 steps used to land at dl 70/110/160 — all three inside the
      window where every run was already dying. Spaced out. */
-  return d<8?1:d<20?2:d<32?3:d<48?4:d<90?5:d<140?6:d<200?7:d<260?8:d<330?9:10;
+  return d<8?1:d<20?2:d<32?3:d<55?4:d<120?5:d<200?6:d<270?7:d<340?8:d<420?9:10;
 }
 /* was 2.1-d*0.0035: the same late floor arrives via a gentler opening */
 function spawnGap(){return Math.max(0.80,2.6-dl()*0.005);}
@@ -2600,12 +2613,12 @@ const TIERS=[
   {at:12, type:null,    name:'SECOND RING', sub:'swipe up or down to switch track',rings:2},
   {at:18, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 swipe to another ring'},
   {at:40, type:null,    name:'THIRD RING',  sub:'inside is tighter, faster and higher',rings:3},
-  {at:52, type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 tap to turn back'},
-  {at:155,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
-  {at:200,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
-  {at:245,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
-  {at:290,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
-  {at:330,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
+  {at:85, type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 tap to turn back'},
+  {at:205,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
+  {at:250,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
+  {at:295,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
+  {at:340,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
+  {at:380,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
 ];
 function tierIndex(){
   const d=dl();
