@@ -813,7 +813,7 @@ function buildBus(){
      echoes too — the discipline holds. */
   const dly=c.createDelay(1.2);
   dly.delayTime.value=(60/104)*0.75;          /* dotted eighth at 104bpm */
-  const dfb=c.createGain();dfb.gain.value=0.38;
+  const dfb=c.createGain();dfb.gain.value=0.42;
   const dtone=c.createBiquadFilter();
   dtone.type='lowpass';dtone.frequency.value=1500; /* each repeat darkens */
   const dout=c.createGain();dout.gain.value=0.55;
@@ -1022,6 +1022,14 @@ function kick(t,g){
 function snare(t,g,wet){
   hat(t,g,1900,0.17,wet);
   note(196,t,0.085,'triangle',g*0.5,900,0);
+}
+/* THE BASS VOICE: the drop's floor as an instrument — a saw growl a
+   speaker can hear, a sine sub for headphones, a square glint for a phone.
+   note()'s own closing filter is the envelope, so every hit moves. */
+function bassN(f,t,dur,g){
+  note(f,t,dur,'sawtooth',g*0.8,900,0);
+  note(f/2,t,dur,'sine',g,320,0);
+  note(f*2,t,dur*0.6,'square',g*0.30,1600,0);
 }
 /* THE CINEMA (playtest: "tailor the electro to be more cinematic — like
    it's in a movie"; the reference was trailer-score houses). Two voices
@@ -1581,18 +1589,38 @@ function musicStep(i,t,k){
     note(ch[0],t,beat===0?0.42:0.22,'triangle',0.055,900);
     note(ch[0]*4,t,beat===0?0.30:0.16,'square',0.020,2600,0);
   }
-  /* THE GROOVE FLOOR (playtest: "we are losing the cool, groovy, relaxing
-     synth vibe" — and "more bass"). A syncopated bass under the ordinary
-     arrangement, not just the payoff: the push lands a sixteenth after
-     beat 2, the fifth answers on 5, and a low approach note leans into the
-     next bar. Sub-register triangle for headphones with one small square
-     double a phone can carry. This is the hypnotic floor everything else
-     sits on. */
-  if(k>0.26||PLAY.heat>0.25||hot){
-    if(beat===2){note(ch[0],t+S16,0.14,'triangle',0.030,700,0);
-      note(ch[0]*2,t+S16,0.08,'square',0.009,1400,0);}
-    if(beat===5)note(ch[3]/2,t,0.15,'triangle',0.026,600,0);
-    if(beat===7)note(ch[0]*0.75,t+S16,0.10,'sine',0.020,480,0);
+  /* THE HEARTBEAT (playtest, final round: "the drop hits — literally
+     nothing else does"). Measured on the master bus, ordinary play peaked
+     4.7dB under the section, and the cause was structural: the kit only
+     assembled as you dove inward, so the DEFAULT ring had no kick at all.
+     Ring 0 now carries one kick per bar from the start and a second at
+     half band; the inner rings still stack their patterns on top — inner
+     stays hotter, but nowhere is silent any more. */
+  if(ringOf()===0){
+    if(beat===0)kick(t,0.050);
+    if((k>0.30||PLAY.heat>0.35||hot)&&beat===4)kick(t,0.038);
+  }
+  /* THE RECORD BREATHES ALL GAME. The payoff's sidechain pump — the
+     genre's inhale — now runs gently under ordinary play too: every
+     bar-line kick dips the band ~1.5dB and lets it back. Dip and recovery
+     written in the same call, per the pump's own discipline; the player's
+     perf bus bypasses it, so your own notes stand still. */
+  if(beat===0&&A){
+    const pg=A.pump.gain;
+    pg.setValueAtTime(1,t-0.002);
+    pg.linearRampToValueAtTime(0.84,t+0.02);
+    pg.setTargetAtTime(1,t+0.05,0.11);
+  }
+  /* THE BASS IS A SYNTH NOW. The polite triangle floor never registered
+     next to the section's saw-and-sub, so the section was the only thing
+     that ever hit. bassN() walks root / push / fifth / approach from
+     almost the first bar, swelling with the run and the playing. */
+  if(k>0.12||PLAY.heat>0.20||hot){
+    const bg=0.026+0.020*Math.min(1,k+0.3*PLAY.heat);
+    if(beat===0)bassN(ch[0],t,0.30,bg);
+    if(beat===2)bassN(ch[0],t+S16,0.16,bg*0.80);
+    if(beat===5)bassN(ch[3]/2,t,0.18,bg*0.85);
+    if(beat===7)bassN(ch[0]*0.75,t+S16,0.12,bg*0.70);
   }
   /* THE SOLO (playtest: "some keyboard solos"). After every payoff the lead
      answers over the afterglow: a written phrase with a slide into each
@@ -1616,9 +1644,11 @@ function musicStep(i,t,k){
      open every layer the clock would: playing hard means hearing more NOW. */
   const av=G.tier>=6?'sawtooth':'square';
   if((k>0.18||PLAY.heat>0.30||hot)&&beat%2===0){
-    note(PENT[ad],t,0.20,av,0.015+0.011*k,1000+1400*k,
+    note(PENT[ad],t,0.20,av,0.019+0.013*k,1000+1400*k,
       (beat%4===0?-0.3:0.3),undefined,0.30);
-    if(G.tier>=3)note(PENT[ad]*1.006,t,0.20,av,0.008,900+1200*k,
+    /* the detuned partner is no longer a level-4 reward — the analog pair
+       IS the arp's voice; the levels still change the waveform above it */
+    note(PENT[ad]*1.006,t,0.20,'sawtooth',0.011+0.007*k,900+1200*k,
       (beat%4===0?0.3:-0.3),undefined,0.30);
   }
   /* the drive the deleted clause used to add, moved onto the ON beat where it
@@ -1662,8 +1692,8 @@ function musicStep(i,t,k){
      soft riser turns each four-bar phrase into the next — the two moves
      trailer music is built from, at game volume. The swell sits on the
      chord's third, so the harmony is finally VOICED rather than implied. */
-  if((k>0.35||hot)&&beat===0&&bar%2===0)
-    swellPad(ch[2]*2,t,2.6,0.016+0.010*k,(bar%4===0)?-0.2:0.2);
+  if((k>0.20||PLAY.heat>0.30||hot)&&beat===0)
+    swellPad(bar%2?ch[3]*2:ch[2]*2,t,2.6,0.022+0.014*k,(bar%4<2)?-0.2:0.2);
   if((k>0.5||hot)&&bar%4===3&&beat===4)riser(t,2*SPB,0.016,1600);
   /* THE SKY FLAVOURS THE KIT (playtest: "more electro beats"). Each palette
      band the run climbs through puts its own spin on the percussion: band 1
@@ -1906,7 +1936,7 @@ function performerHit(kind,dir,ring){
      saw has all of them, and at ring 0 — where the register split is thinnest
      — timbre is what keeps the two apart. panAt() puts your line where you
      actually are, so it sweeps the field as you orbit. */
-  const g=(0.030+0.026*PLAY.heat)*(1+0.10*gr);
+  const g=(0.034+0.030*PLAY.heat)*(1+0.10*gr);
   const inPay=MU.pay>0,pb=(PAY-MU.pay)>>3;
   const resp=inPay&&(pb===2||pb===3||pb===6);
   if(inPay){MU.payHits++;MU.barHits++;}
@@ -1992,7 +2022,7 @@ function bedTick(dt){
   if(MU&&MU.pend&&!MU.armed&&!MU.rise&&MU.pay<=0&&t>=MU.cool&&playing){
     const w=MU.pend,ws=MU.pendSrc;MU.pend=null;MU.pendSrc=null;armDrop(w,ws);
   }
-  const lvl=playing?0.13+0.22*k:(G.state==='menu'?0.06:0.02);
+  const lvl=playing?0.17+0.26*k:(G.state==='menu'?0.06:0.02);
   /* The pad recedes for the payoff and comes back for its second half. This
      IS the loudness of the section: contrast costs no headroom. bedTick stays
      the ONLY writer of BED.g, which is why there is no stuck-pad case. */
@@ -2003,7 +2033,7 @@ function bedTick(dt){
   if(MU&&MU.pay>0)mul=((PAY-MU.pay)>>3)<(MU.lateAt||4)?0.35:0.60;
   BED.g.gain.setTargetAtTime(lvl*mul,t,playing?0.9:0.5);
   G.pay=(MU&&MU.pay>0)?MU.pay/PAY:0;
-  /* floor at 400: below that a phone speaker reproduces none of it, and the
+  /* floor at 520: below that a phone speaker reproduces little of it, and the
      opening minutes would be silent on the device this actually ships to */
   /* engagement decays over ~3s, so a flurry lifts the arrangement and then
      settles rather than latching */
@@ -2027,7 +2057,7 @@ function bedTick(dt){
      real track waits eight bars for, paid for with playing instead. */
   const gv=Math.max(0,G.groove-4);
   /* the pad opens as you go inward too, so the whole mix brightens with depth */
-  let cut=400+1500*k*k+900*PLAY.heat+420*gv+(playing?RINGS[ringOf()].lift:0)
+  let cut=520+1500*k*k+900*PLAY.heat+420*gv+(playing?RINGS[ringOf()].lift:0)
     +((MU&&MU.armed&&!MU.rise)?260:0)    /* the armed wait audibly opens */
     +(G.od>0?420:0)+((MU&&t<MU.glow)?280:0); /* overdrive and afterglow run bright */
   if(MU&&MU.pay>0)cut=Math.min(cut,((PAY-MU.pay)>>3)<(MU.lateAt||4)?380:700);
@@ -3706,23 +3736,23 @@ function update(dt){
           note(PENT[Math.min(13,d0+4)]*2,tt+2*S16,0.10,'sine',0.012,6000,-cpan,A.perf);
         }else if(G.tier>=9){
           /* level ten: the stars are an electric guitar */
-          gtr(f,tt,0.20,0.034+0.004*cb,cpan);
-          note(f*0.5,tt,0.18,'sine',0.026+0.004*cb,520,cpan);
+          gtr(f,tt,0.20,0.040+0.004*cb,cpan);
+          note(f*0.5,tt,0.18,'sine',0.032+0.004*cb,520,cpan);
           if(cb>=3)gtr(f*2,tt+S16,0.14,0.020,-cpan);
         }else if(G.tier>=6){
           /* levels 7-9: the sawtooth lead, now with the sub underneath */
-          note(f,tt,0.20,'sawtooth',0.030+0.005*cb,1500+260*cb,cpan,undefined,0.5);
-          note(f*0.5,tt,0.18,'sine',0.026+0.004*cb,520,cpan);
+          note(f,tt,0.20,'sawtooth',0.036+0.005*cb,1500+260*cb,cpan,undefined,0.5);
+          note(f*0.5,tt,0.18,'sine',0.032+0.004*cb,520,cpan);
           beep(f*0.94,0.05,'sawtooth',0.012,f,w,cpan,0.2);
         }else if(G.tier>=3){
           /* levels 4-6: the detuned pair, grown a floor */
-          note(f,tt,0.20,'square',0.032+0.005*cb,1300+240*cb,cpan,undefined,0.5);
-          note(f*1.007,tt,0.20,'sawtooth',0.020,1100+240*cb,-cpan*0.5,undefined,0.4);
-          note(f*0.5,tt,0.18,'sine',0.026+0.004*cb,520,cpan);
+          note(f,tt,0.20,'square',0.038+0.005*cb,1300+240*cb,cpan,undefined,0.5);
+          note(f*1.007,tt,0.20,'sawtooth',0.024,1100+240*cb,-cpan*0.5,undefined,0.4);
+          note(f*0.5,tt,0.18,'sine',0.032+0.004*cb,520,cpan);
         }else{
-          note(f,tt,0.20,'square',0.034+0.005*cb,1200+220*cb,cpan,undefined,0.5);
-          note(f*1.005,tt,0.20,'sawtooth',0.014,900,cpan*0.5,undefined,0.4);
-          note(f*0.5,tt,0.18,'sine',0.026+0.004*cb,500,cpan);
+          note(f,tt,0.20,'square',0.040+0.005*cb,1200+220*cb,cpan,undefined,0.5);
+          note(f*1.005,tt,0.20,'sawtooth',0.017,900,cpan*0.5,undefined,0.4);
+          note(f*0.5,tt,0.18,'sine',0.032+0.004*cb,500,cpan);
         }
         /* the chain's crown: a high answer only when the combo is maxing */
         if(cb>=4&&!(MU&&MU.pay>0))
