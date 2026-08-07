@@ -946,7 +946,12 @@ card is dismissed (which level, after a clear or a retry, how long it was
 read), and `run_ended` gained `killer_lesson_seen` / `killer_relessoned` /
 `lessons_shown` — so "died to a mechanic whose lesson was never shown" and
 "died to it even after the re-offer" are directly countable funnels rather
-than guesses. There is deliberately no
+than guesses. The play-style aggregates round it out: `lands` vs
+`drops_earned` (the countdown's conversion rate), `best_groove` and
+`best_combo` (did the rhythm and combo lessons change behaviour),
+`hold_timeout` (the twin exam arrived by hop or by the release valve —
+the purest hop-teaching signal), `loop_caught`, `near_misses`, and
+`got_bass` / `got_spot` alongside the existing orb pickup flags. There is deliberately no
 analytics SDK: events are plain POSTs to the capture API (sendBeacon
 first, so a death recorded as the tab closes still gets out; keepalive
 fetch as fallback), which means no third-party script to load and no
