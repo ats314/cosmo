@@ -92,14 +92,21 @@ const pev = (id, x, y, type) => ({
 });
 
 try {
+  const st = expr => vm.runInContext(expr, sandbox);
   // menu: run 15s of frames so the demo loop cycles (spawn, reverse, hops)
   for (let i = 0; i < 900; i++) frame(16.7);
   console.log('menu+demo ok');
-  // start the game with a tap
+  // start the game with a tap — a FRESH device passes through the LIFT OFF
+  // card first (the calm pre-teaching screen), one tap, once per device
+  fire('pointerdown', pev(1, 200, 400, 'pointerdown'));
+  fire('pointerup', pev(1, 200, 400, 'pointerup'));
+  if (st('G.state') !== 'lvend') throw new Error('fresh device did not get the level-1 card, state=' + st('G.state'));
+  for (let i = 0; i < 60; i++) frame(16.7);
   fire('pointerdown', pev(1, 200, 400, 'pointerdown'));
   fire('pointerup', pev(1, 200, 400, 'pointerup'));
   for (let i = 0; i < 60; i++) frame(16.7);
-  console.log('game start ok');
+  if (st('G.state') !== 'playing') throw new Error('card tap did not start the run, state=' + st('G.state'));
+  console.log('game start ok (through the first-run card)');
   // taps (reverse) while playing
   for (let k = 0; k < 5; k++) {
     fire('pointerdown', pev(2, 200, 400, 'pointerdown'));
@@ -138,8 +145,6 @@ try {
   doc.hidden = false; fire('doc:visibilitychange', {});
   for (let i = 0; i < 60; i++) frame(16.7);
   console.log('visibility ok');
-  // peek at internal state via the vm
-  const st = expr => vm.runInContext(expr, sandbox);
   // the unattended 4-min block already ended in a death; that death's coach:
   console.log('first death; coach =', JSON.stringify(st('G.coach && G.coach.t')),
     'didHop =', st('G.didHop'));
@@ -164,6 +169,58 @@ try {
   if (st('pd') !== null) throw new Error('pd leaked into new run');
   for (let i = 0; i < 300; i++) frame(16.7);
   console.log('death->skip->retry ok; struggle =', st('G.struggle'), 'rookie first shard at', st('firstShardAt()').toFixed(1) + 's');
+
+  // ---- teaching invariants (the mechanic-explanations pass) ----
+  // the curriculum rule: every tier is introduced by level 2's finish line,
+  // and STORM sits exactly on level 3's floor — level 3 teaches nothing
+  if (!st('TIERS.every(t=>t.at<=190)')) throw new Error('a tier unlocks after level 2');
+  if (st('TIERS[TIERS.length-1].at') !== st('LV[1].end')) throw new Error('STORM is not aligned to level 3\'s floor');
+  // every spawnable formation and every reward orb carries a lesson
+  if (!st("TIERS.every(t=>!t.type||!!MEET[t.type])")) throw new Error('a tier type has no MEET lesson');
+  if (!st("['bass','spot','hyper','lapcost'].every(k=>MEET[k]&&MEET[k].soft)")) throw new Error('a reward lesson lost its no-slow-mo flag');
+  // a landed hop must not cancel a 'see' lesson (only the hop rehearsal)
+  st("G.teach=2;G.teachKind='see';G.teachHint=MEET.single;G.teachType='single';" +
+     "G.nRings=Math.max(2,G.nRings);G.hopP=1;G.ringI=0");
+  fire('win:keydown', { code: 'ArrowDown', preventDefault() {} });
+  if (st('G.teach') <= 0) throw new Error('a landed hop cancelled a see-lesson');
+  st("G.teach=0;G.teachHint=null;G.teachType=null");
+  console.log('lesson survives a hop ok');
+  // a level-2 start is honest: no forged didHop, three rings, tier pre-climbed,
+  // and the layer ladder seeded from the carried score (no false NEW LAYER)
+  st("G.level=2;G.carryScore=2000");
+  st('startGame()');
+  if (st('G.didHop') !== false) throw new Error('level-2 start forged didHop');
+  if (st('G.nRings') !== 3) throw new Error('level-2 must open with three rings');
+  if (st('G.tier') < 3) throw new Error('level-2 tier not pre-climbed');
+  if (st('G.layerN') !== 2) throw new Error('layer ladder not seeded from carried score, layerN=' + st('G.layerN'));
+  console.log('level-2 start ok');
+  // a death to a taught type re-arms its lesson exactly once (seen2 caps it),
+  // and every named killer gets a coach line
+  st("G.seen.gate=1;delete G.seen2.gate;G.lastHit='gate'");
+  st('die()');
+  if (st('G.seen.gate')) throw new Error('death did not re-arm the gate lesson');
+  if (!st('G.seen2.gate')) throw new Error('re-arm did not spend seen2');
+  st("G.state='playing';G.seen.gate=1;G.lastHit='gate'");
+  st('die()');
+  if (!st('G.seen.gate')) throw new Error('re-arm fired twice for the same type');
+  st("G.state='playing';G.didHop=true;G.lastHit='drift'");
+  st('die()');
+  if (!st('G.coach&&G.coach.t')) throw new Error('a drift death coaches nothing');
+  console.log('death re-arm + coach ok');
+  // a level-2 retry passes through the level card (the calm re-read),
+  // then a card tap restarts the same level
+  for (let i = 0; i < 60; i++) frame(16.7);
+  fire('pointerdown', pev(11, 200, 400, 'pointerdown'));
+  fire('pointerup', pev(11, 200, 400, 'pointerup'));   // fast-forward the reveal
+  for (let i = 0; i < 10; i++) frame(16.7);
+  fire('pointerdown', pev(12, 200, 400, 'pointerdown'));
+  fire('pointerup', pev(12, 200, 400, 'pointerup'));   // retry -> the card
+  if (st('G.state') !== 'lvend') throw new Error('level-2 retry skipped the level card, state=' + st('G.state'));
+  for (let i = 0; i < 60; i++) frame(16.7);
+  fire('pointerdown', pev(13, 200, 400, 'pointerdown'));
+  fire('pointerup', pev(13, 200, 400, 'pointerup'));
+  if (st('G.state') !== 'playing' || st('G.level') !== 2) throw new Error('card tap did not restart level 2');
+  console.log('level-2 retry card ok');
 } catch (e) {
   console.error('RUNTIME FAILED:', e.stack.split('\n').slice(0, 6).join('\n'));
   process.exit(1);

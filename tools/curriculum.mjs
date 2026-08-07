@@ -1,0 +1,166 @@
+/* The curriculum rule, executed: every mechanic is introduced and explained
+   by the end of level 2 — by the start of level 3 the player has met every
+   formation, seen every lesson, and had every orb placed. This drives the
+   real game headlessly (same scaffold as smoke.mjs) with an invulnerable,
+   periodically-hopping player, taps through the level cards, and fails the
+   build if level 3 opens with anything left untaught. */
+import { readFile } from 'node:fs/promises';
+import vm from 'node:vm';
+
+const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const src = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i)[1];
+
+const calls = { raf: [] };
+function ctx2d() {
+  const gradient = { addColorStop() {} };
+  return new Proxy({}, {
+    get(t, k) {
+      if (k === 'createRadialGradient' || k === 'createLinearGradient') return () => gradient;
+      if (k === 'measureText') return () => ({ width: 50 });
+      if (k === 'canvas') return {};
+      return (typeof k === 'string') ? (t[k] !== undefined ? t[k] : () => {}) : undefined;
+    },
+    set(t, k, v) { t[k] = v; return true; },
+  });
+}
+const listeners = {};
+function makeCanvasEl() {
+  return {
+    width: 0, height: 0, style: {},
+    getContext: () => ctx2d(),
+    addEventListener: (ev, fn) => { (listeners[ev] = listeners[ev] || []).push(fn); },
+  };
+}
+const canvasEl = makeCanvasEl();
+const safeEl = {};
+const doc = {
+  getElementById: id => id === 'c' ? canvasEl : safeEl,
+  createElement: () => makeCanvasEl(),
+  addEventListener: (ev, fn) => { (listeners['doc:' + ev] = listeners['doc:' + ev] || []).push(fn); },
+  head: { appendChild() {} },
+  hidden: false,
+};
+const store = {};
+const sandbox = {
+  document: doc,
+  window: null,
+  navigator: { userAgent: 'smoke', platform: 'X', maxTouchPoints: 0 },
+  localStorage: {
+    getItem: k => store[k] === undefined ? null : store[k],
+    setItem: (k, v) => { store[k] = String(v); },
+  },
+  performance: { now: () => nowMs },
+  requestAnimationFrame: fn => { calls.raf.push(fn); },
+  matchMedia: () => ({ matches: false }),
+  getComputedStyle: () => ({ paddingTop: '0', paddingBottom: '0' }),
+  location: { origin: 'https://x.test', pathname: '/' },
+  console,
+  Math, JSON, Date, Array, Object, Number, String, Boolean, Float32Array, Infinity, NaN,
+  isNaN, parseInt, parseFloat, setTimeout: () => {}, TAU: undefined,
+};
+sandbox.window = new Proxy(sandbox, {
+  get(t, k) {
+    if (k === 'innerWidth') return 390;
+    if (k === 'innerHeight') return 844;
+    if (k === 'devicePixelRatio') return 2;
+    if (k === 'addEventListener') return (ev, fn) => { (listeners['win:' + ev] = listeners['win:' + ev] || []).push(fn); };
+    if (k === 'AudioContext' || k === 'webkitAudioContext') return undefined; // plain finish lines
+    if (k === 'matchMedia') return sandbox.matchMedia;
+    if (k === 'localStorage') return sandbox.localStorage;
+    if (k === 'navigator') return sandbox.navigator;
+    if (k === 'storage') return undefined;
+    return t[k];
+  },
+});
+let nowMs = 0;
+
+vm.createContext(sandbox);
+vm.runInContext(src, sandbox, { filename: 'index.html' });
+const st = expr => vm.runInContext(expr, sandbox);
+function frame(ms) {
+  nowMs += ms;
+  const fns = calls.raf.splice(0);
+  if (!fns.length) throw new Error('no rAF pending');
+  for (const fn of fns) fn(nowMs);
+}
+function fire(name, ev) { for (const fn of (listeners[name] || [])) fn(ev); }
+const pev = id => ({ pointerId: id, clientX: 200, clientY: 400, type: 'pointerup', preventDefault() {} });
+const tap = id => {
+  fire('pointerdown', { ...pev(id), type: 'pointerdown' });
+  fire('pointerup', pev(id));
+};
+
+const fail = [];
+const banners = [];
+let lastBanner = null, pid = 100, hopFlip = false;
+
+for (let i = 0; i < 300; i++) frame(16.7);       // menu settles
+tap(pid++);                                       // fresh device -> LIFT OFF card
+if (st('G.state') !== 'lvend') fail.push('fresh device skipped the level-1 card');
+for (let i = 0; i < 60; i++) frame(16.7);
+tap(pid++);                                       // card -> level 1
+
+const levelAt = { 1: 0 };
+let guard = 0, placedByEndL2 = null;
+while (st('G.level') < 3 || st('age()') < 30) {
+  if (++guard > 60000) { fail.push('never reached level 3 + 30s in 16 sim minutes'); break; }
+  frame(16.7);
+  if (guard % 30 === 0) st('G.invuln=1e12');      // an immortal playtester
+  if (guard % 300 === 0 && st("G.state==='playing'") && st('G.nRings') > 1) {
+    hopFlip = !hopFlip;                           // a player who uses both verbs
+    fire('win:keydown', { code: hopFlip ? 'ArrowDown' : 'ArrowUp', preventDefault() {} });
+  }
+  const b = st('G.banner&&G.banner.str');
+  if (b && b !== lastBanner) banners.push([st('G.level'), b]);
+  lastBanner = b || lastBanner;
+  if (st("G.state==='lvend'")) {
+    for (let i = 0; i < 60; i++) frame(16.7);
+    const lv = st('G.lvCard&&G.lvCard.next');
+    /* the placed flags reset each startGame, so level 2's record is read
+       at its completion card, before level 3 wipes them */
+    if (lv === 3 && st('G.lvCard.done') && !placedByEndL2) {
+      placedByEndL2 = {
+        hyper: st('G.hyperPlaced'), bass: st('G.bassPlaced'), spot: st('G.spotPlaced'),
+      };
+    }
+    tap(pid++);
+    if (lv && !(lv in levelAt)) levelAt[lv] = guard;
+  }
+  if (st("G.state==='dead'")) { fail.push('the invulnerable player died'); break; }
+}
+
+/* the acceptance criterion: level 3 opens with nothing left to teach —
+   every formation AND every musical orb has had its lesson */
+const TAUGHT = ['single', 'twin', 'gate', 'drift', 'blink', 'driftgate', 'blinktwin',
+  'bass', 'spot', 'hyper'];
+const seenAt3 = st('Object.keys(G.seen).join(",")');
+for (const f of TAUGHT) {
+  if (!st(`G.seen['${f}']||G.seen2['${f}']`)) fail.push(`level 3 started without the ${f} lesson (seen: ${seenAt3})`);
+}
+if (!placedByEndL2) fail.push('level 2 completion card never observed');
+else for (const [flag, name] of [['hyper', 'hypernova'], ['bass', 'bass bomb'], ['spot', 'spotlight']]) {
+  if (!placedByEndL2[flag]) fail.push(`level 2 ended without the ${name} ever placed`);
+}
+if (st('G.tier') !== 9) fail.push('level 3 did not open on the STORM tier, tier=' + st('G.tier'));
+if (st('G.level') !== 3) fail.push('run is not on level 3, level=' + st('G.level'));
+
+/* banners arrive in ladder order, none of them during level 3 */
+const order = banners.filter(([, b]) => b !== 'THE FINALE').map(([, b]) => b);
+const ladder = ['SECOND RING', 'TWIN SHARDS', 'THIRD RING', 'GATES', 'DRIFTERS',
+  'BLINKERS', 'SLIDING GATES', 'FLICKER PAIRS'];
+const posOf = n => order.indexOf(n);
+for (let i = 1; i < ladder.length; i++) {
+  if (posOf(ladder[i]) >= 0 && posOf(ladder[i - 1]) >= 0 && posOf(ladder[i]) < posOf(ladder[i - 1])) {
+    fail.push(`banner order broken: ${ladder[i]} before ${ladder[i - 1]}`);
+  }
+}
+for (const [lv, b] of banners) {
+  if (lv >= 3 && ladder.includes(b)) fail.push(`tier banner "${b}" fired inside level 3 — the exam introduced something`);
+}
+
+if (fail.length) {
+  for (const f of fail) console.error('FAIL ', f);
+  process.exit(1);
+}
+console.log('OK  the curriculum holds: every formation lessoned and every orb placed by level 3');
+console.log('    banners:', banners.map(([lv, b]) => `L${lv}:${b}`).join(' · '));
