@@ -527,6 +527,15 @@ record itself. An inner-ring drop states the hook doubled at the octave with
 the full swing; an outer-ring drop plays it lean. Earn it anywhere; crown it
 inside.
 
+**The drop's meter is invisible now.** The owner's final call on the
+gauge: "get rid of the purple build-up timer — just have the beat drop
+incorporated into ideal moments for musical impact." The build economy
+still runs untouched underneath (playing well still brings the drop
+sooner, and it still latches on a bar line), but the violet arc, its
+white armed state, the payoff drain sweep and the BUILD strip are all
+deleted. The drop announces itself the musical way only: the shaker
+leaning in, BEAT DROP COMING…, the rise, and the countdown.
+
 **The drop is a timer the player accelerates.** The earning economy kept
 demanding to be understood, so it stopped being the story: a steady trickle
 guarantees a drop roughly every 50 seconds even for someone earning nothing,

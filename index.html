@@ -4695,35 +4695,14 @@ function draw(){
     ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
     ctx.globalAlpha=1;
   }
-  /* How much of your section is left. One slow monotonic sweep — no flashing,
-     no motion beyond the arc itself, so it is drawn for everyone including
-     reduced motion, where it is the structural readout. */
-  if(G.pay>0){
-    ctx.save();ctx.globalAlpha=0.30;ctx.strokeStyle=COL.warp;ctx.lineWidth=3.5;
-    ctx.beginPath();
-    /* radiusOf(nRings-1) is the INNERMOST ring — this was drawing the section
-       readout inside the arena instead of framing it. Ring 0 is the outer. */
-    ctx.arc(cx,cy,radiusOf(0)+13*u,-Math.PI/2,-Math.PI/2+TAU*G.pay);
-    ctx.stroke();ctx.restore();
-  }
-  /* THE BUILD IS THE SAME CIRCLE THE PAYOFF EMPTIES. Earn and spend now share
-     one gauge at one radius: the arc fills as you play, blinks as each
-     contribution lands, pulses white while a drop is pending, and the sweep
-     above drains it. Never co-draws with the sweep — build only fills
-     outside sections. Kept subordinate to the lap arc (0.55 at +6u). */
-  else if(G.state==='playing'&&MU&&(G.build>0.01||MU.armed||MU.rise||MU.pend)){
-    const pending=MU.armed||MU.rise||MU.pend;
-    ctx.save();
-    ctx.strokeStyle=pending?'#eaf1ff':COL.warp;
-    ctx.lineWidth=3+(RM?0:2.5*G.buildFx);
-    /* one smooth arc filling toward the next drop — a timer, not a ledger */
-    ctx.globalAlpha=pending?(RM?0.40:0.28+0.18*(0.5+0.5*Math.sin(G.t*4)))
-                           :Math.min(0.42,0.10+0.26*G.build+0.25*G.buildFx);
-    ctx.beginPath();
-    ctx.arc(cx,cy,radiusOf(0)+13*u,-Math.PI/2,-Math.PI/2+TAU*(pending?1:Math.min(1,G.build)));
-    ctx.stroke();
-    ctx.restore();
-  }
+  /* THE METER IS INVISIBLE NOW (owner: "get rid of the purple build-up
+     timer — just have the beat drop incorporated into ideal moments for
+     musical impact"). The build economy still runs underneath — playing
+     well still brings the drop sooner, and it still latches on a bar
+     line — but the fuel-gauge presentation (the violet arc, its white
+     armed state, and the payoff drain sweep at the same radius) is gone.
+     The drop announces itself the musical way: the shaker leaning in,
+     BEAT DROP COMING…, the rise, and the countdown. */
   /* THE ARENA CORE LAMP — the light source the whole scene answers to. It
      breathes on the landed beat and flares when the drop hits; clamped so
      its glow never reaches the innermost lane even at the small-R floor. */
@@ -5295,7 +5274,7 @@ function hintText(){
   if(G.bestGroove<2&&a>28&&G.groove<2)return {t:'tap in time with the beat',g:'beat'};
   /* Named at the ARC, where the answer actually is, and earlier — waiting
      until 34s meant most players never saw why a drop happened. */
-  if(!G.sawDrop&&G.build>0.15)return {t:'beat drop charging \u2014 play well to bring it sooner',g:'build'};
+  if(!G.sawDrop&&G.build>0.15)return {t:'play well \u2014 you\u2019re building toward a beat drop',g:'beat'};
   return null;
 }
 
@@ -5423,28 +5402,6 @@ function drawHUD(){
          thing they need to know is that it is on its way. */
       text('BEAT DROP COMING…',cx,roomy?top+198*u:cy-8*u,15*u,'800',
         'rgba(220,200,255,0.95)',4);
-      ctx.globalAlpha=1;
-    }
-    /* THE BUILD STRIP is the label carrier now — the always-visible gauge is
-       the arc around the arena, at the exact radius the payoff sweep drains
-       (see draw). The strip only appears where there is room for it; on a
-       short viewport the arc carries the whole story and this band of screen
-       goes back to the arena. */
-    if(MU&&G.pay<=0&&roomy){
-      const armed=MU.armed||MU.rise||MU.pend;
-      const w=104*u,x0=cx-w/2,y=top+(roomy?222:180)*u,hgt=3*u;
-      const prog=armed?(MU.rise?Math.min(1,((MU.step+STEPS-16)%STEPS)/16)
-                               :0.5+0.5*Math.sin(G.t*4))
-                     :Math.min(1,G.build);
-      ctx.globalAlpha=0.26;ctx.fillStyle='rgba(180,150,255,0.6)';
-      ctx.fillRect(x0,y,w,hgt);
-      ctx.globalAlpha=armed?0.95:0.35+0.5*G.build;
-      ctx.fillStyle=armed?'#eaf1ff':COL.warp;
-      ctx.fillRect(x0,y,w*prog,hgt);
-      if(!armed&&G.build>0.04&&roomy){
-        ctx.globalAlpha=0.4+0.35*G.build;
-        text('BUILD',cx,y-6*u,8.5*u,'700','rgba(190,160,255,0.9)',3);
-      }
       ctx.globalAlpha=1;
     }
     /* which half of the section you are in, over the arena rather than the HUD
