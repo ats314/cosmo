@@ -372,47 +372,21 @@ ancient browser), the duet is skipped and the level completes at its
 plain finish line the way it always used to — nothing about progression
 ever requires a speaker.
 
-**The finale: the star dive.** Three executions taught the shape of the
-answer. The duet demanded new literacy (sight-reading a sequencer); the
-countdown demanded none ("you just tell the player when to tap with
-words? This isn't good game design"); the right ending is THE GAME,
-concentrated, played as a reward — the owner's framing: "almost like a
-beautiful new melody heard before the next track." At the finish line
-the stage clears and the level's closing melody appears PHYSICALLY: a
-trail of twelve bright stars spiralling from the outer ring to the inner
-one, threaded by a golden path, with a guide line running from the comet
-to the next star and the CORE visibly waking — warming and swelling — as
-the melody is gathered. Players chase stars on instinct, so nothing is
-explained: orbit, reverse, hop inward, and collecting the trail performs
-a cadence descending to the root, +30 a note, a voice added every fourth
-star, the whole sky gilding. The final star, nearest the core, lands the
-full chord and the braam — every level ends by diving into the music.
-Sweep all twelve for PERFECT ENDING +200; miss some and the ending plays
-thinner; a generous 45-second timeout — the dive's own clock, and the
-ONLY clock: a leftover difficulty-time backstop from the previous design
-was guillotining the dive seconds in when a drop section happened to be
-running at the threshold, which was the owner's "it ended before I got 2
-stars" — completes the level regardless. The ending itself lands when the
-melody is HOME: all twelve gathered, or the core star reached with at
-least nine in hand; grabbing the core early just plays its root note and
-the dive continues. Both verbs, zero words.
-**Off by default.** `POSTHOG_KEY` is empty in this repo, so a clone sends
-nothing anywhere and every `track()` call short-circuits before it does
-anything. Paste a PostHog project key into that constant to switch it on; a
-disclosure line appears on the menu automatically when you do.
-
-It is configured for gameplay counters and nothing else: `autocapture` off,
-session recording off, `localStorage` persistence rather than cookies. The
-loader is fully wrapped and fails silent, so a blocked request or a dead
-network cannot take the game down with it.
-
-One event per run, `run_ended`, carrying score, duration, orbits, best streak,
-embers, level and tier reached, what killed you, shields that saved the run,
-how many power-ups were placed and whether slow-mo and nova were actually
-seen, whether the player ever hopped or closed a lap, and `run_index` — the
-lifetime run count, which is the one that actually measures retention. Plus
-`share_tapped`.
-
+**The finale: the star dive.** The level's closing melody appears
+physically — eleven bright stars in a tight spiral, four outer, four mid,
+three inner, threaded by a golden path with a guide line from the comet —
+and gathering it is a RUSH, not a stroll (the fun pass, after the owner's
+"just not that fun"): every star collected speeds the comet ~6% and opens
+the music's filter, the kit fills in as the melody comes home, and quick
+consecutive pickups CHAIN for double. Each star plays the next note of a
+cadence descending to the root; the core visibly wakes and the sky gilds.
+The ending is always the player's own act: a dim sun-seed waits on the
+inner ring and only BLOOMS — riser, gold ripple, white-gold and
+unmistakable — once the melody is nearly home (or late enough that it
+must). Dive into the bloomed sun to land the full chord and the braam:
+all eleven gathered pays PERFECT ENDING +200, otherwise LEVEL COMPLETE
++100, and a 50-second timeout completes the level regardless. Both verbs,
+zero words, and nothing ends until you choose it.
 **`did_hop` is the one to watch first.** The hop is the unfamiliar half of the
 control scheme, and a run ending with it false is a run where the player never
 used half the game. Read against `misread_rate`: false with unresolved swipes

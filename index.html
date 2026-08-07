@@ -1883,7 +1883,7 @@ const LOOP={pat:null,n:0,until:0,heard:false};
    regardless; sweep every one for PERFECT ENDING. Both verbs, zero
    words. */
 const FIN={on:false,pend:false,done:false,step:0,score:0,got:0,
-  voices:0,t0:0,trail:[]};
+  voices:0,t0:0,trail:[],sun:null,bloomed:false,lastAt:-9};
 function finStep(t){
   const fs=FIN.step++;
   const beat=fs%8;
@@ -1894,6 +1894,10 @@ function finStep(t){
   if(beat%2===1)hat(t,0.009,4000,0.038,0,0.35,6800);
   if(FIN.voices>=1&&beat===0)swellPad(chTone(2),t,2.0,0.024,0);
   if(FIN.voices>=2&&beat%2===0)note(chTone(4),t,0.12,'square',0.010,1800,0.2);
+  /* the kit fills in as the melody comes home — the rush is audible */
+  if(FIN.got>=4&&beat%2===0)hat(t+S16,0.007,5200,0.035,0,0,7200);
+  if(FIN.got>=6&&(beat===2||beat===6))kick(t,0.032);
+  if(FIN.got>=9)hat(t,0.006,4600,0.03,0,0.3,7000);
 }
 /* NEAREST sixteenth, not the next one. Snapping forward alone costs up to a
    full slot — 144ms at this tempo, past the point where a sound stops feeling
@@ -2192,7 +2196,8 @@ function bedTick(dt){
   /* the pad opens as you go inward too, so the whole mix brightens with depth */
   let cut=520+1500*k*k+900*PLAY.heat+420*gv+(playing?RINGS[ringOf()].lift:0)
     +((MU&&MU.armed&&!MU.rise)?260:0)    /* the armed wait audibly opens */
-    +(G.od>0?420:0)+((MU&&t<MU.glow)?280:0); /* overdrive and afterglow run bright */
+    +(G.od>0?420:0)+((MU&&t<MU.glow)?280:0)      /* overdrive and afterglow run bright */
+    +(FIN.on?90*FIN.got:0);                      /* the dive opens with every star */
   if(MU&&MU.pay>0)cut=Math.min(cut,((PAY-MU.pay)>>3)<(MU.lateAt||4)?380:700);
   /* the slow breath: textures in the reference genres move over MINUTES —
      one gentle sine on the cutoff, ~2.3 minute period, nothing else */
@@ -3728,18 +3733,22 @@ function update(dt){
     }else if(!FIN.on&&!FIN.done&&dl()>=lvEnd-10&&(MU.pay<=0&&!MU.rise)){
       FIN.on=true;FIN.pend=true;
       FIN.score=0;FIN.got=0;FIN.voices=0;FIN.t0=G.t;
-      /* THE TRAIL: twelve stars, five on the outer ring, four on the mid,
-         three on the inner — a spiral in the player's direction of travel,
-         each carrying the next note of a cadence that walks down to the
-         root. The shape asks for both verbs; the last star sits nearest
-         the core, so every level ends by diving into the music. */
+      FIN.bloomed=false;FIN.lastAt=-9;
+      /* THE TRAIL: eleven stars in a tight spiral — four outer, four mid,
+         three inner — each the next note of a cadence walking to the root.
+         The FINISH is separate and unmistakable: a sun-seed waits on the
+         inner ring and only BLOOMS once the melody is nearly gathered, so
+         the ending is always the player's own dive, never an accident
+         (the owner ended a level 'without even collecting all the orbs'
+         when a plain trail star doubled as the exit). */
       FIN.trail.length=0;
-      const CAD=[4,3,2,4,3,2,1,3,2,1,0,0];
+      const CAD=[4,3,2,4,3,2,1,3,2,1,0];
       const dir0=G.dir,a0=G.angle+dir0*0.9;
-      for(let k2=0;k2<12;k2++){
-        const ringT=Math.min(k2<5?0:k2<9?1:2,G.nRings-1);
-        FIN.trail.push({a:a0+dir0*k2*0.62,ring:ringT,got:false,ci:CAD[k2]});
+      for(let k2=0;k2<11;k2++){
+        const ringT=Math.min(k2<4?0:k2<8?1:2,G.nRings-1);
+        FIN.trail.push({a:a0+dir0*k2*0.55,ring:ringT,got:false,ci:CAD[k2]});
       }
+      FIN.sun={a:a0+dir0*11*0.55,ring:Math.min(2,G.nRings-1),got:false};
       if(MU&&AC)MU.cool=Math.max(MU.cool,AC.currentTime+40);
       /* THE STAGE CLEARS AND THE CEREMONY IS UNMISSABLE (playtest: "I
          didn't get the level ending mechanic at all"). A full banner with
@@ -3754,9 +3763,13 @@ function update(dt){
     }
 
   }
-  /* THE DIVE'S COLLECTOR: sweeping a trail star plays its cadence note on
-     the grid; the final star lands the chord; a timeout never traps the
-     level. Same swept-arc test the ordinary stars use. */
+  /* THE DIVE'S COLLECTOR (fun pass — the owner's verdict on the stroll:
+     'just not that fun'). Every star now FEEDS MOMENTUM: the comet speeds
+     up ~6% per star and the music brightens with it, so gathering the
+     melody is an accelerating rush that peaks exactly at the dive's end.
+     Quick consecutive pickups CHAIN for double. And the ending is a
+     deliberate act: the finish sun only blooms once the melody is nearly
+     home, and only diving into IT completes the level. */
   if(FIN.on&&FIN.trail.length){
     const er2=effRing();
     for(const st2 of FIN.trail){
@@ -3766,47 +3779,57 @@ function update(dt){
       const p2=posAt(st2.a,radiusOf(st2.ring));
       burst(p2[0],p2[1],COL.ember,16,200);
       ripple(p2[0],p2[1],COL.ember);
-      G.score+=30;FIN.score+=30;G.scorePop=Math.max(G.scorePop,0.6);
+      const chain=G.t-FIN.lastAt<1.3;FIN.lastAt=G.t;
+      const pts=chain?60:30;
+      G.score+=pts;FIN.score+=pts;G.scorePop=Math.max(G.scorePop,0.6);
+      popup(p2[0],p2[1]-20*u,chain?'+60 CHAIN':'+30',COL.ember,chain?1.1:0.85);
       if(FIN.got%4===0)FIN.voices=Math.min(2,FIN.voices+1);
-      const ci2=st2.ci;
-      popup(p2[0],p2[1]-20*u,'+30',COL.ember,0.85);
-      const cpan2=panAt(p2[0]);
+      const ci2=st2.ci,cpan2=panAt(p2[0]);
       cueTone(function(w){
         const tt3=AC.currentTime+w;
         note(chTone(ci2),tt3,0.22,'triangle',0.034,1800,cpan2,undefined,0.4);
         note(chTone(ci2+2),tt3,0.20,'sine',0.016,1600,-cpan2);
       });
       try{if(navigator.vibrate)navigator.vibrate(8);}catch(e){}
-      /* THE ENDING LANDS when the melody is HOME: all twelve gathered, or
-         the core star reached with most of the tune in hand. Grabbing the
-         final star early just plays its root note and the dive continues —
-         the reward is never cut short by a shortcut (the bug the owner
-         hit: 'it ended before I got like 2 golden stars'). */
-      const coreStar=FIN.trail[FIN.trail.length-1];
-      const all=FIN.got>=FIN.trail.length;
-      if(all||(coreStar.got&&FIN.got>=9)){
-        cueTone(function(w){
-          const tf=AC.currentTime+w;
-          kick(tf,0.09);
-          note(chTone(0)/2,tf,0.8,'sine',0.060,300);
-          note(chTone(2),tf,0.6,'triangle',0.040,1600,-0.15);
-          note(chTone(3),tf,0.6,'triangle',0.035,1700,0.15);
-          note(chTone(4),tf,0.6,'square',0.022,2200,0);
-          hat(tf,0.050,2400,0.5,0.5);
-        });
-        braam(0.06);
-        if(all){
-          G.score+=200;FIN.score+=200;
-          popup(p2[0],p2[1]-32*u,'PERFECT ENDING +200',COL.ember,1.5);
-          flashHit(0.55);
-        }
-        try{if(navigator.vibrate)navigator.vibrate([40,30,90]);}catch(e){}
-        FIN.on=false;FIN.done=true;G.finEnd=1;
-      }
     }
-    /* the dive's own clock is the only clock — 45 unhurried seconds, then
+    /* THE SUN BLOOMS once the melody is nearly gathered (or late enough
+       that it must) — a riser and a gold ripple announce the exit */
+    if(!FIN.bloomed&&(FIN.got>=8||G.t-FIN.t0>30)){
+      FIN.bloomed=true;
+      if(AC)riser(AC.currentTime+0.02,1.4,0.020,1200);
+      ripple(cx,cy,COL.ember);
+    }
+    if(FIN.bloomed&&FIN.sun&&!FIN.sun.got&&FIN.sun.ring===er2&&
+       sweptHit(FIN.sun.a,(26*u)/radiusOf(er2))){
+      FIN.sun.got=true;
+      const p2=posAt(FIN.sun.a,radiusOf(FIN.sun.ring));
+      const all=FIN.got>=FIN.trail.length;
+      cueTone(function(w){
+        const tf=AC.currentTime+w;
+        kick(tf,0.09);
+        note(chTone(0)/2,tf,0.8,'sine',0.060,300);
+        note(chTone(2),tf,0.6,'triangle',0.040,1600,-0.15);
+        note(chTone(3),tf,0.6,'triangle',0.035,1700,0.15);
+        note(chTone(4),tf,0.6,'square',0.022,2200,0);
+        hat(tf,0.050,2400,0.5,0.5);
+      });
+      braam(0.06);
+      burst(p2[0],p2[1],'#ffffff',26,320);
+      if(all){
+        G.score+=200;FIN.score+=200;
+        popup(p2[0],p2[1]-32*u,'PERFECT ENDING +200',COL.ember,1.5);
+        flashHit(0.55);
+      }else{
+        G.score+=100;FIN.score+=100;
+        popup(p2[0],p2[1]-32*u,'LEVEL COMPLETE +100',COL.ember,1.3);
+        flashHit(0.4);
+      }
+      try{if(navigator.vibrate)navigator.vibrate([40,30,90]);}catch(e){}
+      FIN.on=false;FIN.done=true;G.finEnd=1;
+    }
+    /* the dive's own clock is the only clock — 50 unhurried seconds, then
        the level completes with whatever ending was gathered */
-    if(G.t-FIN.t0>45){FIN.on=false;FIN.done=true;G.finEnd=1;}
+    if(G.t-FIN.t0>50){FIN.on=false;FIN.done=true;G.finEnd=1;}
   }
   if(G.finEnd){
     G.finEnd=0;
@@ -3866,7 +3889,7 @@ function update(dt){
      branch of the tier ratchet. */
   const sdt=dt*G.tsCur*(G.stop>0?0.10:1)*((G.teach>0&&!G.teachSoft)?0.35:1);
   /* a slow floor ramp so the game can never be stalled by refusing to score */
-  G.speed=speedAt();
+  G.speed=speedAt()*(FIN.on?1+0.06*FIN.got:1);   /* the dive is a rush */
   /* Announce each new mechanic so it registers as something to learn. One
      crossing at a time, spaced by the banner: when the verb gate releases,
      the held tiers arrive as a readable sequence instead of a pile-up that
@@ -5485,10 +5508,31 @@ function drawHUD(){
       }
       /* the core answers */
       ctx.save();ctx.globalCompositeOperation='lighter';
-      ctx.globalAlpha=0.10+0.25*(FIN.got/12)+(RM?0:0.08*G.beat);
+      ctx.globalAlpha=0.10+0.25*(FIN.got/11)+(RM?0:0.08*G.beat);
       ctx.fillStyle=COL.ember;
-      ctx.beginPath();ctx.arc(cx,cy,(6+9*(FIN.got/12))*u,0,TAU);ctx.fill();
+      ctx.beginPath();ctx.arc(cx,cy,(6+9*(FIN.got/11))*u,0,TAU);ctx.fill();
       ctx.restore();ctx.globalAlpha=1;
+      /* THE FINISH SUN: a dim seed until the melody is nearly home, then a
+         blooming white-gold sun you cannot mistake for a trail star — the
+         level ends only when you choose to dive into it */
+      if(FIN.sun&&!FIN.sun.got){
+        const ps=posAt(FIN.sun.a,radiusOf(FIN.sun.ring));
+        if(!FIN.bloomed){
+          ctx.save();ctx.globalAlpha=0.35;ctx.fillStyle='#cfe0ff';
+          ctx.beginPath();ctx.arc(ps[0],ps[1],2.6*u,0,TAU);ctx.fill();
+          ctx.restore();ctx.globalAlpha=1;
+        }else{
+          const sp3=1.9+(RM?0.1:0.35*G.beat);
+          blit(SPR.ember,ps[0],ps[1],sp3,G.t*0.8,1);
+          ctx.save();ctx.globalCompositeOperation='lighter';
+          ctx.globalAlpha=0.75;ctx.fillStyle='#ffffff';
+          ctx.beginPath();ctx.arc(ps[0],ps[1],4.2*u,0,TAU);ctx.fill();
+          ctx.strokeStyle=COL.ember;ctx.lineWidth=2*u;
+          ctx.globalAlpha=0.5+(RM?0:0.3*G.beat);
+          ctx.beginPath();ctx.arc(ps[0],ps[1],(13+(RM?0:3*G.beat))*u,0,TAU);ctx.stroke();
+          ctx.restore();ctx.globalAlpha=1;
+        }
+      }
     }
     /* THE COUNTDOWN. Three beats out the centre counts 3… 2… 1…, then NOW!
        through the landing window. A countdown is the one timing device that
