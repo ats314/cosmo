@@ -352,6 +352,17 @@ spark, a breath of heat and a tick of build — passing shards on other rings
 in ordinary travel earns nothing, because a graze has to be a dodge or the
 spark means nothing. The spark is white-blue: red stays death's alone.
 
+**Audio is optional, everywhere.** The menu says it plainly: best with
+sound on — never required. Muted play keeps every mechanic whole: the beat
+rides the pulsing ring, the drop counts down in numerals, the break dims
+the room, and the finale reads entirely by eye — every call note RIPPLES
+its mark as the band plays it, and in the answer half each mark SWELLS as
+the sweep bears down on it, so the tap moment is visible before it is
+audible. And if WebAudio itself never comes up (a blocked context, an
+ancient browser), the duet is skipped and the level completes at its
+plain finish line the way it always used to — nothing about progression
+ever requires a speaker.
+
 **The finale.** Levels 1 and 2 end in a DUET, not a line on a clock.
 Playtest round two made it unmissable: latching now clears the whole stage
 (threats fade, pickups leave, spawns hold), posts a full THE FINALE banner
