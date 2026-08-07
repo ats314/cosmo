@@ -1667,8 +1667,9 @@ function musicStep(i,t,k){
   if(t<MU.glow){
     const sd=SOLOL[G.level-1][i%32];
     if(sd>=0){
-      note(PENT[sd],t,0.20,'sawtooth',0.026,2800,(i%16<8)?-0.25:0.25,undefined,0.6);
-      if(AC)beep(PENT[sd]*0.96,0.05,'sawtooth',0.010,PENT[sd],Math.max(0,t-AC.currentTime),0,0.2);
+      const sdc=Math.min(8,sd);           /* the solo sings, it does not shriek */
+      note(PENT[sdc],t,0.20,'sawtooth',0.026,2600,(i%16<8)?-0.25:0.25,undefined,0.6);
+      if(AC)beep(PENT[sdc]*0.96,0.05,'sawtooth',0.010,PENT[sdc],Math.max(0,t-AC.currentTime),0,0.2);
     }
   }
   /* THE MACHINE OWNS THE BEAT; THE PLAYER OWNS THE OFFBEAT. The arp is pinned
@@ -1730,7 +1731,7 @@ function musicStep(i,t,k){
   /* the two-bar line: fold the last window of taps into the active loop */
   if(i%16===0&&G.groove>=1){
     const win={};let nw=0;
-    for(const e of PLAY.tape)if(t-e.at<8*SPB+0.25){win[e.c]=e.d;nw++;}
+    for(const e of PLAY.tape)if(t-e.at<8*SPB+0.25){win[e.c]=e.ci;nw++;}
     if(nw>=3&&nw<=10){
       LOOP.pat=win;LOOP.n=nw;LOOP.until=t+16*SPB;   /* eight bars of life */
       if(!LOOP.heard){LOOP.heard=true;say('YOUR BEAT IS IN THE SONG',2,10);}
@@ -1744,9 +1745,12 @@ function musicStep(i,t,k){
     for(let o=0;o<2;o++){
       const dd=LOOP.pat[p0+o];
       if(dd!==undefined){
+        /* the ghost resolves against the chord sounding NOW, so a recorded
+           loop transposes itself through the progression — real harmony,
+           the way a chord-following arpeggiator would play it */
         const tt2=t+o*S16;
-        note(PENT[dd],tt2,0.15,'triangle',0.014,1600,0.15,undefined,0.4);
-        note(PENT[Math.min(13,dd+2)],tt2,0.15,'sine',0.009,1400,-0.15);
+        note(chTone(dd+2),tt2,0.15,'triangle',0.014,1600,0.15,undefined,0.4);
+        note(chTone(dd+3),tt2,0.15,'sine',0.009,1400,-0.15);
       }
     }
   }
@@ -1839,6 +1843,19 @@ function musicStep(i,t,k){
    uniformly. HOPOUT descends because outward means a LOWER ring index and a
    lower register — the old tables played the rising figure while moving down. */
 const REVSEQ=[0,2,4,5,4,2,3,1],HOPIN=[2,3,5,4],HOPOUT=[3,2,0,1];
+/* THE CHORD IS THE INSTRUMENT (playtest: "I don't feel the game being
+   harmonious with my movements... general music theory is off"). The old
+   figures walked the pentatonic SCALE, which is in key but indifferent to
+   the bar's chord — melodically safe, harmonically nowhere. chTone(ix)
+   resolves an index against the chord SOUNDING RIGHT NOW: 0-3 walk the
+   voicing (root, octave, third, fifth), each block of four an octave up.
+   Everything the player triggers speaks through this, so a tap is a chord
+   tone of THIS bar by construction — harmony is no longer luck. */
+function chTone(ix){
+  const ch=CH[MU?(((MU.step/8)|0)%4):0];
+  const i2=Math.max(0,ix|0);
+  return ch[i2%4]*(1<<((i2/4)|0));
+}
 let PLAY={heat:0,idx:0,last:-9,slot:-1,bias:0,tape:[]};
 /* THE LOOP RECORDER (the owner's idea, near-verbatim: "I ad lib beats —
    what if my ad-libbed beats could be remembered and recorded into the
@@ -1861,10 +1878,14 @@ const LOOP={pat:null,n:0,until:0,heard:false};
    voice each round. Misses cost nothing and the level completes
    regardless — the finale decides the size of the send-off, never whether
    you advance. */
+/* Phrase entries are CHORD-TONE indices (see chTone), resolved against
+   whichever chord is sounding when the note plays — the call can never
+   clash with its own accompaniment, which the old pentatonic phrases
+   could. */
 const FINP=[
- [4,-1,6,-1,8,-1,6,4, -1,-1,6,-1,4,-1,-1,-1],
- [5,-1,-1,7,-1,5,-1,8, -1,7,-1,-1,5,-1,7,-1],
- [8,8,-1,6,-1,8,-1,9, -1,-1,8,6,-1,4,-1,-1]];
+ [4,-1,5,-1,6,-1,5,4, -1,-1,5,-1,4,-1,-1,-1],
+ [4,-1,-1,6,-1,4,-1,7, -1,6,-1,-1,4,-1,6,-1],
+ [6,6,-1,5,-1,6,-1,7, -1,-1,6,5,-1,4,-1,-1]];
 const FINN=FINP.map(function(a){let n=0;for(const v of a)if(v>=0)n++;return n;});
 const FIN={on:false,pend:false,done:false,step:0,score:0,hits:0,rHits:0,
   voices:0,t0:0,mode:'intro',expect:[],vis:new Array(16).fill(0)};
@@ -1886,17 +1907,23 @@ function finStep(t){
   const d=ph[slot];
   if(d>=0){
     if(call){
-      lead(PENT[d],t,0.24,0.045,3600,(slot%4<2)?-0.2:0.2);
-      if(FIN.voices>=1)note(PENT[Math.min(13,d+5)],t,0.20,'square',0.016,2800,0.2);
-      if(FIN.voices>=2)note(PENT[d]*0.5,t,0.24,'sawtooth',0.016,900,-0.2,undefined,0.4);
+      lead(chTone(d),t,0.24,0.045,3600,(slot%4<2)?-0.2:0.2);
+      if(FIN.voices>=1)note(chTone(d+2),t,0.20,'square',0.016,2800,0.2);
+      if(FIN.voices>=2)note(chTone(Math.max(0,d-4)),t,0.24,'sawtooth',0.016,900,-0.2,undefined,0.4);
       FINVQ.push({at:t,slot:slot,k:1.6});
     }else{
       FIN.expect.push({t:t,slot:slot,judged:false});
       FINVQ.push({at:t,slot:slot,k:1});
     }
   }
-  if(fs2%32===31&&FIN.rHits>=Math.ceil(FINN[G.level-1]*0.6))
+  if(fs2%32===31&&FIN.rHits>=Math.ceil(FINN[G.level-1]*0.6)){
     FIN.voices=Math.min(2,FIN.voices+1);
+    /* a nailed round is answered with the bar's whole chord — the duet
+       agreeing with you out loud */
+    note(chTone(2),t,0.5,'triangle',0.030,1400,-0.15);
+    note(chTone(3),t,0.5,'triangle',0.026,1500,0.15);
+    note(chTone(4),t,0.5,'square',0.018,1800,0);
+  }
   if(fs2>=95){FIN.on=false;FIN.done=true;G.finEnd=1;}
 }
 /* NEAREST sixteenth, not the next one. Snapping forward alone costs up to a
@@ -2044,22 +2071,16 @@ function performerHit(kind,dir,ring){
   G.lastTapAt=now;
   if(now-PLAY.last>2.4)PLAY.idx=0;           /* a pause starts a new phrase */
   PLAY.last=now;
-  /* RING TRANSPOSES THE WHOLE FIGURE. Not a code to be decoded — a
-     transposition, heard as "my line went up when I hopped inward". Ring 0
-     bases at PENT[4], ring 1 at [6], ring 2 at [8], so going deeper (which is
-     also the tightest and most dangerous track) literally raises your part.
-     The ring is passed in because hop() sets G.ringI before calling us while
-     effRing() still reports the ring being left. */
+  /* THE RING RAISES THE OCTAVE, THE PHRASE WALKS THE CHORD. Taps cycle
+     through the sounding chord's voicing, hops arpeggiate it upward or
+     downward — every input is a chord tone of THIS bar (see chTone), so a
+     run of inputs is an arpeggio of the actual harmony underneath it. */
   const rg=Math.min(2,ring===undefined?effRing():ring);
-  let d;
-  if(kind==='hop')d=(dir<0?HOPOUT:HOPIN)[PLAY.idx%4]+4+2*rg;
-  else d=REVSEQ[PLAY.idx%REVSEQ.length]+4+2*rg;
-  /* CHORD-AWARE: the figure leans with the bar's harmony (Am steady, F down,
-     C up, G home), so a run of taps follows the song instead of circling a
-     static position — the instrument finally listens to the record. */
-  d=Math.max(0,d+[0,-1,1,0][((MU.step/8)|0)%4]);
+  let ci;
+  if(kind==='hop')ci=(dir<0?[2,1,0,1]:[1,2,3,2])[PLAY.idx%4]+rg;
+  else ci=[0,2,1,3,2,0,3,1][PLAY.idx%8]+rg;
   PLAY.idx++;
-  PLAY.tape.push({c:((MU.step*2-Math.round((MU.next-slot)/S16))%32+32)%32,d:d,at:now});
+  PLAY.tape.push({c:((MU.step*2-Math.round((MU.next-slot)/S16))%32+32)%32,ci:ci,at:now});
   if(PLAY.tape.length>14)PLAY.tape.shift();
   const p=posPlayer();
   const gr=judgeTiming(p[0],p[1]);
@@ -2087,40 +2108,40 @@ function performerHit(kind,dir,ring){
        bar 2 arrives they become the same lead, louder, with an echo. That
        change IS the tutorial, and it also means you can never mask the hook. */
     const gl=g*1.7,pn=kind==='hop'?(dir<0?-0.28:0.28):0,hp=pn===0?0.26:-pn;
-    lead(PENT[Math.min(13,d)],t,0.22,gl,5200,pn);
-    if(gr>=3)lead(PENT[Math.min(13,d+2)],t,0.19,gl*0.45,4200,hp);
+    lead(chTone(ci+4),t,0.22,gl,5200,pn);
+    if(gr>=3)lead(chTone(ci+5),t,0.19,gl*0.45,4200,hp);
     /* A dotted eighth. Against a 3+3+2 hook it lands squarely in the rests, so
        four taps sound like twelve — and it treats on-beat and off-beat input
        identically, because gridNear() already quantised both. */
-    note(PENT[Math.min(13,d)],t+3*S16,0.18,'square',gl*0.40,2400,hp);
-    note(PENT[Math.min(13,d+2)],t+6*S16,0.15,'square',gl*0.16,1800,pn||0.32);
+    note(chTone(ci+4),t+3*S16,0.18,'square',gl*0.40,2400,hp);
+    note(chTone(ci+5),t+6*S16,0.15,'square',gl*0.16,1800,pn||0.32);
     if(!RM)G.rings.push({x:p[0],y:p[1],r:6*u,life:1,col:COL.warp,sp:260,dec:2.2});
     else G.rings.push({x:p[0],y:p[1],r:9*u,life:1,col:COL.warp,sp:0,dec:2.2});
   }else{
     /* your instrument changes with the track you are riding — warm saw on the
        outside, hard bright square on the inside */
     const rv=RINGS[rg];
-    note(PENT[d]*0.5,t,0.15,rv.wave,g,(1500+1200*PLAY.heat)*(1+0.16*gr)*rv.cut,
+    note(chTone(ci+2),t,0.15,rv.wave,g,(1500+1200*PLAY.heat)*(1+0.16*gr)*rv.cut,
       panAt(p[0]),A.perf,0.4);
-    note(PENT[d],t,0.10,rv.wave,g*0.25,1800*rv.cut,panAt(p[0]),A.perf);
-    /* A FIFTH UNDERNEATH, swelling with heat: one tap is a note, a flurry is
-       a chord — the instrument fills out exactly as fast as the playing. */
-    note(PENT[Math.max(0,d-3)]*0.5,t,0.13,rv.wave,g*(0.35+0.28*PLAY.heat),
+    note(chTone(ci+6),t,0.10,rv.wave,g*0.25,1800*rv.cut,panAt(p[0]),A.perf);
+    /* A CHORD TONE UNDERNEATH, swelling with heat: one tap is a note, a
+       flurry is a voiced chord — and it can never rub against the bar. */
+    note(chTone(ci),t,0.13,rv.wave,g*(0.35+0.28*PLAY.heat),
       1100*rv.cut,panAt(p[0]),A.perf);
     /* the inner track gets an octave edge on top, so it reads as keener even
        on a phone speaker where the fundamental is doing the least work */
-    if(rg>=2)note(PENT[Math.min(13,d+3)]*0.5,t,0.09,'sine',g*0.30,3600,panAt(p[0]),A.perf);
+    if(rg>=2)note(chTone(ci+4),t,0.09,'sine',g*0.30,3600,panAt(p[0]),A.perf);
     /* Once the groove is found, every tap earns a dotted-eighth echo panned
        opposite — the response-bar trick, generalised quietly: against the
        3+3+2 world a tap sounds like three, and mashing in time becomes a
        delay line the player is playing. */
-    if(gr>=2)note(PENT[d]*0.5,t+3*S16,0.10,rv.wave,g*0.28,1400,-panAt(p[0]),A.perf);
+    if(gr>=2)note(chTone(ci+2),t+3*S16,0.10,rv.wave,g*0.28,1400,-panAt(p[0]),A.perf);
     /* THE BAND ANSWERS. Three sixteenths later — 433ms, an odd subdivision no
        player on the eighth grid can ever claim, and far past the ~50ms fusion
        threshold, so it reads as a second musician rather than a doubling of
        you. In the band's register, on the band's bus, panned opposite. */
     if(gr>=3)
-      note(PENT[Math.max(0,d-6)],t+SPB*0.75,0.20,'square',g*0.42,1700,-panAt(p[0]));
+      note(chTone(Math.max(0,ci-2)),t+SPB*0.75,0.20,'square',g*0.42,1700,-panAt(p[0]));
   }
 }
 /* Lookahead scheduling on the AUDIO clock. The frame clock stalls whenever the
@@ -3776,8 +3797,8 @@ function update(dt){
         FIN.vis[ex.slot]=3;
         const hd=FINP[G.level-1][ex.slot];
         cueTone(function(w){
-          note(PENT[hd],AC.currentTime+w,0.18,'triangle',0.026,2400,0.2);
-          note(PENT[Math.min(13,hd+2)],AC.currentTime+w,0.18,'sine',0.014,2200,-0.2);
+          note(chTone(hd),AC.currentTime+w,0.18,'triangle',0.026,2400,0.2);
+          note(chTone(hd+1),AC.currentTime+w,0.18,'sine',0.014,2200,-0.2);
         });
       }
     }
@@ -4022,17 +4043,19 @@ function update(dt){
            one stays low and gets HEAVIER: a fat detuned pluck with a sub
            octave underneath and a kick thump from x2, riding the dub delay.
            Weight, not sparkle, is the reward. */
-        const tt=AC.currentTime+w,f=PENT[Math.max(0,Math.min(7,2+(cb>>1)+eco))];
+        /* the pickup climbs the CHORD with the combo — root to fifth to the
+           octave voicing — so a chain of stars is an arpeggio of the bar */
+        const tt=AC.currentTime+w,f=chTone(1+Math.min(4,(cb>>1)+(eco>0?1:0)));
         if(cb>=2)kick(tt,0.020);
         if(MU&&MU.pay>0){
           /* THE PAYOFF MAKES YOU THE SOLOIST. During the section a pickup
              fires a three-note run up the scale on the player's own bus —
              collecting IS soloing, which is the biggest "music is the key"
              payoff in the game for the smallest rule. */
-          const d0=Math.max(0,Math.min(9,3+cb+eco));
+          const d0=Math.max(0,Math.min(7,3+(cb>>1)));
           note(PENT[d0],tt,0.14,'square',0.030,2200,cpan,A.perf);
-          note(PENT[Math.min(13,d0+2)],tt+S16,0.13,'square',0.026,2400,cpan*0.5,A.perf);
-          note(PENT[Math.min(13,d0+4)],tt+2*S16,0.16,'square',0.030,2600,-cpan,A.perf);
+          note(PENT[Math.min(9,d0+2)],tt+S16,0.13,'square',0.026,2400,cpan*0.5,A.perf);
+          note(PENT[Math.min(9,d0+4)],tt+2*S16,0.16,'square',0.030,2600,-cpan,A.perf);
         }else if(G.tier>=9){
           /* level ten: the stars are an electric guitar */
           gtr(f,tt,0.20,0.040+0.004*cb,cpan);
@@ -4055,7 +4078,7 @@ function update(dt){
         }
         /* the chain's crown: a high answer only when the combo is maxing */
         if(cb>=4&&!(MU&&MU.pay>0))
-          note(PENT[Math.min(13,8+eco)]*0.5,tt+S16,0.12,'square',0.022,1500,cpan);
+          note(chTone(5),tt+S16,0.12,'square',0.022,1500,cpan);
       });
       build(0.016,'ember');
       checkMile();
@@ -5473,6 +5496,7 @@ function drawHUD(){
           let dd2=aa-swp;dd2=((dd2%TAU)+TAU)%TAU;
           if(dd2<0.7)sw=1+0.55*(1-dd2/0.7);
         }
+        sw*=1+(RM?0:0.08*G.beat);
         const mx=cx+Math.cos(aa)*mr,my2=cy+Math.sin(aa)*mr;
         ctx.globalAlpha=0.65;
         ctx.strokeStyle='rgba(200,215,255,0.8)';ctx.lineWidth=1.4*u;
