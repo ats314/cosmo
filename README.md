@@ -352,6 +352,15 @@ spark, a breath of heat and a tick of build — passing shards on other rings
 in ordinary travel earns nothing, because a graze has to be a dodge or the
 spark means nothing. The spark is white-blue: red stays death's alone.
 
+**The text speaks in starlight.** The playtest called the UI type "plain
+and boring," and it was: flat white system sans. Headline and guidance
+text now draws in the game's own light — a vertical starlight gradient
+over a soft glow underlay (four offset passes; shadowBlur stays banned
+per-frame; gradients are cached per style so none is built twice). The
+title, tap prompts, level cards, banners, countdown, announcements,
+finale instructions and teaching hints all carry it; persistent HUD lines
+stay lean so the moments keep their contrast.
+
 **Audio is optional, everywhere.** The menu says it plainly: best with
 sound on — never required. Muted play keeps every mechanic whole: the beat
 rides the pulsing ring, the drop counts down in numerals, the break dims
