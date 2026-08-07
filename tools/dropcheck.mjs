@@ -119,7 +119,7 @@ for (let i = 0; i < 60 * 150; i++) {          /* 150 seconds, no dying */
      tap through so the cadence measurement continues */
   /* the star dive: this invulnerable bot never collects the trail, so
      fast-forward its 45s timeout — cadence, not the dive, is under test */
-  if (st('FIN && FIN.on')) st('FIN.t0 = G.t - 46');
+  if (st('FIN && FIN.on')) st('FIN.t0 = G.t - 51');
   if (st('G.state') === 'lvend') {
     fire('pointerdown', pev(9, 200, 420, 'pointerdown'));
     fire('pointerup', pev(9, 200, 420, 'pointerup'));
