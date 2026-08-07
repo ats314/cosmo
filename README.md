@@ -349,6 +349,15 @@ motion keeps every layer static, as always.
   tight tap pays double. A performance, not a transaction. (It replaced
   the Echo orb, which the loop recorder made redundant, and which the
   playtest didn't love.)
+- **Hypernova** — the gold star (the playtest group asked for "a star in
+  Mario", so it is one, drawn plainly). Sixteen beats of invincibility at
+  nearly double speed: the kit doubles to sixteenths, the room floods
+  gold, and every red you plow through converts into a paying ember on
+  your lane — fast contacts play an ascending sixteenth run, so carving
+  through a full lane IS a melody. The speed eases in over a third of a
+  second and back out over the final 1.4 seconds, with a short
+  invulnerability grace after it fades, so the star never dumps you at
+  double speed into an armed shard. Everything pays double while it burns.
 
 The musical orbs join the spawn rotation after the intro curriculum
 (shield → slow-mo → nova) has run, each named by a first-encounter hint. The
@@ -382,10 +391,19 @@ plain finish line the way it always used to — nothing about progression
 ever requires a speaker.
 
 **The finale: the star dive.** The level's closing melody appears
-physically — eleven bright stars in a tight spiral, four outer, four mid,
-three inner, threaded by a golden path with a guide line from the comet —
-and gathering it is a RUSH, not a stroll (the fun pass, after the owner's
-"just not that fun"): every star collected speeds the comet ~6% and opens
+physically — eleven stars in a tight spiral, four outer, four mid, three
+inner. ONE STAR BURNS AT A TIME (playtester: "are you supposed to be
+getting the stars in a certain order?" — he couldn't tell, because eleven
+equally bright stars answer nothing): the constellation waits as dim
+seeds, only the NEXT star burns full-size with the guide line running to
+it and a fainter second segment showing the one after, and the moment a
+star is taken the next visibly IGNITES with a ripple — chase-this-then-
+that, read at a glance, no caption. Any star still collects out of order;
+the sequence is the melody's phrasing, never a rule that punishes. The
+banner says the rest: "chase the brightest star — quick chains pay
+double." Gathering it is a RUSH, not a stroll (the fun pass, after the
+owner's "just not that fun"): every star collected speeds the comet ~6%
+and opens
 the music's filter, the kit fills in as the melody comes home, and quick
 consecutive pickups CHAIN for double. Each star plays the next note of a
 cadence descending to the root; the core visibly wakes and the sky gilds.
@@ -900,6 +918,11 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   on a large viewport the sweep still beats both the invulnerability window
   and the expiry net — the cascade can no longer end as a single-frame pop,
   and you can no longer die inside your own blast on a desktop monitor.
+  A converted WALL fans out instead of piling up (playtester: same-angle
+  formations "turn into stars stacked on top of each other"): every ember
+  lands on the player's ring, so same-angle shards used to coincide
+  exactly — each now steps along the lane in the direction of travel until
+  it has room, a necklace of notes you sweep through in order.
 - **Collision is a swept arc**, not a point test, so nothing tunnels through a
   shard on a wide screen or after a dropped frame.
 - **Spawn clearances scale with ring radius.** A shard's hit width is

@@ -590,6 +590,19 @@ function buildSprites(bandOnly){
     }
     g.closePath();g.stroke();
   });
+  SPR.powHyper=makeSprite(12*u+22,function(g){
+    /* the friends asked for exactly this: "like a star in Mario" — so it IS
+       a five-point star, gold with a white edge, recognisable at a glance */
+    g.shadowColor='#ffd77a';g.shadowBlur=14;
+    g.fillStyle=COL.ember;g.strokeStyle='#ffffff';g.lineWidth=1.6;
+    g.beginPath();
+    for(let i=0;i<10;i++){
+      const sr=(i%2===0)?11*u:4.6*u,aa=-Math.PI/2+i*Math.PI/5;
+      if(i===0)g.moveTo(Math.cos(aa)*sr,Math.sin(aa)*sr);
+      else g.lineTo(Math.cos(aa)*sr,Math.sin(aa)*sr);
+    }
+    g.closePath();g.fill();g.stroke();
+  });
   /* the calm pool the arena sits on — see draw() */
   SPR.pool=(function(){
     const pr=Math.ceil(R*1.6);
@@ -1596,7 +1609,7 @@ function musicStep(i,t,k){
   }
   /* overdrive and the payoff's afterglow hold open every gate the clock or
      the heat could — see G.od and MU.glow */
-  const hot=G.od>0||t<MU.glow;
+  const hot=G.od>0||G.hyper>0||t<MU.glow;
   /* The root was the loudest figure in the loop and a phone reproduced almost
      none of it: 110Hz on a TRIANGLE (harmonics fall as 1/n²) through a 900Hz
      lowpass leaves the 3rd at 330Hz, under the rolloff. Two voices now — the
@@ -1814,6 +1827,14 @@ function musicStep(i,t,k){
     hat(t+S16,0.007,4600,0.04,0,0,7200);
     if(G.od===0)G.odBrk=true;   /* it ends the way a record ends: on the break */
   }
+  /* HYPERNOVA: the kit rides sixteenths and the floor pounds every other
+     beat — the star is audible as double-time, exactly the hyper-speed
+     zone the playtest asked to chase */
+  if(G.hyper>0){
+    hat(t,0.013,5200,0.045,0,0,7400);
+    hat(t+S16,0.010,5800,0.04,0,0.3,7600);
+    if(beat%2===0)kick(t,0.055);
+  }
   /* 3 / 7 / 11 melodic events per bar still hold. The kit sits underneath
      them; the payoff section remains the loudest thing in the game. */
   /* THE COVER. The band fills the offbeat only while nobody else is playing
@@ -1978,7 +1999,7 @@ function judgeTiming(x,y){
     if(MU&&MU.pay>0){
       const ex=8*(G.secMult||1);
       G.score+=ex;G.secScore+=ex;G.scorePop=Math.max(G.scorePop,0.6);
-    }else if(G.od>0||G.spot>0||G.shields>=shieldMax()){
+    }else if(G.od>0||G.spot>0||G.hyper>0||G.shields>=shieldMax()){
       G.score+=8;G.scorePop=Math.max(G.scorePop,0.5);
     }
     const was=G.groove;
@@ -2196,7 +2217,7 @@ function bedTick(dt){
   /* the pad opens as you go inward too, so the whole mix brightens with depth */
   let cut=520+1500*k*k+900*PLAY.heat+420*gv+(playing?RINGS[ringOf()].lift:0)
     +((MU&&MU.armed&&!MU.rise)?260:0)    /* the armed wait audibly opens */
-    +(G.od>0?420:0)+((MU&&t<MU.glow)?280:0)      /* overdrive and afterglow run bright */
+    +(G.od>0?420:0)+(G.hyper>0?520:0)+((MU&&t<MU.glow)?280:0) /* overdrive, hypernova and afterglow run bright */
     +(FIN.on?90*FIN.got:0);                      /* the dive opens with every star */
   if(MU&&MU.pay>0)cut=Math.min(cut,((PAY-MU.pay)>>3)<(MU.lateAt||4)?380:700);
   /* the slow breath: textures in the reference genres move over MINUTES —
@@ -2753,7 +2774,7 @@ const G={
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
-  didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,
+  didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
   stop:0, /* hitstop: freezes the comet while the celebration plays */
   starT:0.6,spikeT:1.2,powT:6,powN:0,shake:0,flash:0,tier:0,banner:null,featT:0,
@@ -2762,6 +2783,7 @@ const G={
   od:0,odT:0,odCool:0,odBrk:false,     /* overdrive: eighths left, heat clock, cooldown, break-due */
   odGlow:0,brkGlow:0,finGlow:0,        /* backdrop envelopes: overdrive, break dim, dive gold */
   spot:0,lastTapAt:-9,finEnd:0,        /* spotlight; last raw tap time; finale end flag */
+  hyper:0,hyperD:0,hyperGlow:0,        /* hypernova: seconds left, full duration, backdrop envelope */
   layerN:0,bandN:0,bandFx:0,           /* score layers unlocked; band-meter dot count + pulse */
   sndAt:0,sndStr:null,                 /* a NEW SOUND announcement waiting for its banner to clear */
   flashT:0,meetNext:0,teachSoft:false, /* flash rate-limit; lesson spacing; lesson-without-slowmo */
@@ -2857,13 +2879,23 @@ function novaBlast(x,y){
 function novaConvert(s){
   const q=posAt(s.a,radiusOf(s.ring));
   const ring=effRing();
+  /* A WALL CONVERTS TO A NECKLACE, NOT A PILE (playtester Buch: "it seems
+     to turn them all into stars but place them in a single orbit... stacks
+     them on top of each other"). Same-angle formations all land on the
+     player's ring, so their embers used to coincide exactly. Each ember now
+     steps along the lane in the direction of travel until it has room, so a
+     converted wall reads as a string of notes you sweep through in order. */
+  let ea=s.a;
+  for(let f=0;f<8&&G.stars.some(function(st){
+      return st.ring===ring&&angDist(st.a,ea)<0.30;});f++)
+    ea+=0.36*(G.dir||1);
   /* born marks a nova ember: it condenses from a white-hot point instead of
      the generic fade-in, so the transmutation is watched rather than implied */
-  G.stars.push({a:s.a,ring:ring,t:0,life:rand(6.0,8.0),born:1});
+  G.stars.push({a:ea,ring:ring,t:0,life:rand(6.0,8.0),born:1});
   burst(q[0],q[1],COL.nova,9,200);
   burst(q[0],q[1],COL.ember,7,130);
   arcFlash(s.a,s.ring,COL.nova);
-  arcFlash(s.a,ring,COL.ember);
+  arcFlash(ea,ring,COL.ember);
   /* THE CASCADE IS A RUN NOW. Each conversion takes the next sixteenth slot
      and the next pentatonic degree, so a ten-shard nova plays a strict
      ascending sixteenth-note run up the scale — the wave's arrival order
@@ -2980,7 +3012,8 @@ const MEET={
   driftgate:{t:'the wall slides — turn back early',g:'tap'},
   blinktwin:{t:'only one is ever solid — wait your moment',g:'shard'},
   bass:  {t:'bass bomb — clears the lane, drops the low end',g:'nova'},
-  spot:  {t:'spotlight — you take the lead, taps pay double',g:'beat'}};
+  spot:  {t:'spotlight — you take the lead, taps pay double',g:'beat'},
+  hyper: {t:'the gold star — untouchable, unstoppable',g:'star'}};
 function firstMeet(type){
   if(G.seen[type]||!MEET[type])return;
   /* A LESSON WAITS FOR A CALM BEAT. Mid-game, first encounters used to fire
@@ -3080,14 +3113,14 @@ function spawnPow(){
   }else{
     /* the family expansion: three musical orbs join the rotation */
     const rr=Math.random();
-    type=rr<0.32?'shield':rr<0.52?'warp':rr<0.68?'nova':
-         rr<0.84?'bass':'spot';
+    type=rr<0.30?'shield':rr<0.48?'warp':rr<0.62?'nova':
+         rr<0.76?'bass':rr<0.90?'spot':'hyper';
   }
   for(let i=0;i<24;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
     if(farFromAll(a,ring,0.6,sep(ring,3.2),sep(ring,3.0))){
       G.pows.push({a,ring,t:0,life:7,type});
-      if(type==='bass'||type==='spot')firstMeet(type);
+      if(type==='bass'||type==='spot'||type==='hyper')firstMeet(type);
       G.sinceShield=(type==='shield')?0:G.sinceShield+1;
       /* counts PLACEMENTS, not pickups: a player who misses the slow-mo still
          advances the curriculum, or a run spent dodging would serve nothing
@@ -3116,7 +3149,7 @@ function startGame(){
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
   G.sparkT=0;G.sparkN=0;
   G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;G.finGlow=0;
-  G.spot=0;G.lastTapAt=-9;G.finEnd=0;
+  G.spot=0;G.lastTapAt=-9;G.finEnd=0;G.hyper=0;G.hyperD=0;G.hyperGlow=0;
   FIN.on=false;FIN.pend=false;FIN.done=false;FIN.step=0;FIN.score=0;FIN.got=0;FIN.voices=0;FIN.t0=0;FIN.trail.length=0;
   PLAY.tape.length=0;
   LOOP.pat=null;LOOP.n=0;LOOP.until=0;LOOP.heard=false;
@@ -3142,7 +3175,7 @@ function startGame(){
      player, or anyone handed the phone, got no reminder of the controls at
      all. Each clears the instant the thing is done, so a veteran sees each for
      well under a second. */
-  G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;
+  G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;
   G.didReverse=false;G.didHop=false;G.didLap=false;
   G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];G.novas=[];
   G.stop=0;
@@ -3230,7 +3263,7 @@ function die(){
        anyone having to remember that tier is zero-based */
     level:levelNum(),best_level:G.bestLevel,
     /* did the curriculum land: three placements is the whole intro set */
-    pows_placed:G.powN,saw_warp:G.gotWarp,saw_nova:G.gotNova,
+    pows_placed:G.powN,saw_warp:G.gotWarp,saw_nova:G.gotNova,saw_hyper:G.gotHyper,
     /* DID THE TEACHING LAND. The two verbs, per run. did_hop is the one that
        matters: the hop is the unfamiliar gesture, it is now taught at 20s in
        the calm, and a run that ends with did_hop false is a run where the
@@ -3582,6 +3615,15 @@ function updateSpikes(sdt,lethal){
     /* a moving shard's hitbox is widened by however far it travelled this frame */
     const tol=(18.5*u)/pr+Math.abs(s.va)*sdt;
     if(lethal&&s.phase===1&&armed(s)&&s.ring===er&&G.t>=G.invuln&&sweptHit(s.a,tol)){
+      if(G.hyper>0){
+        /* HYPERNOVA: the shard is a note, not a threat — it converts into a
+           paying ember on your lane and the run does not even slow down.
+           Fast consecutive contacts play novaConvert's ascending sixteenth
+           run: plowing through a lane IS the melody. */
+        novaConvert(G.spikes.splice(i,1)[0]);
+        if(!RM)G.shake=Math.max(G.shake,4);
+        continue;
+      }
       if(G.shields>0){
         /* A SHIELD MEANS YOU LIVE. That is the whole of it. It used to also
            zero lapAcc and lapStreak, so being saved still cost you the orbit
@@ -3766,7 +3808,10 @@ function update(dt){
          pickups leave, and two intro bars pass with the sequencer fading
          in before the first call. The duet then narrates itself with a
          STANDING instruction line for its whole length. */
-      G.banner={str:'THE FINALE',sub:'follow the stars to the core',t:0};
+      G.banner={str:'THE FINALE',sub:'chase the brightest star \u2014 quick chains pay double',t:0};
+      /* a hypernova carried into the dive would fight the dive's own
+         momentum curve — the star gets a graceful second to wind down */
+      G.hyper=Math.min(G.hyper,1.0);
       G.stars.length=0;G.pows.length=0;
       for(const sp2 of G.spikes)if(sp2.phase===1){sp2.phase=2;sp2.t=0;}
       fireLift();
@@ -3793,6 +3838,16 @@ function update(dt){
       const pts=chain?60:30;
       G.score+=pts;FIN.score+=pts;G.scorePop=Math.max(G.scorePop,0.6);
       popup(p2[0],p2[1]-20*u,chain?'+60 CHAIN':'+30',COL.ember,chain?1.1:0.85);
+      /* THE HANDOFF: the moment one star is taken the next visibly
+         IGNITES — a ripple and a small ring at its position — so the eye
+         is pulled to the new target without reading anything */
+      for(const nn of FIN.trail){
+        if(nn.got)continue;
+        const pn3=posAt(nn.a,radiusOf(nn.ring));
+        ripple(pn3[0],pn3[1],COL.ember);
+        if(!RM)G.rings.push({x:pn3[0],y:pn3[1],r:5*u,life:0.7,col:COL.ember});
+        break;
+      }
       if(FIN.got%4===0)FIN.voices=Math.min(2,FIN.voices+1);
       const ci2=st2.ci,cpan2=panAt(p2[0]);
       cueTone(function(w){
@@ -3863,6 +3918,13 @@ function update(dt){
   /* the spotlight burns down; golden lap is retired — the finale is the
      scheduled special moment now, and it is musical instead of a timer */
   G.spot=Math.max(0,G.spot-dt);
+  if(G.hyper>0){
+    G.hyper=Math.max(0,G.hyper-dt);
+    /* the landing is protected: the frame the star fades must not be a
+       death sentence at speed — a short grace covers the deceleration */
+    if(G.hyper===0)G.invuln=Math.max(G.invuln,G.t+1.2);
+  }
+  G.hyperGlow+=(((G.hyper>0)?1:0)-G.hyperGlow)*Math.min(1,dt*3);
   /* the layer ladder: a score crossing names the layer that just joined */
   let lyn=0;for(let li=0;li<LAYER_AT.length;li++)if(G.score>=LAYER_AT[li])lyn++;
   if(lyn>G.layerN){
@@ -3899,7 +3961,11 @@ function update(dt){
      branch of the tier ratchet. */
   const sdt=dt*G.tsCur*(G.stop>0?0.10:1)*((G.teach>0&&!G.teachSoft)?0.35:1);
   /* a slow floor ramp so the game can never be stalled by refusing to score */
-  G.speed=speedAt()*(FIN.on?1+0.06*FIN.got:1);   /* the dive is a rush */
+  /* HYPERNOVA speed: +90% at full burn — eased in over a third of a second
+     so the lurch reads as ignition, and eased OUT over the last 1.4s so the
+     star never dumps you at double speed into an armed lane */
+  const hv=G.hyper>0?Math.min(1,(G.hyperD-G.hyper)/0.35,G.hyper/1.4):0;
+  G.speed=speedAt()*(FIN.on?1+0.06*FIN.got:1)*(1+0.9*hv);   /* the dive is a rush */
   /* Announce each new mechanic so it registers as something to learn. One
      crossing at a time, spaced by the banner: when the verb gate releases,
      the held tiers arrive as a readable sequence instead of a pile-up that
@@ -4056,7 +4122,7 @@ function update(dt){
       if(MU&&MU.pay>0){
         const ex=G.combo*(G.secMult||1);
         G.score+=ex;G.secScore+=ex;
-      }else if(G.od>0||G.shields>=shieldMax())G.score+=G.combo; /* overdrive — and a FULL shield bank — double the pickup */
+      }else if(G.od>0||G.hyper>0||G.shields>=shieldMax())G.score+=G.combo; /* overdrive, hypernova — and a FULL shield bank — double the pickup */
       G.lapEmbers++;G.embers++;
       const p=posAt(s.a,radiusOf(s.ring));
       burst(p[0],p[1],COL.ember,14,150);
@@ -4130,7 +4196,8 @@ function update(dt){
       arcFlash(s.a,s.ring,
         s.type==='shield'?COL.shield:
         s.type==='warp'||s.type==='spot'?COL.warp:
-        s.type==='bass'?COL.comet:COL.nova);
+        s.type==='bass'?COL.comet:
+        s.type==='hyper'?COL.ember:COL.nova);
       if(s.type==='shield'){
         const span=panAt(p[0]);
         /* OVERCHARGE (playtester Buch, near-verbatim: "if you're at full
@@ -4194,6 +4261,27 @@ function update(dt){
           note(PENT[11],AC.currentTime+w+S16,0.24,'sawtooth',0.026,3600,-0.2,A.perf);
         });
         try{if(navigator.vibrate)navigator.vibrate(14);}catch(e){}
+      }else if(s.type==='hyper'){
+        /* HYPERNOVA (Hunter: "temporary invincibility... speed cranks up
+           significantly... making beautiful music in the zone at hyper
+           speed — that's the moment you're chasing"). Sixteen beats where
+           nothing can touch you, the comet runs at nearly double speed,
+           the kit rides sixteenths, and every red you plow through turns
+           into a paying ember right on your lane. */
+        G.hyperD=SPB*16;G.hyper=G.hyperD;G.gotHyper=true;
+        popup(p[0],p[1]-24*u,'HYPERNOVA!',COL.ember,1.7);
+        say('HYPERNOVA \u2014 nothing can touch you',3,5);
+        burst(p[0],p[1],'#ffffff',22,280);
+        burst(p[0],p[1],COL.ember,16,200);
+        ripple(p[0],p[1],COL.ember);
+        if(!RM){G.stop=Math.max(G.stop,0.09);flashHit(0.5);G.shake=Math.max(G.shake,9);}
+        braam(0.06);
+        cueTone(function(w){
+          const t0=AC.currentTime+w;
+          for(let k2=0;k2<6;k2++)
+            note(PENT[4+k2],t0+k2*S16,0.14,'sawtooth',0.020,2400+300*k2,0,A.perf);
+        });
+        try{if(navigator.vibrate)navigator.vibrate([20,30,20,30,80]);}catch(e){}
       }else{
         /* The front does the converting — see novaBlast/novaConvert. */
         G.gotNova=true;
@@ -4285,6 +4373,10 @@ function drawPow(x,y,s,al){
     ctx.fillStyle=COL.warp;
     ctx.beginPath();ctx.arc(x,y,1.6*u,0,TAU);ctx.fill();
     ctx.restore();
+  }else if(s.type==='hyper'){
+    /* upright with a wobble — a star that spins reads as a shard of light,
+       a star that stands reads as THE star */
+    blit(SPR.powHyper,x,y,pulse*(1+0.06*Math.sin(s.t*6)),Math.sin(s.t*2.2)*0.28,al);
   }else{
     blit(SPR.powNova,x,y,1+0.10*Math.sin(s.t*5),s.t*1.2,al);
     ctx.save();ctx.globalAlpha=al;ctx.fillStyle=COL.nova;
@@ -4681,6 +4773,15 @@ function draw(){
     ctx.fillRect(0,0,W,H);
     ctx.restore();
   }
+  /* hypernova floods the room gold-white — the biggest wash in the game,
+     because nothing bigger ever happens to you */
+  if(G.hyperGlow>0.01){
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    ctx.fillStyle='rgba(255,214,122,'+
+      (RM?0.06*G.hyperGlow:(0.05+0.07*G.beat)*G.hyperGlow).toFixed(3)+')';
+    ctx.fillRect(0,0,W,H);
+    ctx.restore();
+  }
   /* overdrive runs the room warm, throbbing on the landed beat */
   if(G.odGlow>0.01){
     ctx.save();ctx.globalCompositeOperation='lighter';
@@ -5020,6 +5121,17 @@ function draw(){
     for(let k=0;k<G.shields;k++)
       blit(SPR.shieldRing,p[0],p[1],
         (1.18+k*0.34)*(1+0.04*Math.sin(G.t*6-k*0.7)+(RM?0:0.05*G.beat)),0,pal*(0.72-k*0.16));
+    if(G.hyperGlow>0.01){
+      /* the comet burns white in a gold corona while the star lasts */
+      ctx.save();ctx.globalCompositeOperation='lighter';
+      ctx.globalAlpha=0.65*G.hyperGlow;
+      ctx.strokeStyle=COL.ember;ctx.lineWidth=2.4*u;
+      ctx.beginPath();ctx.arc(p[0],p[1],(15+(RM?0:4*G.beat))*u,0,TAU);ctx.stroke();
+      ctx.globalAlpha=(RM?0.5:0.35+0.4*FLK[(G.t*24|0)&15])*G.hyperGlow;
+      ctx.fillStyle='#ffffff';
+      ctx.beginPath();ctx.arc(p[0],p[1],4.5*u,0,TAU);ctx.fill();
+      ctx.restore();ctx.globalAlpha=1;
+    }
     if(G.t<G.invuln){
       ctx.globalAlpha=Math.min(1,(G.invuln-G.t)*1.6)*0.55;
       ctx.strokeStyle=COL.shield;ctx.lineWidth=2;
@@ -5424,7 +5536,11 @@ function drawHUD(){
        second once per orbit, so the run's longest-commitment behaviour was
        also its least visible. It no longer claims to earn a drop by itself —
        everything feeds one meter now, and that meter is drawn below. */
-    if(G.od>0&&roomy){
+    if(G.hyper>0&&roomy){
+      ctx.globalAlpha=0.7+0.3*G.beat;
+      text('HYPERNOVA',cx,top+154*u,11*u,'800','rgba(255,220,130,0.98)',3);
+      ctx.globalAlpha=1;
+    }else if(G.od>0&&roomy){
       ctx.globalAlpha=0.7+0.3*G.beat;
       text('OVERDRIVE ×2',cx,top+154*u,11*u,'800','rgba(255,200,87,0.95)',3);
       ctx.globalAlpha=1;
@@ -5501,13 +5617,21 @@ function drawHUD(){
     if(FIN.on&&FIN.trail.length){
       let nxt=null;
       for(const st3 of FIN.trail)if(!st3.got){nxt=st3;break;}
-      /* the path: faint gold thread through what remains */
+      /* ONE STAR BURNS AT A TIME (playtester Buch: "are you supposed to
+         be getting the stars in a certain order at that part?" — he could
+         not tell, because eleven equally-bright stars answer nothing).
+         The full constellation waits as dim seeds; only the NEXT star
+         burns full-size inside its ring, the guide line runs to it, and a
+         second fainter segment shows the one after, so the eye reads
+         chase-this-then-that with no caption. Any star still collects —
+         the order is the melody's, never a rule that punishes. */
       ctx.save();ctx.strokeStyle=COL.ember;ctx.lineWidth=1.2*u;
-      ctx.globalAlpha=0.16;
+      ctx.globalAlpha=0.09;
       ctx.beginPath();
-      let started=false;
+      let started=false,nxt2=null;
       for(const st3 of FIN.trail){
         if(st3.got)continue;
+        if(st3!==nxt&&!nxt2)nxt2=st3;
         const p3=posAt(st3.a,radiusOf(st3.ring));
         if(!started){ctx.moveTo(p3[0],p3[1]);started=true;}
         else ctx.lineTo(p3[0],p3[1]);
@@ -5515,18 +5639,23 @@ function drawHUD(){
       ctx.stroke();
       if(nxt){
         const pp=posPlayer(),pn=posAt(nxt.a,radiusOf(nxt.ring));
-        ctx.globalAlpha=0.26+(RM?0:0.14*G.beat);
+        ctx.globalAlpha=0.30+(RM?0:0.16*G.beat);
         ctx.beginPath();ctx.moveTo(pp[0],pp[1]);ctx.lineTo(pn[0],pn[1]);ctx.stroke();
+        if(nxt2){
+          const p4=posAt(nxt2.a,radiusOf(nxt2.ring));
+          ctx.globalAlpha=0.16;
+          ctx.beginPath();ctx.moveTo(pn[0],pn[1]);ctx.lineTo(p4[0],p4[1]);ctx.stroke();
+        }
       }
       ctx.restore();ctx.globalAlpha=1;
       for(const st3 of FIN.trail){
         if(st3.got)continue;
         const p3=posAt(st3.a,radiusOf(st3.ring));
-        const big=st3===nxt?1.5+(RM?0:0.25*G.beat):1.1;
-        blit(SPR.ember,p3[0],p3[1],big,G.t*1.2,st3===nxt?1:0.75);
+        const big=st3===nxt?1.6+(RM?0:0.28*G.beat):0.85;
+        blit(SPR.ember,p3[0],p3[1],big,st3===nxt?G.t*1.2:0,st3===nxt?1:0.30);
         if(st3===nxt){
           ctx.save();ctx.strokeStyle=COL.ember;
-          ctx.globalAlpha=0.5+(RM?0:0.3*G.beat);
+          ctx.globalAlpha=0.55+(RM?0:0.3*G.beat);
           ctx.lineWidth=1.6*u;
           ctx.beginPath();ctx.arc(p3[0],p3[1],10*u,0,TAU);ctx.stroke();
           ctx.restore();ctx.globalAlpha=1;
