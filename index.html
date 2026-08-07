@@ -838,6 +838,12 @@ const CH=[[110,220,261.63,329.63],      /* Am  */
 /* ARP tops out at degree 4 (784Hz) on purpose: the player's floor is 784 and a
    boundary only reads as a boundary if the band actually stops below it. */
 const ARP=[0,2,4,2,3,2,4,3],CNT=[7,5,4,5,7,8,7,5];
+/* The score-anchored layer ladder — thresholds, and a two-bar riff (in
+   eighths; -1 rests) that stays under the player's register floor. */
+const LAYER_AT=[1000,2000,3000,4500];
+const LAYER_NAME=['NEW LAYER: PULSE','NEW LAYER: SYNTH RIFF',
+                  'NEW LAYER: BASS','NEW LAYER: SHIMMER'];
+const RIFF=[0,-1,2,-1,3,-1,2,-1, 0,-1,2,-1,4,3,2,-1];
 /* ---------- the payoff section ----------
    A drop is not a moment, it is a DOOR. What was shipped fired six voices for
    1.3s and then returned to exactly the arrangement it had been playing, so
@@ -935,7 +941,9 @@ function buildBed(){
       payN:0,payHits:0,barHits:0,barN:0,
       rise:false,   /* a FULL two-bar rise is locked in */
       riseI:0,      /* the bar line the rise latched on */
-      lpLock:0,hushEnd:0,chainBar:-1,liftEnd:0};
+      lpLock:0,hushEnd:0,chainBar:-1,liftEnd:0,
+      brk:0,brkN:0,brkCool:0,brkEnd:false, /* the drum break: eighths left, count, gate, crash-due */
+      glow:0};      /* afterglow: the payoff leaves every gate open until this audio time */
 }
 /* One-shot musical voice. Separate from beep() because music needs a filter
    and a longer tail, and because it must route through the bed's duck so a
@@ -996,11 +1004,89 @@ function snare(t,g,wet){
   hat(t,g,1900,0.17,wet);
   note(196,t,0.085,'triangle',g*0.5,900,0);
 }
+/* THE CINEMA (playtest: "tailor the electro to be more cinematic — like
+   it's in a movie"; the reference was trailer-score houses). Two voices
+   carry it: a string-section SWELL — detuned saws with a slow bowed attack
+   and a filter that opens and closes like breath — and a noise RISER that
+   turns a phrase the way a reverse cymbal turns a scene. Both go to the
+   reverb send much wetter than anything else in the game: the room is the
+   cinema. */
+function swellPad(f,t,dur,g,pan){
+  if(!A||!AC||muted)return;
+  try{
+    const v=AC.createGain(),lp=AC.createBiquadFilter();
+    lp.type='lowpass';lp.frequency.setValueAtTime(900,t);
+    lp.frequency.linearRampToValueAtTime(2200,t+dur*0.5);
+    lp.frequency.exponentialRampToValueAtTime(500,t+dur);
+    v.gain.setValueAtTime(0.0001,t);
+    v.gain.linearRampToValueAtTime(g,t+dur*0.4);
+    v.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    const mk=function(ff,det){const o=AC.createOscillator();o.type='sawtooth';
+      o.frequency.setValueAtTime(ff,t);if(det)o.detune.value=det;
+      o.connect(lp);o.start(t);o.stop(t+dur+0.05);};
+    mk(f,-6);mk(f,6);
+    lp.connect(v);
+    let tail=v;
+    if(pan&&AC.createStereoPanner){const sp=AC.createStereoPanner();sp.pan.value=pan;v.connect(sp);tail=sp;}
+    tail.connect(A.bed);
+    const sg=AC.createGain();sg.gain.value=0.7;tail.connect(sg);sg.connect(A.send);
+  }catch(e){}
+}
+function riser(t,dur,g,hz){
+  if(!A||!AC||!NOISE||muted)return;
+  try{
+    const sc=AC.createBufferSource(),v=AC.createGain(),hp=AC.createBiquadFilter();
+    sc.buffer=NOISE;sc.loop=true;
+    hp.type='highpass';hp.frequency.setValueAtTime(hz||1600,t);
+    hp.frequency.exponentialRampToValueAtTime((hz||1600)*3,t+dur);
+    v.gain.setValueAtTime(0.0001,t);
+    v.gain.exponentialRampToValueAtTime(g,t+dur*0.92);
+    v.gain.exponentialRampToValueAtTime(0.0001,t+dur+0.06);
+    sc.connect(hp);hp.connect(v);v.connect(A.bed);
+    const sg=AC.createGain();sg.gain.value=0.5;v.connect(sg);sg.connect(A.send);
+    sc.start(t);sc.stop(t+dur+0.1);
+  }catch(e){}
+}
 /* THE SECTION'S VOICE. Square alone at 1.3kHz for fifteen minutes is an ice
    pick; the triangle gives it a body at the same perceived loudness. */
 function lead(f,t,dur,g,cut,pan){
   note(f,t,dur,'square',  g*0.62,cut,     pan);
   note(f,t,dur,'triangle',g*0.55,cut*0.7, pan);
+}
+/* THE GUITAR. A detuned saw pair plus the fifth, driven into a hard clip —
+   by level ten the stars have become a stage amp (the playtest spec,
+   verbatim: "level ten they're different electric guitar sounds"). The
+   short slide into the pitch is the hammer-on; the shared curve is computed
+   once, so a note costs what note() costs. */
+const DIST=(function(){const n=512,c=new Float32Array(n);
+  for(let i=0;i<n;i++){const x=i/(n-1)*2-1;c[i]=Math.tanh(x*5)/Math.tanh(5);}
+  return c;})();
+function gtr(f,t,dur,g,pan){
+  if(!A||!AC||muted)return;
+  try{
+    const ws=AC.createWaveShaper();ws.curve=DIST;ws.oversample='2x';
+    const pre=AC.createGain();pre.gain.value=2.2;
+    const lp=AC.createBiquadFilter();lp.type='lowpass';
+    lp.frequency.setValueAtTime(3400,t);
+    lp.frequency.exponentialRampToValueAtTime(1200,t+dur);
+    const v=AC.createGain();
+    v.gain.setValueAtTime(0.0001,t);
+    v.gain.exponentialRampToValueAtTime(g,t+0.010);
+    v.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    const osc=function(ff,det){
+      const o=AC.createOscillator();o.type='sawtooth';
+      o.frequency.setValueAtTime(ff*0.97,t);
+      o.frequency.exponentialRampToValueAtTime(ff,t+0.035);
+      if(det)o.detune.value=det;
+      o.connect(pre);o.start(t);o.stop(t+dur+0.02);
+    };
+    osc(f,0);osc(f,-9);osc(f*1.5,5);        /* the power chord's fifth */
+    pre.connect(ws);ws.connect(lp);lp.connect(v);
+    let tail=v;
+    if(pan&&AC.createStereoPanner){const sp=AC.createStereoPanner();sp.pan.value=pan;v.connect(sp);tail=sp;}
+    tail.connect(A.bed);
+    const sg=AC.createGain();sg.gain.value=0.4;tail.connect(sg);sg.connect(A.send);
+  }catch(e){}
 }
 /* ---------- the drop ----------
    A rise, a SILENCE, and the hit — and the third is the one that was missing.
@@ -1207,6 +1293,16 @@ function fireDrop(t){
   note(PENT[8],t,0.45,'square',0.034,6000,-0.22);
   note(PENT[5],t,0.45,'square',0.034,6000, 0.22);
   hat(t,0.060,2400,0.55,0.55);                    /* the crash, wet */
+  /* THE FLOOR DROPS OUT (playtest: "the payoff isn't big enough"). A real
+     sub boom under the crash — headphone weight — its octave for the phone
+     speaker, and a long dark wash so the hit has a tail instead of an edge. */
+  note(41.2,t,0.90,'sine',0.060,320);
+  note(82.4,t,0.70,'triangle',0.050,700);
+  hat(t,0.030,900,0.9,0.6);
+  /* the braam: a fifth-stack brass bloom swelling out of the impact — the
+     trailer-score hit the playtest asked for by name */
+  swellPad(110,t,1.4,0.040,0);
+  swellPad(164.81,t,1.4,0.030,0.15);
   /* No kick here on purpose. The caller runs payoffStep at this same t and its
      bar 0 fires one — the impact and the section starting are ONE event, and
      scheduling both put two kicks on the same sample. */
@@ -1265,6 +1361,16 @@ function payoffStep(t,ch,k){
   }
   /* the crown's early-half lift: mid-ring adds the offbeat shimmer at once */
   if(MU.crown>=1&&!late&&ps%2===0)hat(t+S16,0.008*w,8600,0.04);
+  /* THE FLOOR (playtest: "more bass" / "the payoff needs to be bigger").
+     A bass line under the hook — sub sine for headphones, an octave square
+     the phone speaker can actually reproduce — straight eighths early,
+     every eighth once the backbeat doubles. It rides the pump, so it
+     breathes with the kick like the records it is imitating. Hook bars
+     only: the response bars stay the player's, floor and all. */
+  if(!resp&&(late||ps%2===0)){
+    note(ch[0]/2,t,0.15,'sine',0.044*w,240);
+    note(ch[0]*2,t,0.10,'square',0.016*w,1600);
+  }
   /* an ORBITS drop sustains: the chord tones stretch to match the style */
   const sus=MU.flavor==='orbit'?1.7:1;
   if(ps===0||ps===4)note(ch[1],t,(ps?0.20:0.32)*sus,'triangle',0.030*w,700);
@@ -1305,6 +1411,11 @@ function payoffStep(t,ch,k){
   MU.pay--;
   /* the section runs out here: the ride's tally is its closing statement */
   if(MU.pay===0&&G.secScore>0)G.secFx={total:G.secScore,t:0};
+  /* ...AND THEN CONTINUES ON (the playtest's exact words). The section used
+     to hand back the ordinary arrangement like a light switching off; now
+     it leaves every gate open for the four-bar breath before the next drop
+     can arm, so the record cools instead of stopping. */
+  if(MU.pay===0)MU.glow=t+16*SPB;
 }
 /* ONE undo for every abnormal path — death, mute, a backgrounded tab, a phone
    call, a new run started mid-section. Every field the section sets is cleared
@@ -1325,6 +1436,7 @@ function endSection(){
   MU.armed=false;MU.rise=false;MU.riseI=0;MU.lpLock=0;MU.hushEnd=0;MU.liftEnd=0;
   MU.pend=bank;MU.pendSrc=bank?bankSrc:null;MU.flavor=null;MU.lateAt=4;MU.crown=0;
   MU.landT=0;MU.landDone=0;
+  MU.brk=0;MU.brkEnd=false;MU.glow=0;
   G.pay=0;G.payOpen=0;
   if(A&&AC){const t=AC.currentTime;
     A.hole.gain.cancelScheduledValues(t);
@@ -1345,6 +1457,21 @@ function fireLift(){
   note(PENT[8],t,0.40,'square',0.032,5600,-0.2);
   note(PENT[5],t,0.40,'square',0.032,5600, 0.2);
   note(CH[0][0],t,0.60,'sawtooth',0.055,900);
+}
+/* ONE BAR OF DRUMS. The band steps out, the kit walks a fill down through
+   tom-voiced triangles, and the player's inputs land on top as snares and
+   kicks — see performerHit. The crash back in is scheduled by musicStep. */
+function breakStep(beat,t){
+  hat(t+S16,0.008,8800,0.035);          /* a 16th shaker keeps the grid audible */
+  if(beat===0)kick(t,0.075);
+  if(beat===1)hat(t,0.016,7200,0.05);
+  if(beat===2){kick(t,0.050);hat(t,0.012,8000,0.04);}
+  if(beat===3)note(261.63,t,0.14,'triangle',0.05,1200,-0.2);
+  if(beat===4)snare(t,0.055,0.35);
+  if(beat===5)note(220,t,0.14,'triangle',0.05,1100,0.2);
+  if(beat===6){snare(t,0.045,0.30);snare(t+S16,0.030,0.30);}
+  if(beat===7){snare(t,0.050,0.35);snare(t+S16,0.055,0.40);
+    note(174.61,t,0.16,'triangle',0.05,1000,0);}
 }
 /* Which layers are audible right now. Intensity is the difficulty clock, so
    the arrangement thickens as the run gets harder and a long run genuinely
@@ -1370,12 +1497,32 @@ function musicStep(i,t,k){
      8 bars, so it still ends on a downbeat with the chord walk aligned. The
      full two-bar run-up is guaranteed either way; worst case is now one bar
      of ordinary music, not four. */
-  if(MU.armed&&!MU.rise&&i%8===0){MU.rise=true;MU.riseI=i;}
+  if(MU.armed&&!MU.rise&&i%8===0){MU.rise=true;MU.riseI=i;
+    if(G.od>0){G.od=0;G.odBrk=false;}}  /* a rising drop absorbs the overdrive */
   const rn=MU.rise?(((i-MU.riseI)%32)+32)%32:-1;   /* eighths since the latch */
   if(rn===8)schedulePreDrop(t+8*(SPB/2));
   if(rn===16){fireDrop(t);payoffStep(t,ch,k);return;}
   const rise=MU.rise;
   if(beat%2===0)BEATQ.push(t);          /* quarter notes, for the visual pulse */
+  /* THE DRUM BREAK (playtest: "more percussion breakdowns"). Play hot and
+     every so often the band steps out for ONE bar of drums — and the
+     player's own inputs are the fill (see performerHit). Overdrive always
+     closes with one. Never while a drop is anywhere in flight: the rise
+     owns its bar, and the break is exactly bar-aligned so they cannot
+     overlap. */
+  if(beat===0&&MU.brk<=0&&!MU.armed&&!MU.rise&&!MU.pend&&
+     (G.odBrk||(PLAY.heat>0.55&&G.od<=0&&k>0.22&&t>=MU.brkCool))){
+    MU.brk=8;MU.brkN++;MU.brkCool=t+30;G.odBrk=false;
+    duckBed(0.5,0.9);
+    if(MU.brkN<=2)G.sayFx={str:'DRUM BREAK!',t:0};
+  }
+  if(MU.brk>0){
+    breakStep(beat,t);
+    MU.brk--;if(MU.brk<=0)MU.brkEnd=true;
+    return;
+  }
+  /* the crash brings the record back exactly on the downbeat after the break */
+  if(MU.brkEnd){MU.brkEnd=false;hat(t,0.055,2600,0.5,0.5);}
   if(rise){
     /* THE RISE, AND NOTHING ELSE. It measured -19.8dB against an ordinary
        bar's -19.6 because the arp, counter-line and root kept playing
@@ -1419,8 +1566,11 @@ function musicStep(i,t,k){
      early, a detuned synth pair by level 4, a sawtooth lead by level 7 —
      same key, same degrees, a band that grows up with the run. And heat can
      open every layer the clock would: playing hard means hearing more NOW. */
+  /* overdrive and the payoff's afterglow hold open every gate the clock or
+     the heat could — see G.od and MU.glow */
+  const hot=G.od>0||t<MU.glow;
   const av=G.tier>=6?'sawtooth':'square';
-  if((k>0.18||PLAY.heat>0.30)&&beat%2===0){
+  if((k>0.18||PLAY.heat>0.30||hot)&&beat%2===0){
     note(PENT[ad],t,0.20,av,0.015+0.011*k,1200+1800*k,
       (beat%4===0?-0.3:0.3));
     if(G.tier>=3)note(PENT[ad]*1.006,t,0.20,av,0.008,1000+1500*k,
@@ -1429,16 +1579,16 @@ function musicStep(i,t,k){
   /* the drive the deleted clause used to add, moved onto the ON beat where it
      cannot collide. Never beat 0 — that already carries the root and is the
      loudest scheduled instant in the game. */
-  if((k>0.62||PLAY.heat>0.55)&&beat%2===0&&beat!==0)
+  if((k>0.62||PLAY.heat>0.55||hot)&&beat%2===0&&beat!==0)
     note(PENT[Math.min(4,ad+2)],t,0.11,'square',0.010+0.006*k,3000,
       beat%4===2?0.3:-0.3);
   /* The chain opens the arrangement as it climbs, and the counter-line DROPS
      OUT at x7 — taking a layer away near the top is what makes the last two
      links feel like a held breath rather than just more music. */
   const gv=Math.max(0,G.groove-4);
-  if((k>0.45||gv>0)&&(beat===2||beat===6))hat(t,0.020+0.012*k+0.006*gv);
+  if((k>0.45||gv>0||hot)&&(beat===2||beat===6))hat(t,0.020+0.012*k+0.006*gv);
   if(gv>=2&&beat%2===1)hat(t,0.009+0.004*gv,8200,0.045);
-  if((k>0.45||PLAY.heat>0.35)&&beat===4)hat(t,0.012);
+  if((k>0.45||PLAY.heat>0.35||hot)&&beat===4)hat(t,0.012);
   /* THE RING IS THE KIT. Subdivision alone was too polite — the hats sat at
      0.008 and the "inner is hotter" promise was inaudible on the device this
      ships to. Pattern reads louder than gain, so each ring now has a
@@ -1463,6 +1613,48 @@ function musicStep(i,t,k){
     hat(t+S16,0.013,9000,0.032);
     hat(t+S16*1.16,0.006,9400,0.03);   /* the inner ring swings */
   }
+  /* THE SCORE SWELLS. Strings breathe in on every other bar line and a
+     soft riser turns each four-bar phrase into the next — the two moves
+     trailer music is built from, at game volume. The swell sits on the
+     chord's third, so the harmony is finally VOICED rather than implied. */
+  if((k>0.35||hot)&&beat===0&&bar%2===0)
+    swellPad(ch[2]*2,t,2.6,0.016+0.010*k,(bar%4===0)?-0.2:0.2);
+  if((k>0.5||hot)&&bar%4===3&&beat===4)riser(t,2*SPB,0.016,1600);
+  /* THE SKY FLAVOURS THE KIT (playtest: "more electro beats"). Each palette
+     band the run climbs through puts its own spin on the percussion: band 1
+     swings its sixteenths, band 2 rides the classic offbeat open hat, band
+     3 leans heavy. Additive only — the ring's identity stays. */
+  if(skyI===1&&(k>0.30||PLAY.heat>0.30||hot)&&(beat===2||beat===6))
+    hat(t+S16*1.16,0.008,8400,0.035);
+  if(skyI===2&&beat%2===1)hat(t,0.013,6600,0.11);
+  if(skyI===3){
+    if(beat===0)kick(t,0.026);
+    if(beat===4)snare(t,0.026,0.25);
+  }
+  /* SCORE BUYS THE BAND (playtest, verbatim: "once a player reaches 2000
+     points add a new electro synth layer that maintains until they get 3000
+     points where another music layer is added. And so on."). Permanent for
+     the run, each named as it arrives — see the layer ladder in update(). */
+  if(G.score>=LAYER_AT[0]&&beat%2===0)
+    note(ch[0]*2,t+S16,0.09,'square',0.011,2400,beat%4?0.2:-0.2);
+  if(G.score>=LAYER_AT[1]){
+    const rd=RIFF[(bar%2)*8+beat];
+    if(rd>=0)note(PENT[rd],t,0.14,'sawtooth',0.012,1900,(bar%2)?0.24:-0.24);
+  }
+  if(G.score>=LAYER_AT[2]&&(beat===0||beat===3||beat===4||beat===6)){
+    note(ch[0]/2,t,0.17,'sine',0.036,240);
+    note(ch[0]*2,t,0.10,'square',0.012,1500);
+  }
+  if(G.score>=LAYER_AT[3]&&beat===7)
+    note(PENT[11],t+S16,0.18,'sine',0.010,8000,(bar%2)?0.35:-0.35);
+  /* OVERDRIVE: eight bars of double-time — the eleventh notch. Every gate
+     above is already held open (hot); this is the engine note itself. */
+  if(G.od>0){
+    G.od--;
+    hat(t,0.012,7200,0.045);
+    hat(t+S16,0.010,8000,0.04);
+    if(G.od===0)G.odBrk=true;   /* it ends the way a record ends: on the break */
+  }
   /* 3 / 7 / 11 melodic events per bar still hold. The kit sits underneath
      them; the payoff section remains the loudest thing in the game. */
   /* THE COVER. The band fills the offbeat only while nobody else is playing
@@ -1475,7 +1667,7 @@ function musicStep(i,t,k){
   /* CNT[i%8] with i only ever 11 or 27 resolved to CNT[3] both times — one
      repeated pitch, not a line. Indexed by something that moves now, and
      dropped an octave so it sits below the player's floor. */
-  if((k>0.72||PLAY.heat>0.65)&&gv<3&&beat===3&&(bar%2===1)){
+  if((k>0.72||PLAY.heat>0.65||hot)&&gv<3&&beat===3&&(bar%2===1)){
     note(PENT[CNT[((i/4)|0)%CNT.length]]/2,t,0.55,'triangle',0.030,2200,0.15);
   }
 }
@@ -1572,6 +1764,8 @@ function judgeTiming(x,y){
     if(MU&&MU.pay>0){
       const ex=8*(G.secMult||1);
       G.score+=ex;G.secScore+=ex;G.scorePop=Math.max(G.scorePop,0.6);
+    }else if(G.od>0){
+      G.score+=8;G.scorePop=Math.max(G.scorePop,0.5);
     }
     const was=G.groove;
     G.groove=Math.min(8,G.groove+1);
@@ -1652,6 +1846,14 @@ function performerHit(kind,dir,ring){
   PLAY.idx++;
   const p=posPlayer();
   const gr=judgeTiming(p[0],p[1]);
+  /* THE FILL IS YOURS. During a drum break every input IS a drum: taps play
+     the snare, hops the kick. The one bar where mashing is the arrangement. */
+  if(MU.brk>0){
+    if(kind==='hop'){kick(t,0.058);hat(t,0.015,7400,0.05);}
+    else snare(t,0.048,0.30);
+    if(gr>=2)hat(t+S16,0.012,8800,0.04);
+    return;
+  }
   /* the reward you actually feel: a tight hit is brighter and louder, so the
      groove is audible before you ever look at the number.
      A SAWTOOTH against the band's square: the band has odd harmonics only, a
@@ -1780,7 +1982,8 @@ function bedTick(dt){
   const gv=Math.max(0,G.groove-4);
   /* the pad opens as you go inward too, so the whole mix brightens with depth */
   let cut=400+1500*k*k+900*PLAY.heat+420*gv+(playing?RINGS[ringOf()].lift:0)
-    +((MU&&MU.armed&&!MU.rise)?260:0);   /* the armed wait audibly opens */
+    +((MU&&MU.armed&&!MU.rise)?260:0)    /* the armed wait audibly opens */
+    +(G.od>0?420:0)+((MU&&t<MU.glow)?280:0); /* overdrive and afterglow run bright */
   if(MU&&MU.pay>0)cut=Math.min(cut,((PAY-MU.pay)>>3)<(MU.lateAt||4)?380:700);
   /* schedulePreDrop owns this param through the hole; do not fight it */
   if(!MU||t>=MU.lpLock)BED.lp.frequency.setTargetAtTime(cut,t,0.5);
@@ -2209,6 +2412,9 @@ const G={
   starT:0.6,spikeT:1.2,powT:6,powN:0,shake:0,flash:0,tier:0,banner:null,
   runs:0,didReverse:false,didHop:false,didLap:false,
   teach:0,teachKind:null,teachHint:null,seen:{},campT:0, /* lessons + outer-ring camp clock */
+  od:0,odT:0,odCool:0,odBrk:false,     /* overdrive: eighths left, heat clock, cooldown, break-due */
+  layerN:0,bandN:0,bandFx:0,           /* score layers unlocked; band-meter dot count + pulse */
+  sndAt:0,sndStr:null,                 /* a NEW SOUND announcement waiting for its banner to clear */
   holdD:0,hopHintT:0,                   /* the hop lesson: gate, hint clock */
   everHopped:false,struggle:0,coach:null,  /* lifetime hop pref, struggle streak, death coaching */
   bgFade:0,revFlip:0,impactT:0,killer:null, /* sky crossfade, reverse flip, death impact */
@@ -2524,6 +2730,8 @@ function startGame(){
   G.teach=0;G.teachKind=null;G.teachHint=null;G.campT=0;G.holdD=0;G.hopHintT=0;G.coach=null;
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
   G.sparkT=0;G.sparkN=0;
+  G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;
+  G.layerN=0;G.bandN=0;G.bandFx=0;G.sndAt=0;G.sndStr=null;
   skyI=0;      /* the sky opens on band 0 — the ratchet re-deepens it as the run climbs */
   pd=null;     /* a finger held across the death screen must not steer the new run */
   BEATQ.length=0;DROPQ.length=0;
@@ -2998,6 +3206,7 @@ function update(dt){
   G.grooveFx=Math.max(0,G.grooveFx-dt*2.2);
   G.buildFx=Math.max(0,G.buildFx-dt*2.2);
   G.dropFx=Math.max(0,G.dropFx-dt*1.1);
+  G.bandFx=Math.max(0,G.bandFx-dt*1.6);
   G.payOpen=Math.max(0,G.payOpen-dt*1.4);
   G.bgFade=Math.max(0,G.bgFade-dt/2.5);
   G.impactT=Math.max(0,G.impactT-dt);
@@ -3079,6 +3288,47 @@ function update(dt){
   /* playing */
   G.teach=Math.max(0,G.teach-dt);
   if(G.nRings>=3&&G.ringI===0)G.campT+=dt;else G.campT=0;
+  /* OVERDRIVE — the eleventh notch. Keep the heat pinned for a full bar
+     (about 2.3s of continuous playing) and the game tips into eight bars of
+     double-time with every layer open, and embers and on-beat taps paying
+     double. Never while a drop is in flight; a drop that rises mid-overdrive
+     simply absorbs it — the bigger moment wins. */
+  if(MU&&MU.pay<=0&&!MU.rise&&G.od<=0&&PLAY.heat>0.75)G.odT+=dt;else G.odT=0;
+  if(G.odT>SPB*8&&G.t>G.odCool&&G.od<=0&&MU&&!MU.armed&&dl()>18){
+    G.od=64;G.odT=0;G.odCool=G.t+45;
+    G.sayFx={str:'OVERDRIVE \u00d72',t:0};
+    fireLift();
+    const op=posPlayer();burst(op[0],op[1],COL.warp,20,240);
+    if(!RM){G.flash=Math.max(G.flash,0.2);
+      G.rings.push({x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.warp,sp:260,dec:1.6});}
+  }
+  /* the layer ladder: a score crossing names the layer that just joined */
+  let lyn=0;for(let li=0;li<LAYER_AT.length;li++)if(G.score>=LAYER_AT[li])lyn++;
+  if(lyn>G.layerN){
+    G.layerN=lyn;G.bandFx=1;
+    G.sayFx={str:LAYER_NAME[lyn-1],t:0};
+    cueTone(function(w){
+      note(CH[0][0]*2,AC.currentTime+w,0.22,'sawtooth',0.030,2600,-0.2);
+      note(CH[0][2],AC.currentTime+w+S16,0.22,'sawtooth',0.026,3000,0.2);
+    });
+  }
+  /* a NEW SOUND is announced once its level banner has had the screen —
+     and the announcement is the sound itself, playing a quick lick */
+  if(G.sndAt&&G.t>=G.sndAt){
+    G.sndAt=0;G.sayFx={str:G.sndStr,t:0};
+    const tr=G.tier;
+    cueTone(function(w){
+      const tt=AC.currentTime+w;
+      if(tr>=9){gtr(PENT[4],tt,0.30,0.05,-0.2);gtr(PENT[6],tt+2*S16,0.34,0.05,0.2);}
+      else if(tr>=6){note(PENT[4],tt,0.16,'sawtooth',0.030,3000,-0.2);
+        note(PENT[6],tt+S16,0.16,'sawtooth',0.030,3400,0);
+        note(PENT[8],tt+2*S16,0.20,'sawtooth',0.030,3800,0.2);}
+      else{note(PENT[4],tt,0.18,'square',0.026,2400,-0.2);
+        note(PENT[4]*1.007,tt,0.18,'sawtooth',0.018,2200,0.2);
+        note(PENT[6],tt+2*S16,0.20,'square',0.026,2600,0.2);
+        note(PENT[6]*1.007,tt+2*S16,0.20,'sawtooth',0.018,2400,-0.2);}
+    });
+  }
   if(G.teach<=0&&G.teachHint)G.teachHint=null;
   /* Effects run on dt, gameplay on sdt — so during hitstop the comet holds
      still while the ignition keeps playing. That contrast is the impact.
@@ -3117,6 +3367,13 @@ function update(dt){
       ripple(cx,cy,COL.ember);   /* earned, so gold — see the banner draw */
       beep(300,0.16,'triangle',0.05,220);
       beep(240,0.22,'triangle',0.05,180,0.14);
+    }
+    /* the star voice steps up at levels 4, 7 and 10 — announced after the
+       level banner has had the screen (see update), as its own moment */
+    if(G.tier===3||G.tier===6||G.tier===9){
+      G.sndAt=G.t+3.8;
+      G.sndStr=G.tier>=9?'NEW SOUND: ELECTRIC GUITAR':
+               G.tier>=6?'NEW SOUND: SYNTH LEAD':'NEW SOUND: TWIN SYNTHS';
     }
   }
   if(G.banner){G.banner.t+=dt;if(G.banner.t>3.2)G.banner=null;}
@@ -3235,7 +3492,7 @@ function update(dt){
       if(MU&&MU.pay>0){
         const ex=G.combo*(G.secMult||1);
         G.score+=ex;G.secScore+=ex;
-      }
+      }else if(G.od>0)G.score+=G.combo;   /* overdrive doubles the pickup */
       G.lapEmbers++;G.embers++;
       const p=posAt(s.a,radiusOf(s.ring));
       burst(p[0],p[1],COL.ember,14,150);
@@ -3253,7 +3510,21 @@ function update(dt){
       const eco=[0,-1,1,0][MU?((MU.step/8)|0)%4:0];
       cueTone(function(w){
         const tt=AC.currentTime+w,f=PENT[Math.max(0,Math.min(9,3+cb+eco))];
-        if(G.tier>=6){
+        if(MU&&MU.pay>0){
+          /* THE PAYOFF MAKES YOU THE SOLOIST. During the section a pickup
+             fires a three-note run up the scale on the player's own bus —
+             collecting IS soloing, which is the biggest "music is the key"
+             payoff in the game for the smallest rule. */
+          const d0=Math.max(0,Math.min(9,3+cb+eco));
+          note(PENT[d0],tt,0.14,'square',0.030,3200,cpan,A.perf);
+          note(PENT[Math.min(13,d0+2)],tt+S16,0.13,'square',0.026,3600,cpan*0.5,A.perf);
+          note(PENT[Math.min(13,d0+4)],tt+2*S16,0.16,'square',0.030,4200,-cpan,A.perf);
+          note(PENT[Math.min(13,d0+4)]*2,tt+2*S16,0.10,'sine',0.012,6000,-cpan,A.perf);
+        }else if(G.tier>=9){
+          /* level ten: the stars are an electric guitar */
+          gtr(f,tt,0.20,0.034+0.004*cb,cpan);
+          if(cb>=3)gtr(f*2,tt+S16,0.14,0.020,-cpan);
+        }else if(G.tier>=6){
           /* levels 7+: a sawtooth lead with an octave bite and a slide-in
              attack — the stars have become the guitar */
           note(f,tt,0.16,'sawtooth',0.026+0.004*cb,1800+340*cb,cpan);
@@ -3267,7 +3538,8 @@ function update(dt){
           note(f,tt,0.16,'square',0.030+0.004*cb,1400+300*cb,cpan);
         }
         /* the chain's crown: a high answer only when the combo is maxing */
-        if(cb>=4)note(PENT[Math.min(13,8+eco)],tt+S16,0.12,'square',0.022,2600,cpan);
+        if(cb>=4&&!(MU&&MU.pay>0))
+          note(PENT[Math.min(13,8+eco)],tt+S16,0.12,'square',0.022,2600,cpan);
       });
       build(0.016,'ember');
       checkMile();
@@ -4378,6 +4650,33 @@ function drawHUD(){
        less than the one that says where in the game you are. */
     text('LEVEL '+levelNum()+' · '+tierLabel(),cx,top+76*u,13*u,'700',
       'rgba(255,200,87,0.72)',2);
+    /* THE BAND METER (playtest: nobody could tell there was more band to
+       unlock). One dot per layer, lit as it joins the record: five violet
+       for the arrangement, gold appended as the score buys layers. The
+       newest pulses; overdrive runs the whole row gold. */
+    if(MU){
+      const mk=Math.min(1,dl()/150),ht=PLAY.heat,gvd=Math.max(0,G.groove-4);
+      const odd=G.od>0,glw=AC&&MU.glow&&AC.currentTime<MU.glow;
+      const lit=[true,
+        odd||glw||mk>0.18||ht>0.30,
+        odd||glw||mk>0.45||ht>0.35||gvd>0,
+        odd||glw||mk>0.62||ht>0.55,
+        odd||glw||mk>0.72||ht>0.65];
+      for(let li=0;li<LAYER_AT.length;li++)lit.push(G.score>=LAYER_AT[li]);
+      let bn=0;for(let li=0;li<lit.length;li++)if(lit[li])bn++;
+      if(bn>G.bandN)G.bandFx=1;
+      G.bandN=bn;
+      const bsp=8*u,bx=cx-(lit.length-1)*bsp/2,by2=top+84*u;
+      for(let li=0;li<lit.length;li++){
+        const rr=1.8*u*((li===bn-1&&G.bandFx>0)?(1+0.5*G.bandFx):1);
+        ctx.beginPath();ctx.arc(bx+li*bsp,by2,rr,0,TAU);
+        if(lit[li]){ctx.globalAlpha=0.8;
+          ctx.fillStyle=(odd||li>=5)?COL.ember:COL.warp;ctx.fill();}
+        else{ctx.globalAlpha=0.2;ctx.strokeStyle='rgba(200,215,255,0.9)';
+          ctx.lineWidth=1;ctx.stroke();}
+      }
+      ctx.globalAlpha=1;
+    }
     /* embers banked toward this orbit's payout */
     const pipW=10*u,x0=cx-(LAP_EMB_MAX-1)*pipW/2,py=top+92*u;
     for(let i=0;i<LAP_EMB_MAX;i++){
@@ -4416,7 +4715,12 @@ function drawHUD(){
        second once per orbit, so the run's longest-commitment behaviour was
        also its least visible. It no longer claims to earn a drop by itself —
        everything feeds one meter now, and that meter is drawn below. */
-    if(G.lapStreak>=2&&roomy){
+    if(G.od>0&&roomy){
+      ctx.globalAlpha=0.7+0.3*G.beat;
+      text('OVERDRIVE ×2',cx,top+154*u,11*u,'800','rgba(255,200,87,0.95)',3);
+      ctx.globalAlpha=1;
+    }
+    if(G.lapStreak>=2&&roomy&&G.od<=0){
       ctx.globalAlpha=0.5;
       text('LAPS \u00d7'+G.lapStreak,cx,top+154*u,9.5*u,'700',
         'rgba(255,200,120,0.85)',2);
@@ -4465,7 +4769,9 @@ function drawHUD(){
       ctx.globalAlpha=Math.max(0,a)*0.9;
       /* squeezed viewports hand it the centre instead of the IN TIME line */
       text(G.sayFx.str,cx,sayCentred?cy-8*u:cy-R-16*u,17*u,'800',
-        G.sayFx.str==='YOUR TURN'?COL.warp:'rgba(210,225,255,0.75)',5);
+        G.sayFx.str==='YOUR TURN'?COL.warp:
+        (G.sayFx.str.indexOf('NEW ')===0||G.sayFx.str.indexOf('OVERDRIVE')===0)?
+          'rgba(255,200,87,0.9)':'rgba(210,225,255,0.75)',5);
       ctx.globalAlpha=1;
     }
     if(G.combo>=2&&G.comboT>0){
@@ -4712,6 +5018,14 @@ function drawHUD(){
     if(G.lands>0)brag.push(G.lands+(G.lands===1?' drop landed':' drops landed'));
     if(brag.length)
       text(brag.join('  ·  '),cx,cy+78*u,11*u,'600','rgba(170,135,255,0.7)',0);
+    /* the retention hook: name the sound the ladder is still holding */
+    if(G.tier<9){
+      const nx=G.tier>=6?['electric guitar',10]:G.tier>=3?['synth lead',7]:['twin synths',4];
+      ctx.globalAlpha=el(lvAt+0.6)*0.9;
+      text('next sound: '+nx[0]+' at level '+nx[1],cx,cy+94*u,10.5*u,'600',
+        'rgba(200,215,255,0.42)',0);
+      ctx.globalAlpha=1;
+    }
     /* ONE COACHING LINE, from what the game already measured — the death it
        just watched. Above the ladder, where the eye starts. */
     if(G.coach){
@@ -4736,7 +5050,12 @@ function frame(now){
   const dt=Math.min((now-last)/1000,0.05);
   last=now;
   update(dt);
-  draw();
+  /* THE LOOP NEVER DIES. requestAnimationFrame is only scheduled after
+     draw(), so a single throwing frame — one bad radius, one transient
+     state — would otherwise freeze the run forever with no error the
+     player can see. One dropped frame is invisible; a dead game is not.
+     The first error is kept for inspection instead of being re-thrown. */
+  try{draw();}catch(e){if(!window.__drawErr)window.__drawErr=e;}
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
