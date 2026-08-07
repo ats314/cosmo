@@ -931,6 +931,13 @@ const HOOKBG=(function(){const g=new Array(32).fill(0);
 const GHOST=[-1,-1,-1,-1,-1,-1, 8,-1, 6,-1,-1, 5,-1,-1,-1,-1];
 let MU=null,NOISE=null;
 const BEATQ=[];
+/* THE LOOP HAS A FACE. The recorder was the game's billing — "your beat is
+   in the song" — and its entire existence was one text line and a sound a
+   muted player cannot hear. Each scheduled ghost note queues here, and the
+   band meter grows a cyan dot that blinks exactly when the ghost sings:
+   the player's own recorded rhythm, visible in the row that names the
+   band's members. */
+const LOOPQ=[];
 function buildBed(){
   if(BED||!AC)return;
   const c=AC,g=c.createGain();g.gain.value=0;
@@ -1766,6 +1773,7 @@ function musicStep(i,t,k){
         const tt2=t+o*S16;
         note(chTone(dd+2),tt2,0.15,'triangle',0.014,1600,0.15,undefined,0.4);
         note(chTone(dd+3),tt2,0.15,'sine',0.009,1400,-0.15);
+        LOOPQ.push(tt2);   /* the ghost's face — see the band meter's cyan dot */
       }
     }
   }
@@ -2044,6 +2052,13 @@ function judgeTiming(x,y){
       if(!G.didGroove){G.didGroove=true;savePref('cometloop:groove','1');}
       popup(x,y-34*u,'ON BEAT!',COL.warp,1.0);
     }
+    /* the popup names the tap; the lesson names the SYSTEM — once per
+       device, on the exact input that proved the player can find it. It
+       sits OUTSIDE the once-per-run popup latch: a deferred lesson must be
+       re-offered by every later on-beat tap, not lost with the popup. */
+    if(G.groove>=2)firstMeet('beat');
+    /* the summit says what it bought — once per run, at the moment ×8 lands */
+    if(G.groove===8&&!G.said8){G.said8=true;say('ON BEAT ×8 — the band opens up',2,8);}
     if(G.groove>=3)popup(x,y-34*u,'ON BEAT \u00d7'+G.groove,COL.warp,0.85+0.05*G.groove);
     return G.groove;
   }
@@ -2200,6 +2215,8 @@ function bedTick(dt){
      settles rather than latching */
   PLAY.heat=Math.max(0,PLAY.heat-dt*0.34);
   while(BEATQ.length&&BEATQ[0]<=t){BEATQ.shift();G.beat=1;}
+  while(LOOPQ.length&&LOOPQ[0]<=t){LOOPQ.shift();G.loopFx=1;}
+  if(LOOPQ.length>32)LOOPQ.length=0;      /* a stall must not bank a burst */
   while(DROPQ.length&&DROPQ[0]<=t){
     DROPQ.shift();G.dropFx=1;
     /* the world answers the downbeat */
@@ -2367,19 +2384,20 @@ const PENT_BASE=PENT.slice();
    it is the exam. The card lines below are checked against MECHANICS.md \u2014
    update both together. */
 const LV=[
- {dl0:0,  end:75,  name:'LIFT OFF', key:1,
+ {dl0:0,  end:90,  name:'LIFT OFF', key:1,
   mech:[['tap','tap anywhere to turn around'],
         ['swipe','swipe up or down to change rings'],
         ['shard','red kills you \u2014 twins are hopped, not outrun'],
         ['star','feed your orbit \u2014 a full lap pays big'],
+        ['beat','your moves play the music \u2014 ride the beat'],
         ['star','finish: follow the star trail to the core']]},
- {dl0:75, end:190, name:'INTO THE RINGS', key:0.8909,
+ {dl0:90, end:215, name:'INTO THE RINGS', key:0.8909,
   mech:[['shard','gates block every ring \u2014 turn back'],
         ['shard','drifters slide \u2014 blinkers wink in and out'],
         ['shard','then: sliding walls and flickering pairs'],
         ['nova','new orbs: bass bomb, spotlight, the gold star'],
         ['beat','run hot: overdrive, drum breaks']]},
- {dl0:190,end:Infinity,name:'THE STORM', key:0.7937,
+ {dl0:215,end:Infinity,name:'THE STORM', key:0.7937,
   mech:[['shard','no new tricks \u2014 everything at once'],
         ['beat','the full band, endless'],
         ['star','how far can you ride?']]}];
@@ -2707,10 +2725,14 @@ function emberGap(){return Math.max(0.30,(1.35-dl()*0.003)/G.nRings);}
    hostile density. They now land inside level 2 (dl 75-190), one at a
    time, each with its banner and first-encounter lesson, and STORM sits
    exactly on level 3's floor so the exam begins with nothing left to
-   introduce. Wall-clock spacing inside level 2 for a no-nudge player:
-   gates +18s · drifters +55s · blinkers +86s · sliding gates +106s ·
-   flicker pairs +126s · finale ~+141s — every gap clears the 9s lesson
-   spacing and the banner's full display with room to spare.
+   introduce. Wall-clock spacing inside level 2 (dl 90-215) for a no-nudge
+   player: gates +18s · drifters +58s · blinkers +90s · sliding gates
+   +112s · flicker pairs +134s · finale ~+151s — every gap clears the 9s
+   lesson spacing and the banner's full display with room to spare.
+   (Round two, on the owner's call: levels 1 and 2 both run LONGER now —
+   finish lines at dl 90 and 215 — because the introductions still crowded
+   each other; level 1's back half belongs to the musical curriculum, and
+   level 2 gives each threat ~22 difficulty-seconds of its own.)
    Difficulty is untouched, same as when TWIN moved forward: speedAt,
    shardCap, spawnGap and warnTime all key off dl() and none changes here,
    so this changes WHAT arrives, never HOW MUCH.
@@ -2756,12 +2778,12 @@ const TIERS=[
   {at:12, type:null,    name:'SECOND RING', sub:'swipe up or down to switch track',rings:2},
   {at:18, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 swipe to another ring'},
   {at:40, type:null,    name:'THIRD RING',  sub:'inside is tighter, faster and higher',rings:3},
-  {at:85, type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 tap to turn back'},
-  {at:105,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
-  {at:125,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
-  {at:145,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
-  {at:165,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
-  {at:190,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
+  {at:100,type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 tap to turn back'},
+  {at:122,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
+  {at:144,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
+  {at:166,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
+  {at:188,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
+  {at:215,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
 ];
 function tierIndex(){
   const d=dl();
@@ -2870,7 +2892,8 @@ const G={
   teach:0,teachKind:null,teachHint:null,teachType:null,seen:{},seen2:{},campT:0, /* lessons + outer-ring camp clock */
   bassPlaced:false,spotPlaced:false,   /* the level-2 orb guarantees */
   lapCut:0,lapCutDir:1,lapCutA:0,lapFx:null, /* a committed reverse's discarded orbit — the cost, drawn */
-  beatPop:false,lsnN:0,               /* per-run: ON BEAT popup, lessons shown */
+  beatPop:false,lsnN:0,said8:false,   /* per-run: ON BEAT popup, lessons shown, ×8 line */
+  loopFx:0,bandCap:false,bandCapT:0,  /* loop-ghost pulse; band-meter caption */
   killerTaught:false,killerRetaught:false,
   od:0,odT:0,odCool:0,odBrk:false,     /* overdrive: eighths left, heat clock, cooldown, break-due */
   odGlow:0,brkGlow:0,finGlow:0,        /* backdrop envelopes: overdrive, break dim, dive gold */
@@ -3113,7 +3136,15 @@ const MEET={
   hyper: {t:'the gold star — untouchable at double speed',g:'star',soft:1},
   /* not a spawned object: fired by the first reversal that discards most of
      an orbit — the one rule of the scoring economy nothing else teaches */
-  lapcost:{t:'turning back restarts the orbit — stars stay banked',g:'star',soft:1}};
+  lapcost:{t:'turning back restarts the orbit — stars stay banked',g:'star',soft:1},
+  /* THE MUSICAL CURRICULUM (playtest: "combos are never explained, timing
+     beats is never explained, the music responding to your beats is never
+     really explained — some of the best parts of the game are never used
+     by new players"). Three event-triggered lessons name the rhythm layer
+     the moment the player first touches it. */
+  music: {t:'your moves play the music — every tap is a note',g:'beat',soft:1},
+  beat:  {t:'that was on the beat — tight timing pays and opens the band',g:'beat',soft:1},
+  combo: {t:'combo — each star pays more than the last',g:'star',soft:1}};
 function firstMeet(type){
   if(G.seen[type]||!MEET[type])return;
   /* A LESSON WAITS FOR A CALM BEAT. Mid-game, first encounters used to fire
@@ -3141,6 +3172,11 @@ function firstMeet(type){
      (for lapcost that is exactly the teachable moment, and a re-offer that
      required storm-grade calm could defer forever while pickType insists) */
   if(!soft){
+    /* a hard lesson freezes the world — never spend a live timed reward's
+       clock on it. The hypernova, spotlight and slow-mo run on real time,
+       and 2.8 frozen seconds is a third of the marquee item burned while
+       the player cannot move. Deferred, re-offered next encounter. */
+    if(G.hyper>0||G.spot>0||G.slow>0)return;
     const mer=effRing();
     for(const sp of G.spikes)
       if(sp.phase===1&&sp.ring===mer&&angDist(sp.a,G.angle)<1.2)return;
@@ -3181,7 +3217,10 @@ function spawnSpike(){
       const va=type==='driftgate'?rand(0.18,0.34)*(Math.random()<0.5?-1:1):0;
       const gw=G.seen[type]?{}:{warn:warnTime()*1.6};
       firstMeet(type);
-      for(let k=0;k<G.nRings;k++)G.spikes.push(mkSpike(a,k,Object.assign({gate:true,life:life,va:va},gw)));
+      /* spot marks the specimen a live lesson is explaining — the veil
+         draw rings exactly these shards */
+      const gtag=(G.teach>0&&G.teachType===type)?1:0;
+      for(let k=0;k<G.nRings;k++)G.spikes.push(mkSpike(a,k,Object.assign({gate:true,life:life,va:va,spot:gtag},gw)));
       return;
     }
     if(type==='twin'||type==='blinktwin'){
@@ -3194,16 +3233,17 @@ function spawnSpike(){
          formation it came from, so twin deaths used to report 'single' and
          the death coach went silent for the exact formation that forces
          the unfamiliar verb */
+      const ttag=(G.teach>0&&G.teachType===type)?1:0;
       if(type==='blinktwin'){
         /* Half a cycle apart, so the pair alternates: there is always exactly
            one lethal side and one gap. Both are briefly armed at the crossover
            and never both dormant, which is what stops it being a free pass. */
         const bl=rand(4.4,6.2);
-        G.spikes.push(mkSpike(a,ring,{blink:true,bo:0,life:bl,tw:type}));
-        G.spikes.push(mkSpike(a+off,ring,{blink:true,bo:BLINK*0.5,life:bl,tw:type}));
+        G.spikes.push(mkSpike(a,ring,{blink:true,bo:0,life:bl,tw:type,spot:ttag}));
+        G.spikes.push(mkSpike(a+off,ring,{blink:true,bo:BLINK*0.5,life:bl,tw:type,spot:ttag}));
       }else{
-        G.spikes.push(mkSpike(a,ring,{life:life,tw:type}));
-        G.spikes.push(mkSpike(a+off,ring,{life:life,tw:type}));
+        G.spikes.push(mkSpike(a,ring,{life:life,tw:type,spot:ttag}));
+        G.spikes.push(mkSpike(a+off,ring,{life:life,tw:type,spot:ttag}));
       }
       return;
     }
@@ -3213,14 +3253,16 @@ function spawnSpike(){
          fires now or was deferred for calm, the shard itself teaches */
       const dw=G.seen['drift']?{}:{warn:warnTime()*1.6};
       firstMeet(type);
-      G.spikes.push(mkSpike(a,ring,Object.assign({va:rand(0.24,0.5)*(Math.random()<0.5?-1:1),life:rand(3.4,5.2)},dw)));
+      G.spikes.push(mkSpike(a,ring,Object.assign({va:rand(0.24,0.5)*(Math.random()<0.5?-1:1),life:rand(3.4,5.2),
+        spot:(G.teach>0&&G.teachType===type)?1:0},dw)));
     }else if(type==='blink'){
       const bw=G.seen['blink']?{}:{warn:warnTime()*1.6};
       firstMeet(type);
-      G.spikes.push(mkSpike(a,ring,Object.assign({blink:true,life:rand(4.0,6.0)},bw)));
+      G.spikes.push(mkSpike(a,ring,Object.assign({blink:true,life:rand(4.0,6.0),
+        spot:(G.teach>0&&G.teachType===type)?1:0},bw)));
     }else{
       firstMeet(type);
-      G.spikes.push(mkSpike(a,ring));
+      G.spikes.push(mkSpike(a,ring,{spot:(G.teach>0&&G.teachType===type)?1:0}));
     }
     return;
   }
@@ -3299,6 +3341,9 @@ function startGame(){
      credibility exactly where the real ones matter */
   G.layerN=0;
   for(let li=0;li<LAYER_AT.length;li++)if(G.score>=LAYER_AT[li])G.layerN=li+1;
+  /* a carried score means the band was already explained last level — the
+     caption is once per RUN, not once per level card */
+  G.bandCap=G.layerN>0;
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
@@ -3314,7 +3359,8 @@ function startGame(){
   LOOP.pat=null;LOOP.n=0;LOOP.until=0;LOOP.heard=false;
   G.bandN=0;G.bandFx=0;G.sndAt=0;G.sndStr=null;
   G.flashT=0;G.meetNext=0;G.teachSoft=false;G.teachType=null;ANN.length=0;annNext=0;
-  G.lapCut=0;G.lapCutDir=1;G.lapFx=null;G.beatPop=false;G.lsnN=0;
+  G.lapCut=0;G.lapCutDir=1;G.lapFx=null;G.beatPop=false;G.lsnN=0;G.said8=false;
+  G.loopFx=0;G.bandCap=false;G.bandCapT=0;LOOPQ.length=0;
   skyI=0;      /* the sky opens on band 0 — the ratchet re-deepens it as the run climbs */
   pd=null;     /* a finger held across the death screen must not steer the new run */
   BEATQ.length=0;DROPQ.length=0;
@@ -3554,6 +3600,9 @@ function cardDone(){
    lessons interrupted by the death they should explain vanished from the
    teach-vs-death funnel. */
 function flushLesson(cut){
+  /* the spotlight dies with the lesson — a later lesson must not inherit a
+     previous specimen's gold ring */
+  for(const sp of G.spikes)if(sp.spot)sp.spot=0;
   if(!G.teachHint||!G.teachType){G.teachHint=null;G.teachSoft=false;G.teachType=null;return;}
   G.lsnN++;
   track('lesson_shown',{type:G.teachType,soft:G.teachSoft,
@@ -3966,6 +4015,7 @@ function update(dt){
   G.buildFx=Math.max(0,G.buildFx-dt*2.2);
   G.dropFx=Math.max(0,G.dropFx-dt*1.1);
   G.bandFx=Math.max(0,G.bandFx-dt*1.6);
+  G.loopFx=Math.max(0,G.loopFx-dt*3.5);
   G.odGlow+=(((G.od>0)?1:0)-G.odGlow)*Math.min(1,dt*2.5);
   G.brkGlow+=(((MU&&MU.brk>0)?1:0)-G.brkGlow)*Math.min(1,dt*7);
   G.finGlow+=((FIN.on?1:0)-G.finGlow)*Math.min(1,dt*2);
@@ -4052,6 +4102,10 @@ function update(dt){
   /* playing */
   G.teach=Math.max(0,G.teach-dt);
   if(G.nRings>=3&&G.ringI===0)G.campT+=dt;else G.campT=0;
+  /* the meta-lesson of the whole record: the game answers your inputs in
+     music. Named once per device, in level 1's calm opening, after the
+     player has made at least one move for the music to have answered. */
+  if(!G.seen.music&&G.didReverse&&age()>10&&age()<26)firstMeet('music');
   /* THE FINALE replaces the bare finish line on levels 1-2: it latches at
      the next two-bar line once the run is close, banks any drop, and the
      duet plays out. A generous backstop still completes the level if the
@@ -4065,6 +4119,9 @@ function update(dt){
     if(!AC||!MU){
       if(dl()>=lvEnd){levelComplete();return;}
     }else if(!FIN.on&&!FIN.done&&dl()>=lvEnd-10&&(MU.pay<=0&&!MU.rise)){
+      /* a live hard lesson must not freeze the finale's opening bars under
+         the veil — the ceremony owns the screen from here */
+      flushLesson(true);G.teach=0;G.teachKind=null;
       FIN.on=true;FIN.pend=true;
       FIN.score=0;FIN.got=0;FIN.voices=0;FIN.t0=G.t;
       FIN.bloomed=false;FIN.lastAt=-9;
@@ -4213,7 +4270,10 @@ function update(dt){
   let lyn=0;for(let li=0;li<LAYER_AT.length;li++)if(G.score>=LAYER_AT[li])lyn++;
   if(lyn>G.layerN){
     G.layerN=lyn;G.bandFx=1;
-    say(LAYER_NAME[lyn-1],1,20);
+    if(!G.bandCap){G.bandCap=true;G.bandCapT=G.t;}  /* the meter's caption moment */
+    /* pri 2, not 1: a bought layer is a reward, and at the queue's minimum
+       priority it lost the slot to every routine line for the whole 2.8s pump */
+    say(LAYER_NAME[lyn-1],2,20);
     braam(0.030);
     cueTone(function(w){
       note(CH[0][0],AC.currentTime+w,0.24,'sawtooth',0.030,1600,-0.2,undefined,0.4);
@@ -4243,7 +4303,14 @@ function update(dt){
      The hop rehearsal dilates the same way slow-mo does: the comet at a
      third speed, the music untouched, and spawns held — see the rings
      branch of the tier ratchet. */
-  const sdt=dt*G.tsCur*(G.stop>0?0.10:1)*((G.teach>0&&!G.teachSoft)?0.35:1);
+  /* A HARD LESSON IS A HELD BREATH NOW, not a mumble. 0.35x meant the new
+     threat was explained over a board still visibly in motion — the
+     playtest's "poor job of introducing cleanly" in one number. 'see'
+     lessons run near-frozen (0.06x) under a dim veil with the specimen
+     spotlit; the hop rehearsal keeps 0.35x because it needs a world moving
+     enough to practice against. The music never stops either way. */
+  const sdt=dt*G.tsCur*(G.stop>0?0.10:1)*
+    ((G.teach>0&&!G.teachSoft)?(G.teachKind==='see'?0.06:0.35):1);
   /* a slow floor ramp so the game can never be stalled by refusing to score */
   /* HYPERNOVA speed: +90% at full burn — eased in over a third of a second
      so the lurch reads as ignition, and eased OUT over the last 1.4s so the
@@ -4285,7 +4352,13 @@ function update(dt){
          the radial guide draws at the comet — the one place the rotating
          gesture can actually be shown. First landed hop ends it instantly;
          the cap means it can never stall a run. */
-      if(G.nRings===2&&!G.didHop&&!G.everHopped){G.teach=8;G.teachKind='hop';}
+      if(G.nRings===2&&!G.didHop&&!G.everHopped){
+        /* a live lesson must not survive into the rehearsal: teach state is
+           one slot, and inheriting a soft lesson's flags ran the rehearsal
+           at FULL speed under a stale sentence */
+        flushLesson(true);
+        G.teach=8;G.teachKind='hop';G.teachSoft=false;
+      }
     }
     if(T.name){
       G.banner={str:T.name,sub:T.sub,t:0};
@@ -4418,6 +4491,7 @@ function update(dt){
     if(s.ring===er&&sweptHit(s.a,(22*u)/radiusOf(er))){
       G.stars.splice(i,1);
       G.combo=Math.min(G.combo+1,6);G.comboT=CW;
+      if(G.combo>=3)firstMeet('combo');   /* the multiplier names itself once */
       G.score+=G.combo;G.diff+=1;G.scorePop=1;
       /* embers ride the section too: doubled (×2 more on a perfect landing) */
       if(MU&&MU.pay>0){
@@ -4721,6 +4795,20 @@ function text(str,x,y,size,weight,col,ls){
   try{ctx.letterSpacing=(ls||0)+'px';}catch(e){}
   ctx.fillText(str,x,y);
   try{ctx.letterSpacing='0px';}catch(e){}
+}
+/* NO LINE EVER RUNS OFF THE SCREEN (playtest: it did). Measure at the
+   intended size and shrink to fit the given width — announcements, banner
+   subs and card rows all pass through here, so a long sentence on a narrow
+   phone gets smaller instead of getting cut. */
+function fitSz(str,size,weight,maxW,ls){
+  ctx.font=weight+' '+Math.round(size)+'px '+F;
+  /* letterSpacing is a fixed per-character amount the draw adds AFTER this
+     measurement (measureText sees none of it) — reserve it, and shrink only
+     the glyph width, or a tracked line still overflows exactly as before */
+  const sp=(ls||0)*str.length;
+  const w=ctx.measureText(str).width+sp;
+  if(w<=maxW)return size;
+  return Math.max(8*u,size*Math.max(20,maxW-sp)/Math.max(1,w-sp));
 }
 /* THE GAME'S OWN VOICE (playtest: "plain and boring — make the text fit the
    theme"). Headline and guidance text draws in starlight now: a soft glow
@@ -5811,6 +5899,25 @@ function drawLadder(x,y,tier,shown){
   ctx.globalAlpha=1;
 }
 function drawHUD(){
+  /* THE LESSON VEIL. While a hard first-encounter lesson holds the world
+     near-frozen, the whole board dims and the specimen being explained
+     wears a breathing gold ring — one thing lit, one sentence, nothing
+     else asking for the eye. Drawn under the HUD so the lesson text and
+     glyph sit on top of the veil at full brightness. */
+  if(G.state==='playing'&&G.teach>0&&!G.teachSoft&&G.teachKind==='see'){
+    const ease=Math.min(1,(2.8-G.teach)*4,G.teach*1.6);
+    ctx.fillStyle='rgba(4,8,20,'+(0.48*Math.max(0,ease)).toFixed(3)+')';
+    ctx.fillRect(0,0,W,H);
+    for(const sp of G.spikes){
+      if(!sp.spot||sp.phase>=2)continue;   /* never ring a fading corpse */
+      const pp=posAt(sp.a,radiusOf(sp.ring));
+      const pr2=(16+(RM?0:3.5*Math.sin(G.t*5)))*u;
+      ctx.globalAlpha=0.85*ease;
+      ctx.strokeStyle=COL.ember;ctx.lineWidth=2.2*u;
+      ctx.beginPath();ctx.arc(pp[0],pp[1],pr2,0,TAU);ctx.stroke();
+      ctx.globalAlpha=1;
+    }
+  }
   ctx.textAlign='center';ctx.textBaseline='alphabetic';
   const top=safeTop;
   const bottomY=Math.min(H-24*u-safeBot,cy+R+52*u);
@@ -5847,7 +5954,25 @@ function drawHUD(){
         else{ctx.globalAlpha=0.2;ctx.strokeStyle='rgba(200,215,255,0.9)';
           ctx.lineWidth=1;ctx.stroke();}
       }
+      /* the player's own loop is a band member too: while the recorder is
+         playing a captured phrase back, a cyan dot joins the row and
+         blinks exactly when the ghost sings — the player's recorded
+         rhythm, visible, muted play included */
+      if(LOOP.pat&&AC&&AC.currentTime<LOOP.until){
+        ctx.beginPath();ctx.arc(bx+lit.length*bsp,by2,1.8*u*(1+0.7*G.loopFx),0,TAU);
+        ctx.globalAlpha=0.45+0.5*G.loopFx;
+        ctx.fillStyle=COL.comet;ctx.fill();
+      }
       ctx.globalAlpha=1;
+      /* the meter's one-time caption, the first time a BOUGHT layer joins:
+         the dots finally say what they are */
+      if(G.bandCapT&&G.t-G.bandCapT<3){
+        ctx.globalAlpha=Math.min(1,(3-(G.t-G.bandCapT))/0.8)*0.8;
+        /* below the lap pips, so the caption never sits on another row */
+        text('THE BAND — score adds layers',cx,top+103*u,9*u,'600',
+          'rgba(255,220,140,0.9)',1);
+        ctx.globalAlpha=1;
+      }
     }
     /* embers banked toward this orbit's payout */
     const pipW=10*u,x0=cx-(LAP_EMB_MAX-1)*pipW/2,py=top+92*u;
@@ -5927,7 +6052,8 @@ function drawHUD(){
       ctx.globalAlpha=Math.max(0,a)*0.9;
       /* squeezed viewports hand it the centre instead of the IN TIME line */
       const sgold=G.sayFx.str.indexOf('NEW ')===0||G.sayFx.str.indexOf('OVERDRIVE')===0;
-      textFx(G.sayFx.str,cx,sayCentred?cy-8*u:cy-R-16*u,17*u,'800',
+      textFx(G.sayFx.str,cx,sayCentred?cy-8*u:cy-R-16*u,
+        fitSz(G.sayFx.str,17*u,'800',W-16*u,5),'800',
         sgold?'#ffe9b0':'#f4f8ff',
         G.sayFx.str==='YOUR TURN'?COL.warp:sgold?COL.ember:'#b9cdf2',
         sgold?'rgba(255,200,87,0.45)':'rgba(140,180,255,0.4)',5);
@@ -5955,8 +6081,8 @@ function drawHUD(){
          ladder ever hands out. Ember gold is what the game already uses for
          everything earned. */
       text('UNLOCKED',cx,by-19*u,12*u,'800','rgba(255,200,87,0.75)',3);
-      textFx(b.str,cx,by,20*u,'800','#ffe9b0',COL.ember,'rgba(255,200,87,0.5)',4);
-      text(b.sub,cx,by+20*u,12*u,'600','rgba(210,225,255,0.75)',0);
+      textFx(b.str,cx,by,fitSz(b.str,20*u,'800',W-20*u,4),'800','#ffe9b0',COL.ember,'rgba(255,200,87,0.5)',4);
+      text(b.sub,cx,by+20*u,fitSz(b.sub,12*u,'600',W-16*u),'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
     }
     /* THE STAR DIVE (the owner's framing: "almost like a reward, a
@@ -6151,7 +6277,7 @@ function drawHUD(){
     for(const m of L.mech){
       hintGlyph(m[0],cx-112*u,my-5*u,16*u);
       ctx.textAlign='left';
-      text(m[1],cx-94*u,my,11.5*u,'600','rgba(214,228,255,0.85)',0);
+      text(m[1],cx-94*u,my,fitSz(m[1],11.5*u,'600',W/2+82*u),'600','rgba(214,228,255,0.85)',0);
       ctx.textAlign='center';
       my+=26*u;
     }
@@ -6205,7 +6331,7 @@ function drawHUD(){
       const ry=y0+i*rh;
       hintGlyph(rows[i][0],gx,ry-fs*0.35,gs);
       ctx.textAlign='left';
-      text(rows[i][1],gx+20*u,ry,fs,'600','rgba(214,228,255,0.88)',0);
+      text(rows[i][1],gx+20*u,ry,fitSz(rows[i][1],fs,'600',W-gx-28*u),'600','rgba(214,228,255,0.88)',0);
     }
     ctx.textAlign='center';
     /* Opened from a chat app, iOS presents the page as a modal sheet, and that
@@ -6299,7 +6425,7 @@ function drawHUD(){
     if(G.coach){
       ctx.globalAlpha=el(lvAt+0.5)*0.9;
       hintGlyph(G.coach.g,cx,cy-152*u,22*u);
-      text(G.coach.t,cx,cy-128*u,12*u,'600','rgba(214,228,255,0.85)',0);
+      text(G.coach.t,cx,cy-128*u,fitSz(G.coach.t,12*u,'600',W-20*u),'600','rgba(214,228,255,0.85)',0);
     }
     ctx.globalAlpha=1;
     if(G.t-G.deadT>0.6&&deadSeqDone()){

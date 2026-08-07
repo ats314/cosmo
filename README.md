@@ -96,10 +96,12 @@ records on the death screen. Score carries across a single run's levels;
 by level 3 every current mechanic has been introduced.
 
 Playtest round three on levels: **1 and 2 run longer again** (finish lines
-at dl 75 and 190 — about 1:50 for level 1 and a further ~2:30 for level 2,
-"by the time you get into the song, it's over" being the note) so each song
-has time to land; gates moved into level 2 proper and the storm threats
-moved out accordingly.
+now at dl 90 and 215 — about 2:05 for level 1 and a further ~2:40 for
+level 2; they sat at 75/190 until the teaching pass needed the room, the
+owner's call being "just make the first and second level longer if
+needed") so each song has time to land and each introduction gets air;
+gates and the storm threats all live in level 2 now, and level 1's back
+half belongs to the musical curriculum.
 
 **The arranging pass.** "Too many sounds clashing" had a findable cause:
 the octave-down warmth pass had stacked the arp, the riff, the loop
@@ -180,10 +182,10 @@ ladder now fits inside levels 1–2 (the curriculum rule):
 | L1 +33s | twin shards — too wide to outrun, hop over |
 | L1 +73s | third ring |
 | L2 +18s | gates — every ring blocked, reverse |
-| L2 +55s | drifters — these ones move |
-| L2 +86s | blinkers — they flicker, time your pass |
-| L2 +106s | sliding gates — the wall slides, reverse early |
-| L2 +126s | flicker pairs — one gap at a time, never both |
+| L2 +58s | drifters — these ones move |
+| L2 +90s | blinkers — they flicker, time your pass |
+| L2 +112s | sliding gates — the wall slides, reverse early |
+| L2 +134s | flicker pairs — one gap at a time, never both |
 | L3 +0s | storm — no new tricks, everything at once |
 
 Those times assume a player earning no difficulty nudge at all, which is the
@@ -341,6 +343,35 @@ line coaches from its own lesson sentence. And three consecutive
 sub-30-second deaths quietly reopen the full 11-second calm opening (see
 below) no matter what the lifetime run counter says; one survival past 30
 seconds clears it.
+
+**The musical curriculum.** The deepest late note — "combos are never
+explained, timing beats is never explained, the music responding to your
+beats is never really explained: some of the best parts of the game are
+never used by new players" — gets its own lesson set, event-triggered at
+the exact moment the player first touches each system: the first reverse's
+calm names the whole idea ("your moves play the music — every tap is a
+note"), the first on-beat tap names the timing game ("tight timing pays
+and opens the band"), the first ×3 names the combo, ×8 says what the
+summit bought, and the level 1 card carries the promise up front. All
+soft lessons — sentences, never slow-mo.
+
+**Hard lessons are a held breath now.** The first-encounter slow-mo ran at
+0.35x — the new threat was explained over a board still visibly in motion.
+A 'see' lesson now runs near-frozen (0.06x) under a dim veil with the
+specimen wearing a breathing gold ring: one thing lit, one sentence,
+nothing else asking for the eye. The hop rehearsal keeps 0.35x (it needs a
+world to practice against) and the music never stops either way.
+
+**No line ever runs off the screen.** Announcements, banner subs, the death
+coach, card rows and menu rows all measure themselves and shrink to fit
+the viewport before drawing — a long sentence on a narrow phone gets
+smaller instead of getting cut.
+
+**The loop recorder is visible.** While a captured phrase plays back, a
+cyan dot joins the band meter and blinks exactly when the ghost sings —
+the player's own recorded rhythm, on screen, muted play included. And the
+meter itself finally gets a one-time caption when the first bought layer
+joins: "THE BAND — score adds layers."
 
 **The ear learns the language.** Playtest, near-verbatim: "I'm too focused
 to read the text... if a sound always accompanied that text then I could
