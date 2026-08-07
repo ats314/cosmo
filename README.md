@@ -798,13 +798,17 @@ playtests can be read instead of retold: a pageview per visit, `run_ended`
 on every death (score, level, run length, death cause, the two-verb usage
 counts and the swipe-misread rate — the "did the teaching land" numbers),
 `level_cleared` on every finish line (with the Star Dive tally, 11 being
-the perfect ending), and `share_tapped`. No autocapture, no session
-recording, no cookies, no names — the embedded key is a write-only project
-token, safe in a public file by design. A copy served from `file://` or
-localhost sends nothing at all, which keeps development and the test
-harnesses out of the data. If the loader is blocked (ad blockers commonly
-block analytics hosts) the game plays on unaffected — telemetry is a
-listener, never a dependency.
+the perfect ending), and `share_tapped`. There is deliberately no
+analytics SDK: events are plain POSTs to the capture API (sendBeacon
+first, so a death recorded as the tab closes still gets out; keepalive
+fetch as fallback), which means no third-party script to load and no
+load-order to get wrong. Each device gets one random id
+(`cometloop:pid`); no autocapture, no session recording, no cookies, no
+names — the embedded key is a write-only project token, safe in a public
+file by design. A copy served from `file://` or localhost sends nothing at
+all, which keeps development and the test harnesses out of the data. If
+the analytics host is blocked (ad blockers commonly do) the game plays on
+unaffected — telemetry is a listener, never a dependency.
 
 ## Running locally
 
