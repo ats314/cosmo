@@ -21,10 +21,10 @@ curriculum pass so nothing new is ever met inside level 3.
 | Orbit scoring | A full 360° without reversing pays out by the embers gathered *during* that orbit; consecutive fed orbits stack a streak. Reversing forfeits the orbit, never the banked embers. | first lap | hint ladder, first mid-orbit reversal lesson *(new)*, lap pips + payout popups |
 | Plain shard | Red kills you. Pulses as a warning, then arms. | dl ~4.5–11s | menu key row, MEET lesson, hint ladder, death coach |
 | Twin shards | Two shards side by side — too wide to outrun; the hop is the answer. Held until your first hop lands (max 30 dl-seconds). | dl 18 | banner, MEET lesson, death coach *(new)* |
-| Shield (green orb) | Banked up to 3 (cap grows late). A hit spends one automatically and knocks you off your orbit. Every run starts with two. | 1st power-up (~10s) | menu key row, hint ladder |
+| Shield (green orb) | Banked up to 3 (cap grows late — empty slots draw as faint rings, so the max is visible). A hit spends one automatically and knocks you off your orbit. Every run starts with two. | 1st power-up (~10s) | menu key row, orb-naming hint, visible cap *(new)* |
 | Slow-mo (violet orb) | 4 seconds at 55% speed. | 2nd power-up | menu key row, orb-naming hint while on the board |
 | Nova (white orb) | Converts every shard in the wave to paying embers. | 3rd power-up | menu key row, orb-naming hint while on the board |
-| Overcharge | While the shield bank is full, embers and on-beat taps pay DOUBLE; an overflow shield pays +50. | first full bank | pips ring gold, "SHIELDS FULL" line on every bank-fill, OVERCHARGED popup |
+| Overcharge | While the shield bank is full, embers and on-beat taps pay DOUBLE; an overflow shield pays +50. | first full bank | "SHIELDS FULL" line + shimmer-up on every bank-fill, shimmer-down when it breaks, OVERCHARGED popup, visible cap rings *(new)* |
 | On-beat chain | Inputs judged against the sixteenth grid (consistency, not absolute timing). Tight play climbs ON BEAT ×8: each rung a scale-step tone, ×8 pays a build bonus and opens the band. | first tight taps | per-rung tones, popups from ×2 *(per-run again, new)*, hint ladder |
 | Beat drop | Playing well fills an invisible meter; the music rises, counts 3…2…1…NOW! — any move on NOW lands it for a big bonus and a payoff section where everything pays more. | first drop (~50s worst case) | countdown numerals, "BEAT DROP COMING…", hint ladder |
 | Near miss | Stopping just short of a shard, or sweeping past one mid-hop, pays +3 with a white spark. | first dodge | the spark itself |
@@ -72,10 +72,13 @@ curriculum pass so nothing new is ever met inside level 3.
 - **Hint ladder** — bottom-of-screen glyph+sentence rungs, first match wins,
   every rung clears the instant the player does the thing.
 - **Level cards** — the calm between levels: what the next level introduces.
-  The level 1 card shows on first-ever run; death-retry re-shows the level's
-  card *(new)*.
+  The level 1 card shows on first-ever run; a death on level 2+ retries
+  through that level's card (level 1 keeps the instant retry) *(new)*.
 - **Death coach** — one line naming what killed you, with its counter-move.
   Covers every formation type *(new)*.
+- **Sound cues** — three sounds with fixed meanings: the unlock call
+  (tier banners), the lesson chime (first-encounter lessons), the state
+  shimmer up/down (overcharge, spotlight, overdrive begin/end) *(new)*.
 - **The insist rule** — while an unlocked shape's lesson has not landed,
   it is the next spawn until `firstMeet` finds calm; unseen orbs re-place
   on expiry, and using an orb counts as its introduction. Enforced by

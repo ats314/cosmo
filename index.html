@@ -1827,7 +1827,7 @@ function musicStep(i,t,k){
     G.od--;
     hat(t,0.009,4200,0.045,0,0,7000);
     hat(t+S16,0.007,4600,0.04,0,0,7200);
-    if(G.od===0)G.odBrk=true;   /* it ends the way a record ends: on the break */
+    if(G.od===0){G.odBrk=true;cueState(false);} /* it ends the way a record ends: on the break */
   }
   /* HYPERNOVA: the kit rides sixteenths and the floor pounds every other
      beat — the star is audible as double-time, exactly the hyper-speed
@@ -2421,8 +2421,42 @@ function braam(g,pan){
   swellPad(f,t0+0.01,1.4,g,pan||0);
   swellPad(f*1.5,t0+0.01,1.4,g*0.75,(pan||0)+0.15);
 }
+/* THE EAR LEARNS THE LANGUAGE (playtest, near-verbatim: "I'm too focused
+   to read the text... if a sound always accompanied that text then I could
+   know what's being said without having to actually read it"). Three cues,
+   each meaning exactly one thing and never borrowed for anything else:
+   cueUnlock — a new mechanic just arrived (tier banners only);
+   cueLesson — a teaching sentence is on screen (first-encounter lessons);
+   cueState  — a standing bonus state opened (rising) or closed (falling):
+   overcharge, spotlight, overdrive. Chord-aware and quiet, so they sit
+   inside the record instead of on top of it. */
+function cueUnlock(){
+  cueTone(function(w){
+    const t0=AC.currentTime+w;
+    note(chTone(0),t0,0.14,'square',0.030,2200,-0.15,undefined,0.35);
+    note(chTone(2),t0+S16,0.14,'square',0.030,2400,0,undefined,0.35);
+    note(chTone(4),t0+2*S16,0.20,'square',0.034,2600,0.15,undefined,0.4);
+  });
+}
+function cueLesson(){
+  cueTone(function(w){
+    const t0=AC.currentTime+w;
+    note(chTone(2)*0.5,t0,0.16,'sine',0.030,1500,-0.1);
+    note(chTone(0)*0.5,t0+2*S16,0.22,'sine',0.026,1300,0.1);
+  });
+}
+function cueState(on){
+  cueTone(function(w){
+    const t0=AC.currentTime+w,st=S16*0.5;
+    for(let i=0;i<3;i++){
+      const ci=on?i*2:4-i*2;
+      note(chTone(ci)*2,t0+i*st,0.09,'triangle',on?0.020:0.014,3200,(i-1)*0.15);
+    }
+  });
+}
 function levelComplete(){
   if(G.state!=='playing')return;
+  flushLesson(true);   /* a lesson the finish line interrupted is still recorded */
   G.state='lvend';G.lvT=G.t;
   G.lvCard={done:true,next:G.level+1};
   G.carryScore=G.score;
@@ -2810,6 +2844,7 @@ function pickType(){
    stopped being enough to play around long before the run ended. */
 function shieldMax(){const d=dl();return d<160?3:d<320?4:5;}
 const REV_FX=0.07; /* grace before a tap's effects fire, so swipes stay silent */
+const SND_SEEN={}; /* voices announced this visit — by crossing or level start */
 const G={
   state:'menu',t:0,started:0,deadT:0,
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
@@ -2827,14 +2862,14 @@ const G={
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
-  didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,hyperPlaced:false,
+  didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,gotShield:false,hyperPlaced:false,
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
   stop:0, /* hitstop: freezes the comet while the celebration plays */
   starT:0.6,spikeT:1.2,powT:6,powN:0,shake:0,flash:0,tier:0,banner:null,featT:0,
   runs:0,didReverse:false,didHop:false,didLap:false,
   teach:0,teachKind:null,teachHint:null,teachType:null,seen:{},seen2:{},campT:0, /* lessons + outer-ring camp clock */
   bassPlaced:false,spotPlaced:false,   /* the level-2 orb guarantees */
-  lapCut:0,lapCutDir:1,lapFx:null,     /* a committed reverse's discarded orbit — the cost, drawn */
+  lapCut:0,lapCutDir:1,lapCutA:0,lapFx:null, /* a committed reverse's discarded orbit — the cost, drawn */
   beatPop:false,lsnN:0,               /* per-run: ON BEAT popup, lessons shown */
   killerTaught:false,killerRetaught:false,
   od:0,odT:0,odCool:0,odBrk:false,     /* overdrive: eighths left, heat clock, cooldown, break-due */
@@ -3091,12 +3126,21 @@ function firstMeet(type){
      bit made that unrecoverable. A deferred lesson is simply re-offered by
      the NEXT encounter of the same type (seen is not set). */
   if(G.t<G.meetNext)return;
+  /* never hijack the hop rehearsal: overwriting teachKind mid-rehearsal
+     stranded the radial guide AND the 8s window (hop() only ends 'hop'
+     lessons) — the lesson simply waits for the next encounter */
+  if(G.teach>0&&G.teachKind==='hop')return;
   if(G.banner&&G.banner.t<2.4)return;
   if(G.landFx||G.secFx)return;
+  /* soft (no slow-mo) for reward orbs by table flag — and for RE-offers:
+     when a death re-armed this lesson (see die), the sentence returns but
+     the ceremony does not, so a veteran is never slow-motioned twice */
+  const soft=!!MEET[type].soft||!!G.seen2[type];
   /* the armed-shard deferral protects against SLOW-MO mid-danger — a soft
      lesson never dilates, so it reads like any hint and may fire in traffic
-     (which for lapcost is exactly the teachable moment) */
-  if(!MEET[type].soft){
+     (for lapcost that is exactly the teachable moment, and a re-offer that
+     required storm-grade calm could defer forever while pickType insists) */
+  if(!soft){
     const mer=effRing();
     for(const sp of G.spikes)
       if(sp.phase===1&&sp.ring===mer&&angDist(sp.a,G.angle)<1.2)return;
@@ -3107,11 +3151,9 @@ function firstMeet(type){
   G.teach=Math.max(G.teach,2.8);
   G.teachKind='see';
   G.teachType=type;
-  /* soft (no slow-mo) for reward orbs by table flag — and for RE-offers:
-     when a death re-armed this lesson (see die), the sentence returns but
-     the ceremony does not, so a veteran is never slow-motioned twice */
-  G.teachSoft=!!MEET[type].soft||!!G.seen2[type];
+  G.teachSoft=soft;
   G.teachHint=MEET[type];
+  cueLesson();   /* the one sound that always means "a lesson is on screen" */
 }
 function spawnSpike(){
   let type=pickType();
@@ -3295,7 +3337,7 @@ function startGame(){
      player, or anyone handed the phone, got no reminder of the controls at
      all. Each clears the instant the thing is done, so a veteran sees each for
      well under a second. */
-  G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;
+  G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;G.gotShield=false;
   G.hyperPlaced=false;G.bassPlaced=false;G.spotPlaced=false;
   G.didReverse=false;G.didHop=false;G.didLap=false;
   G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];G.novas=[];
@@ -3314,10 +3356,24 @@ function startGame(){
   /* the sky band matches the pre-climbed ladder, same formula as the
      crossing ratchet — level 3 opens in the storm's own ember light */
   skyI=Math.max(G.level-1,G.tier>=9?3:G.tier>=7?2:G.tier>=4?1:0);
+  /* a pre-climbed start owns its voice announcement: the crossing that used
+     to announce it can no longer happen in-run (STORM sits on level 3's
+     floor and endgame crossings hold), so without this the death screen
+     kept promising an electric guitar no path could ever announce. Once
+     per visit per voice — a retry of the same level stays quiet. */
+  if(G.level>=2){
+    const vt=G.tier>=9?9:G.tier>=6?6:G.tier>=3?3:0;
+    if(vt&&!SND_SEEN[vt]){
+      SND_SEEN[vt]=1;G.sndAt=G.t+4.5;
+      G.sndStr=vt>=9?'NEW SOUND: ELECTRIC GUITAR':
+               vt>=6?'NEW SOUND: SYNTH LEAD':'NEW SOUND: TWIN SYNTHS';
+    }
+  }
   beep(440,0.12,'sine',0.05,880);
 }
 function die(){
   if(G.state!=='playing')return;
+  flushLesson(true);   /* a lesson the death interrupted still gets its record */
   G.state='dead';G.deadT=G.t;G.revPend=0;
   pd=null;   /* the gesture died with the run */
   G.newBest=G.score>G.best&&G.score>0;
@@ -3400,6 +3456,10 @@ function die(){
     seconds:Math.round(G.deadT-G.started),
     orbits:G.orbits,best_streak:G.bestStreak,embers:G.embers,
     scored:G.embers>0,                /* did they ever get going at all */
+    /* how they actually PLAYED: drops landed on the countdown and the
+       on-beat chain's peak — the timing-skill numbers the balance
+       questions keep needing */
+    lands:G.lands,best_groove:G.bestGroove,
     tier:G.tier,tier_name:tierLabel(),rings:G.nRings,
     /* the ordinal the player actually sees, so the funnel is readable without
        anyone having to remember that tier is zero-based */
@@ -3442,8 +3502,12 @@ function reverseFX(){
      the one safe place to teach what the reverse just spent: the discarded
      arc burns off visibly, and the first reversal that discards most of an
      orbit earns the economy's one sentence. */
-  if(G.lapCut>0.05){
-    G.lapFx={acc:G.lapCut,dir:G.lapCutDir,a:G.angle,t:0};
+  if(G.lapCut>0.05&&G.state==='playing'){
+    /* anchored where the TURN happened, not where the commit landed — a
+       tap held to lift commits seconds later, well past the turn point.
+       The playing gate keeps a tap held across levelComplete from firing
+       the lesson over the level card. */
+    G.lapFx={acc:G.lapCut,dir:G.lapCutDir,a:G.lapCutA,t:0};
     if(G.lapCut>TAU*0.6)firstMeet('lapcost');
   }
   G.lapCut=0;
@@ -3457,6 +3521,7 @@ function reverse(silent){
      The discarded arc is remembered until the reverse commits or rolls
      back — teaching and the burn-off draw both key off the committed copy. */
   G.lapCut=G.lapAcc;G.lapCutDir=-G.dir; /* dir already flipped: the lap ran the other way */
+  G.lapCutA=G.angle;                    /* the turn point — where the cost is drawn from */
   G.lapAcc=0;G.lapStreak=0;
   if(silent)G.revPend=G.t+REV_FX;
   else reverseFX();
@@ -3475,12 +3540,26 @@ function retry(){
   else startGame();
 }
 /* one dismissal path for every card: sets the level and reports the read —
-   how long a card was actually on screen is the channel's whole funnel */
+   how long a card was actually on screen is the channel's whole funnel.
+   game_level (1-3) deliberately does NOT reuse run_ended's `level`, which
+   is the ten-rung tier ordinal — two scales, two names. */
 function cardDone(){
   const c=G.lvCard||{done:false,next:1};
   G.level=Math.min(3,c.next);
-  track('card_shown',{level:G.level,after_clear:!!c.done,
+  track('card_shown',{game_level:G.level,after_clear:!!c.done,
     seconds:+(G.t-G.lvT).toFixed(1),run_index:G.runs});
+}
+/* the lesson's record is written when it ENDS — by running its course, or
+   cut short by a death or a finish line. Without the cut flush, the exact
+   lessons interrupted by the death they should explain vanished from the
+   teach-vs-death funnel. */
+function flushLesson(cut){
+  if(!G.teachHint||!G.teachType){G.teachHint=null;G.teachSoft=false;G.teachType=null;return;}
+  G.lsnN++;
+  track('lesson_shown',{type:G.teachType,soft:G.teachSoft,
+    rearmed:!!G.seen2[G.teachType],age:Math.round(age()),
+    game_level:G.level,run_index:G.runs,cut:!!cut});
+  G.teachHint=null;G.teachSoft=false;G.teachType=null;
 }
 function bump(){
   const p=posPlayer();
@@ -3831,6 +3910,7 @@ function updateSpikes(sdt,lethal){
            you were most of the way through and broke the run's flow at the
            exact moment the shield was supposed to protect it. The shield
            itself is the price. */
+        if(G.shields>=shieldMax())cueState(false); /* overcharge closes with the spent shield */
         G.shields--;G.invuln=G.t+0.9;G.blocks++;
         s.phase=2;s.t=0;
         /* a block is an impact: one short flash and stop, so the save is
@@ -4111,6 +4191,7 @@ function update(dt){
   if(MU&&MU.pay<=0&&!MU.rise&&G.od<=0&&PLAY.heat>0.75)G.odT+=dt;else G.odT=0;
   if(G.odT>SPB*8&&G.t>G.odCool&&G.od<=0&&MU&&!MU.armed&&dl()>18&&!FIN.on){
     G.od=64;G.odT=0;G.odCool=G.t+45;
+    cueState(true);
     say('OVERDRIVE \u00d72',3,6);
     fireLift();braam(0.045);
     const op=posPlayer();burst(op[0],op[1],COL.warp,20,240);
@@ -4119,6 +4200,7 @@ function update(dt){
   }
   /* the spotlight burns down; golden lap is retired — the finale is the
      scheduled special moment now, and it is musical instead of a timer */
+  if(G.spot>0&&G.spot-dt<=0)cueState(false); /* the lead steps back — falling shimmer */
   G.spot=Math.max(0,G.spot-dt);
   if(G.hyper>0){
     G.hyper=Math.max(0,G.hyper-dt);
@@ -4155,17 +4237,7 @@ function update(dt){
         note(PENT[6]*1.007,tt+2*S16,0.20,'sawtooth',0.018,2400,-0.2);}
     });
   }
-  if(G.teach<=0&&G.teachHint){
-    /* the lesson ran its course — record that teaching actually HAPPENED
-       (the funnel PostHog can read against death causes) */
-    if(G.teachType){
-      G.lsnN++;
-      track('lesson_shown',{type:G.teachType,soft:G.teachSoft,
-        rearmed:!!G.seen2[G.teachType],age:Math.round(age()),
-        level:G.level,run_index:G.runs});
-    }
-    G.teachHint=null;G.teachSoft=false;G.teachType=null;
-  }
+  if(G.teach<=0&&G.teachHint)flushLesson(false);
   /* Effects run on dt, gameplay on sdt — so during hitstop the comet holds
      still while the ignition keeps playing. That contrast is the impact.
      The hop rehearsal dilates the same way slow-mo does: the comet at a
@@ -4191,7 +4263,13 @@ function update(dt){
      case (the hop-hold releasing TWIN + THIRD RING together) is by
      construction the player reading slowest. */
   const ti=tierIndex();
-  if(ti>G.tier&&!FIN.on&&!FIN.pend&&!G.banner){
+  if(ti>G.tier&&!FIN.on&&!FIN.pend&&!G.banner&&
+     !(lvEnd<1e9&&dl()>=lvEnd-10)){
+    /* ...and never in a level's ENDGAME window either: a beat-drop payoff
+       defers the finale latch while dl keeps running, so without this a
+       long payoff at the end of level 2 crossed dl 190 and announced THE
+       STORM over its own graduation. The next level's silent pre-climb
+       owns any crossing the window swallows. */
     G.tier++;G.featT=G.t;      /* the featuring grace clock — see pickType */
     skyI=Math.max(G.level-1,G.tier>=9?3:G.tier>=7?2:G.tier>=4?1:0);  /* the sky deepens; each level floors it */
     const T=TIERS[G.tier];
@@ -4213,12 +4291,14 @@ function update(dt){
       G.banner={str:T.name,sub:T.sub,t:0};
       fireLift();      /* ceremony, not a chorus — see fireLift */
       ripple(cx,cy,COL.ember);   /* earned, so gold — see the banner draw */
-      beep(300,0.16,'triangle',0.05,220);
-      beep(240,0.22,'triangle',0.05,180,0.14);
+      /* the unlock call, reserved for banners alone — the generic triangle
+         pair it replaces sounded like three other events */
+      cueUnlock();
     }
     /* the star voice steps up at levels 4, 7 and 10 — announced after the
        level banner has had the screen (see update), as its own moment */
     if(G.tier===3||G.tier===6||G.tier===9){
+      SND_SEEN[G.tier]=1;   /* a later level start must not repeat it */
       G.sndAt=G.t+3.8;
       G.sndStr=G.tier>=9?'NEW SOUND: ELECTRIC GUITAR':
                G.tier>=6?'NEW SOUND: SYNTH LEAD':'NEW SOUND: TWIN SYNTHS';
@@ -4439,6 +4519,7 @@ function update(dt){
         s.type==='hyper'?COL.ember:COL.nova);
       if(s.type==='shield'){
         const span=panAt(p[0]);
+        G.gotShield=true;   /* the naming hint retires on first pickup */
         /* OVERCHARGE (playtester Buch, near-verbatim: "if you're at full
            shields... every next shield picked up is a big point bonus").
            A full bank means you have been playing CLEAN — that streak now
@@ -4453,8 +4534,10 @@ function update(dt){
           });
         }else{
           G.shields++;popup(p[0],p[1]-20*u,'SHIELD \u00d7'+G.shields,COL.shield);
-          if(G.shields>=shieldMax())
+          if(G.shields>=shieldMax()){
             say('SHIELDS FULL \u2014 everything pays double',2,7);
+            cueState(true);   /* overcharge opens \u2014 the rising shimmer */
+          }
         }
         burst(p[0],p[1],COL.shield,14,150);
         ripple(p[0],p[1],COL.shield);
@@ -4491,6 +4574,7 @@ function update(dt){
            doubles and brightens, the band steps back a notch, and every
            tight tap pays double. A performance, not a transaction. */
         G.spot=16*SPB;
+        cueState(true);
         popup(p[0],p[1]-24*u,'SPOTLIGHT!',COL.warp,1.5);
         burst(p[0],p[1],'#eaf1ff',20,220);
         ripple(p[0],p[1],COL.warp);
@@ -5376,6 +5460,15 @@ function draw(){
     for(let k=0;k<G.shields;k++)
       blit(SPR.shieldRing,p[0],p[1],
         (1.18+k*0.34)*(1+0.04*Math.sin(G.t*6-k*0.7)+(RM?0:0.05*G.beat)),0,pal*(0.72-k*0.16));
+    /* the EMPTY slots too (playtest: "is there a bonus if you max out the
+       4 shields?" — the cap was invisible, so "full" had no denominator).
+       Faint, static rings mark how many the bank holds; overcharge's
+       trigger becomes a goal you can watch approaching, and the cap
+       growing late-game appears as a new dim ring instead of silent rule
+       drift. */
+    if(G.state==='playing')
+      for(let k=G.shields;k<shieldMax();k++)
+        blit(SPR.shieldRing,p[0],p[1],1.18+k*0.34,0,pal*0.10);
     if(G.hyperGlow>0.01){
       /* the comet burns white in a gold corona while the star lasts */
       ctx.save();ctx.globalCompositeOperation='lighter';
@@ -5656,7 +5749,7 @@ function hintText(){
        the curriculum's FIRST placement (shield, ~10s, chosen because "the
        hint ladder already explains it") was the one the ladder never
        actually explained */
-    if(pw.type==='shield'&&!G.didShield)return {t:'a shield takes one hit for you',g:'shield'};
+    if(pw.type==='shield'&&!G.gotShield&&!G.didShield)return {t:'a shield takes one hit for you',g:'shield'};
     if(pw.type==='warp'&&!G.gotWarp)return {t:'this one slows everything down',g:'warp'};
     if(pw.type==='nova'&&!G.gotNova)return {t:'this one turns every red into a star',g:'nova'};
   }

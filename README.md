@@ -342,6 +342,22 @@ sub-30-second deaths quietly reopen the full 11-second calm opening (see
 below) no matter what the lifetime run counter says; one survival past 30
 seconds clears it.
 
+**The ear learns the language.** Playtest, near-verbatim: "I'm too focused
+to read the text... if a sound always accompanied that text then I could
+know what's being said without having to actually read it." Three cues now
+mean exactly one thing each, and are never borrowed for anything else: a
+rising chord call for a tier banner (a new mechanic just arrived), a soft
+two-note chime for a first-encounter lesson (teaching is on screen), and a
+quick shimmer up/down when a standing bonus state opens or closes
+(overcharge, spotlight, overdrive). After a few runs the announcement types
+are audible without reading — which was the request.
+
+**The shield bank shows its size.** "Is there a bonus if you max out the 4
+shields?" — the cap was invisible, so "full" had no denominator and
+Overcharge's trigger was a secret. The empty slots now draw as faint rings
+beside the filled ones: the goal is watchable, and the cap growing 3→4→5
+late-game appears as a new dim ring instead of silent rule drift.
+
 **The economy's one hidden rule is watched, not inferred.** Orbits pay by
 the embers gathered during them, and reversing — the game's primary survival
 verb — erases the orbit in progress while keeping the embers banked. No
