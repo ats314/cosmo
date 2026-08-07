@@ -1,0 +1,75 @@
+Cosmo — Proprietary License
+Copyright (c) 2026 Alex Smith (github.com/ats314). All rights reserved.
+
+SPDX-License-Identifier: LicenseRef-Proprietary-AllRightsReserved
+
+
+1. OWNERSHIP
+
+   This repository and everything in it — including but not limited to
+   index.html and the game, engine, audio system and artwork it contains, the
+   image assets, the tooling under tools/, the workflow configuration, and the
+   accompanying documentation — is the original work and exclusive property of
+   the copyright holder named above (the "Work").
+
+2. NO LICENSE IS GRANTED
+
+   No right or permission is granted to any person or entity to use, copy,
+   reproduce, modify, adapt, translate, merge, publish, distribute, transmit,
+   sublicense, sell, rent, lease, host, deploy, mirror, republish, reverse
+   engineer, or create derivative works from the Work, in whole or in part, in
+   any medium, whether express or implied, by estoppel or otherwise.
+
+   Permission may be granted only by a separate written agreement signed by
+   the copyright holder. Requests: open an issue at
+   https://github.com/ats314/cosmo/issues
+
+3. WHAT IS PERMITTED
+
+   Loading and playing the game at its officially published address in a web
+   browser, for personal, non-commercial enjoyment. Nothing more. Playing the
+   game does not grant any right to retain, reuse, or redistribute the code or
+   assets your browser receives in order to run it.
+
+4. NO IMPLIED LICENSE FROM AVAILABILITY
+
+   The Work being publicly readable — because the repository is public, because
+   the game is served as a static web page whose source every visitor's browser
+   necessarily receives, or because a copy appears anywhere else — is not a
+   grant of permission and must not be construed as one. Rights not expressly
+   granted here are reserved.
+
+5. NO TEXT OR DATA MINING, NO MODEL TRAINING
+
+   The Work may not be copied, scraped, ingested, or otherwise used as input to
+   train, fine-tune, evaluate, or ground any machine learning model, dataset,
+   or generative system, whether commercial or non-commercial. The copyright
+   holder expressly reserves all rights under any applicable text-and-data-
+   mining exception or reservation mechanism.
+
+6. TRADE NAMES
+
+   "Cosmo" as used for this game, together with its logo, icons, and visual
+   presentation, is reserved to the copyright holder. This license grants no
+   right to use them.
+
+7. NO WARRANTY
+
+   THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+   IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS IN THE WORK.
+
+8. ENFORCEMENT
+
+   Unauthorized use infringes the copyright holder's rights and may be pursued
+   to the fullest extent available at law. Failure to enforce any provision is
+   not a waiver of it.
+
+
+One thing this license cannot do: GitHub's Terms of Service grant every GitHub
+user the right to view and fork any repository whose owner has set it public.
+That permission comes from the repository owner's agreement with GitHub and no
+LICENSE file overrides it. To withdraw it, make the repository private.

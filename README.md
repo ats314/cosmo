@@ -1184,3 +1184,21 @@ which also exercises every audio guard. `dropcheck.mjs` re-runs that harness
 with a stubbed AudioContext and fails if the build meter stops delivering beat
 drops at a playable cadence. `curriculum.mjs` plays a whole run headlessly and
 fails if level 3 ever opens with a mechanic the player was never shown.
+
+## License
+
+**Proprietary. Copyright (c) 2026 Alex Smith ([@ats314](https://github.com/ats314)).
+All rights reserved.** See [LICENSE](LICENSE).
+
+This is not open source. No permission is granted to use, copy, modify, host,
+redistribute, or build derivative works from any part of this repository —
+including the game itself, its assets, and its tooling. Playing the game at its
+published address is the only permitted use; the source your browser receives in
+order to run it is not yours to keep or reuse. The code is also excluded from
+text and data mining and from machine-learning training of any kind.
+
+Licensing enquiries: open an [issue](https://github.com/ats314/cosmo/issues).
+
+One caveat the license itself names: GitHub's Terms of Service let any GitHub
+user view and fork a repository its owner has set public, and no LICENSE file
+overrides that. Making the repository private is the only way to withdraw it.
