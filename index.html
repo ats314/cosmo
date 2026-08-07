@@ -78,8 +78,8 @@ const RING_MULT=[1,1,1]; /* set e.g. [1,1.5,2] to pay more for riding inside */
 /* EACH RING IS AN INSTRUMENT — see the audio section for why these move. */
 const RINGS=[
   /* outer */ {wave:'sawtooth',cut:1.00,lift:0,   sub:0, tint:'132,162,255'},
-  /* mid   */ {wave:'square',  cut:1.18,lift:260, sub:1, tint:'128,206,255'},
-  /* inner */ {wave:'square',  cut:1.42,lift:620, sub:2, tint:'168,240,255'}];
+  /* mid   */ {wave:'square',  cut:1.18,lift:380, sub:1, tint:'128,206,255'},
+  /* inner */ {wave:'square',  cut:1.42,lift:820, sub:2, tint:'168,240,255'}];
 const nebulas=[
   {x:0.22,y:0.25,r:0.55,c:'96,80,200',ph:0},
   {x:0.80,y:0.70,r:0.60,c:'40,140,180',ph:2.1},
@@ -1420,18 +1420,31 @@ function musicStep(i,t,k){
   if((k>0.45||gv>0)&&(beat===2||beat===6))hat(t,0.020+0.012*k+0.006*gv);
   if(gv>=2&&beat%2===1)hat(t,0.009+0.004*gv,8200,0.045);
   if(k>0.45&&beat===4)hat(t,0.012);
-  /* THE RING IS THE SUBDIVISION. Ring 1 fills the offbeat eighths, ring 2 cuts
-     the whole bar into sixteenths — twice the pulse rate, at exactly the same
-     104bpm. This is the "inner rings are hotter" signal, and it is felt rather
-     than read: hopping inward audibly doubles the clock without the music ever
-     lurching, which a tempo change would. Quiet, because it is a floor under
-     what the player is doing, not a part competing with it. */
-  const rs=RINGS[ringOf()].sub;
-  if(rs>=1&&beat%2===1)hat(t,0.0085,8600,0.038);
-  if(rs>=2&&beat%2===0)hat(t+S16,0.0075,9000,0.032);
-  /* 3 / 7 / 11 events per bar. A full sixteenth shimmer measured 6.3x the
-     outer ring's density, which is a wall of noise rather than a groove —
-     this is a ladder you can hear each step of. */
+  /* THE RING IS THE KIT. Subdivision alone was too polite — the hats sat at
+     0.008 and the "inner is hotter" promise was inaudible on the device this
+     ships to. Pattern reads louder than gain, so each ring now has a
+     rhythmic identity: the outer rides clean, the MID ring gains a half-time
+     kick and a low fifth leaning into the turn, and the INNER ring runs a
+     four-on-the-floor with a moving octave bass. Hop inward and a drum kit
+     assembles under you; hop out and it breathes away. Same 104bpm, same
+     key — only how much engine is running. */
+  const rg2=ringOf(),rs=RINGS[rg2].sub;
+  if(rg2>=1){
+    if(beat===0)kick(t,0.042);
+    if(beat===4)kick(t,0.034);
+    if(beat===3)note(ch[3]/2,t,0.18,'triangle',0.020,900);
+  }
+  if(rg2>=2){
+    if(beat===2||beat===6)kick(t,0.036);
+    if(beat%2===1)note(ch[0]*2,t,0.12,'square',0.013,2400,0);
+  }
+  if(rs>=1&&beat%2===1)hat(t,0.015,8600,0.038);
+  if(rs>=2&&beat%2===0){
+    hat(t+S16,0.013,9000,0.032);
+    hat(t+S16*1.16,0.006,9400,0.03);   /* the inner ring swings */
+  }
+  /* 3 / 7 / 11 melodic events per bar still hold. The kit sits underneath
+     them; the payoff section remains the loudest thing in the game. */
   /* THE COVER. The band fills the offbeat only while nobody else is playing
      it, and fades out continuously as you engage — so the first thing you hear
      when you start working the controls is the machine stepping aside. Dull
@@ -1487,7 +1500,8 @@ function gridNear(){
    actual sixteenth-note run — the player making music by moving. */
 const CUE={slot:0};
 function cueTone(fn){
-  if(!AC||!MU||!MU.next||AC.state!=='running'){fn(0);return;}
+  if(!AC)return;                       /* no context yet: nothing to play into */
+  if(!MU||!MU.next||AC.state!=='running'){fn(0);return;}
   const now=AC.currentTime;
   let t=Math.max(gridNear(),now+0.012);
   /* a taken slot cascades to the next sixteenth (capped a beat out, so a
@@ -1611,6 +1625,10 @@ function performerHit(kind,dir,ring){
   let d;
   if(kind==='hop')d=(dir<0?HOPOUT:HOPIN)[PLAY.idx%4]+4+2*rg;
   else d=REVSEQ[PLAY.idx%REVSEQ.length]+4+2*rg;
+  /* CHORD-AWARE: the figure leans with the bar's harmony (Am steady, F down,
+     C up, G home), so a run of taps follows the song instead of circling a
+     static position — the instrument finally listens to the record. */
+  d=Math.max(0,d+[0,-1,1,0][((MU.step/8)|0)%4]);
   PLAY.idx++;
   const p=posPlayer();
   const gr=judgeTiming(p[0],p[1]);
@@ -1645,9 +1663,18 @@ function performerHit(kind,dir,ring){
     const rv=RINGS[rg];
     note(PENT[d],t,0.13,rv.wave,g,(2400+2200*PLAY.heat)*(1+0.16*gr)*rv.cut,
       panAt(p[0]),A.perf);
+    /* A FIFTH UNDERNEATH, swelling with heat: one tap is a note, a flurry is
+       a chord — the instrument fills out exactly as fast as the playing. */
+    note(PENT[Math.max(0,d-3)],t,0.11,rv.wave,g*(0.30+0.25*PLAY.heat),
+      1800*rv.cut,panAt(p[0]),A.perf);
     /* the inner track gets an octave edge on top, so it reads as keener even
        on a phone speaker where the fundamental is doing the least work */
     if(rg>=2)note(PENT[Math.min(13,d+3)],t,0.09,'sine',g*0.34,7200,panAt(p[0]),A.perf);
+    /* Once the groove is found, every tap earns a dotted-eighth echo panned
+       opposite — the response-bar trick, generalised quietly: against the
+       3+3+2 world a tap sounds like three, and mashing in time becomes a
+       delay line the player is playing. */
+    if(gr>=2)note(PENT[d],t+3*S16,0.10,rv.wave,g*0.28,2000,-panAt(p[0]),A.perf);
     /* THE BAND ANSWERS. Three sixteenths later — 433ms, an odd subdivision no
        player on the eighth grid can ever claim, and far past the ~50ms fusion
        threshold, so it reads as a second musician rather than a doubling of
@@ -2648,6 +2675,18 @@ function hop(step){
      the phone rolloff at both endpoints. Outward now falls, inward rises. */
   const out=step<0;
   beep(out?940:620,0.09,'sine',0.05,out?620:940,0,panAt(p[0]),0.35);
+  /* THE HOP IS A TRANSITION, cut on the grid like a DJ would: inward sweeps
+     bright into the hotter pattern, outward breathes down out of it — the
+     ring change is MARKED the moment it happens, not discovered a bar later
+     when the kit differs. The arriving track flashes under you too. */
+  const hpan=panAt(p[0]);
+  cueTone(function(w){
+    const tt=AC.currentTime+w;
+    hat(tt,0.020,out?2600:3800,0.20,0.3);
+    hat(tt+S16,0.016,out?2000:5200,0.14,0.3);
+    note(PENT[out?4:8],tt,0.12,'sawtooth',0.018,out?2200:4800,hpan);
+  });
+  arcFlash(G.angle,t,COL.comet);
   build(0.042,'hop');           /* navigating by ring change is a style, not a fallback */
   performerHit('hop',step,t);   /* the ring being ARRIVED at, not the one left */
 }
@@ -3180,16 +3219,21 @@ function update(dt){
       ripple(p[0],p[1],COL.ember);
       arcFlash(s.a,s.ring,COL.ember);
       popup(p[0],p[1]-20*u,'+'+G.combo,COL.ember);
-      /* THE EMBER RUN, ON THE GRID. The chain walks the pentatonic and
-         resolves on the octave — and the notes now LAND ON SIXTEENTHS via
-         cueTone, so gathering a string of embers plays an actual run instead
-         of a scatter. The tiny click stays instant: touch is felt now, tone
-         arrives in time. */
-      beep(2100,0.03,'square',0.02,0,0,panAt(p[0]),0.1);
+      /* THE EMBER IS THE ARP'S NOTE NOW. It used to be a sine ding over the
+         music; it plays the band's own square, chord-aware, through the bed
+         bus — so it ducks, pans and mixes as part of the record, and a
+         pickup is the arrangement gaining a note rather than a bell hitting
+         it. The instant touch is a shaker grain; the tone lands on the
+         sixteenth grid, so a chain of embers IS a fill run. */
+      hat(AC?AC.currentTime:0,0.006,8200,0.03);
       const cb=G.combo,cpan=panAt(p[0]);
+      const eco=[0,-1,1,0][MU?((MU.step/8)|0)%4:0];
       cueTone(function(w){
-        beep(PENT[Math.min(9,3+cb)],0.09,'sine',0.06,0,w,cpan,0.35);
-        beep(PENT[Math.min(13,5+cb)],0.10,'sine',0.05,0,w+0.045,cpan,0.35);
+        const tt=AC.currentTime+w;
+        note(PENT[Math.max(0,Math.min(9,3+cb+eco))],tt,0.16,'square',
+          0.030+0.004*cb,1400+300*cb,cpan);
+        /* the chain's crown: a high answer only when the combo is maxing */
+        if(cb>=4)note(PENT[Math.min(13,8+eco)],tt+S16,0.12,'square',0.022,2600,cpan);
       });
       build(0.016,'ember');
       checkMile();
