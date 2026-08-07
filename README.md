@@ -60,13 +60,31 @@ card, and its own song:
 
 | Level | Name | Introduces | Song |
 |---|---|---|---|
-| 1 | LIFT OFF | the verbs, stars, the beat drop | A minor, the original groove |
-| 2 | INTO THE RINGS | gates, twins, overdrive, drum breaks, bass bomb, spotlight | G minor, swung sixteenths |
-| 3 | THE STORM | drifters, blinkers, sliding gates, flicker pairs — endless | F minor, rolling four-on-the-floor |
+| 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor, the original groove |
+| 2 | INTO THE RINGS | gates, drifters, blinkers, sliding gates, flicker pairs, bass bomb, spotlight, the gold star | G minor, swung sixteenths |
+| 3 | THE STORM | **nothing** — everything known, everything active, endless | F minor, rolling four-on-the-floor |
+
+**The curriculum rule** (this is the load-bearing design decision): every
+mechanic is introduced and explained by the end of level 2. By the start of
+level 3 the player knows how everything works and all of it is in play —
+level 3 is the exam, not a syllabus. The four storm shapes used to unlock
+at dl 205–340, which is level-3 territory: a level whose banner promises
+"no new tricks" still owed four brand-new tricks, delivered at the game's
+most hostile density. They now land inside level 2, one at a time, each
+with its banner and first-encounter lesson, and the STORM tier sits exactly
+on level 3's floor. Difficulty is untouched — every pressure term still
+keys off the same clock — this changes *what* arrives, never *how much*.
+`MECHANICS.md` is the ledger: one row per mechanic, how it works, where it
+is introduced, and every channel that explains it. Change one, update both.
 
 Survive to a level's finish line and a card celebrates the clear, names the
 next level, and lists the mechanics it will introduce — teaching moved to a
-calm screen instead of mid-combat. Each level transposes DOWN a whole step
+calm screen instead of mid-combat. A genuine first run passes through
+level 1's card too (once per device — it was dead data before: the one calm
+screen written to pre-teach the verbs never actually rendered), and a death
+on level 2 or 3 retries *through that level's card*, so the syllabus for
+exactly the mechanics that just killed you is re-read from a calm screen at
+the moment it is most relevant. Each level transposes DOWN a whole step
 (A → G → F): going deeper into the game literally deepens the music, with
 the same 104bpm grid so the dub delay never falls out of time. Every visit
 starts at level 1 — the game used to resume a device's highest unlock from
@@ -153,23 +171,43 @@ So the mid-game now keeps the early game's discipline, one thing at a time:
 - **You meet ONE drifter before you meet three** — featured tripling now
   waits ~18s after each unlock.
 
-Mechanics unlock on a schedule, each announced with a banner:
+Mechanics unlock on a schedule, each announced with a banner — and the whole
+ladder now fits inside levels 1–2 (the curriculum rule):
 
 | ≈ | Unlock |
 |---|---|
-| 22s | second ring |
-| 33s | twin shards — too wide to outrun, hop over |
-| 73s | third ring |
-| 121s | gates — every ring blocked, reverse |
-| 241s | drifters — these ones move |
-| 286s | blinkers — they flicker, time your pass |
-| 331s | sliding gates — the wall slides, reverse early |
-| 376s | flicker pairs — one gap at a time, never both |
-| 416s | storm — no new tricks, just more of them |
+| L1 +22s | second ring |
+| L1 +33s | twin shards — too wide to outrun, hop over |
+| L1 +73s | third ring |
+| L2 +18s | gates — every ring blocked, reverse |
+| L2 +55s | drifters — these ones move |
+| L2 +86s | blinkers — they flicker, time your pass |
+| L2 +106s | sliding gates — the wall slides, reverse early |
+| L2 +126s | flicker pairs — one gap at a time, never both |
+| L3 +0s | storm — no new tricks, everything at once |
 
 Those times assume a player earning no difficulty nudge at all, which is the
 slowest the schedule ever runs; scoring well pulls everything forward by up
-to 40 seconds.
+to 40 seconds. Every gap clears the 9-second lesson spacing and a banner's
+full display, so each shape still gets its solo introduction. A crossing
+never fires during a finale — the exam must not be announced over the
+graduation ceremony — and the level-3 start owns the STORM crossing
+silently, because its intro card is the announcement.
+
+**The new shape insists until its lesson lands.** The curriculum promise
+was a dice roll at first: a sliding gate shares the one-wall-at-a-time slot
+with plain gates, its placement can fail on a dense board, and its lesson
+defers for calm — a simulated playthrough reached level 3 with the
+sliding-gate lesson never shown. Now, while any unlocked shape's lesson has
+not landed, that shape (lowest first) IS the next spawn — banner first,
+then specimen after specimen until `firstMeet` finds its calm beat. The
+musical orbs get the same guarantee their way: an unseen orb's lesson keeps
+knocking while the orb is on the board, an unseen orb that expires
+unlessoned is re-placed, and picking one up counts as the introduction —
+using it beats any sentence about it. Veterans have seen everything, so
+none of this runs for them; density is untouched — same spawn, different
+shape. `tools/curriculum.mjs` plays the whole run headlessly and fails the
+build if level 3 ever opens with anything left untaught.
 
 **The exam waits for the lesson.** Twins are the tier that makes the hop
 compulsory, and they used to arrive on a pure clock whether or not the player
@@ -273,14 +311,63 @@ time dilates for about three seconds, further spawns hold, and the one
 relevant sentence sits dead centre with its glyph while the new thing is
 actually on screen — "every ring is blocked — tap to turn back" arrives while
 the first gate is visibly barring every ring. Acting ends nothing; it is a
-pause, not a test, and it never repeats.
+pause, not a test. Three bugs used to spend this once-ever lesson invisibly,
+and all are fixed: a landed hop cancelled any running lesson (complying with
+"swipe to another ring" destroyed the sentence mid-read — now only the hop
+rehearsal ends on a hop); the lesson fired *before* the spawn placement loop,
+which can fail outright on a dense board (dilation and seen-bit for a
+formation that never existed — it fires at the success sites now); and a
+lesson could run behind a fresh banner or payoff card, spent without ever
+being readable (it now defers, like it already deferred for danger).
 
-**The death screen coaches.** It already knew what killed you, whether you
-ever changed rings, and how long you lasted; now it says the one most useful
-thing it can, with its glyph, phrased as an invitation — "you never changed
-rings — swipe up or down". And three consecutive sub-30-second deaths quietly
-reopen the full 11-second calm opening (see below) no matter what the
-lifetime run counter says; one survival past 30 seconds clears it.
+**A death re-arms the lesson it disproves.** The lesson flags are per-device
+and permanent — which meant a player who died to gates on five consecutive
+runs was never shown the gate lesson again, because a flag said teaching had
+happened. Now, when the killer's lesson was already spent, dying to it clears
+the flag: the next encounter re-offers the sentence and glyph, without the
+slow-mo ceremony — once per type per device (`cometloop:seen2` caps it), so
+a veteran is never nagged twice. The exam failing is evidence the lesson did
+not land; the game finally acts on its own evidence.
+
+**The death screen coaches — for every killer.** It already knew what killed
+you, whether you ever changed rings, and how long you lasted; now it says the
+one most useful thing it can, with its glyph, phrased as an invitation —
+"you never changed rings — swipe up or down". The coach chain used to go
+silent for a drifter or flicker-pair death past 30 seconds — precisely the
+death the mid-game hands out — and a twin death reported as a plain single,
+because a lone shard cannot say which pairing it came from. Twins now stamp
+their formation on both shards, and every named killer without a bespoke
+line coaches from its own lesson sentence. And three consecutive
+sub-30-second deaths quietly reopen the full 11-second calm opening (see
+below) no matter what the lifetime run counter says; one survival past 30
+seconds clears it.
+
+**The ear learns the language.** Playtest, near-verbatim: "I'm too focused
+to read the text... if a sound always accompanied that text then I could
+know what's being said without having to actually read it." Three cues now
+mean exactly one thing each, and are never borrowed for anything else: a
+rising chord call for a tier banner (a new mechanic just arrived), a soft
+two-note chime for a first-encounter lesson (teaching is on screen), and a
+quick shimmer up/down when a standing bonus state opens or closes
+(overcharge, spotlight, overdrive). After a few runs the announcement types
+are audible without reading — which was the request.
+
+**The shield bank shows its size.** "Is there a bonus if you max out the 4
+shields?" — the cap was invisible, so "full" had no denominator and
+Overcharge's trigger was a secret. The empty slots now draw as faint rings
+beside the filled ones: the goal is watchable, and the cap growing 3→4→5
+late-game appears as a new dim ring instead of silent rule drift.
+
+**The economy's one hidden rule is watched, not inferred.** Orbits pay by
+the embers gathered during them, and reversing — the game's primary survival
+verb — erases the orbit in progress while keeping the embers banked. No
+channel said so; a player who tapped defensively all run scored almost
+nothing and was never told why. Now every committed reverse burns off the
+discarded lap arc visibly (retracting, gold, fading — muted-safe, reduced-
+motion-safe), and the first reversal that discards most of an orbit earns
+the economy's one sentence, soft form: "turning back restarts the orbit —
+stars stay banked." A rolled-back swipe restores the lap and teaches
+nothing, because it cost nothing.
 
 **The hard gesture gets the quiet part of the run.** The second ring used to
 arrive at 30s, which meant the hop — a radial swipe on a circle, where "away
@@ -820,7 +907,15 @@ playtests can be read instead of retold: a pageview per visit, `run_ended`
 on every death (score, level, run length, death cause, the two-verb usage
 counts and the swipe-misread rate — the "did the teaching land" numbers),
 `level_cleared` on every finish line (with the Star Dive tally, 11 being
-the perfect ending), and `share_tapped`. There is deliberately no
+the perfect ending), and `share_tapped`. The teaching pipeline reports on
+itself now too: `lesson_shown` fires when a first-encounter lesson actually
+completes its display (type, soft form or not, whether it was a death-
+triggered re-offer, seconds into the run), `card_shown` fires when a level
+card is dismissed (which level, after a clear or a retry, how long it was
+read), and `run_ended` gained `killer_lesson_seen` / `killer_relessoned` /
+`lessons_shown` — so "died to a mechanic whose lesson was never shown" and
+"died to it even after the re-offer" are directly countable funnels rather
+than guesses. There is deliberately no
 analytics SDK: events are plain POSTs to the capture API (sendBeacon
 first, so a death recorded as the tab closes still gets out; keepalive
 fetch as fallback), which means no third-party script to load and no

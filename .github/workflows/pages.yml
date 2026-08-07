@@ -27,6 +27,9 @@ jobs:
       # Same harness with a stubbed AudioContext: asserts the build meter
       # actually delivers drops at a playable cadence.
       - run: node tools/dropcheck.mjs
+      # Plays the whole run headlessly and fails if level 3 ever opens with
+      # a mechanic left untaught — the curriculum rule, enforced.
+      - run: node tools/curriculum.mjs
 
   deploy:
     # Only main publishes; pull requests get the check alone.

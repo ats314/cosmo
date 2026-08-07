@@ -27,6 +27,27 @@ for (const id of ['c', 'safe']) {
 }
 if (!/<title>[^<]+<\/title>/.test(html)) fail.push('missing <title>');
 
+/* Teaching-data drift guards. The MEET table once carried two orbs that had
+   been cut from the game while missing two that shipped — an enumeration
+   nobody re-checks. These are static text checks (the smoke test asserts the
+   runtime behavior); they exist so stale teaching DATA fails the build. */
+const src = scripts.length === 1 ? scripts[0][1] : '';
+for (const dead of ['echo', 'meteor']) {
+  if (new RegExp(`(MEET\\s*=|teachSoft\\s*=)[^;]*'${dead}'`).test(src)) {
+    fail.push(`teaching data references cut orb '${dead}'`);
+  }
+}
+/* the curriculum rule: every tier unlocks by level 2's finish line (dl 190),
+   so level 3 introduces nothing — see MECHANICS.md */
+const tiers = src.match(/const TIERS=\[([\s\S]*?)\];/);
+if (!tiers) fail.push('TIERS table not found');
+else {
+  const ats = [...tiers[1].matchAll(/at:\s*(\d+)/g)].map(m => +m[1]);
+  if (!ats.length || Math.max(...ats) > 190) {
+    fail.push(`a tier unlocks after dl 190 — level 3 must introduce nothing (ats: ${ats})`);
+  }
+}
+
 if (fail.length) {
   for (const f of fail) console.error(`FAIL  ${f}`);
   process.exit(1);
