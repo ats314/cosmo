@@ -1545,6 +1545,8 @@ function musicStep(i,t,k){
   if(rn===8)schedulePreDrop(t+8*(SPB/2));
   if(rn===16){fireDrop(t);payoffStep(t,ch,k);return;}
   const rise=MU.rise;
+  if(FIN.on&&FIN.pend&&i%16===0){FIN.pend=false;FIN.step=0;FIN.t0=t;}
+  if(FIN.on&&!FIN.pend){finStep(t);return;}
   if(beat%2===0)BEATQ.push(t);          /* quarter notes, for the visual pulse */
   /* THE DRUM BREAK (playtest: "more percussion breakdowns"). Play hot and
      every so often the band steps out for ONE bar of drums — and the
@@ -1837,7 +1839,7 @@ function musicStep(i,t,k){
    uniformly. HOPOUT descends because outward means a LOWER ring index and a
    lower register — the old tables played the rising figure while moving down. */
 const REVSEQ=[0,2,4,5,4,2,3,1],HOPIN=[2,3,5,4],HOPOUT=[3,2,0,1];
-let PLAY={heat:0,idx:0,last:-9,slot:-1,bias:0,rec:[],tape:[]};
+let PLAY={heat:0,idx:0,last:-9,slot:-1,bias:0,tape:[]};
 /* THE LOOP RECORDER (the owner's idea, near-verbatim: "I ad lib beats —
    what if my ad-libbed beats could be remembered and recorded into the
    song with harmony?"). Every quantised input is remembered as a position
@@ -1848,6 +1850,52 @@ let PLAY={heat:0,idx:0,last:-9,slot:-1,bias:0,rec:[],tape:[]};
    new phrase replaces it. Waiting between two reds and clicking back and
    forth in time IS composing now. */
 const LOOP={pat:null,n:0,until:0,heard:false};
+/* ---------- the finale ----------
+   Levels 1 and 2 end in a DUET, not a line on a clock. Near the finish the
+   spawns hold, the music thins to the groove, and the band plays a two-bar
+   phrase in the level's key while its rhythm lights up as marks around the
+   outer ring — the ring becomes a sequencer, a sweep hand circling once
+   per two bars. Then it is the player's turn: tap (anywhere — timing, not
+   aim) as the sweep crosses each mark. Three rounds; every answered note
+   pays +40 and is sung back harmonised; answer well and the call gains a
+   voice each round. Misses cost nothing and the level completes
+   regardless — the finale decides the size of the send-off, never whether
+   you advance. */
+const FINP=[
+ [4,-1,6,-1,8,-1,6,4, -1,-1,6,-1,4,-1,-1,-1],
+ [5,-1,-1,7,-1,5,-1,8, -1,7,-1,-1,5,-1,7,-1],
+ [8,8,-1,6,-1,8,-1,9, -1,-1,8,6,-1,4,-1,-1]];
+const FINN=FINP.map(function(a){let n=0;for(const v of a)if(v>=0)n++;return n;});
+const FIN={on:false,pend:false,done:false,step:0,score:0,hits:0,rHits:0,
+  voices:0,t0:0,expect:[],vis:new Array(16).fill(0)};
+const FINVQ=[];
+function finStep(t){
+  const fs=FIN.step++;
+  if(fs%32===0)FIN.t0=t;               /* re-anchor the sweep each cycle */
+  const slot=fs%16,call=(fs%32)<16,beat=fs%8,ph=FINP[G.level-1];
+  if(fs===16)sayNow('PLAY IT BACK');
+  if(fs%32===16)FIN.rHits=0;
+  if(beat%2===0)BEATQ.push(t);
+  /* the thin groove: the stage, not the show */
+  if(beat===0){kick(t,0.050);bassN(CH[((fs/8)|0)%4][0],t,0.28,0.034);}
+  if(beat===4)kick(t,0.036);
+  if(beat%2===1)hat(t,0.009,4000,0.038,0,0.35,6800);
+  const d=ph[slot];
+  if(d>=0){
+    if(call){
+      lead(PENT[d],t,0.24,0.045,3600,(slot%4<2)?-0.2:0.2);
+      if(FIN.voices>=1)note(PENT[Math.min(13,d+5)],t,0.20,'square',0.016,2800,0.2);
+      if(FIN.voices>=2)note(PENT[d]*0.5,t,0.24,'sawtooth',0.016,900,-0.2,undefined,0.4);
+      FINVQ.push({at:t,slot:slot,k:1.6});
+    }else{
+      FIN.expect.push({t:t,slot:slot,judged:false});
+      FINVQ.push({at:t,slot:slot,k:1});
+    }
+  }
+  if(fs%32===31&&FIN.rHits>=Math.ceil(FINN[G.level-1]*0.6))
+    FIN.voices=Math.min(2,FIN.voices+1);
+  if(fs>=95){FIN.on=false;FIN.done=true;G.finEnd=1;}
+}
 /* NEAREST sixteenth, not the next one. Snapping forward alone costs up to a
    full slot — 144ms at this tempo, past the point where a sound stops feeling
    attached to the tap that caused it. Snapping to the nearest halves the worst
@@ -1927,7 +1975,7 @@ function judgeTiming(x,y){
     if(MU&&MU.pay>0){
       const ex=8*(G.secMult||1);
       G.score+=ex;G.secScore+=ex;G.scorePop=Math.max(G.scorePop,0.6);
-    }else if(G.od>0){
+    }else if(G.od>0||G.spot>0){
       G.score+=8;G.scorePop=Math.max(G.scorePop,0.5);
     }
     const was=G.groove;
@@ -1990,6 +2038,7 @@ function performerHit(kind,dir,ring){
      and the arrangement answers it. Mashing should feel like playing, not
      like panicking. */
   PLAY.heat=Math.min(1,PLAY.heat+0.26);
+  G.lastTapAt=now;
   if(now-PLAY.last>2.4)PLAY.idx=0;           /* a pause starts a new phrase */
   PLAY.last=now;
   /* RING TRANSPOSES THE WHOLE FIGURE. Not a code to be decoded — a
@@ -2007,7 +2056,6 @@ function performerHit(kind,dir,ring){
      static position — the instrument finally listens to the record. */
   d=Math.max(0,d+[0,-1,1,0][((MU.step/8)|0)%4]);
   PLAY.idx++;
-  PLAY.rec.push(d);if(PLAY.rec.length>10)PLAY.rec.shift(); /* the echo's tape */
   PLAY.tape.push({c:((MU.step*2-Math.round((MU.next-slot)/S16))%32+32)%32,d:d,at:now});
   if(PLAY.tape.length>14)PLAY.tape.shift();
   const p=posPlayer();
@@ -2026,7 +2074,7 @@ function performerHit(kind,dir,ring){
      saw has all of them, and at ring 0 — where the register split is thinnest
      — timbre is what keeps the two apart. panAt() puts your line where you
      actually are, so it sweeps the field as you orbit. */
-  const g=(0.034+0.030*PLAY.heat)*(1+0.10*gr);
+  const g=(0.034+0.030*PLAY.heat)*(1+0.10*gr)*(G.spot>0?1.5:1);
   const inPay=MU.pay>0,pb=(PAY-MU.pay)>>3;
   const resp=inPay&&(pb===2||pb===3||pb===6);
   if(inPay){MU.payHits++;MU.barHits++;}
@@ -2122,6 +2170,7 @@ function bedTick(dt){
      loudest instant in the game and drove the soft clip to 1.45 pre-limiter.
      The pad comes down, never the hook — the pad receding IS the loudness. */
   if(MU&&MU.pay>0)mul=((PAY-MU.pay)>>3)<(MU.lateAt||4)?0.35:0.60;
+  else if(G.spot>0)mul=0.8;   /* the band steps back while you have the light */
   BED.g.gain.setTargetAtTime(lvl*mul,t,playing?0.9:0.5);
   G.pay=(MU&&MU.pay>0)?MU.pay/PAY:0;
   /* floor at 520: below that a phone speaker reproduces little of it, and the
@@ -2130,6 +2179,10 @@ function bedTick(dt){
      settles rather than latching */
   PLAY.heat=Math.max(0,PLAY.heat-dt*0.34);
   while(BEATQ.length&&BEATQ[0]<=t){BEATQ.shift();G.beat=1;}
+  while(FINVQ.length&&FINVQ[0].at<=t){
+    const fe=FINVQ.shift();FIN.vis[fe.slot]=Math.max(FIN.vis[fe.slot],fe.k);
+  }
+  if(FINVQ.length>40)FINVQ.length=0;
   while(DROPQ.length&&DROPQ[0]<=t){
     DROPQ.shift();G.dropFx=1;
     /* the world answers the downbeat */
@@ -2293,12 +2346,13 @@ const LV=[
   mech:[['tap','tap anywhere to turn around'],
         ['swipe','swipe up or down to change rings'],
         ['star','stars play the music \u2014 gather them'],
-        ['beat','ride the beat drop when it comes']]},
+        ['beat','finish: play the band\u2019s phrase back']]},
  {dl0:75, end:190, name:'INTO THE RINGS', key:0.8909,
   mech:[['shard','gates and twin shards block the track'],
-        ['star','golden laps pay a fat bonus'],
+        ['star','spotlight orb \u2014 you take the lead'],
         ['beat','run hot: overdrive, drum breaks'],
-        ['nova','bass bomb \u00b7 echo \u00b7 meteor shower']]},
+        ['nova','bass bomb \u00b7 meteor shower'],
+        ['beat','the finale \u2014 answer the band to finish']]},
  {dl0:190,end:Infinity,name:'THE STORM', key:0.7937,
   mech:[['shard','drifters chase you'],
         ['shard','blinkers phase in and out'],
@@ -2702,7 +2756,7 @@ const G={
   od:0,odT:0,odCool:0,odBrk:false,     /* overdrive: eighths left, heat clock, cooldown, break-due */
   odGlow:0,brkGlow:0,                  /* backdrop envelopes: overdrive warmth, break dim */
   shower:0,showerT:0,                  /* meteor shower: seconds left, spawn clock */
-  gold:0,goldNext:75,                  /* golden lap: window left, time to next offer */
+  spot:0,lastTapAt:-9,finEnd:0,        /* spotlight; last raw tap time; finale end flag */
   layerN:0,bandN:0,bandFx:0,           /* score layers unlocked; band-meter dot count + pulse */
   sndAt:0,sndStr:null,                 /* a NEW SOUND announcement waiting for its banner to clear */
   flashT:0,meetNext:0,teachSoft:false, /* flash rate-limit; lesson spacing; lesson-without-slowmo */
@@ -2921,7 +2975,7 @@ const MEET={
   driftgate:{t:'the wall slides — turn back early',g:'tap'},
   blinktwin:{t:'only one is ever solid — wait your moment',g:'shard'},
   bass:  {t:'bass bomb — clears the lane, drops the low end',g:'nova'},
-  echo:  {t:'echo — plays your last riff back for points',g:'warp'},
+  spot:  {t:'spotlight — you take the lead, taps pay double',g:'beat'},
   meteor:{t:'meteor shower — catch everything',g:'star'}};
 function firstMeet(type){
   if(G.seen[type]||!MEET[type])return;
@@ -3022,14 +3076,14 @@ function spawnPow(){
   }else{
     /* the family expansion: three musical orbs join the rotation */
     const rr=Math.random();
-    type=rr<0.30?'shield':rr<0.48?'warp':rr<0.62?'nova':
-         rr<0.76?'bass':rr<0.88?'echo':'meteor';
+    type=rr<0.30?'shield':rr<0.46?'warp':rr<0.60?'nova':
+         rr<0.74?'bass':rr<0.87?'spot':'meteor';
   }
   for(let i=0;i<24;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
     if(farFromAll(a,ring,0.6,sep(ring,3.2),sep(ring,3.0))){
       G.pows.push({a,ring,t:0,life:7,type});
-      if(type==='bass'||type==='echo'||type==='meteor')firstMeet(type);
+      if(type==='bass'||type==='spot'||type==='meteor')firstMeet(type);
       G.sinceShield=(type==='shield')?0:G.sinceShield+1;
       /* counts PLACEMENTS, not pickups: a player who misses the slow-mo still
          advances the curriculum, or a run spent dodging would serve nothing
@@ -3058,8 +3112,9 @@ function startGame(){
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
   G.sparkT=0;G.sparkN=0;
   G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;
-  G.shower=0;G.showerT=0;G.gold=0;G.goldNext=75;
-  PLAY.rec.length=0;PLAY.tape.length=0;
+  G.shower=0;G.showerT=0;G.spot=0;G.lastTapAt=-9;G.finEnd=0;
+  FIN.on=false;FIN.pend=false;FIN.done=false;FIN.step=0;FIN.score=0;FIN.hits=0;FIN.rHits=0;FIN.voices=0;FIN.expect.length=0;FIN.vis.fill(0);FINVQ.length=0;
+  PLAY.tape.length=0;
   LOOP.pat=null;LOOP.n=0;LOOP.until=0;LOOP.heard=false;
   G.layerN=0;G.bandN=0;G.bandFx=0;G.sndAt=0;G.sndStr=null;
   G.flashT=0;G.meetNext=0;G.teachSoft=false;ANN.length=0;annNext=0;
@@ -3670,15 +3725,52 @@ function update(dt){
   /* playing */
   G.teach=Math.max(0,G.teach-dt);
   if(G.nRings>=3&&G.ringI===0)G.campT+=dt;else G.campT=0;
-  /* the finish line: survive to the level's end of the clock and it is DONE */
-  if(dl()>=LV[G.level-1].end){levelComplete();return;}
+  /* THE FINALE replaces the bare finish line on levels 1-2: it latches at
+     the next two-bar line once the run is close, banks any drop, and the
+     duet plays out. A generous backstop still completes the level if the
+     finale somehow never latches. */
+  const lvEnd=LV[G.level-1].end;
+  if(lvEnd<1e9){
+    if(!FIN.on&&!FIN.done&&dl()>=lvEnd-10&&(!MU||(MU.pay<=0&&!MU.rise))){
+      FIN.on=true;FIN.pend=true;FIN.score=0;FIN.hits=0;FIN.rHits=0;FIN.voices=0;
+      FIN.expect.length=0;FIN.vis.fill(0);
+      if(MU&&AC)MU.cool=Math.max(MU.cool,AC.currentTime+34);
+      sayNow('THE FINALE \u2014 listen\u2026');
+    }
+    if(dl()>=lvEnd+30){levelComplete();return;}
+  }
+  /* judge the finale's answers: any input near a marked moment counts */
+  if(FIN.expect.length&&AC){
+    for(const ex of FIN.expect)if(!ex.judged&&AC.currentTime>ex.t+0.26){
+      ex.judged=true;
+      if(Math.abs(PLAY.slot-ex.t)<0.20||Math.abs(G.lastTapAt-ex.t)<0.26){
+        FIN.hits++;FIN.rHits++;FIN.score+=40;G.score+=40;
+        G.scorePop=Math.max(G.scorePop,0.6);
+        const hp=posPlayer();
+        popup(hp[0],hp[1]-22*u,'+40',COL.warp,0.9);
+        FIN.vis[ex.slot]=3;
+        const hd=FINP[G.level-1][ex.slot];
+        cueTone(function(w){
+          note(PENT[hd],AC.currentTime+w,0.18,'triangle',0.026,2400,0.2);
+          note(PENT[Math.min(13,hd+2)],AC.currentTime+w,0.18,'sine',0.014,2200,-0.2);
+        });
+      }
+    }
+    while(FIN.expect.length&&FIN.expect[0].judged)FIN.expect.shift();
+  }
+  for(let fi=0;fi<16;fi++)FIN.vis[fi]=Math.max(0,FIN.vis[fi]-dt*2.2);
+  if(G.finEnd){
+    G.finEnd=0;
+    if(FIN.score>0)popup(cx,cy-40*u,'FINALE +'+FIN.score,COL.ember,1.5);
+    levelComplete();return;
+  }
   /* OVERDRIVE — the eleventh notch. Keep the heat pinned for a full bar
      (about 2.3s of continuous playing) and the game tips into eight bars of
      double-time with every layer open, and embers and on-beat taps paying
      double. Never while a drop is in flight; a drop that rises mid-overdrive
      simply absorbs it — the bigger moment wins. */
   if(MU&&MU.pay<=0&&!MU.rise&&G.od<=0&&PLAY.heat>0.75)G.odT+=dt;else G.odT=0;
-  if(G.odT>SPB*8&&G.t>G.odCool&&G.od<=0&&MU&&!MU.armed&&dl()>18){
+  if(G.odT>SPB*8&&G.t>G.odCool&&G.od<=0&&MU&&!MU.armed&&dl()>18&&!FIN.on){
     G.od=64;G.odT=0;G.odCool=G.t+45;
     say('OVERDRIVE \u00d72',3,6);
     fireLift();braam(0.045);
@@ -3691,17 +3783,9 @@ function update(dt){
     G.shower-=dt;G.showerT-=dt;
     if(G.showerT<=0){G.showerT=0.26;spawnStar();}
   }
-  /* GOLDEN LAP: every minute and a half or so, one orbit turns gold — finish
-     a full lap inside the window for a fat bonus. Expiring costs nothing. */
-  G.goldNext-=dt;
-  if(G.goldNext<=0&&G.gold<=0&&dl()>30&&(!MU||(MU.pay<=0&&!MU.rise&&!MU.armed))){
-    G.goldNext=85+Math.random()*25;G.gold=13;
-    say('GOLDEN LAP \u2014 finish the orbit!',4,8);
-    ripple(cx,cy,COL.ember);
-    cueTone(function(w){beep(440,0.12,'triangle',0.05,587,w);
-      beep(587,0.14,'triangle',0.05,784,w+S16);});
-  }
-  if(G.gold>0)G.gold-=dt;
+  /* the spotlight burns down; golden lap is retired — the finale is the
+     scheduled special moment now, and it is musical instead of a timer */
+  G.spot=Math.max(0,G.spot-dt);
   /* the layer ladder: a score crossing names the layer that just joined */
   let lyn=0;for(let li=0;li<LAYER_AT.length;li++)if(G.score>=LAYER_AT[li])lyn++;
   if(lyn>G.layerN){
@@ -3864,21 +3948,6 @@ function update(dt){
       popup(lp[0],lp[1]-26*u,label,'rgba(200,215,255,0.7)');
       cueTone(function(w){beep(392,0.1,'triangle',0.04,440,w);});
     }
-    /* the golden lap pays on ANY completed orbit inside the window — the
-       invitation was "finish the orbit", so finishing is the whole test */
-    if(G.gold>0){
-      G.gold=0;
-      G.score+=150;G.scorePop=1;
-      popup(lp[0],lp[1]-46*u,'GOLDEN LAP +150',COL.ember,1.6);
-      if(!RM){flashHit(0.3);G.stop=Math.max(G.stop,0.08);
-        G.rings.push({x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.ember,sp:420,dec:1.1,fat:1});}
-      cueTone(function(w){beep(523,0.14,'triangle',0.08,784,w);
-        beep(784,0.20,'triangle',0.08,1046,w+S16);
-        beep(1046,0.30,'sine',0.06,1318,w+2*S16);});
-      braam(0.040);
-      build(0.10,'orbit');
-      try{if(navigator.vibrate)navigator.vibrate([20,20,50]);}catch(e){}
-    }
     G.lapEmbers=0;G.didLap=true;
     checkMile();
   }
@@ -3888,7 +3957,7 @@ function update(dt){
   G.starT-=sdt;
   if(G.starT<=0&&G.stars.length<emberCap()){spawnStar();G.starT=emberGap()*rand(0.75,1.4);}
   G.spikeT-=sdt;
-  if(G.teach<=0&&G.spikeT<=0&&age()>=firstShardAt()&&G.spikes.length<shardCap()){
+  if(G.teach<=0&&!FIN.on&&G.spikeT<=0&&age()>=firstShardAt()&&G.spikes.length<shardCap()){
     spawnSpike();
     G.spikeT=spawnGap()*rand(0.85,1.15);
   }
@@ -3981,7 +4050,7 @@ function update(dt){
       G.pows.splice(i,1);
       arcFlash(s.a,s.ring,
         s.type==='shield'?COL.shield:
-        s.type==='warp'||s.type==='echo'?COL.warp:
+        s.type==='warp'||s.type==='spot'?COL.warp:
         s.type==='bass'?COL.comet:
         s.type==='meteor'?COL.ember:COL.nova);
       if(s.type==='shield'){
@@ -4019,20 +4088,18 @@ function update(dt){
           note(CH[0][0]/2,t0+SPB*2,0.5,'sine',0.045,280);
         });
         try{if(navigator.vibrate)navigator.vibrate([30,30,60]);}catch(e){}
-      }else if(s.type==='echo'){
-        /* ECHO: the ghost instrument plays your last riff back, two points a
-           note — the tape is whatever you actually played (see PLAY.rec). */
-        const seq=PLAY.rec.length>=3?PLAY.rec.slice(-8):[4,6,8,9];
-        G.score+=2*seq.length;G.scorePop=Math.max(G.scorePop,0.7);
-        popup(p[0],p[1]-20*u,'ECHO +'+(2*seq.length),COL.warp,1.2);
-        burst(p[0],p[1],COL.warp,16,180);
+      }else if(s.type==='spot'){
+        /* SPOTLIGHT: four bars where YOU are the lead — your instrument
+           doubles and brightens, the band steps back a notch, and every
+           tight tap pays double. A performance, not a transaction. */
+        G.spot=16*SPB;
+        popup(p[0],p[1]-24*u,'SPOTLIGHT!',COL.warp,1.5);
+        burst(p[0],p[1],'#eaf1ff',20,220);
         ripple(p[0],p[1],COL.warp);
+        say('SPOTLIGHT \u00d72',3,5);
         cueTone(function(w){
-          for(let j=0;j<seq.length;j++){
-            const fd=PENT[Math.min(13,seq[j])],te=AC.currentTime+w+j*2*S16;
-            note(fd,te,0.16,'triangle',0.024,2400,(j%2)?0.3:-0.3,undefined,0.6);
-            note(fd,te,0.12,'square',0.012,1800,(j%2)?-0.2:0.2,undefined,0.6);
-          }
+          note(PENT[9],AC.currentTime+w,0.22,'sawtooth',0.028,3200,0.2,A.perf);
+          note(PENT[11],AC.currentTime+w+S16,0.24,'sawtooth',0.026,3600,-0.2,A.perf);
         });
         try{if(navigator.vibrate)navigator.vibrate(14);}catch(e){}
       }else if(s.type==='meteor'){
@@ -4123,20 +4190,22 @@ function drawPow(x,y,s,al){
     ctx.fillStyle=COL.comet;
     ctx.beginPath();ctx.arc(x,y,(1.6+0.9*(th-1)*3)*u,0,TAU);ctx.fill();
     ctx.restore();
-  }else if(s.type==='echo'){
-    /* sound made visible: rings of a note echoing outward and dying, over
-       and over, with a bright throat — the delay as an object */
-    ctx.save();ctx.strokeStyle=COL.warp;ctx.lineWidth=1.8*u;
-    for(let ri=0;ri<3;ri++){
-      const ph2=((RM?0.4:s.t*0.85)+ri/3)%1;
-      ctx.globalAlpha=al*(1-ph2)*(1-ph2)*0.95;
-      ctx.beginPath();ctx.arc(x,y,(3+ph2*12)*u,0,TAU);ctx.stroke();
+  }else if(s.type==='spot'){
+    /* a stage light: four rays sweeping round a bright bulb */
+    ctx.save();ctx.strokeStyle='#eaf1ff';ctx.lineWidth=1.8*u;
+    const ra=RM?0.6:s.t*1.6;
+    for(let ri=0;ri<4;ri++){
+      const aa2=ra+ri*Math.PI/2;
+      ctx.globalAlpha=al*0.7;
+      ctx.beginPath();
+      ctx.moveTo(x+Math.cos(aa2)*3.4*u,y+Math.sin(aa2)*3.4*u);
+      ctx.lineTo(x+Math.cos(aa2)*(7.5*pulse)*u,y+Math.sin(aa2)*(7.5*pulse)*u);
+      ctx.stroke();
     }
-    ctx.globalAlpha=al;
-    ctx.fillStyle='#eaf1ff';
-    ctx.beginPath();ctx.arc(x,y,2.8*u*pulse,0,TAU);ctx.fill();
+    ctx.globalAlpha=al;ctx.fillStyle='#eaf1ff';
+    ctx.beginPath();ctx.arc(x,y,2.9*u*pulse,0,TAU);ctx.fill();
     ctx.fillStyle=COL.warp;
-    ctx.beginPath();ctx.arc(x,y,1.7*u*pulse,0,TAU);ctx.fill();
+    ctx.beginPath();ctx.arc(x,y,1.6*u,0,TAU);ctx.fill();
     ctx.restore();
   }else if(s.type==='meteor'){
     /* a little constellation in motion: two satellites orbit the core and
@@ -4212,7 +4281,7 @@ function drawBloom(){
     const p=posAt(pw.a,radiusOf(pw.ring));
     bloomDot(g,p[0],p[1],10*u,
       pw.type==='shield'?COL.shield:
-      pw.type==='warp'||pw.type==='echo'?COL.warp:
+      pw.type==='warp'||pw.type==='spot'?COL.warp:
       pw.type==='bass'?COL.comet:
       pw.type==='meteor'?COL.ember:COL.nova);
   }
@@ -4611,13 +4680,6 @@ function draw(){
   drawRingGlow();
 
   /* lap progress arc — colour reports how well fed this orbit is */
-  /* the golden lap gilds the whole track while its window runs */
-  if(G.state==='playing'&&G.gold>0){
-    const ga=RM?0.35:Math.min(0.6,0.25+0.20*G.beat+(G.gold<3?0.25*Math.sin(G.t*10):0));
-    ctx.save();ctx.globalAlpha=ga;
-    ctx.strokeStyle=COL.ember;ctx.lineWidth=3*u;
-    ctx.beginPath();ctx.arc(cx,cy,radiusOf(G.ringI),0,TAU);ctx.stroke();ctx.restore();
-  }
   if(G.state==='playing'&&G.lapAcc>0.05){
     const lr=curR()+6*u;
     let a0,a1;
@@ -5281,6 +5343,10 @@ function drawHUD(){
       ctx.globalAlpha=0.7+0.3*G.beat;
       text('OVERDRIVE ×2',cx,top+154*u,11*u,'800','rgba(255,200,87,0.95)',3);
       ctx.globalAlpha=1;
+    }else if(G.spot>0&&roomy){
+      ctx.globalAlpha=0.7+0.3*G.beat;
+      text('SPOTLIGHT ×2',cx,top+154*u,11*u,'800','rgba(234,241,255,0.95)',3);
+      ctx.globalAlpha=1;
     }
     if(G.lapStreak>=2&&roomy&&G.od<=0){
       ctx.globalAlpha=0.5;
@@ -5360,6 +5426,32 @@ function drawHUD(){
       text('UNLOCKED',cx,by-19*u,12*u,'800','rgba(255,200,87,0.75)',3);
       text(b.str,cx,by,20*u,'800',COL.ember,4);
       text(b.sub,cx,by+20*u,12*u,'600','rgba(210,225,255,0.75)',0);
+      ctx.globalAlpha=1;
+    }
+    /* THE FINALE'S SEQUENCER: the phrase's rhythm as marks around the
+       outer ring, a sweep hand circling once per two bars. Call marks
+       pulse violet as the band plays them; answered marks flash white. */
+    if(FIN.on&&!FIN.pend&&AC){
+      const ph3=FINP[G.level-1],mr=radiusOf(0)+24*u;
+      if(!RM){
+        const prog=(((AC.currentTime-FIN.t0)/(8*SPB))%1+1)%1;
+        const sa=-Math.PI/2+prog*TAU;
+        ctx.save();ctx.strokeStyle='rgba(234,241,255,0.5)';ctx.lineWidth=2*u;
+        ctx.beginPath();
+        ctx.moveTo(cx+Math.cos(sa)*(mr-7*u),cy+Math.sin(sa)*(mr-7*u));
+        ctx.lineTo(cx+Math.cos(sa)*(mr+7*u),cy+Math.sin(sa)*(mr+7*u));
+        ctx.stroke();ctx.restore();
+      }
+      for(let sl=0;sl<16;sl++){
+        if(ph3[sl]<0)continue;
+        const aa=-Math.PI/2+(sl/16)*TAU;
+        const v=FIN.vis[sl];
+        ctx.globalAlpha=Math.min(1,0.35+0.4*v);
+        ctx.fillStyle=v>=2.4?'#ffffff':COL.warp;
+        ctx.beginPath();
+        ctx.arc(cx+Math.cos(aa)*mr,cy+Math.sin(aa)*mr,(2.2+0.9*Math.min(2,v))*u,0,TAU);
+        ctx.fill();
+      }
       ctx.globalAlpha=1;
     }
     /* THE COUNTDOWN. Three beats out the centre counts 3… 2… 1…, then NOW!
