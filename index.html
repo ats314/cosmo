@@ -447,6 +447,8 @@ function buildBed(){
   NOISE=n;
   MU={next:0,step:0,chord:-1,armed:false,cool:0,
       chainT:0,     /* audio time the current groove chain began */
+      landT:0,      /* audio time the drop lands — the target to hit */
+      landDone:0,   /* 0 unarmed, 1 hit, 2 spent */
       pend:null,    /* a drop earned while busy, waiting for the music to free up */
       pay:0,        /* eighths left in the payoff; 0 = inactive. the only flag. */
       payEnd:0,     /* audio-clock deadline, so no stall path can strand it */
@@ -571,6 +573,64 @@ function build(amount,src){
     armDrop(BUILD_SRC[best]);
   }
 }
+/* LANDING THE DROP. The biggest moment in the game happened TO the player —
+   they earned it, waited through the rise, and then watched. A target appears
+   in the dead centre through the last bar with a ring converging on it, and
+   the ring touches the rim exactly when the drop hits, so the timing is read
+   rather than guessed. Hitting it is worth a great deal; missing it costs
+   nothing at all and the drop lands regardless. It can never be a tax on
+   survival, only a prize on top of one.
+   The tap is judged against the SAME learned latency bias the groove uses, so
+   a slow phone does not decide whether anyone can hit it. */
+const LAND_WIN=0.30, LAND_PERFECT=0.10;
+function landRect(){return{x:cx,y:cy,r:46*u};}
+function landOpen(){
+  if(!MU||!AC||G.state!=='playing')return 0;
+  /* landDone means ALREADY PRESSED. Expiry is the time window alone: musicStep
+     schedules a lookahead ahead of the audio clock, so fireDrop runs in JS
+     before the instant it is scheduling — closing the window there killed the
+     target at exactly the moment the player was aiming for it. */
+  if(!MU.landT||MU.landDone)return 0;
+  const d=MU.landT-AC.currentTime;
+  return (d<SPB*4.4&&d>-LAND_WIN)?1:0;      /* the last bar, plus the late half of the window */
+}
+function inLand(x,y){
+  if(!landOpen())return false;
+  const r=landRect(),dx=x-r.x,dy=y-r.y;
+  return dx*dx+dy*dy<=r.r*r.r;
+}
+function landDrop(){
+  if(!landOpen())return;
+  MU.landDone=2;
+  const dev=Math.abs((AC.currentTime-PLAY.bias)-MU.landT);
+  const perfect=dev<LAND_PERFECT, good=dev<LAND_WIN;
+  const gain=perfect?200:good?75:0;
+  G.landFx={t:0,perfect:perfect,good:good,gain:gain,dev:+dev.toFixed(3)};
+  if(gain){G.score+=gain;G.scorePop=1;G.lands++;}
+  const p=posPlayer();
+  if(perfect){
+    /* the whole screen answers */
+    if(!RM){
+      G.stop=Math.max(G.stop,0.16);
+      G.flash=Math.max(G.flash,0.85);G.shake=Math.max(G.shake,22);
+      G.rings.push({x:cx,y:cy,r:10*u,life:1,col:'#ffffff',sp:1500,dec:0.85});
+      G.rings.push({x:cx,y:cy,r:10*u,life:1,col:COL.warp,sp:820,dec:1.0});
+      for(let i=0;i<G.nRings;i++)
+        G.rings.push({x:cx,y:cy,r:radiusOf(i),life:1,col:COL.warp,sp:300,dec:1.1});
+    }
+    burst(cx,cy,'#ffffff',30,420);
+    burst(p[0],p[1],COL.warp,26,320);
+    note(PENT[11],AC.currentTime,0.5,'square',0.030,7000,0,A.perf);
+    note(PENT[9], AC.currentTime,0.6,'square',0.026,6000,0,A.perf);
+    hat(AC.currentTime,0.055,3000,0.5,0.5);
+    try{if(navigator.vibrate)navigator.vibrate([40,26,40,26,70]);}catch(e){}
+  }else if(good){
+    if(!RM)G.rings.push({x:cx,y:cy,r:10*u,life:1,col:COL.warp,sp:620,dec:1.3});
+    burst(cx,cy,COL.warp,14,240);
+    note(PENT[9],AC.currentTime,0.34,'square',0.024,5200,0,A.perf);
+    try{if(navigator.vibrate)navigator.vibrate([26,20,40]);}catch(e){}
+  }
+}
 function armDrop(why){
   if(!MU||MU.armed||!AC)return;
   why=why||'DROP EARNED';
@@ -605,6 +665,7 @@ function schedulePreDrop(tD){
   g.setValueAtTime(0.05,tD-0.008);
   g.linearRampToValueAtTime(1,tD);             /* 8ms restore, landing ON the beat */
   MU.hushEnd=tD+0.02;
+  MU.landT=tD;MU.landDone=0;      /* the instant the player is aiming at */
   /* Linear ramps, not setTargetAtTime: asymptotic curves never arrive and need
      a pin. 8ms rather than a step because 0.05->1 on eight running sawtooths
      clicks; 8ms is under the audibility floor and does not soften the hit.
@@ -712,6 +773,7 @@ function endSection(){
   if(!MU)return;
   MU.pay=0;MU.payEnd=0;MU.payHits=0;MU.barHits=0;
   MU.armed=false;MU.rise=false;MU.lpLock=0;MU.hushEnd=0;MU.liftEnd=0;MU.pend=null;
+  MU.landT=0;MU.landDone=0;
   G.pay=0;G.payOpen=0;
   if(A&&AC){const t=AC.currentTime;
     A.hole.gain.cancelScheduledValues(t);
@@ -1325,7 +1387,15 @@ function spawnGap(){return Math.max(0.80,2.1-dl()*0.0035);}
    newcomer a little longer on top of that. The difficulty clock past the
    opening is untouched, so the run reaches exactly where it always did. */
 function rookie(){return Math.max(0,Math.min(1,(4-G.runs)/3));}
-function firstShardAt(){return 7+4*rookie();}
+/* Measured over five instrumented runs: the first threat was not arriving
+   until 10.5s and 13.2 of the first 25 seconds had an empty board — more than
+   half the opening was nothing at all. That flat 7s floor was me overshooting
+   the gentle-opening request: it bought a newcomer room to find the controls
+   and charged every returning player ten seconds of dead air for it.
+   The ramp goes back to being a ramp. A first run still opens at 11s, and by
+   the fourth it is 4.5s — quicker than the 4s+5s it ever was for a newcomer,
+   and back to a game that starts when you press start. */
+function firstShardAt(){return 4.5+6.5*rookie();}
 /* Embers land on a random ring but you can only reach the one you are on,
    so both the cap and the spawn rate scale with ring count. Without this,
    adding a ring silently cuts your scoring rate while raising difficulty. */
@@ -1438,6 +1508,7 @@ const G={
   armFx:null,sayFx:null,
   pay:0,payOpen:0,didGroove:false,                            /* the payoff section */
   build:0,buildSrc:{ember:0,hop:0,time:0,orbit:0},            /* the build meter */
+  landFx:null,lands:0,                                        /* landing the drop */
   embers:0,blocks:0,phases:0,lastHit:'none', /* telemetry counters */
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
@@ -1688,7 +1759,7 @@ function startGame(){
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
-  G.build=0;G.buildSrc={ember:0,hop:0,time:0,orbit:0};
+  G.build=0;G.buildSrc={ember:0,hop:0,time:0,orbit:0};G.landFx=null;G.lands=0;
   BEATQ.length=0;DROPQ.length=0;
   if(MU){MU.cool=0;MU.payN=0;MU.barN=0;MU.chainBar=-1;MU.pend=null;}
   endSection();
@@ -1875,6 +1946,7 @@ function runSummary(){
     bar+' '+tierLabel()+'\n'+
     G.score+' points · '+G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
     (G.bestGroove>=2?'groove ×'+G.bestGroove+'\n':'')+
+    (G.lands>0?G.lands+' drops landed\n':'')+
     /* a deep link to index.html shares worse than the directory it lives in */
     (location.origin+location.pathname).replace(/index\.html$/,'');
 }
@@ -1924,6 +1996,10 @@ cv.addEventListener('pointerdown',function(e){
   e.preventDefault();ensureAudio();
   if(inMute(e.clientX,e.clientY)){toggleMute();return;}
   if(inShare(e.clientX,e.clientY)){doShare();return;} /* must precede the retry tap */
+  /* Dead centre and only live for one bar per drop, so it can hardly ever
+     swallow a reverse someone needed — and the rest of the screen still
+     reverses, as the mute and share buttons already establish. */
+  if(inLand(e.clientX,e.clientY)){landDrop();return;}
   if(G.state==='menu'){startGame();return;}
   if(G.state==='dead'){if(G.t-G.deadT>0.6)startGame();return;}
   if(pd)return; /* one gesture at a time: a second finger can't double-reverse */
@@ -2060,6 +2136,7 @@ function update(dt){
   if(G.armFx){G.armFx.t+=dt;if(G.armFx.t>2.6)G.armFx=null;}
   if(MU&&MU.pay<=0)G.build=Math.max(0,G.build-dt*0.011);
   if(G.sayFx){G.sayFx.t+=dt;if(G.sayFx.t>1.8)G.sayFx=null;}
+  if(G.landFx){G.landFx.t+=dt;if(G.landFx.t>1.9)G.landFx=null;}
   /* stop playing and the groove lets go, so it always reflects what you are
      doing now rather than something you did a minute ago */
   if(G.groove>0&&G.t>G.grooveT){G.groove--;G.grooveT=G.t+0.7;}
@@ -2926,6 +3003,92 @@ function drawMute(){
    player gets the whole ladder no matter when they pick the game up. The flags
    they key off are all per-run now, so the sequence replays from the top every
    time without ever standing between anyone and the next input. */
+/* SHOW THE GESTURE, DO NOT DESCRIBE IT. Every rung of this ladder used to be
+   a sentence, read while dodging, in vocabulary the game had invented —
+   "sparks", "track", "the bar". A sentence is the slowest possible way to
+   teach a thumb movement. Each rung now carries a small animated diagram of
+   the thing itself, drawn beside the words, and the words use only nouns that
+   are visible on screen: rings, stars, shields. */
+function hintGlyph(kind,x,y,s){
+  const ph=RM?0.45:(G.t*0.85)%1;
+  ctx.save();
+  ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.strokeStyle='#eaf3ff';ctx.fillStyle='#eaf3ff';ctx.lineWidth=1.9*u;
+  if(kind==='tap'){
+    /* a thumb press, and the reversal it causes */
+    ctx.globalAlpha=0.45*(1-ph)+0.15;ctx.lineWidth=2.4*u;
+    ctx.beginPath();ctx.arc(x,y,s*(0.26+0.5*ph),0,TAU);ctx.stroke();
+    ctx.globalAlpha=0.95;
+    ctx.beginPath();ctx.arc(x,y,s*0.23,0,TAU);ctx.fill();
+    ctx.globalAlpha=0.85;ctx.lineWidth=2.2*u;
+    for(const d of [-1,1]){
+      ctx.beginPath();ctx.arc(x,y,s*0.62,d>0?-0.5:Math.PI-0.5,d>0?0.5:Math.PI+0.5);ctx.stroke();
+      const a2=d>0?0.5:Math.PI+0.5, ax=x+Math.cos(a2)*s*0.62, ay=y+Math.sin(a2)*s*0.62;
+      ctx.beginPath();ctx.moveTo(ax,ay);
+      ctx.lineTo(ax-d*s*0.13,ay-s*0.13);ctx.moveTo(ax,ay);
+      ctx.lineTo(ax+d*s*0.05,ay-s*0.18);ctx.stroke();
+    }
+  }else if(kind==='swipe'){
+    /* two rings seen edge on, and a thumb crossing from one to the other */
+    ctx.globalAlpha=0.6;ctx.lineWidth=2.6*u;
+    ctx.strokeStyle='rgba(150,190,255,1)';
+    ctx.beginPath();ctx.moveTo(x-s*0.52,y-s*0.46);ctx.lineTo(x+s*0.52,y-s*0.46);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x-s*0.52,y+s*0.46);ctx.lineTo(x+s*0.52,y+s*0.46);ctx.stroke();
+    const ty=y-s*0.46+s*0.92*ph;
+    ctx.strokeStyle='#eaf3ff';ctx.fillStyle='#eaf3ff';
+    ctx.globalAlpha=0.25;ctx.lineWidth=2.4*u;      /* the path already travelled */
+    ctx.beginPath();ctx.moveTo(x,y-s*0.46);ctx.lineTo(x,ty);ctx.stroke();
+    ctx.globalAlpha=1;
+    ctx.beginPath();ctx.arc(x,ty,s*0.2,0,TAU);ctx.fill();
+    ctx.lineWidth=2.4*u;
+    ctx.beginPath();ctx.moveTo(x-s*0.19,ty+s*0.16);ctx.lineTo(x,ty+s*0.36);
+    ctx.lineTo(x+s*0.19,ty+s*0.16);ctx.stroke();
+  }else if(kind==='star'){
+    blit(SPR.ember,x,y,s/26,0,0.95);
+  }else if(kind==='shard'){
+    ctx.globalAlpha=0.95;ctx.fillStyle=COL.shard;
+    ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);
+    ctx.fillRect(-s*0.27,-s*0.27,s*0.54,s*0.54);ctx.restore();
+  }else if(kind==='shield'){
+    ctx.globalAlpha=0.95;ctx.strokeStyle=COL.shield;ctx.fillStyle=COL.shield;
+    ctx.lineWidth=2.2*u;
+    ctx.beginPath();ctx.arc(x,y,s*0.34,0,TAU);ctx.stroke();
+    ctx.beginPath();ctx.arc(x,y,s*0.13,0,TAU);ctx.fill();
+  }else if(kind==='beat'){
+    /* the same contracting ring the comet wears, so the prompt names it */
+    ctx.globalAlpha=0.95;ctx.beginPath();ctx.arc(x,y,s*0.18,0,TAU);ctx.fill();
+    ctx.globalAlpha=0.25+0.55*ph;ctx.lineWidth=(1.3+1.6*ph)*u;
+    ctx.beginPath();ctx.arc(x,y,s*(0.62-0.34*ph),0,TAU);ctx.stroke();
+  }else if(kind==='build'){
+    ctx.globalAlpha=0.28;ctx.fillStyle=COL.warp;
+    ctx.fillRect(x-s*0.5,y-s*0.1,s,s*0.2);
+    ctx.globalAlpha=0.95;
+    ctx.fillRect(x-s*0.5,y-s*0.1,s*(0.25+0.7*ph),s*0.2);
+  }else if(kind==='warp'){
+    /* the counter-rotating squares of the slow-mo orb, at the pace it gives
+       you rather than the pace it spins at — the diagram should feel slow */
+    ctx.globalAlpha=0.95;ctx.strokeStyle=COL.warp;ctx.lineWidth=2.2*u;
+    ctx.save();ctx.translate(x,y);ctx.rotate(ph*Math.PI/2);
+    ctx.strokeRect(-s*0.31,-s*0.31,s*0.62,s*0.62);ctx.restore();
+    ctx.save();ctx.translate(x,y);ctx.rotate(-ph*Math.PI/2+Math.PI/4);
+    ctx.strokeRect(-s*0.18,-s*0.18,s*0.36,s*0.36);ctx.restore();
+  }else if(kind==='nova'){
+    /* the eight-point star of the nova orb, with one red square already
+       turning: the sentence says what happens, this says it faster */
+    ctx.globalAlpha=0.95;ctx.strokeStyle=COL.nova;ctx.lineWidth=1.9*u;
+    ctx.save();ctx.translate(x,y);ctx.rotate(ph*Math.PI/4);
+    ctx.beginPath();
+    for(let i=0;i<16;i++){
+      const sr=(i%2===0)?s*0.46:s*0.17, aa=i*Math.PI/8;
+      if(i===0)ctx.moveTo(Math.cos(aa)*sr,Math.sin(aa)*sr);
+      else ctx.lineTo(Math.cos(aa)*sr,Math.sin(aa)*sr);
+    }
+    ctx.closePath();ctx.stroke();ctx.restore();
+    ctx.globalAlpha=0.95;ctx.fillStyle=COL.nova;
+    ctx.beginPath();ctx.arc(x,y,s*0.1,0,TAU);ctx.fill();
+  }
+  ctx.restore();
+}
 function hintText(){
   if(G.state!=='playing')return null;
   const a=age();
@@ -2933,7 +3096,7 @@ function hintText(){
      lesson plan. Each entry either clears when the player does the thing or
      times out, so exactly one idea is ever on screen and nothing can sit there
      blocking the rest of the ladder. */
-  if(!G.didReverse)return 'tap anywhere to turn around';
+  if(!G.didReverse)return {t:'tap anywhere to turn around',g:'tap'};
   /* Only once there is somewhere to hop TO. A run opens on a single ring for
      its first 20 seconds, so without this the prompt asks a new player to
      make the one gesture the game will not answer — they swipe, nothing
@@ -2944,29 +3107,32 @@ function hintText(){
      points a different way at every point of the orbit — and the lap prompt
      used to hold the line until 22s, handing over just as the board filled.
      Whichever lesson is harder should get the quiet part of the run. */
-  if(!G.didHop&&G.nRings>1)return 'swipe up or down to switch track';
+  if(!G.didHop&&G.nRings>1)return {t:'swipe up or down to change ring',g:'swipe'};
   /* NAME THE ORB WHILE IT IS STILL ON THE BOARD. Slow-mo and nova were taught
      nowhere at all: you touched a coloured dot and something large happened
      that you had no word for. These sit high in the ladder because a pickup
      lives 7s, and a lesson that waits for the commoner prompts to clear is a
-     lesson that arrives after the thing it describes has gone. */
+     lesson that arrives after the thing it describes has gone.
+     Each draws the orb itself rather than naming its colour, so a player who
+     cannot separate violet from white on a phone in sunlight still has the
+     shape to go on \u2014 and the sentence can then say what it DOES. */
   for(const pw of G.pows){
-    if(pw.type==='warp'&&!G.gotWarp)return 'violet slows everything down';
-    if(pw.type==='nova'&&!G.gotNova)return 'white turns every shard to sparks';
+    if(pw.type==='warp'&&!G.gotWarp)return {t:'this one slows everything down',g:'warp'};
+    if(pw.type==='nova'&&!G.gotNova)return {t:'this one turns every red into a star',g:'nova'};
   }
-  if(!G.didLap&&a<22)return 'collect sparks, then finish a lap';
-  if(!G.didDodge&&G.spikes.length)return 'red kills \u2014 turn or switch track';
+  if(!G.didLap&&a<22)return {t:'collect stars, then finish a lap',g:'star'};
+  if(!G.didDodge&&G.spikes.length)return {t:'red kills you \u2014 get out of its way',g:'shard'};
   /* Widened at the front to meet the first shield, which the power-up
      curriculum now places around 10s rather than 17s. */
-  if(!G.didShield&&a>9&&a<22)return 'each shield saves you from one hit';
+  if(!G.didShield&&a>9&&a<22)return {t:'a shield takes one hit for you',g:'shield'};
   /* Named after the ring now visibly contracting onto the comet, and phrased
      as an invitation rather than an instruction — a struggling player does not
      need another demand. */
   /* didGroove is the LIFETIME flag behind the one-time IN TIME popup; the
      prompt keys off this run's own chain, so it still reminds someone who
      learned it weeks ago and has not used it today. */
-  if(G.bestGroove<2&&a>28&&G.groove<2)return 'tap in time with the beat';
-  if(!G.sawDrop&&a>34&&G.build>0.25)return 'fill the bar to earn a drop';
+  if(G.bestGroove<2&&a>28&&G.groove<2)return {t:'tap in time with the beat',g:'beat'};
+  if(!G.sawDrop&&a>34&&G.build>0.25)return {t:'keep playing to fill the build',g:'build'};
   return null;
 }
 
@@ -3103,7 +3269,49 @@ function drawHUD(){
       text(b.sub,cx,by+20*u,12*u,'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
     }
-    const hint=hintText();
+    /* THE TARGET. A ring converges on the rim and touches it exactly as the
+       drop lands, so the timing is something you watch rather than guess —
+       the same language as the beat ring around the comet. */
+    if(landOpen()){
+      const lr=landRect(),d=MU.landT-AC.currentTime;
+      const app=Math.max(0,Math.min(1,1-d/(SPB*4)));      /* 0 far out, 1 on the beat */
+      ctx.save();
+      ctx.globalCompositeOperation='lighter';
+      /* the rim */
+      ctx.globalAlpha=0.30+0.45*app;
+      ctx.strokeStyle=COL.warp;ctx.lineWidth=(1.8+2.2*app)*u;
+      ctx.beginPath();ctx.arc(lr.x,lr.y,lr.r,0,TAU);ctx.stroke();
+      /* the incoming ring */
+      if(d>0){
+        ctx.globalAlpha=0.25+0.6*app;
+        ctx.strokeStyle='#ffffff';ctx.lineWidth=(1.4+2.6*app)*u;
+        ctx.beginPath();ctx.arc(lr.x,lr.y,lr.r+(1-app)*72*u,0,TAU);ctx.stroke();
+      }
+      /* the word, only while it is still reachable */
+      ctx.globalCompositeOperation='source-over';
+      ctx.globalAlpha=0.55+0.45*app;
+      text(d>0?'TAP ON THE DROP':'NOW',lr.x,lr.y+4*u,
+        (d>0?10.5:14)*u,'800','#eaf3ff',2);
+      ctx.restore();ctx.globalAlpha=1;
+    }
+    /* THE PAYOFF. Its own moment, at a size nothing else in the game uses. */
+    if(G.landFx){
+      const f=G.landFx,a=Math.min(1,f.t/0.12)*Math.min(1,(1.9-f.t)/0.7);
+      ctx.globalAlpha=Math.max(0,a);
+      const pop=1+0.35*Math.max(0,1-f.t*4);
+      if(f.perfect){
+        text('PERFECT DROP',cx,cy-14*u,26*u*pop,'800',COL.warp,6);
+        text('+'+f.gain,cx,cy+22*u,34*u*pop,'800','#ffffff',3);
+      }else if(f.good){
+        text('ON THE DROP',cx,cy-8*u,20*u*pop,'800',COL.warp,4);
+        text('+'+f.gain,cx,cy+18*u,22*u*pop,'800','#eaf3ff',2);
+      }else{
+        text('MISSED IT',cx,cy,16*u,'800','rgba(210,225,255,0.55)',3);
+      }
+      ctx.globalAlpha=1;
+    }
+    const hintO=hintText();
+    const hint=hintO&&hintO.t;
     if(hint){
       /* DEAD CENTRE. The middle of the arena is the one region nothing ever
          occupies — shards and embers ride the rings and the comet orbits them
@@ -3144,8 +3352,12 @@ function drawHUD(){
          Under the rings is not an option: that space belongs to the shields. */
       let over=Math.max(...lines.map(wide))/budget;
       if(over>1)hs=Math.max(13*u,hs/over);
-      const lh=hs*1.15, y0=cy+5*u-(lines.length-1)*lh/2;
+      /* diagram above, words below — the picture is the instruction and the
+         sentence only names it */
+      const lh=hs*1.15, gs=30*u;
+      const y0=cy+5*u-(lines.length-1)*lh/2+gs*0.42;
       ctx.globalAlpha=RM?1:0.88+0.12*Math.sin(G.t*2.6);
+      hintGlyph(hintO.g,cx,y0-(lines.length-1)*lh/2-hs-gs*0.62,gs);
       for(let i=0;i<lines.length;i++){
         text(lines[i],cx+1.5,y0+i*lh+1.5,hs,'700','rgba(4,8,20,0.85)',1);
         text(lines[i],cx,y0+i*lh,hs,'700','#eaf3ff',1);
@@ -3155,36 +3367,57 @@ function drawHUD(){
   }else if(G.state==='menu'){
     const ty=Math.max(top+40*u,cy-R-46*u);
     text('COMET LOOP',cx,ty,34*u,'800','#eaf1ff',6);
-    text('tap to reverse \u00b7 swipe toward a ring',cx,cy-6*u,15*u,'600','rgba(210,225,255,0.85)',0);
-    blit(SPR.ember,cx-84*u,cy+30*u,0.7,0.7,1);
-    ctx.textAlign='left';
-    text('collect',cx-70*u,cy+35*u,14*u,'600','rgba(210,225,255,0.85)',0);
-    ctx.save();ctx.translate(cx+14*u,cy+30*u);ctx.rotate(Math.PI/4);
-    ctx.fillStyle=COL.shard;ctx.fillRect(-4.9*u,-4.9*u,9.8*u,9.8*u);ctx.restore();
-    text('dodge',cx+28*u,cy+35*u,14*u,'600','rgba(210,225,255,0.85)',0);
-    ctx.textAlign='center';
-    text('fill an orbit with embers for a big bonus',cx,cy+58*u,12*u,'600','rgba(210,225,255,0.6)',0);
-    /* WAS: "start with a shield \u00b7 tap it to phase through". Nothing in the
-       input layer has ever handled a tap on the shield \u2014 pointerdown routes
-       mute, share, start, retry, reverse and the radial swipe, and that is the
-       whole list. So the menu was teaching a control that does not exist, and
-       because a tap anywhere reverses, a player who followed the instruction
-       got a direction flip they did not ask for, at a moment they had chosen
-       to press something. Say what shields actually do instead. */
-    text('green saves you \u00b7 violet slows \u00b7 white clears',cx,cy+76*u,12*u,'600','rgba(123,255,200,0.55)',0);
+    /* A KEY, NOT A PARAGRAPH. Each row is the diagram the game will use again
+       mid-run, so the picture is learned here and only recognised later. The
+       old copy still told players to "tap it to phase through" — a control
+       that was removed two releases ago, which is the worst thing an
+       instruction can do. */
     /* Only once there is a climb to report. A first-time player has no level
-       to beat and does not need a scoreboard before they have played. */
+       to beat and does not need a scoreboard before they have played. It rides
+       directly under the title because it is identity, not a control \u2014 the key
+       below is one uninterrupted list of things you can do. */
     if(G.bestLevel>1){
-      text('BEST \u00b7 LEVEL '+G.bestLevel+' of '+LEVEL_MAX,cx,cy+96*u,12*u,'700',
+      text('BEST \u00b7 LEVEL '+G.bestLevel+' of '+LEVEL_MAX,cx,ty+20*u,12*u,'700',
         'rgba(255,200,87,0.7)',2);
     }
+    /* The three orbs are rows now rather than the line "green saves you \u00b7
+       violet slows \u00b7 white clears", which asked a player to hold three colour
+       words in their head and match them to dots they had not seen yet. A row
+       draws the orb, so the match is made for them \u2014 and it still works for
+       anyone who cannot separate violet from white on a phone in sunlight. */
+    const rows=[['tap','tap anywhere to turn around'],
+                ['swipe','swipe up or down to change ring'],
+                ['star','collect stars \u2014 a full orbit pays big'],
+                ['shard','red kills you'],
+                ['shield','a shield takes one hit for you'],
+                ['warp','this orb slows everything down'],
+                ['nova','this orb turns every red into a star'],
+                ['beat','tap in time to build a drop']];
+    /* LAID OUT FROM THE ROOM AVAILABLE, not from a constant. The key was eight
+       rows at a hardcoded y0 away from running off the bottom of a short
+       phone; it now takes the gap between the title and TAP TO START and
+       divides it, so adding a row shrinks the leading instead of overflowing. */
+    const kTop=ty+(G.bestLevel>1?34*u:22*u), kBot=bottomY-24*u;
+    const rh=Math.min(24*u,Math.max(15*u,(kBot-kTop)/rows.length));
+    const fs=Math.min(13*u,rh*0.56), gs=Math.min(20*u,rh*0.84);
+    /* centred in the gap rather than pinned to the top of it: on a tall phone
+       the rows shrink to 24u and leave the rest as one dead band, and a block
+       floating above a void reads as a layout accident. */
+    const y0=(kTop+kBot)/2-(rows.length-1)*rh/2, gx=cx-118*u;
+    for(let i=0;i<rows.length;i++){
+      const ry=y0+i*rh;
+      hintGlyph(rows[i][0],gx,ry-fs*0.35,gs);
+      ctx.textAlign='left';
+      text(rows[i][1],gx+20*u,ry,fs,'600','rgba(214,228,255,0.88)',0);
+    }
+    ctx.textAlign='center';
     /* Opened from a chat app, iOS presents the page as a modal sheet, and that
        sheet eats downward swipes to dismiss itself — the game's own inward hop.
        Nothing in here can prevent it, so point at the thing that does. */
     if(IN_APP_BROWSER){
-      /* pushed to 114u so it clears the best-level line above it */
-      text('add to home screen \u2014 swipes close this window',cx,cy+114*u,11*u,'600',
-        'rgba(255,190,120,0.75)',0);
+      text('add to home screen \u2014 swipes close this window',cx,
+        Math.min(bottomY-11*u,y0+rows.length*rh+4*u),
+        11*u,'600','rgba(255,190,120,0.75)',0);
     }
     const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
     ctx.globalAlpha=pulse;
@@ -3213,8 +3446,14 @@ function drawHUD(){
       'rgba(200,215,255,0.5)',2);
     text(G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime(),
       cx,cy+62*u,12*u,'600','rgba(200,215,255,0.45)',0);
-    if(G.bestGroove>=2)
-      text('best groove ×'+G.bestGroove,cx,cy+78*u,11*u,'600','rgba(160,120,255,0.6)',0);
+    /* Landed drops are the rarest thing a run can contain, so they get the
+       line — sharing it with the groove rather than adding a row, because
+       this screen has run out of vertical space twice already. */
+    const brag=[];
+    if(G.bestGroove>=2)brag.push('groove ×'+G.bestGroove);
+    if(G.lands>0)brag.push(G.lands+(G.lands===1?' drop landed':' drops landed'));
+    if(brag.length)
+      text(brag.join('  ·  '),cx,cy+78*u,11*u,'600','rgba(170,135,255,0.7)',0);
     if(G.t-G.deadT>0.6){
       const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
       ctx.globalAlpha=pulse;
