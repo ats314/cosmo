@@ -2774,7 +2774,7 @@ const G={
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
-  didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,
+  didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,hyperPlaced:false,
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
   stop:0, /* hitstop: freezes the comet while the celebration plays */
   starT:0.6,spikeT:1.2,powT:6,powN:0,shake:0,flash:0,tier:0,banner:null,featT:0,
@@ -3108,6 +3108,13 @@ function spawnPow(){
   let type;
   if(G.powN<POW_INTRO.length){
     type=POW_INTRO[G.powN];
+  }else if(G.level>=2&&!G.hyperPlaced){
+    /* THE MARQUEE ITEM IS NOT OPTIONAL CONTENT (the lesson the intro
+       curriculum was invented for): at a 10% roll a long run could
+       plausibly never meet the star at all — the owner reached 6000
+       without seeing one. On level 2+ the first placement after the
+       curriculum is the star, guaranteed, once per run. */
+    type='hyper';
   }else if(G.sinceShield>=3){
     type='shield'; /* pity: never more than 3 power-ups without a shield */
   }else{
@@ -3120,6 +3127,7 @@ function spawnPow(){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
     if(farFromAll(a,ring,0.6,sep(ring,3.2),sep(ring,3.0))){
       G.pows.push({a,ring,t:0,life:7,type});
+      if(type==='hyper')G.hyperPlaced=true;
       if(type==='bass'||type==='spot'||type==='hyper')firstMeet(type);
       G.sinceShield=(type==='shield')?0:G.sinceShield+1;
       /* counts PLACEMENTS, not pickups: a player who misses the slow-mo still
@@ -3175,7 +3183,7 @@ function startGame(){
      player, or anyone handed the phone, got no reminder of the controls at
      all. Each clears the instant the thing is done, so a veteran sees each for
      well under a second. */
-  G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;
+  G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;G.hyperPlaced=false;
   G.didReverse=false;G.didHop=false;G.didLap=false;
   G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];G.novas=[];
   G.stop=0;
