@@ -853,7 +853,7 @@ const CH=[[110,220,261.63,329.63],      /* Am  */
 const ARP=[0,2,4,2,3,2,4,3],CNT=[7,5,4,5,7,8,7,5];
 /* The score-anchored layer ladder — thresholds, and a two-bar riff (in
    eighths; -1 rests) that stays under the player's register floor. */
-const LAYER_AT=[1000,2000,3000,4500];
+const LAYER_AT=[600,1400,2400,3600];
 const LAYER_NAME=['NEW LAYER: PULSE','NEW LAYER: SYNTH RIFF',
                   'NEW LAYER: BASS','NEW LAYER: SHIMMER'];
 const RIFF=[0,-1,2,-1,3,-1,2,-1, 0,-1,2,-1,4,3,2,-1];
@@ -1213,7 +1213,7 @@ function tryLand(){
     /* the whole screen answers */
     if(!RM){
       G.stop=Math.max(G.stop,0.16);
-      G.flash=Math.max(G.flash,0.85);G.shake=Math.max(G.shake,22);
+      flashHit(0.85);G.shake=Math.max(G.shake,22);
       G.rings.push({x:cx,y:cy,r:10*u,life:1,col:'#ffffff',sp:1500,dec:0.85,fat:1});
       G.rings.push({x:cx,y:cy,r:10*u,life:1,col:COL.warp,sp:820,dec:1.0});
       for(let i=0;i<G.nRings;i++)
@@ -1358,8 +1358,8 @@ function payoffStep(t,ch,k){
        invisible — the hook simply stops and the player has no way to know the
        silence is an invitation. Named for the first two sections of a run,
        then left alone once it has been learned. */
-    if(resp&&MU.payN<=2)G.sayFx={str:'YOUR TURN',t:0};
-    else if(pb===0&&MU.payN<=2)G.sayFx={str:'LISTEN',t:0};
+    if(resp&&MU.payN<=2)sayNow('YOUR TURN');
+    else if(pb===0&&MU.payN<=2)sayNow('LISTEN');
   }
   /* the visual pulse rate DOUBLES exactly where the audio does */
   if(late||ps%2===0)BEATQ.push(t);
@@ -1534,7 +1534,7 @@ function musicStep(i,t,k){
      (G.odBrk||(PLAY.heat>0.55&&G.od<=0&&k>0.22&&t>=MU.brkCool))){
     MU.brk=8;MU.brkN++;MU.brkCool=t+30;G.odBrk=false;
     duckBed(0.5,0.9);
-    if(MU.brkN<=2)G.sayFx={str:'DRUM BREAK!',t:0};
+    if(MU.brkN<=2)say('DRUM BREAK!',2,2.5);
   }
   if(MU.brk>0){
     breakStep(beat,t);
@@ -1543,7 +1543,7 @@ function musicStep(i,t,k){
   }
   /* the crash brings the record back exactly on the downbeat after the break */
   if(MU.brkEnd){MU.brkEnd=false;hat(t,0.055,2600,0.5,0.5);
-    if(!RM)G.flash=Math.max(G.flash,0.18);}
+    if(!RM)flashHit(0.18);}
   if(rise){
     /* THE RISE, AND NOTHING ELSE. It measured -19.8dB against an ordinary
        bar's -19.6 because the arp, counter-line and root kept playing
@@ -2013,7 +2013,7 @@ function bedTick(dt){
     DROPQ.shift();G.dropFx=1;
     /* the world answers the downbeat */
     if(!RM){
-      G.flash=Math.max(G.flash,0.34);G.shake=Math.max(G.shake,9);
+      flashHit(0.34);G.shake=Math.max(G.shake,9);
       for(let i=0;i<G.nRings;i++)
         G.rings.push({x:cx,y:cy,r:radiusOf(i),life:1,col:COL.warp,sp:230,dec:1.3});
       G.rings.push({x:cx,y:cy,r:12*u,life:1,col:'#ffffff',sp:640,dec:1.2,fat:1});
@@ -2259,6 +2259,40 @@ const GEST={tap:0,swipe:0,lateSwipe:0,unresolved:0};
 /* ---------- state ---------- */
 const CW=2.5;   /* combo window seconds */
 const WARN=1.15,FADE=0.4,HOP=0.14;
+/* ---------- one voice ----------
+   Six systems used to write the announcement slot directly, and every write
+   was an unconditional overwrite: at the mid-game pile-up "NEW LAYER: BASS"
+   could eat "GOLDEN LAP" while its 13-second window kept running with its
+   only explanation destroyed. One queue now: say() enqueues with a priority
+   and a shelf life, the pump shows ONE line at a time with a breath between,
+   and a message that expires unshown is dropped rather than shouted late.
+   sayNow() remains for the two bar-timed section calls (YOUR TURN / LISTEN)
+   whose whole meaning is the instant they refer to. */
+const ANN=[];
+let annNext=0;
+function say(str,pri,ttl){
+  for(const a of ANN)if(a.str===str)return;         /* never queue a duplicate */
+  ANN.push({str:str,pri:pri||1,until:G.t+(ttl||14)});
+}
+function sayNow(str){G.sayFx={str:str,t:0};annNext=G.t+2.8;}
+function annPump(){
+  if(G.sayFx||G.t<annNext||!ANN.length)return;
+  for(let i=ANN.length-1;i>=0;i--)if(ANN[i].until<G.t)ANN.splice(i,1);
+  let bi=-1;
+  for(let i=0;i<ANN.length;i++)if(bi<0||ANN[i].pri>ANN[bi].pri)bi=i;
+  if(bi<0)return;
+  const a=ANN.splice(bi,1)[0];
+  G.sayFx={str:a.str,t:0};
+  annNext=G.t+2.8;
+}
+/* ---------- one flash ----------
+   Seven systems max() into G.flash, which at mid-game density strobed the
+   screen near-continuously. Small flashes now rate-limit to one per 0.45s;
+   the few genuinely big moments (perfect landing, nova) always pass. */
+function flashHit(v){
+  if(v<0.5&&G.t-G.flashT<0.45)return;
+  G.flashT=G.t;G.flash=Math.max(G.flash,v);
+}
 function age(){return G.t-G.started;}
 /* DIFFICULTY IS A CLOCK. Scoring well nudges it forward a little, but the
    nudge is capped, so playing well can never accelerate you into the wall.
@@ -2294,7 +2328,9 @@ function shardCap(){
      10 across three rings stays placeable. The front of this ramp starts at
      ONE: the first threat arrives alone, and pairs only exist once the tap
      has had something real to answer. */
-  return d<8?1:d<20?2:d<32?3:d<48?4:d<70?5:d<110?6:d<160?7:d<230?8:d<320?9:10;
+  /* the 5->6->7 steps used to land at dl 70/110/160 — all three inside the
+     window where every run was already dying. Spaced out. */
+  return d<8?1:d<20?2:d<32?3:d<48?4:d<90?5:d<140?6:d<200?7:d<260?8:d<330?9:10;
 }
 /* was 2.1-d*0.0035: the same late floor arrives via a gentler opening */
 function spawnGap(){return Math.max(0.80,2.6-dl()*0.005);}
@@ -2376,10 +2412,10 @@ const TIERS=[
   {at:18, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 swipe to another ring'},
   {at:40, type:null,    name:'THIRD RING',  sub:'inside is tighter, faster and higher',rings:3},
   {at:52, type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 tap to turn back'},
-  {at:105,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
-  {at:145,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
-  {at:195,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
-  {at:250,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
+  {at:130,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
+  {at:185,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
+  {at:230,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
+  {at:280,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
   {at:315,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
 ];
 function tierIndex(){
@@ -2427,7 +2463,9 @@ function pickType(){
     /* one wall at a time, whether it slides or not */
     if((ty==='gate'||ty==='driftgate')&&G.spikes.some(function(s){return s.gate;}))continue;
     pool.push(ty);
-    if(k===feat)pool.push(ty,ty);          /* the newest one shows up often */
+    /* the newest formation is featured — but only once it has been on the
+       ladder ~18s. You meet ONE drifter before you meet three. */
+    if(k===feat&&G.t-G.featT>18)pool.push(ty,ty);
   }
   return pool.length?pool[Math.floor(Math.random()*pool.length)]:'single';
 }
@@ -2455,7 +2493,7 @@ const G={
   didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
   stop:0, /* hitstop: freezes the comet while the celebration plays */
-  starT:0.6,spikeT:1.2,powT:6,powN:0,shake:0,flash:0,tier:0,banner:null,
+  starT:0.6,spikeT:1.2,powT:6,powN:0,shake:0,flash:0,tier:0,banner:null,featT:0,
   runs:0,didReverse:false,didHop:false,didLap:false,
   teach:0,teachKind:null,teachHint:null,seen:{},campT:0, /* lessons + outer-ring camp clock */
   od:0,odT:0,odCool:0,odBrk:false,     /* overdrive: eighths left, heat clock, cooldown, break-due */
@@ -2464,6 +2502,7 @@ const G={
   gold:0,goldNext:75,                  /* golden lap: window left, time to next offer */
   layerN:0,bandN:0,bandFx:0,           /* score layers unlocked; band-meter dot count + pulse */
   sndAt:0,sndStr:null,                 /* a NEW SOUND announcement waiting for its banner to clear */
+  flashT:0,meetNext:0,teachSoft:false, /* flash rate-limit; lesson spacing; lesson-without-slowmo */
   holdD:0,hopHintT:0,                   /* the hop lesson: gate, hint clock */
   everHopped:false,struggle:0,coach:null,  /* lifetime hop pref, struggle streak, death coaching */
   bgFade:0,revFlip:0,impactT:0,killer:null, /* sky crossfade, reverse flip, death impact */
@@ -2509,7 +2548,12 @@ function ripple(x,y,col){G.rings.push({x,y,r:10*u,life:1,col:col||COL.comet});}
    stamped across the orbit. This is the most repeated moment in the game, so
    it is the one most worth making feel like part of the world. */
 function arcFlash(a,ring,col){G.arcs.push({a:a,ring:ring,life:1,col:col});}
-function popup(x,y,str,col,sz){G.pops.push({x,y,str,col,life:1,sz:sz||1});}
+function popup(x,y,str,col,sz){
+  /* cap the cloud: at mid-game density 6-8 texts floated at once. Oldest
+     yields — the newest popup is the one narrating what just happened. */
+  if(G.pops.length>=6)G.pops.shift();
+  G.pops.push({x,y,str,col,life:1,sz:sz||1});
+}
 /* NOVA. A front that expands from the pickup and turns what it touches into
    light. Converting on CONTACT rather than all at once is the whole point:
    the old version swapped every shard for an ember inside a single frame, so
@@ -2587,8 +2631,10 @@ function ignite(ring,a,dir,streak){
     mag:Math.min(1.6,0.7+0.22*Math.max(0,streak-1))});
 }
 function checkMile(){
-  if(Math.floor(G.score/50)>G.mile){
-    G.mile=Math.floor(G.score/50);
+  /* every 250, not every 50: at mid-game rates the 50-step fired a centre
+     ripple every 2-3 seconds — a metronome of celebration nobody asked for */
+  if(Math.floor(G.score/250)>G.mile){
+    G.mile=Math.floor(G.score/250);
     ripple(cx,cy,COL.ember);
     cueTone(function(w){
       beep(660,0.1,'triangle',0.06,990,w);
@@ -2676,10 +2722,24 @@ const MEET={
   meteor:{t:'meteor shower — catch everything',g:'star'}};
 function firstMeet(type){
   if(G.seen[type]||!MEET[type])return;
+  /* A LESSON WAITS FOR A CALM BEAT. Mid-game, first encounters used to fire
+     their 0.35x time dilation in the middle of dense play — a slow-motion
+     surprise at the moment attention was scarcest, and lessons could land
+     back to back. Now: never within 9s of the last lesson, never while a
+     lethal shard is armed near the player. A deferred lesson is simply
+     re-offered by the NEXT encounter of the same type (seen is not set). */
+  if(G.t<G.meetNext)return;
+  const mer=effRing();
+  for(const sp of G.spikes)
+    if(sp.phase===1&&sp.ring===mer&&angDist(sp.a,G.angle)<1.2)return;
+  G.meetNext=G.t+9;
   G.seen[type]=1;
   savePref('cometloop:seen',Object.keys(G.seen).join(','));
   G.teach=Math.max(G.teach,2.8);
   G.teachKind='see';
+  /* the musical orbs are safe objects: their line shows WITHOUT the slow-mo
+     — dilation is protection for threats, not ceremony for rewards */
+  G.teachSoft=(type==='bass'||type==='echo'||type==='meteor');
   G.teachHint=MEET[type];
 }
 function spawnSpike(){
@@ -2724,9 +2784,13 @@ function spawnSpike(){
     }
     if(!farFromAll(a,ring,clear,sep(ring,3.5),sep(ring,2.5)))continue;
     if(type==='drift'){
-      G.spikes.push(mkSpike(a,ring,{va:rand(0.24,0.5)*(Math.random()<0.5?-1:1),life:rand(3.4,5.2)}));
+      /* a type's very first specimens telegraph longer — the lesson may have
+         been deferred (firstMeet waits for calm), so the shard itself teaches */
+      const dw=G.seen['drift']?{}:{warn:warnTime()*1.6};
+      G.spikes.push(mkSpike(a,ring,Object.assign({va:rand(0.24,0.5)*(Math.random()<0.5?-1:1),life:rand(3.4,5.2)},dw)));
     }else if(type==='blink'){
-      G.spikes.push(mkSpike(a,ring,{blink:true,life:rand(4.0,6.0)}));
+      const bw=G.seen['blink']?{}:{warn:warnTime()*1.6};
+      G.spikes.push(mkSpike(a,ring,Object.assign({blink:true,life:rand(4.0,6.0)},bw)));
     }else{
       G.spikes.push(mkSpike(a,ring));
     }
@@ -2789,6 +2853,7 @@ function startGame(){
   G.shower=0;G.showerT=0;G.gold=0;G.goldNext=75;
   PLAY.rec.length=0;
   G.layerN=0;G.bandN=0;G.bandFx=0;G.sndAt=0;G.sndStr=null;
+  G.flashT=0;G.meetNext=0;G.teachSoft=false;ANN.length=0;annNext=0;
   skyI=0;      /* the sky opens on band 0 — the ratchet re-deepens it as the run climbs */
   pd=null;     /* a finger held across the death screen must not steer the new run */
   BEATQ.length=0;DROPQ.length=0;
@@ -2816,7 +2881,7 @@ function startGame(){
   /* powT 4, not 6: paired with the dl()>=6 gate below it puts the first
      shield on the board around 10s instead of 17s, which leaves room for all
      three of the intro power-ups inside a short run. */
-  G.starT=0.5;G.spikeT=1.2;G.powT=4;G.powN=0;G.started=G.t;G.tier=0;G.banner=null;
+  G.starT=0.5;G.spikeT=1.2;G.powT=4;G.powN=0;G.started=G.t;G.tier=0;G.banner=null;G.featT=G.t;
   beep(440,0.12,'sine',0.05,880);
 }
 function die(){
@@ -3234,7 +3299,7 @@ function updateSpikes(sdt,lethal){
         s.phase=2;s.t=0;
         /* a block is an impact: one short flash and stop, so the save is
            FELT rather than deduced from the pip count */
-        if(!RM){G.flash=Math.max(G.flash,0.28);G.stop=Math.max(G.stop,0.04);}
+        if(!RM){flashHit(0.28);G.stop=Math.max(G.stop,0.04);}
         const p=posPlayer();
         burst(p[0],p[1],COL.shield,18,180);
         ripple(p[0],p[1],COL.shield);
@@ -3294,6 +3359,7 @@ function update(dt){
      every 50s even for a player earning nothing — good play stacks on top */
   if(G.state==='playing')build(dt/50,'time');
   if(G.sayFx){G.sayFx.t+=dt;if(G.sayFx.t>1.8)G.sayFx=null;}
+  annPump();
   if(G.landFx){G.landFx.t+=dt;if(G.landFx.t>1.9)G.landFx=null;}
   if(G.secFx){G.secFx.t+=dt;if(G.secFx.t>2.2)G.secFx=null;}
   /* stop playing and the groove lets go, so it always reflects what you are
@@ -3375,10 +3441,10 @@ function update(dt){
   if(MU&&MU.pay<=0&&!MU.rise&&G.od<=0&&PLAY.heat>0.75)G.odT+=dt;else G.odT=0;
   if(G.odT>SPB*8&&G.t>G.odCool&&G.od<=0&&MU&&!MU.armed&&dl()>18){
     G.od=64;G.odT=0;G.odCool=G.t+45;
-    G.sayFx={str:'OVERDRIVE \u00d72',t:0};
+    say('OVERDRIVE \u00d72',3,6);
     fireLift();
     const op=posPlayer();burst(op[0],op[1],COL.warp,20,240);
-    if(!RM){G.flash=Math.max(G.flash,0.2);
+    if(!RM){flashHit(0.2);
       G.rings.push({x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.warp,sp:260,dec:1.6});}
   }
   /* METEOR SHOWER: the sky rains stars on a fast clock while it lasts */
@@ -3389,9 +3455,9 @@ function update(dt){
   /* GOLDEN LAP: every minute and a half or so, one orbit turns gold — finish
      a full lap inside the window for a fat bonus. Expiring costs nothing. */
   G.goldNext-=dt;
-  if(G.goldNext<=0&&G.gold<=0&&dl()>30){
+  if(G.goldNext<=0&&G.gold<=0&&dl()>30&&(!MU||(MU.pay<=0&&!MU.rise&&!MU.armed))){
     G.goldNext=85+Math.random()*25;G.gold=13;
-    G.sayFx={str:'GOLDEN LAP \u2014 finish the orbit!',t:0};
+    say('GOLDEN LAP \u2014 finish the orbit!',4,8);
     ripple(cx,cy,COL.ember);
     cueTone(function(w){beep(880,0.12,'triangle',0.05,1174,w);
       beep(1174,0.14,'triangle',0.05,1568,w+S16);});
@@ -3401,7 +3467,7 @@ function update(dt){
   let lyn=0;for(let li=0;li<LAYER_AT.length;li++)if(G.score>=LAYER_AT[li])lyn++;
   if(lyn>G.layerN){
     G.layerN=lyn;G.bandFx=1;
-    G.sayFx={str:LAYER_NAME[lyn-1],t:0};
+    say(LAYER_NAME[lyn-1],1,20);
     cueTone(function(w){
       note(CH[0][0]*2,AC.currentTime+w,0.22,'sawtooth',0.030,2600,-0.2);
       note(CH[0][2],AC.currentTime+w+S16,0.22,'sawtooth',0.026,3000,0.2);
@@ -3410,7 +3476,7 @@ function update(dt){
   /* a NEW SOUND is announced once its level banner has had the screen —
      and the announcement is the sound itself, playing a quick lick */
   if(G.sndAt&&G.t>=G.sndAt){
-    G.sndAt=0;G.sayFx={str:G.sndStr,t:0};
+    G.sndAt=0;say(G.sndStr,2,20);
     const tr=G.tier;
     cueTone(function(w){
       const tt=AC.currentTime+w;
@@ -3424,13 +3490,13 @@ function update(dt){
         note(PENT[6]*1.007,tt+2*S16,0.20,'sawtooth',0.018,2400,-0.2);}
     });
   }
-  if(G.teach<=0&&G.teachHint)G.teachHint=null;
+  if(G.teach<=0&&G.teachHint){G.teachHint=null;G.teachSoft=false;}
   /* Effects run on dt, gameplay on sdt — so during hitstop the comet holds
      still while the ignition keeps playing. That contrast is the impact.
      The hop rehearsal dilates the same way slow-mo does: the comet at a
      third speed, the music untouched, and spawns held — see the rings
      branch of the tier ratchet. */
-  const sdt=dt*G.tsCur*(G.stop>0?0.10:1)*(G.teach>0?0.35:1);
+  const sdt=dt*G.tsCur*(G.stop>0?0.10:1)*((G.teach>0&&!G.teachSoft)?0.35:1);
   /* a slow floor ramp so the game can never be stalled by refusing to score */
   G.speed=speedAt();
   /* Announce each new mechanic so it registers as something to learn. One
@@ -3439,7 +3505,7 @@ function update(dt){
      skips every banner but the last. */
   const ti=tierIndex();
   if(ti>G.tier&&(!G.banner||G.banner.t>1.2)){
-    G.tier++;
+    G.tier++;G.featT=G.t;      /* the featuring grace clock — see pickType */
     skyI=G.tier>=9?3:G.tier>=7?2:G.tier>=4?1:0;  /* the sky deepens with the ladder */
     const T=TIERS[G.tier];
     if(T.rings&&T.rings>G.nRings){
@@ -3513,7 +3579,9 @@ function update(dt){
       /* everything below scales with the streak, so the payoff grows with
          the difficulty of having earned it */
       const k=Math.min(1,(st-1)/4);
-      popup(lp[0],lp[1]-28*u,label,COL.ember,1+0.45*k);
+      /* once laps take under ~2.4s the every-lap popup is wallpaper: at
+         speed it only prints when it is NEWS (a streak building) */
+      if(G.speed<2.6||st>=2)popup(lp[0],lp[1]-28*u,label,COL.ember,1+0.45*k);
       ignite(G.ringI,G.angle,G.dir,st);
       ripple(lp[0],lp[1],COL.ember);
       /* a wide slow front off the ring itself, not just off the comet */
@@ -3548,11 +3616,11 @@ function update(dt){
         /* Earned tier: the comet stops dead for a beat while the ring burns
            round. Short enough not to break the rhythm of a 2.5s orbit. */
         if(!RM)G.stop=Math.max(G.stop,0.075);
-        if(!RM)G.flash=Math.max(G.flash,0.16+0.10*k);
+        if(!RM)flashHit(0.16+0.10*k);
         /* the streak topper rides the same scheduled arpeggio above */
         try{if(navigator.vibrate)navigator.vibrate(18);}catch(e){}
       }
-    }else{
+    }else if(G.speed<2.6){
       popup(lp[0],lp[1]-26*u,label,'rgba(200,215,255,0.7)');
       cueTone(function(w){beep(392,0.1,'triangle',0.04,440,w);});
     }
@@ -3562,7 +3630,7 @@ function update(dt){
       G.gold=0;
       G.score+=150;G.scorePop=1;
       popup(lp[0],lp[1]-46*u,'GOLDEN LAP +150',COL.ember,1.6);
-      if(!RM){G.flash=Math.max(G.flash,0.3);G.stop=Math.max(G.stop,0.08);
+      if(!RM){flashHit(0.3);G.stop=Math.max(G.stop,0.08);
         G.rings.push({x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.ember,sp:420,dec:1.1,fat:1});}
       cueTone(function(w){beep(1046,0.14,'triangle',0.08,1568,w);
         beep(1568,0.20,'triangle',0.08,2093,w+S16);
@@ -3699,7 +3767,7 @@ function update(dt){
         popup(p[0],p[1]-24*u,'BASS BOMB!',COL.comet,1.5);
         burst(p[0],p[1],COL.comet,24,260);
         ripple(p[0],p[1],COL.comet);
-        if(!RM){G.shake=Math.max(G.shake,8);G.flash=Math.max(G.flash,0.22);
+        if(!RM){G.shake=Math.max(G.shake,8);flashHit(0.22);
           G.rings.push({x:p[0],y:p[1],r:10*u,life:1,col:COL.comet,sp:520,dec:1.2,fat:1});}
         duckBed(0.25,0.5);
         beep(160,0.6,'sine',0.10,40);
@@ -3759,7 +3827,7 @@ function update(dt){
           /* longer than the orbit's 75ms — this is the rarest thing here and
              should outrank the routine celebration, not sit beneath it */
           G.stop=Math.max(G.stop,0.11);
-          G.flash=Math.max(G.flash,0.55);
+          flashHit(0.55);
           G.shake=Math.max(G.shake,11);
         }
         duckBed(0.10,0.6);

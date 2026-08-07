@@ -53,6 +53,34 @@ threat arrives alone (the shard cap starts at one), early warning pulses run
 almost half a second longer, and spawns open at 2.6s apart instead of 2.1 —
 all of it converging on the same late game, none of it touching the ceiling.
 
+**The mid-game has manners.** A playtest audit found the 2:00-3:10 window
+— exactly where every run was dying — contained BOTH new threat archetypes
+with tripled spawn featuring and slow-motion lessons, two score-layer
+banners, a NEW SOUND, a golden lap, a drop section every ~30s, drum breaks,
+overdrives, three shard-cap steps and a milestone ripple every 2-3 seconds,
+while all announcements fought over one text slot that overwrote without
+queueing and seven systems strobed the screen flash. A survival-bot could
+dodge that board indefinitely; humans died because they could not READ it.
+So the mid-game now keeps the early game's discipline, one thing at a time:
+
+- **One voice** — announcements go through a priority queue with a breath
+  between lines; a message that expires unshown is dropped, never shouted
+  late. Only the section's bar-timed YOUR TURN / LISTEN bypass it.
+- **A spread calendar** — the score layers moved down to 600-3,600 (rewards
+  people actually reach), drifters/blinkers/sliding gates/flicker pairs
+  each moved to their own moment, and the shard-cap steps left the death
+  window.
+- **A quieter routine** — milestone chime every 250 not 50, orbit popups
+  only when they are news once laps take under 2.4s, the popup cloud capped
+  at six, and one rate-limited flash writer (perfect landings and novas
+  always pass).
+- **Lessons wait for calm** — a first-encounter never fires its slow-motion
+  inside danger or within 9s of another lesson; the next encounter simply
+  re-offers it. The musical orbs teach without slow-motion at all, and a
+  new threat type's first specimens telegraph 1.6x longer.
+- **You meet ONE drifter before you meet three** — featured tripling now
+  waits ~18s after each unlock.
+
 Mechanics unlock on a schedule, each announced with a banner:
 
 | ≈ | Unlock |
@@ -61,10 +89,10 @@ Mechanics unlock on a schedule, each announced with a banner:
 | 33s | twin shards — too wide to outrun, hop over |
 | 73s | third ring |
 | 88s | gates — every ring blocked, reverse |
-| 141s | drifters — these ones move |
-| 181s | blinkers — they flicker, time your pass |
-| 231s | sliding gates — the wall slides, reverse early |
-| 286s | flicker pairs — one gap at a time, never both |
+| 166s | drifters — these ones move |
+| 221s | blinkers — they flicker, time your pass |
+| 266s | sliding gates — the wall slides, reverse early |
+| 316s | flicker pairs — one gap at a time, never both |
 | 351s | storm — no new tricks, just more of them |
 
 Those times assume a player earning no difficulty nudge at all, which is the
@@ -511,7 +539,7 @@ degrees throughout — a band that grows up with the run.
 **Score buys the band.** Playtest spec, near-verbatim: "once a player
 reaches 2000 points add a new electro synth layer that maintains until they
 get 3000 where another is added, and so on." Four permanent layers join at
-1,000 / 2,000 / 3,000 / 4,500 — an offbeat electro pulse, a two-bar synth
+600 / 1,400 / 2,400 / 3,600 — an offbeat electro pulse, a two-bar synth
 riff, a real bass line (sub sine for headphones doubled an octave up for
 phone speakers, which reproduce nothing below ~400Hz), and a high shimmer.
 Each is named in gold as it arrives. A row of dots under the level readout —
