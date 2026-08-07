@@ -1867,19 +1867,22 @@ const FINP=[
  [8,8,-1,6,-1,8,-1,9, -1,-1,8,6,-1,4,-1,-1]];
 const FINN=FINP.map(function(a){let n=0;for(const v of a)if(v>=0)n++;return n;});
 const FIN={on:false,pend:false,done:false,step:0,score:0,hits:0,rHits:0,
-  voices:0,t0:0,expect:[],vis:new Array(16).fill(0)};
+  voices:0,t0:0,mode:'intro',expect:[],vis:new Array(16).fill(0)};
 const FINVQ=[];
 function finStep(t){
   const fs=FIN.step++;
-  if(fs%32===0)FIN.t0=t;               /* re-anchor the sweep each cycle */
-  const slot=fs%16,call=(fs%32)<16,beat=fs%8,ph=FINP[G.level-1];
-  if(fs===16)sayNow('PLAY IT BACK');
-  if(fs%32===16)FIN.rHits=0;
+  const fs2=fs-16;              /* two INTRO bars come before the first call */
+  const beat=fs%8,ph=FINP[G.level-1];
+  if(fs2===0||fs2%32===0)FIN.t0=t;     /* re-anchor the sweep each cycle */
   if(beat%2===0)BEATQ.push(t);
   /* the thin groove: the stage, not the show */
   if(beat===0){kick(t,0.050);bassN(CH[((fs/8)|0)%4][0],t,0.28,0.034);}
   if(beat===4)kick(t,0.036);
   if(beat%2===1)hat(t,0.009,4000,0.038,0,0.35,6800);
+  if(fs2<0){FIN.mode='intro';return;}
+  const slot=fs2%16,call=(fs2%32)<16;
+  FIN.mode=call?'call':'resp';
+  if(fs2%32===16)FIN.rHits=0;
   const d=ph[slot];
   if(d>=0){
     if(call){
@@ -1892,9 +1895,9 @@ function finStep(t){
       FINVQ.push({at:t,slot:slot,k:1});
     }
   }
-  if(fs%32===31&&FIN.rHits>=Math.ceil(FINN[G.level-1]*0.6))
+  if(fs2%32===31&&FIN.rHits>=Math.ceil(FINN[G.level-1]*0.6))
     FIN.voices=Math.min(2,FIN.voices+1);
-  if(fs>=95){FIN.on=false;FIN.done=true;G.finEnd=1;}
+  if(fs2>=95){FIN.on=false;FIN.done=true;G.finEnd=1;}
 }
 /* NEAREST sixteenth, not the next one. Snapping forward alone costs up to a
    full slot — 144ms at this tempo, past the point where a sound stops feeling
@@ -2351,7 +2354,7 @@ const LV=[
   mech:[['shard','gates and twin shards block the track'],
         ['star','spotlight orb \u2014 you take the lead'],
         ['beat','run hot: overdrive, drum breaks'],
-        ['nova','bass bomb \u00b7 meteor shower'],
+        ['nova','bass bomb \u2014 clears the lane'],
         ['beat','the finale \u2014 answer the band to finish']]},
  {dl0:190,end:Infinity,name:'THE STORM', key:0.7937,
   mech:[['shard','drifters chase you'],
@@ -2755,7 +2758,6 @@ const G={
   teach:0,teachKind:null,teachHint:null,seen:{},campT:0, /* lessons + outer-ring camp clock */
   od:0,odT:0,odCool:0,odBrk:false,     /* overdrive: eighths left, heat clock, cooldown, break-due */
   odGlow:0,brkGlow:0,                  /* backdrop envelopes: overdrive warmth, break dim */
-  shower:0,showerT:0,                  /* meteor shower: seconds left, spawn clock */
   spot:0,lastTapAt:-9,finEnd:0,        /* spotlight; last raw tap time; finale end flag */
   layerN:0,bandN:0,bandFx:0,           /* score layers unlocked; band-meter dot count + pulse */
   sndAt:0,sndStr:null,                 /* a NEW SOUND announcement waiting for its banner to clear */
@@ -2975,8 +2977,7 @@ const MEET={
   driftgate:{t:'the wall slides — turn back early',g:'tap'},
   blinktwin:{t:'only one is ever solid — wait your moment',g:'shard'},
   bass:  {t:'bass bomb — clears the lane, drops the low end',g:'nova'},
-  spot:  {t:'spotlight — you take the lead, taps pay double',g:'beat'},
-  meteor:{t:'meteor shower — catch everything',g:'star'}};
+  spot:  {t:'spotlight — you take the lead, taps pay double',g:'beat'}};
 function firstMeet(type){
   if(G.seen[type]||!MEET[type])return;
   /* A LESSON WAITS FOR A CALM BEAT. Mid-game, first encounters used to fire
@@ -3076,14 +3077,14 @@ function spawnPow(){
   }else{
     /* the family expansion: three musical orbs join the rotation */
     const rr=Math.random();
-    type=rr<0.30?'shield':rr<0.46?'warp':rr<0.60?'nova':
-         rr<0.74?'bass':rr<0.87?'spot':'meteor';
+    type=rr<0.32?'shield':rr<0.52?'warp':rr<0.68?'nova':
+         rr<0.84?'bass':'spot';
   }
   for(let i=0;i<24;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
     if(farFromAll(a,ring,0.6,sep(ring,3.2),sep(ring,3.0))){
       G.pows.push({a,ring,t:0,life:7,type});
-      if(type==='bass'||type==='spot'||type==='meteor')firstMeet(type);
+      if(type==='bass'||type==='spot')firstMeet(type);
       G.sinceShield=(type==='shield')?0:G.sinceShield+1;
       /* counts PLACEMENTS, not pickups: a player who misses the slow-mo still
          advances the curriculum, or a run spent dodging would serve nothing
@@ -3112,7 +3113,7 @@ function startGame(){
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
   G.sparkT=0;G.sparkN=0;
   G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;
-  G.shower=0;G.showerT=0;G.spot=0;G.lastTapAt=-9;G.finEnd=0;
+  G.spot=0;G.lastTapAt=-9;G.finEnd=0;
   FIN.on=false;FIN.pend=false;FIN.done=false;FIN.step=0;FIN.score=0;FIN.hits=0;FIN.rHits=0;FIN.voices=0;FIN.expect.length=0;FIN.vis.fill(0);FINVQ.length=0;
   PLAY.tape.length=0;
   LOOP.pat=null;LOOP.n=0;LOOP.until=0;LOOP.heard=false;
@@ -3732,10 +3733,20 @@ function update(dt){
   const lvEnd=LV[G.level-1].end;
   if(lvEnd<1e9){
     if(!FIN.on&&!FIN.done&&dl()>=lvEnd-10&&(!MU||(MU.pay<=0&&!MU.rise))){
-      FIN.on=true;FIN.pend=true;FIN.score=0;FIN.hits=0;FIN.rHits=0;FIN.voices=0;
+      FIN.on=true;FIN.pend=true;FIN.mode='intro';
+      FIN.score=0;FIN.hits=0;FIN.rHits=0;FIN.voices=0;
       FIN.expect.length=0;FIN.vis.fill(0);
-      if(MU&&AC)MU.cool=Math.max(MU.cool,AC.currentTime+34);
-      sayNow('THE FINALE \u2014 listen\u2026');
+      if(MU&&AC)MU.cool=Math.max(MU.cool,AC.currentTime+40);
+      /* THE STAGE CLEARS AND THE CEREMONY IS UNMISSABLE (playtest: "I
+         didn't get the level ending mechanic at all"). A full banner with
+         reading time — not a 1.8s flash — every live threat fades, the
+         pickups leave, and two intro bars pass with the sequencer fading
+         in before the first call. The duet then narrates itself with a
+         STANDING instruction line for its whole length. */
+      G.banner={str:'THE FINALE',sub:'listen \u2014 then play it back',t:0};
+      G.stars.length=0;G.pows.length=0;
+      for(const sp2 of G.spikes)if(sp2.phase===1){sp2.phase=2;sp2.t=0;}
+      fireLift();
     }
     if(dl()>=lvEnd+30){levelComplete();return;}
   }
@@ -3777,11 +3788,6 @@ function update(dt){
     const op=posPlayer();burst(op[0],op[1],COL.warp,20,240);
     if(!RM){flashHit(0.2);
       G.rings.push({x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.warp,sp:260,dec:1.6});}
-  }
-  /* METEOR SHOWER: the sky rains stars on a fast clock while it lasts */
-  if(G.shower>0){
-    G.shower-=dt;G.showerT-=dt;
-    if(G.showerT<=0){G.showerT=0.26;spawnStar();}
   }
   /* the spotlight burns down; golden lap is retired — the finale is the
      scheduled special moment now, and it is musical instead of a timer */
@@ -3955,14 +3961,14 @@ function update(dt){
   if(G.comboT<=0)G.combo=0;
 
   G.starT-=sdt;
-  if(G.starT<=0&&G.stars.length<emberCap()){spawnStar();G.starT=emberGap()*rand(0.75,1.4);}
+  if(G.starT<=0&&!FIN.on&&G.stars.length<emberCap()){spawnStar();G.starT=emberGap()*rand(0.75,1.4);}
   G.spikeT-=sdt;
   if(G.teach<=0&&!FIN.on&&G.spikeT<=0&&age()>=firstShardAt()&&G.spikes.length<shardCap()){
     spawnSpike();
     G.spikeT=spawnGap()*rand(0.85,1.15);
   }
   G.powT-=sdt;
-  if(G.powT<=0&&G.pows.length===0&&dl()>=6){
+  if(G.powT<=0&&!FIN.on&&G.pows.length===0&&dl()>=6){
     G.powT=spawnPow()?Math.max(6,rand(10,15)-dl()*0.02):0.5;
   }
 
@@ -4051,8 +4057,7 @@ function update(dt){
       arcFlash(s.a,s.ring,
         s.type==='shield'?COL.shield:
         s.type==='warp'||s.type==='spot'?COL.warp:
-        s.type==='bass'?COL.comet:
-        s.type==='meteor'?COL.ember:COL.nova);
+        s.type==='bass'?COL.comet:COL.nova);
       if(s.type==='shield'){
         const span=panAt(p[0]);
         if(G.shields>=shieldMax()){G.score+=2;popup(p[0],p[1]-20*u,'+2',COL.shield);
@@ -4102,20 +4107,6 @@ function update(dt){
           note(PENT[11],AC.currentTime+w+S16,0.24,'sawtooth',0.026,3600,-0.2,A.perf);
         });
         try{if(navigator.vibrate)navigator.vibrate(14);}catch(e){}
-      }else if(s.type==='meteor'){
-        /* METEOR SHOWER: six and a half seconds of star rain — pure
-           collection joy, and because ember tones ride the sixteenth grid a
-           gathered shower IS a drum fill. */
-        G.shower=6.5;G.showerT=0;
-        popup(p[0],p[1]-24*u,'METEOR SHOWER!',COL.ember,1.5);
-        burst(p[0],p[1],COL.ember,24,240);
-        ripple(p[0],p[1],COL.ember);
-        cueTone(function(w){
-          beep(392,0.10,'triangle',0.06,523,w);
-          beep(523,0.12,'triangle',0.06,698,w+S16);
-          beep(784,0.14,'triangle',0.06,1046,w+2*S16);
-        });
-        try{if(navigator.vibrate)navigator.vibrate(16);}catch(e){}
       }else{
         /* The front does the converting — see novaBlast/novaConvert. */
         G.gotNova=true;
@@ -4207,24 +4198,6 @@ function drawPow(x,y,s,al){
     ctx.fillStyle=COL.warp;
     ctx.beginPath();ctx.arc(x,y,1.6*u,0,TAU);ctx.fill();
     ctx.restore();
-  }else if(s.type==='meteor'){
-    /* a little constellation in motion: two satellites orbit the core and
-       shed short trails — rain, promised */
-    blit(SPR.ember,x,y,0.85*pulse,s.t,al);
-    const oa=RM?0.8:s.t*2.4;
-    const sx=x+Math.cos(oa)*8.5*u,sy=y+Math.sin(oa)*8.5*u;
-    const tx=x+Math.cos(oa+2.6)*6.5*u,ty=y+Math.sin(oa+2.6)*6.5*u;
-    if(!RM){
-      ctx.save();ctx.strokeStyle=COL.ember;ctx.lineWidth=1.2*u;
-      ctx.globalAlpha=al*0.35;
-      ctx.beginPath();ctx.moveTo(sx,sy);
-      ctx.lineTo(sx-Math.cos(oa+1.57)*5*u,sy-Math.sin(oa+1.57)*5*u);ctx.stroke();
-      ctx.beginPath();ctx.moveTo(tx,ty);
-      ctx.lineTo(tx-Math.cos(oa+4.17)*4*u,ty-Math.sin(oa+4.17)*4*u);ctx.stroke();
-      ctx.restore();ctx.globalAlpha=1;
-    }
-    blit(SPR.ember,sx,sy,0.45,s.t*1.4,al*0.85);
-    blit(SPR.ember,tx,ty,0.4,-s.t*1.2,al*0.7);
   }else{
     blit(SPR.powNova,x,y,1+0.10*Math.sin(s.t*5),s.t*1.2,al);
     ctx.save();ctx.globalAlpha=al;ctx.fillStyle=COL.nova;
@@ -4282,8 +4255,7 @@ function drawBloom(){
     bloomDot(g,p[0],p[1],10*u,
       pw.type==='shield'?COL.shield:
       pw.type==='warp'||pw.type==='spot'?COL.warp:
-      pw.type==='bass'?COL.comet:
-      pw.type==='meteor'?COL.ember:COL.nova);
+      pw.type==='bass'?COL.comet:COL.nova);
   }
   for(const pt of G.parts){
     if(pt.life<=0)continue;
@@ -5392,7 +5364,7 @@ function drawHUD(){
     }
     /* which half of the section you are in, over the arena rather than the HUD
        so it reads as part of the moment instead of another statistic */
-    if(G.sayFx&&!(sayCentred&&(G.banner||G.armFx))){
+    if(G.sayFx&&!FIN.on&&!(sayCentred&&(G.banner||G.armFx))){
       const a=Math.min(1,G.sayFx.t/0.18)*Math.min(1,(1.8-G.sayFx.t)/0.6);
       ctx.globalAlpha=Math.max(0,a)*0.9;
       /* squeezed viewports hand it the centre instead of the IN TIME line */
@@ -5433,25 +5405,34 @@ function drawHUD(){
        pulse violet as the band plays them; answered marks flash white. */
     if(FIN.on&&!FIN.pend&&AC){
       const ph3=FINP[G.level-1],mr=radiusOf(0)+24*u;
-      if(!RM){
+      if(!RM&&FIN.mode!=='intro'){
         const prog=(((AC.currentTime-FIN.t0)/(8*SPB))%1+1)%1;
         const sa=-Math.PI/2+prog*TAU;
-        ctx.save();ctx.strokeStyle='rgba(234,241,255,0.5)';ctx.lineWidth=2*u;
+        ctx.save();ctx.strokeStyle='rgba(234,241,255,0.75)';ctx.lineWidth=2.6*u;
         ctx.beginPath();
-        ctx.moveTo(cx+Math.cos(sa)*(mr-7*u),cy+Math.sin(sa)*(mr-7*u));
-        ctx.lineTo(cx+Math.cos(sa)*(mr+7*u),cy+Math.sin(sa)*(mr+7*u));
+        ctx.moveTo(cx+Math.cos(sa)*(mr-9*u),cy+Math.sin(sa)*(mr-9*u));
+        ctx.lineTo(cx+Math.cos(sa)*(mr+9*u),cy+Math.sin(sa)*(mr+9*u));
         ctx.stroke();ctx.restore();
       }
       for(let sl=0;sl<16;sl++){
         if(ph3[sl]<0)continue;
         const aa=-Math.PI/2+(sl/16)*TAU;
         const v=FIN.vis[sl];
-        ctx.globalAlpha=Math.min(1,0.35+0.4*v);
+        const mx=cx+Math.cos(aa)*mr,my2=cy+Math.sin(aa)*mr;
+        ctx.globalAlpha=0.65;
+        ctx.strokeStyle='rgba(200,215,255,0.8)';ctx.lineWidth=1.4*u;
+        ctx.beginPath();ctx.arc(mx,my2,4.4*u,0,TAU);ctx.stroke();
+        ctx.globalAlpha=Math.min(1,0.55+0.35*v);
         ctx.fillStyle=v>=2.4?'#ffffff':COL.warp;
-        ctx.beginPath();
-        ctx.arc(cx+Math.cos(aa)*mr,cy+Math.sin(aa)*mr,(2.2+0.9*Math.min(2,v))*u,0,TAU);
-        ctx.fill();
+        ctx.beginPath();ctx.arc(mx,my2,(3.0+1.0*Math.min(2,v))*u,0,TAU);ctx.fill();
       }
+      ctx.globalAlpha=1;
+      /* the standing instruction: the duet narrates itself the whole way */
+      const fmsg=FIN.mode==='resp'?'PLAY IT BACK \u2014 tap with the sweep':
+                 FIN.mode==='call'?'LISTEN\u2026':'THE FINALE';
+      ctx.globalAlpha=0.92;
+      text(fmsg,cx,cy-R-16*u,15*u,'800',
+        FIN.mode==='resp'?COL.warp:'rgba(234,241,255,0.9)',3);
       ctx.globalAlpha=1;
     }
     /* THE COUNTDOWN. Three beats out the centre counts 3… 2… 1…, then NOW!
