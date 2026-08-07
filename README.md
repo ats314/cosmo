@@ -361,6 +361,21 @@ needs three things and the third is the one usually missed: a rise, a
 two eighths cut almost everything, and the downbeat lands with six voices at
 once — without the hole, the loud part is just more loud.
 
+**The payoff got a floor.** Playtest: "the payoff isn't big enough" and
+"the game needs more bass." The drop's impact now lands with a real sub
+boom (41Hz, with its octave for speakers) and a braam — a fifth-stack
+brass bloom swelling out of the hit — and the section carries a bass line
+under the hook, sub sine plus octave square, riding the sidechain pump so
+it breathes with the kick. When the eight bars run out the arrangement no
+longer snaps back to normal: every gate stays open through the four-bar
+breath that follows (the afterglow), so the record cools instead of
+stopping — the playtest's exact note was "and then continue on."
+
+**During the payoff, collecting is soloing.** A star grabbed inside the
+section fires a three-note run up the scale on the player's own bus instead
+of a single note — ride the section gathering stars and you are playing
+the keyboard solo over your own drop.
+
 **The section breathes.** Every payoff kick dips the whole band ~3dB through
 a dedicated gain after the hole and lets it back over a tenth of a second —
 the classic sidechain pump — while the player's own notes stand still: the
@@ -450,8 +465,46 @@ clock would (playing hard means hearing more, immediately), and the third
 ring — the hottest kit — lands at ~73s instead of 114, one level before the
 gates. And the stars change voice as you climb, one instrument per act: a
 clean square early, a detuned synth pair from level 4, a sawtooth lead with
-a slide-in attack from level 7 — same key, same degrees, a band that grows
-up with the run.
+a slide-in attack from level 7, and at level 10 an electric guitar — a
+detuned saw pair with its fifth driven into a hard clip, hammer-on slide and
+all. Each step announces itself ("NEW SOUND: SYNTH LEAD") once the level
+banner has cleared, playing a quick lick in the new voice, and the death
+screen names the next one so the ladder is never a secret. Same key, same
+degrees throughout — a band that grows up with the run.
+
+**Score buys the band.** Playtest spec, near-verbatim: "once a player
+reaches 2000 points add a new electro synth layer that maintains until they
+get 3000 where another is added, and so on." Four permanent layers join at
+1,000 / 2,000 / 3,000 / 4,500 — an offbeat electro pulse, a two-bar synth
+riff, a real bass line (sub sine for headphones doubled an octave up for
+phone speakers, which reproduce nothing below ~400Hz), and a high shimmer.
+Each is named in gold as it arrives. A row of dots under the level readout —
+the band meter — shows every layer currently in the record: five violet for
+the arrangement's own gates, gold for the bought ones, the newest pulsing.
+
+**The drum break.** Play hot and every so often the band steps out for one
+bar of drums walking a fill down — and the player's inputs ARE the fill:
+taps land as snares, hops as kicks, on the same grid as everything else.
+A crash brings the record back exactly on the downbeat. It can never start
+while a drop is anywhere in flight; the rise owns its bar.
+
+**Overdrive.** Hold the heat near max for a full bar — continuous, committed
+playing — and the game tips into eight bars of double-time sixteenths with
+every arrangement gate held open, embers and on-beat taps paying double
+under an "OVERDRIVE ×2" readout, the whole band meter running gold. A drop
+that rises mid-overdrive absorbs it (the bigger moment wins); otherwise it
+ends the way a record ends, on the drum break. Forty-five seconds of
+cooldown keeps it an event rather than a state.
+
+**The record is cinematic now.** The playtest asked for it by name:
+trailer-score electro. A string-section swell — detuned saws with a bowed
+attack — breathes in on every other bar line voicing the chord's third, a
+noise riser turns each four-bar phrase the way a reverse cymbal turns a
+scene, and both run much wetter into the reverb than anything else in the
+game: the room is the cinema. The sky flavours the kit as the run climbs
+its palette bands — band 1 swings its sixteenths, band 2 rides the offbeat
+open-hat, band 3 leans heavy — so the world and the beat transform
+together.
 
 **The ring is the kit.** Subdivision alone was too polite — the per-ring hats
 sat at gains the target phone cannot reproduce, so "inner is hotter" was a
