@@ -16,7 +16,11 @@ embers, dodge shards, and complete orbits.
 | Reverse | tap anywhere | `Space` / `Enter` |
 | Hop outward | swipe away from the centre | `↑` `W` `←` `A` |
 | Hop inward | swipe toward the centre | `↓` `S` `→` `D` |
+| Land the drop | tap the centre target | `Space` / `Enter` |
 | Mute | tap the speaker | `M` |
+
+While the drop target is open, `Space` is the landing rather than a reverse —
+the keyboard player gets the same bonus path the thumb does.
 
 Swipes are read **radially** — measured against the line from the centre
 through the comet — so "away from the middle" always means outward no matter
@@ -61,6 +65,17 @@ Mechanics unlock on a schedule, each announced with a banner:
 Those times assume a player earning no difficulty nudge at all, which is the
 slowest the schedule ever runs; scoring well pulls everything forward by up
 to 40 seconds.
+
+**The exam waits for the lesson.** Twins are the tier that makes the hop
+compulsory, and they used to arrive on a pure clock whether or not the player
+had ever landed one — the direct mechanism of the sub-two-minute first
+sessions. The ladder now holds at SECOND RING until the first hop lands, then
+resumes exactly where the clock says; after 30 difficulty-seconds the exam
+arrives anyway, so the hold cannot be farmed. Speed, shard cap and spawn rate
+all still run on the clock untouched — the gate changes *what* arrives, never
+*how much* — and a veteran hops in the opening seconds and never notices it
+exists. When a long hold releases, the banked tiers announce themselves one
+banner at a time instead of piling up and skipping straight to the last.
 
 The late tiers are **compounds**, not new objects. `gate`, `blink` and drift
 (`va`) are independent flags on the same shard, and both update and draw
@@ -124,6 +139,35 @@ A run opens on a single ring, where the only move is a tap to reverse. The
 second ring does not arrive for ~20 seconds, so until it does, a prompt to
 swipe would be asking for the one gesture the game will not answer — the
 hints skip it until there is somewhere to hop to.
+
+**The menu demonstrates both verbs.** The title-screen comet was already
+running the real simulation behind the key; now it plays a twelve-second
+scripted loop — a harmless shard fades in ahead of it, it reverses with its
+real sparks and the tap glyph beside it, then it hops a ring and back at a
+third speed under the swipe glyph. The two verbs are watched being answered
+by the actual object before the screen is ever touched.
+
+**The hop gets a rehearsal.** When the second ring lands for someone who has
+never once hopped — a persisted flag, so it interrupts nobody else, ever —
+time dilates to a third, spawns hold, and the radial guide that normally
+appears mid-drag draws proactively at the comet, rotating with it: the one
+place a rotating gesture can actually be shown. The first landed hop ends it
+instantly, a failed swipe extends it instead of just thudding, and an 8-second
+cap means it can never stall a run.
+
+**The hint ladder cannot deadlock any more.** The swipe prompt used to hold
+the hint slot for as long as the player had not hopped — which for the player
+drowning at 30 seconds was the entire run, so "red kills you" and the shield
+lesson never showed for exactly the person who needed them. The orb-naming
+hints now outrank it while an orb is on the board, and after ten unanswered
+seconds it alternates with the survival lessons on a slow cycle.
+
+**The death screen coaches.** It already knew what killed you, whether you
+ever changed rings, and how long you lasted; now it says the one most useful
+thing it can, with its glyph, phrased as an invitation — "you never changed
+rings — swipe up or down". And three consecutive sub-30-second deaths quietly
+reopen the full 11-second calm opening (see below) no matter what the
+lifetime run counter says; one survival past 30 seconds clears it.
 
 **The hard gesture gets the quiet part of the run.** The second ring used to
 arrive at 30s, which meant the hop — a radial swipe on a circle, where "away
@@ -201,6 +245,15 @@ exactly what it always was.
   your lane.
 
 ## After a run
+
+The death itself has a beat now: two or three frames of flat white with the
+collision silhouetted in it, the shockwave playing in the open for half a
+second before the scrim comes up — it used to reach 80% black while the
+explosion was still happening. Then the screen assembles rather than
+appearing: the ladder pips fill one at a time, each with its tick, the level
+punches in as the last one lands, the score counts up underneath, and the
+stats fade in last. Any tap past the lockout fast-forwards the whole thing;
+reduced motion renders the finished screen immediately.
 
 The death screen leads with the **level**, names the tier under it, and draws
 the ten-pip ladder with your run filled in — then the score, then orbits, best
@@ -295,6 +348,22 @@ needs three things and the third is the one usually missed: a rise, a
 two eighths cut almost everything, and the downbeat lands with six voices at
 once — without the hole, the loud part is just more loud.
 
+**The section breathes.** Every payoff kick dips the whole band ~3dB through
+a dedicated gain after the hole and lets it back over a tenth of a second —
+the classic sidechain pump — while the player's own notes stand still: the
+response bars are skipped, because the lead voice there is theirs. The
+picture pumps with it — bloom and the ring strokes swell on each landed beat
+— and the whole sky flips into the warp palette for the section, ebbing out
+as the final bar drains. Earning a drop is *heard* the instant it happens
+(the same two-note stab a tier unlock uses), the armed wait leans forward on
+a creeping sixteenth shaker and an opening pad filter, and the style that
+earned it flavours the section itself: a RINGS drop swings, a TIME drop goes
+double-time two bars early, an ORBITS drop sustains, a SPARKS drop glitters.
+Every other section takes a second ending in bars 4–5, so two drops in a row
+never state the hook identically. And earned always stays earned: a drop
+interrupted by a mute, a backgrounded tab or a stall goes back to the bank
+and fires when the music is next free, instead of silently vanishing.
+
 It always fires on a downbeat. Earning one *arms* it and it goes off at the top
 of the next cycle, so there is up to nine seconds of anticipation. A drop that
 arrived mid-bar would not be a drop, it would be a noise. There is a 20s
@@ -312,6 +381,14 @@ sixteenth grid; land tight and the **groove** chain climbs to ×8. An off-beat
 input simply earns nothing — the game already demands you tap when a shard
 arrives, and docking you for surviving at the wrong moment would force a choice
 between playing well and playing in time.
+
+**Each rung of the chain is heard.** The per-rung gain boost was ~0.6dB —
+under what a phone speaker makes audible — so the ladder used to speak only
+through HUD text until the pad opened at ×5. Now the tap that raises the
+chain carries a quiet confirmation tone one scale degree higher per rung, so
+eight tight sixteenths literally walk up the scale, and ×8 lands with the
+tier-unlock fanfare and a build bonus worth about a quarter of the meter —
+the summit stopped being a dead end.
 
 The judgement is of **consistency, not absolute accuracy**. A phone adds
 30–50ms between finger and JS event, so scoring absolute timing would mean a
@@ -418,9 +495,41 @@ Two things that bite when this is not yet working:
 Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
 
 - **Sprites are baked once.** `shadowBlur` and radial gradients are expensive
-  per-frame, so the background, nebulae, star field, comet, embers and shards
-  are each rendered to an offscreen canvas at startup and blitted thereafter.
-  They rebuild only when the scale unit, DPR, or window size actually changes.
+  per-frame, so the background, nebulae, star field, comet, embers, shards,
+  power-up orbs and the slow-mo vignette are each rendered to an offscreen
+  canvas at startup and blitted thereafter. They rebuild only when the scale
+  unit, DPR, window size, or sky band actually changes.
+- **The sky has depth and a clock.** The star field's three brightness tiers
+  bake to two planes: the dim stars barely drift while the bright ones ride
+  the full drift plus a small offset coupled to the comet's orbital angle, so
+  orbiting visibly rotates you past the near sky. A distant planet — dark
+  body, thin lit limb in the current palette's tint — anchors the lower-left
+  corner on the deepest plane. And the palette itself is banded to the
+  ladder: indigo at the start, teal at THIRD RING, violet at SLIDING GATES,
+  ember-warmed at STORM, each arriving as a 2.5s crossfade on the same frame
+  as its banner. Every band keeps the field at or below the opening band's
+  luminance and stays out of the red family, so a shard's word for "danger"
+  is never contested. The live twinklers glint on the *landed* beat (gated
+  on the groove being found), and when a drop lands the nebulae swell and a
+  warp-coloured wash blooms behind the arena, sustaining while the section
+  plays and draining with it.
+- **The comet has a body.** A teardrop rotated to its heading rather than
+  three concentric discs: a committed reverse sweeps the nose end-for-end
+  through the radial over 90ms (never on the speculative flip, so a rolled-
+  back swipe cannot show a turn that did not happen), and a hop stretches it
+  along the radial with a small ease-out-back overshoot on arrival — clamped
+  to 6u and purely visual, since collision runs on ring indices.
+- **Shards are three kin, one halo.** The drifter is a chevron whose point
+  leads its motion, the blinker a hollow crystal whose core *fills* as re-arm
+  approaches — the old dormant glyph was dimmest at the exact moment it was
+  about to become lethal — and the plain single keeps the square. The red
+  glow is identical across all three, so "red kills you" stays one lesson.
+- **Nova embers condense.** A converted shard's ember is born as a white-hot
+  point collapsing to size over a quarter second instead of the generic
+  fade-in, and the front's speed now scales with the actual ring radius, so
+  on a large viewport the sweep still beats both the invulnerability window
+  and the expiry net — the cascade can no longer end as a single-frame pop,
+  and you can no longer die inside your own blast on a desktop monitor.
 - **Collision is a swept arc**, not a point test, so nothing tunnels through a
   shard on a wide screen or after a dropped frame.
 - **Spawn clearances scale with ring radius.** A shard's hit width is
