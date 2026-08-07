@@ -115,6 +115,12 @@ let wasArmed=false,wasPay=false;
 for (let i = 0; i < 60 * 150; i++) {          /* 150 seconds, no dying */
   if (i % 30 === 0) st('build(0.10,"ember")');
   st('G.invuln=G.t+9');
+  /* the level card: an invulnerable 150s run crosses level finish lines —
+     tap through so the cadence measurement continues */
+  if (st('G.state') === 'lvend') {
+    fire('pointerdown', pev(9, 200, 420, 'pointerdown'));
+    fire('pointerup', pev(9, 200, 420, 'pointerup'));
+  }
   frame(16.7);
   const armed=st('MU.armed'),pay=st('MU.pay')>0;
   if(armed&&!wasArmed)armAt=nowMs/1000;

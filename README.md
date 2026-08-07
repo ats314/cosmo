@@ -53,6 +53,33 @@ threat arrives alone (the shard cap starts at one), early warning pulses run
 almost half a second longer, and spawns open at 2.6s apart instead of 2.1 —
 all of it converging on the same late game, none of it touching the ceiling.
 
+## Levels
+
+The run is **three levels** now, each with a clear finish line, an intro
+card, and its own song:
+
+| Level | Name | Introduces | Song |
+|---|---|---|---|
+| 1 | LIFT OFF | the verbs, stars, the beat drop | A minor, the original groove |
+| 2 | INTO THE RINGS | gates, twins, golden laps, overdrive, drum breaks, the three musical orbs | G minor, swung sixteenths |
+| 3 | THE STORM | drifters, blinkers, sliding gates, flicker pairs — endless | F minor, rolling four-on-the-floor |
+
+Survive to a level's finish line and a card celebrates the clear, names the
+next level, and lists the mechanics it will introduce — teaching moved to a
+calm screen instead of mid-combat. Each level transposes DOWN a whole step
+(A → G → F): going deeper into the game literally deepens the music, with
+the same 104bpm grid so the dub delay never falls out of time. Progress
+persists (`cometloop:gl`); death retries the level you are on, so later
+levels are trainable without regrinding, and a downward swipe on the intro
+card restarts the journey from level 1. Score carries across a single
+run's levels; by level 3 every current mechanic has been introduced.
+
+**The braam is the signature voice.** The deep "whaaa" from the drop hit —
+sub boom under a swelling fifth-stack — now speaks at every big moment:
+level starts and completions, overdrive, golden lap payouts, novas, new
+layers, and (once the run warms up) breathing out of every bar-line bass
+note. The game's biggest sound is no longer reserved for one event.
+
 **The mid-game has manners.** A playtest audit found the 2:00-3:10 window
 — exactly where every run was dying — contained BOTH new threat archetypes
 with tripled spawn featuring and slow-motion lessons, two score-layer
