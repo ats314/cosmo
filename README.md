@@ -61,7 +61,7 @@ card, and its own song:
 | Level | Name | Introduces | Song |
 |---|---|---|---|
 | 1 | LIFT OFF | the verbs, stars, the beat drop | A minor, the original groove |
-| 2 | INTO THE RINGS | gates, twins, overdrive, drum breaks, bass bomb, meteor shower, spotlight | G minor, swung sixteenths |
+| 2 | INTO THE RINGS | gates, twins, overdrive, drum breaks, bass bomb, spotlight | G minor, swung sixteenths |
 | 3 | THE STORM | drifters, blinkers, sliding gates, flicker pairs — endless | F minor, rolling four-on-the-floor |
 
 Survive to a level's finish line and a card celebrates the clear, names the
@@ -112,9 +112,9 @@ phrase replaces it. The first capture of a run announces itself: "YOUR
 BEAT IS IN THE SONG." Dodging in rhythm is composing.
 
 **The orbs earn their look.** The bass bomb is a subwoofer now — its cone
-slams on the landed beat; the meteor is a constellation in motion,
-satellites orbiting the core and shedding trails; the spotlight is a stage
-light, four rays sweeping round a bright bulb.
+slams on the landed beat; the spotlight is a stage light, four rays
+sweeping round a bright bulb. (Meteor Shower was cut — the playtest's
+verdict was that it failed, and the board is calmer without star rain.)
 
 **The braam is the signature voice.** The deep "whaaa" from the drop hit —
 sub boom under a swelling fifth-stack — now speaks at every big moment:
@@ -340,11 +340,8 @@ motion keeps every layer static, as always.
   tight tap pays double. A performance, not a transaction. (It replaced
   the Echo orb, which the loop recorder made redundant, and which the
   playtest didn't love.)
-- **Meteor Shower** (gold cluster) — six and a half seconds of star rain.
-  Because ember tones land on the sixteenth grid, gathering a shower IS a
-  drum fill.
 
-The three musical orbs join the spawn rotation after the intro curriculum
+The musical orbs join the spawn rotation after the intro curriculum
 (shield → slow-mo → nova) has run, each named by a first-encounter hint. The
 shield-pity rule is unchanged: never more than three placements without one.
 
@@ -355,8 +352,13 @@ spark, a breath of heat and a tick of build — passing shards on other rings
 in ordinary travel earns nothing, because a graze has to be a dodge or the
 spark means nothing. The spark is white-blue: red stays death's alone.
 
-**The finale.** Levels 1 and 2 end in a DUET, not a line on a clock. Near
-the finish the spawns hold, the music thins to the groove, and the band
+**The finale.** Levels 1 and 2 end in a DUET, not a line on a clock.
+Playtest round two made it unmissable: latching now clears the whole stage
+(threats fade, pickups leave, spawns hold), posts a full THE FINALE banner
+with reading time, gives the sequencer two intro bars to fade in, and a
+STANDING instruction line narrates the entire duet — LISTEN… through the
+calls, PLAY IT BACK — tap with the sweep through the answers. Near
+the finish the music thins to the groove, and the band
 plays a two-bar phrase in the level's key while its rhythm lights up as
 marks around the outer ring — the ring becomes a sequencer, a sweep hand
 circling once per two bars. Then it is the player's turn: tap anywhere
