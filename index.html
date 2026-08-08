@@ -1,7 +1,16 @@
 <!DOCTYPE html>
+<!--
+  Cosmo — Copyright (c) 2026 Alex Smith (github.com/ats314). All rights reserved.
+
+  Proprietary. No license is granted to use, copy, modify, host, redistribute
+  or create derivative works from this file or any part of it. Your browser
+  received this source only so it could run the game; that is not permission
+  to keep or reuse it. See LICENSE, or https://github.com/ats314/cosmo
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="copyright" content="Copyright (c) 2026 Alex Smith. All rights reserved. Proprietary — no license granted.">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Cosmo</title>
 <meta name="description" content="Cosmo — a one-thumb arcade where every move makes the music.">
@@ -31,11 +40,14 @@
     overscroll-behavior:none;touch-action:none;}
   canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-action:none;
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  #bg{z-index:0}  /* the WebGL backdrop sits under the 2D game canvas */
+  #c{z-index:1;background:transparent}
   #safe{position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;
     padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
 </style>
 </head>
 <body>
+<canvas id="bg"></canvas>
 <canvas id="c"></canvas>
 <div id="safe"></div>
 <script>
@@ -82,10 +94,18 @@ const RINGS=[
   /* outer */ {wave:'sawtooth',cut:1.00,lift:0,   sub:0, tint:'132,162,255'},
   /* mid   */ {wave:'square',  cut:1.18,lift:380, sub:1, tint:'128,206,255'},
   /* inner */ {wave:'square',  cut:1.42,lift:820, sub:2, tint:'168,240,255'}];
+/* SIX CLOUDS, NOT THREE, AND NO TWO ON THE SAME CLOCK. Three blobs on
+   near-identical LFOs read as three blobs sliding; six on incommensurate
+   periods read as weather. `sp` scales each one's drift rate and `dir` flips
+   the rotation of its drift basis, so the field never resolves into a
+   pattern the eye can predict. They cycle the three baked tints. */
 const nebulas=[
-  {x:0.22,y:0.25,r:0.55,c:'96,80,200',ph:0},
-  {x:0.80,y:0.70,r:0.60,c:'40,140,180',ph:2.1},
-  {x:0.65,y:0.15,r:0.45,c:'170,70,140',ph:4.0}
+  {x:0.22,y:0.25,r:0.55,ph:0,  sp:1.00,dir: 1,a:0.85},
+  {x:0.80,y:0.70,r:0.60,ph:2.1,sp:0.74,dir:-1,a:0.85},
+  {x:0.65,y:0.15,r:0.45,ph:4.0,sp:1.27,dir: 1,a:0.75},
+  {x:0.14,y:0.74,r:0.50,ph:1.2,sp:0.58,dir:-1,a:0.60},
+  {x:0.52,y:0.48,r:0.68,ph:5.3,sp:0.43,dir: 1,a:0.50},
+  {x:0.88,y:0.32,r:0.38,ph:3.1,sp:1.49,dir:-1,a:0.55}
 ];
 /* dust motes drifting in the shell of air the arena's light reaches — radii
    are stored as multiples of ring 0 so a resize never reshuffles them */
@@ -116,6 +136,14 @@ const SKY_BANDS=[
    neb:['150,70,190','96,80,200','120,100,220'],limb:'190,150,255'},
   {bg:['#241a28','#150f1e','#0e0a16','#06040c'],
    neb:['200,120,80','170,70,140','120,90,200'],limb:'255,200,140'}];
+/* ---- SKY MOTION. These three numbers are the whole feel of the backdrop.
+   SKY_SWELL  depth of the musical breath (0 = dead still, 1 = strong).
+   SKY_FLOW   how far the clouds wander, as a fraction of the screen.
+   SKY_RATE   master speed of every background LFO; lower is calmer.
+   The sky is deliberately quieter than the arena: the brief is alive and
+   relaxing, and every band still obeys the luminance rule above — none of
+   this may ever let the backdrop compete with a shard for "danger". ---- */
+const SKY_SWELL=0.62,SKY_FLOW=0.055,SKY_RATE=1;
 let skyI=0;
 function makeCanvas(w,h,fn){
   const c=document.createElement('canvas');
@@ -430,7 +458,7 @@ function buildSprites(bandOnly){
      than a one-second flash over the ordinary screen. */
   SPR.bg2=bakeBackdrop(['#231b3f','#151030','#0b081c','#05040e']);
   SPR.neb2=nebulas.map(function(n,i){
-    return bakeNebula(['150,110,255','90,80,220','190,90,200'][i]);
+    return bakeNebula(['150,110,255','90,80,220','190,90,200'][i%3]);
   });
   /* The wash that blooms behind the arena when the drop lands. */
   SPR.nebDrop=bakeNebula('180,139,255');
@@ -2482,9 +2510,12 @@ function levelComplete(){
   G.state='lvend';G.lvT=G.t;
   G.lvCard={done:true,next:G.level+1};
   G.carryScore=G.score;
-  if(G.level+1>G.lvlMax){G.lvlMax=G.level+1;savePref('cometloop:gl',G.lvlMax);}
+  /* the deepest-level record is written where every other record is — at
+     death, beside G.best — so the announcement can fire exactly once. Bumping
+     it here instead meant the record had already moved by the time the death
+     screen tried to compare against it. */
   track('level_cleared',{
-    level:G.level,score:G.score,run_index:G.runs,
+    game_level:G.level,score:G.score,run_index:G.runs,
     seconds:Math.round(G.t-G.started),
     /* how the Star Dive went: 11 is the perfect ending */
     fin_got:(FIN.on||FIN.done)?FIN.got:null,
@@ -2510,8 +2541,9 @@ function loadPrefs(){
   if(!isNaN(b))G.best=Math.max(G.best,b);
   const r=parseInt(readLocal('cometloop:runs'),10);
   if(!isNaN(r))G.runs=Math.max(G.runs,r);
-  const lv=parseInt(readLocal('cometloop:level'),10);
-  if(!isNaN(lv))G.bestLevel=Math.max(G.bestLevel,lv);
+  /* `cometloop:level` is retired and deliberately NOT read: it held the
+     ten-rung tier ordinal, so a device that stored a 7 under it would read
+     back as level 7 of 3. `cometloop:gl` is the one level record. */
   const gl=parseInt(readLocal('cometloop:gl'),10);
   if(!isNaN(gl))G.lvlMax=Math.max(1,Math.min(3,gl));
   const m=readLocal('cometloop:muted');
@@ -2541,9 +2573,9 @@ function loadPrefs(){
       const v=r&&parseInt(r.value,10);
       if(v&&!isNaN(v))G.runs=Math.max(G.runs,v);
     }).catch(function(){});
-    window.storage.get('cometloop:level').then(function(r){
+    window.storage.get('cometloop:gl').then(function(r){
       const v=r&&parseInt(r.value,10);
-      if(v&&!isNaN(v))G.bestLevel=Math.max(G.bestLevel,v);
+      if(v&&!isNaN(v))G.lvlMax=Math.max(G.lvlMax,Math.min(3,v));
     }).catch(function(){});
     window.storage.get('cometloop:muted').then(function(r){
       if(r)muted=(r.value==='1');
@@ -2877,8 +2909,9 @@ const SND_SEEN={}; /* voices announced this visit — by crossing or level start
 const G={
   state:'menu',t:0,started:0,deadT:0,
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
-  bestLevel:1,newLevel:false, /* furthest tier ever reached, and this run's */
-  level:1,lvlMax:1,lvT:0,lvCard:null,carryScore:0, /* the three-level structure */
+  newLevel:false, /* did this run reach deeper than any before it */
+  level:1,lvlMax:1,lvT:0,lvCard:null,carryScore:0, /* the three-level structure,
+    and the deepest level ever reached — the only level record there is */
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
   orbits:0,bestStreak:0,shareFx:0, /* run summary, for the death screen and share */
   groove:0,grooveT:0,grooveFx:0,bestGroove:0,beat:0,dropFx:0, /* rhythm */
@@ -3472,9 +3505,16 @@ function die(){
   if(!RM){const pk=posPlayer();G.impactT=0.13;G.killer={x:pk[0],y:pk[1]};}
   /* Checked before the score, and reported instead of it when both land: a
      player who just got further than they ever have should be told THAT, not
-     handed a number. Level 1 is where every run starts, so it is never news. */
-  G.newLevel=levelNum()>G.bestLevel&&levelNum()>1;
-  if(levelNum()>G.bestLevel){G.bestLevel=levelNum();savePref('cometloop:level',G.bestLevel);}
+     handed a number. Measured on G.level — the ordinal the screen actually
+     prints — because it used to be measured on the tier ladder, which the
+     screen never names: a device whose record was level 3 could die on level 2
+     at a deeper tier and be congratulated for getting further.
+     The record moves HERE, next to G.best at the top of die() rather than at
+     the finish line, so the line fires exactly once and every retry of the
+     same level after it stays quiet. G.lvlMax never drops below 1, so level 1
+     — where every run starts — can never be news. */
+  G.newLevel=G.level>G.lvlMax;
+  if(G.newLevel){G.lvlMax=G.level;savePref('cometloop:gl',G.lvlMax);}
   if(!RM){G.shake=16;G.flash=0.9;}
   const p=posPlayer();
   burst(p[0],p[1],COL.shard,26,240);
@@ -3523,10 +3563,15 @@ function die(){
     drops_earned:G.dropsEarned,hold_timeout:G.holdTimeout,
     best_combo:G.bestCombo,loop_caught:G.loopN,near_misses:G.nearN,
     got_bass:G.gotBass,got_spot:G.gotSpot,
+    /* two ladders, two names, never the word `level` for the tier one: `tier`
+       is the zero-based UNLOCK ladder (what has been introduced), `game_level`
+       is the 1-3 structure the player is told about. `level` used to be sent
+       here holding tier+1 while `level_cleared` sent it holding 1-3 — one
+       property name, two scales, across two events. It is retired rather than
+       redefined so no historical row silently changes meaning; `tier` carried
+       the same number all along. */
     tier:G.tier,tier_name:tierLabel(),rings:G.nRings,
-    /* the ordinal the player actually sees, so the funnel is readable without
-       anyone having to remember that tier is zero-based */
-    level:levelNum(),best_level:G.bestLevel,
+    game_level:G.level,best_game_level:G.lvlMax,
     /* did the curriculum land: three placements is the whole intro set */
     pows_placed:G.powN,saw_warp:G.gotWarp,saw_nova:G.gotNova,saw_hyper:G.gotHyper,
     /* DID THE TEACHING LAND. The two verbs, per run. did_hop is the one that
@@ -3578,6 +3623,7 @@ function reverseFX(){
 }
 function reverse(silent){
   G.dir*=-1;G.didReverse=true;
+  glRipple();   /* onTap -> a wave off the comet */
   /* You lose the lap and the streak multiplier, but the embers you already
      gathered stay banked — otherwise gates, which exist to force reversals,
      would systematically delete the score you turned around to protect.
@@ -3604,8 +3650,8 @@ function retry(){
 }
 /* one dismissal path for every card: sets the level and reports the read —
    how long a card was actually on screen is the channel's whole funnel.
-   game_level (1-3) deliberately does NOT reuse run_ended's `level`, which
-   is the ten-rung tier ordinal — two scales, two names. */
+   game_level (1-3) is the name every event uses for this ordinal; the tier
+   ladder is only ever `tier` — two scales, two names, no overlap. */
 function cardDone(){
   const c=G.lvCard||{done:false,next:1};
   G.level=Math.min(3,c.next);
@@ -3650,6 +3696,7 @@ function hop(step){
     return;
   }
   G.didHop=true;
+  glShear(step);   /* onSwipe -> the field shears along the vector */
   /* the rehearsal ends the instant the lesson lands — but ONLY the
      rehearsal: this used to clear every lesson, so hopping away from the
      thing being explained (complying with 'swipe to another ring'!)
@@ -3704,25 +3751,34 @@ function tierLabel(){
   for(let i=G.tier;i>=0;i--)if(TIERS[i].name)return TIERS[i].name;
   return 'FIRST ORBIT';
 }
-/* THE ORDINAL. The ladder has been computed on every run since the tiers went
-   in — G.tier ratchets in update(), tierLabel() names it, and runSummary()
-   renders a ten-position bar of it — but the only places it ever surfaced were
-   the clipboard and an analytics endpoint that ships switched off. The player
-   climbing it was never told the number.
-   A tester put the reason better than the design did: "reaching level XYZ
-   seems more memorable and rewarding than just a highest score. Levels are
-   more distinct." A score is a cardinal you cannot repeat from memory; a level
-   is an ordinal you can say out loud, compare, and come back for. This costs
-   one function and some text — the simulation underneath is untouched. */
-const LEVEL_MAX=TIERS.length;
-function levelNum(){return G.tier+1;}
+/* THE ORDINAL, AND WHICH ONE. A tester put the case for naming one at all
+   better than the design did: "reaching level XYZ seems more memorable and
+   rewarding than just a highest score. Levels are more distinct." A score is a
+   cardinal you cannot repeat from memory; a level is an ordinal you can say
+   out loud, compare, and come back for.
+   THERE ARE TWO LADDERS IN HERE AND ONLY ONE OF THEM IS CALLED A LEVEL.
+   G.tier is the ten-rung UNLOCK ladder — which shapes have been introduced —
+   and tierLabel() names its current rung. G.level is the 1-3 structure the
+   player is actually told about: the intro card, the HUD, the share text, the
+   death headline. Both used to surface as "level" in the same places at once:
+   the death screen printed LEVEL 2 directly under a ten-pip bar filled to
+   eight, and the share text pasted a ten-position bar under "LEVEL 2/3".
+   Everything the player reads is G.level now, and the tier ladder keeps its
+   own name. The pip bar had stopped saying anything anyway — the curriculum
+   pass folded every tier into levels 1-2, so it saturates the moment level 3
+   opens and stays full for the rest of an endless level. */
+const LEVEL_MAX=LV.length;
+/* seconds between two pips landing on the death screen — read by the reveal,
+   by the LEVEL punch-in that waits for the last pip, and by the lockout that
+   waits for all three */
+const PIPDT=0.16;
 function runSummary(){
   let bar='';
-  for(let i=0;i<TIERS.length;i++)bar+=(i<=G.tier?'◆':'◇');
+  for(let i=0;i<LEVEL_MAX;i++)bar+=(i<G.level?'◆':'◇');
   /* The level leads and the score moves down a line. A shared score is a
      number nobody can place; a shared level is a claim that invites one back
-     — "level 6" is answerable in a way "4300" is not. */
-  return 'Cosmo · LEVEL '+G.level+'/3\n'+
+     — "level 2 of 3" is answerable in a way "4300" is not. */
+  return 'Cosmo · LEVEL '+G.level+'/'+LEVEL_MAX+'\n'+
     bar+' '+tierLabel()+'\n'+
     G.score+' points · '+G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
     (G.bestGroove>=2?'on beat ×'+G.bestGroove+'\n':'')+
@@ -3763,7 +3819,7 @@ function inMute(x,y){
    can never land on a control that has not appeared yet. */
 function deadSeqDone(){
   if(RM||G.deadSkip)return true;
-  return (G.t-G.deadT)>0.55+0.07*(G.tier+1)+0.9;
+  return (G.t-G.deadT)>0.55+PIPDT*G.level+0.9;
 }
 /* Sits above TAP TO RETRY, and shares the same 0.6s lockout so a frantic
    retry tap right after dying can never land on it by accident. */
@@ -5048,11 +5104,226 @@ function drawBeat(p){
   ctx.restore();
 }
 /* ---------- draw ---------- */
+/* WHERE THE MUSIC IS, CONTINUOUSLY. Returns the position inside the four-bar
+   phrase in eighths (0..STEPS) as a float that advances smoothly, so the sky
+   can be driven by musical PHASE instead of by beat impulses.
+   The audio clock schedules ahead of the speaker, so MU.step is the next step
+   to be queued and MU.next is when it fires: the sound a player is hearing
+   right now is that far behind. Subtracting the lead-in gives the audible
+   position, and it stays continuous across a step boundary because MU.step
+   gains 1 at the same instant the lead-in does.
+   With no audio clock — muted tab, no WebAudio, the menu — it free-runs on
+   wall time at the same tempo. That is deliberate and load-bearing: a large
+   share of web players play with the sound off, and they should still see a
+   world that breathes in time rather than a dead one. */
+function musPos(){
+  const sd=SPB/2;
+  if(A&&AC&&MU&&MU.next&&AC.state==='running'&&G.state==='playing'){
+    const lead=(MU.next-AC.currentTime)/sd;
+    return ((MU.step-lead)%STEPS+STEPS)%STEPS;
+  }
+  return (G.t/sd)%STEPS;
+}
+
+/* ================= THE BACKDROP RUNS ON THE GPU =================
+   A second canvas under the game canvas, running one fragment shader. The 2D
+   backdrop (baked gradients, galaxy, planet, nebulae, rays, fog, grade) is a
+   COMPLETE fallback: if WebGL is missing, refused, or fails to compile, GL.on
+   stays false and every one of those layers paints exactly as before. Nothing
+   about the simulation changes either way.
+   Why a shader at all: the old sky was radial-gradient sprites, which cannot
+   express filaments, dust lanes or flow no matter how they are animated. This
+   is two-level domain-warped fBm — the structure IS the maths. */
+const GL_SCALE=0.60;   /* render scale. THE perf dial: the field is smooth, so
+                          upscaling costs almost nothing visually. Drop toward
+                          0.4 if a phone struggles, raise to 1.0 on desktop. */
+const GL_COV=0.36, GL_EXP=1.45;   /* void threshold and exposure — see notes */
+const GL={on:false,g:null,pr:null,u:{},cv:null,vw:0,vh:0,
+  r:[[0,0,-1],[0,0,-1]],slot:0,shear:0,
+  scale:GL_SCALE,acc:0,n:0,slow:0};
+const GL_FS=`
+precision highp float;
+uniform vec2 uRes; uniform float uTime,uEnergy,uPal,uCov,uExp,uCombo,uBeat,uShr;
+uniform vec3 uR1,uR2;
+float hash21(vec2 p){ p=fract(p*vec2(123.34,345.45)); p+=dot(p,p+34.345); return fract(p.x*p.y); }
+float vnoise(vec2 p){ vec2 i=floor(p),f=fract(p); vec2 u=f*f*(3.0-2.0*f);
+  return mix(mix(hash21(i),hash21(i+vec2(1,0)),u.x),mix(hash21(i+vec2(0,1)),hash21(i+vec2(1,1)),u.x),u.y); }
+const mat2 M=mat2(1.62,1.18,-1.18,1.62);
+float fbm(vec2 p){ float v=0.,a=.5; for(int i=0;i<6;i++){ v+=a*vnoise(p); p=M*p; a*=.5;} return v; }
+float fbm4(vec2 p){ float v=0.,a=.5; for(int i=0;i<4;i++){ v+=a*vnoise(p); p=M*p; a*=.5;} return v; }
+float ridged(vec2 p){ float v=0.,a=.5; for(int i=0;i<5;i++){ float n=1.-abs(vnoise(p)*2.-1.); v+=a*n*n; p=M*p; a*=.5;} return v; }
+vec3 pcos(float t,vec3 a,vec3 b,vec3 c,vec3 d){ return a+b*cos(6.28318*(c*t+d)); }
+vec3 palette(float t){
+  if(uPal<0.5) return pcos(t,vec3(.30,.14,.42),vec3(.46,.24,.44),vec3(1.,1.,1.),vec3(.52,.62,.78));
+  if(uPal<1.5) return pcos(t,vec3(.16,.32,.35),vec3(.42,.40,.36),vec3(1.,.96,.88),vec3(.18,.42,.70));
+  return pcos(t,vec3(.34,.18,.20),vec3(.50,.34,.26),vec3(1.,.92,.76),vec3(.02,.16,.44));
+}
+vec3 starLayer(vec2 frag,float dens,float thr,float t,float sizek,float spikek){
+  vec2 su=frag/uRes.y*dens; vec2 sc=floor(su),sf=fract(su)-0.5;
+  float sh=hash21(sc+vec2(dens*3.1,dens*7.7));
+  if(sh<thr) return vec3(0.0);
+  float br=(sh-thr)/(1.0-thr);
+  vec2 off=vec2(hash21(sc+1.7),hash21(sc+4.3))-0.5; vec2 d=sf-off*0.78;
+  float tw=0.62+0.38*sin(t*(1.2+br*2.8)+sh*44.0);
+  float core=exp(-dot(d,d)*sizek)*tw*(0.35+br);
+  float sp=(exp(-abs(d.x)*110.0-abs(d.y)*1250.0)+exp(-abs(d.y)*110.0-abs(d.x)*1250.0))*spikek*br*br*tw;
+  return vec3(0.82,0.89,1.0)*(core+sp);
+}
+void main(){
+  vec2 frag=gl_FragCoord.xy; vec2 uv=(frag-0.5*uRes)/uRes.y; float t=uTime;
+  uv += vec2(uv.y,uv.x)*uShr*0.35;                       /* swipe shear */
+  vec2 disp=vec2(0.0);                                   /* two sources -> they interfere */
+  for(int i=0;i<2;i++){
+    vec3 R=(i==0)?uR1:uR2; if(R.z<0.0) continue;
+    vec2 dv=uv-R.xy; float d=length(dv)+1e-5;
+    disp += (dv/d)*sin(d*26.0-R.z*9.0)*exp(-d*2.4)*exp(-R.z*1.6)*0.055;
+  }
+  uv+=disp; float rd=length(uv);
+  vec2 p=uv*1.35; vec2 dr=vec2(t*0.013,t*0.009);
+  vec2 q=vec2(fbm(p+dr),fbm(p+vec2(5.2,1.3)-dr));
+  vec2 r=vec2(fbm(p+3.2*q+vec2(1.7,9.2)+dr*1.7),fbm(p+3.2*q+vec2(8.3,2.8)-dr*1.3));
+  float f=fbm(p+3.0*r+dr*0.6);
+  vec2 p2=uv*0.62+vec2(3.7,1.1);
+  vec2 q2=vec2(fbm4(p2-dr*0.5),fbm4(p2+vec2(2.1,7.4)+dr*0.4));
+  float f2=fbm4(p2+2.4*q2);
+  float dust=pow(ridged(p*1.6+r*1.2+dr),2.2);
+  float band=smoothstep(0.32,0.68,f)*0.82+smoothstep(0.26,0.97,f)*0.18;
+  band=mix(band,band*0.52+smoothstep(0.36,0.76,f2)*0.48,0.44);
+  band*=(1.0-0.66*dust);
+  float covA=fbm4(uv*0.75+vec2(9.1,4.4)+dr*0.35);
+  float covB=fbm4(uv*1.9+vec2(2.7,8.8)-dr*0.5);
+  band*=smoothstep(uCov,uCov+0.20,covA-0.18*(covB-0.5));
+  float m=clamp(band,0.0,1.0);
+  float ph=dot(r,vec2(0.9,0.7))+f*0.55+f2*0.30+t*0.010+uCombo*0.42;
+  m=pow(m,mix(1.0,0.72,uCombo));
+  float ca=0.022+0.05*rd;
+  vec3 col=vec3(palette(ph-ca).r,palette(ph).g,palette(ph+ca).b);
+  col*=pow(m,uExp);
+  col+=pow(m,3.2)*vec3(0.92,0.86,1.00)*0.62;
+  col+=pow(m,7.5)*vec3(1.0,0.97,0.92)*0.85;
+  col*=(0.74+0.52*uEnergy)*(1.0+0.30*uCombo);
+  col*=(1.0+0.16*uBeat);
+  col+=starLayer(frag,7.0,0.880,t,520.0,0.55);
+  col+=starLayer(frag,17.0,0.905,t,1500.0,0.14);
+  col+=starLayer(frag,38.0,0.930,t,5200.0,0.0);
+  col*=clamp(1.0-0.62*pow(length(uv*vec2(0.88,0.66)),1.9),0.0,1.0);
+  col+=vec3(0.010,0.013,0.032);
+  col+=(hash21(frag+t)-0.5)*0.018;
+  gl_FragColor=vec4(max(col,0.0),1.0);
+}`;
+function glInit(){
+  try{
+    const cv=document.getElementById('bg');
+    if(!cv||typeof cv.getContext!=='function')return false;
+    const g=cv.getContext('webgl',{antialias:false,alpha:false,depth:false,stencil:false})
+          ||cv.getContext('experimental-webgl');
+    /* the stubbed canvas in the test harness answers every property with a
+       function, so feature-detection has to check RESULTS, not existence */
+    if(!g||typeof g.createShader!=='function')return false;
+    const mk=function(ty,src){
+      const o=g.createShader(ty); if(!o)return null;
+      g.shaderSource(o,src); g.compileShader(o);
+      return g.getShaderParameter(o,g.COMPILE_STATUS)?o:null;
+    };
+    const vs=mk(g.VERTEX_SHADER,'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}');
+    const fs=mk(g.FRAGMENT_SHADER,GL_FS);
+    if(!vs||!fs)return false;
+    const pr=g.createProgram(); if(!pr)return false;
+    g.attachShader(pr,vs);g.attachShader(pr,fs);g.linkProgram(pr);
+    if(!g.getProgramParameter(pr,g.LINK_STATUS))return false;
+    g.useProgram(pr);
+    const b=g.createBuffer();g.bindBuffer(g.ARRAY_BUFFER,b);
+    g.bufferData(g.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),g.STATIC_DRAW);
+    const loc=g.getAttribLocation(pr,'p');
+    g.enableVertexAttribArray(loc);g.vertexAttribPointer(loc,2,g.FLOAT,false,0,0);
+    for(const n of ['uRes','uTime','uEnergy','uPal','uCov','uExp','uCombo','uBeat','uShr','uR1','uR2'])
+      GL.u[n]=g.getUniformLocation(pr,n);
+    GL.g=g;GL.cv=cv;GL.pr=pr;GL.on=true;
+    return true;
+  }catch(e){return false;}
+}
+function glResize(){
+  if(!GL.on)return;
+  try{
+    const s=Math.min(DPR,2)*GL.scale;
+    const w=Math.max(1,Math.round(W*s)),h=Math.max(1,Math.round(H*s));
+    if(w===GL.vw&&h===GL.vh)return;
+    GL.vw=w;GL.vh=h;GL.cv.width=w;GL.cv.height=h;GL.g.viewport(0,0,w,h);
+  }catch(e){GL.on=false;}
+}
+/* A ripple is seeded at the COMET, never at the touch point: this game has no
+   aimed input, and blooming a wave where the thumb landed would quietly teach
+   players that where they tap matters. Two slots, used round-robin, so two
+   ripples close together overlap and interfere on their own. */
+function glRipple(){
+  if(!GL.on||RM)return;
+  try{
+    const pp=posPlayer();
+    GL.r[GL.slot]=[(pp[0]-W*0.5)/H, ((H-pp[1])-H*0.5)/H, 0];
+    GL.slot=(GL.slot+1)%2;
+  }catch(e){}
+}
+function glShear(dir){ if(GL.on&&!RM)GL.shear=0.55*(dir<0?-1:1); }
+/* THE BACKDROP MUST NEVER COST THE GAME ITS FRAME RATE. This shader is the
+   most expensive thing in the file and it is running on hardware nobody can
+   enumerate. So it watches itself: sustained slow frames drop the render
+   scale (the field is smooth, so a smaller buffer upscales almost invisibly),
+   and if the cheapest scale is still slow it hands the backdrop back to the
+   baked 2D path and never tries again this run. Degrade, never stutter. */
+function glWatch(dt){
+  if(dt<=0||dt>0.5)return;                 /* ignore tab-switch spikes */
+  GL.acc+=dt;GL.n++;
+  if(GL.acc<1.0)return;
+  const avg=GL.acc/GL.n; GL.acc=0;GL.n=0;
+  if(avg>1/45){
+    GL.slow++;
+    if(GL.slow>=2){
+      GL.slow=0;
+      if(GL.scale>0.34){GL.scale=Math.max(0.34,GL.scale-0.14);GL.vw=GL.vh=0;}
+      else GL.on=false;                    /* the 2D backdrop takes over */
+    }
+  }else GL.slow=0;
+}
+function glRender(dt){
+  if(!GL.on)return;
+  glWatch(dt);
+  if(!GL.on)return;
+  try{
+    const g=GL.g;
+    for(let i=0;i<2;i++)if(GL.r[i][2]>=0){GL.r[i][2]+=dt*1.9;if(GL.r[i][2]>2.4)GL.r[i][2]=-1;}
+    GL.shear-=GL.shear*Math.min(1,dt*3.2);
+    glResize();
+    g.useProgram(GL.pr);
+    g.uniform2f(GL.u.uRes,GL.vw,GL.vh);
+    g.uniform1f(GL.u.uTime,RM?12:G.t);
+    g.uniform1f(GL.u.uEnergy,Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow));
+    g.uniform1f(GL.u.uCombo,Math.min(1,G.combo/6*0.55+G.groove/8*0.45));
+    g.uniform1f(GL.u.uBeat,RM?0:G.beat);
+    g.uniform1f(GL.u.uPal,Math.max(0,Math.min(2,skyI)));
+    g.uniform1f(GL.u.uCov,GL_COV);
+    g.uniform1f(GL.u.uExp,GL_EXP);
+    g.uniform1f(GL.u.uShr,RM?0:GL.shear);
+    g.uniform3f(GL.u.uR1,GL.r[0][0],GL.r[0][1],GL.r[0][2]);
+    g.uniform3f(GL.u.uR2,GL.r[1][0],GL.r[1][1],GL.r[1][2]);
+    g.drawArrays(g.TRIANGLES,0,3);
+  }catch(e){GL.on=false;}
+}
+/* Boot the GPU path here, not at the first resize(): GL is a const declared
+   just above, so anything earlier in the file would hit its temporal dead
+   zone. resize() deliberately does NOT call glResize — glRender does it every
+   frame and early-returns when the dimensions have not moved, which covers
+   orientation changes for free. */
+glInit();glResize();
 function draw(){
   const amb=RM?0:G.t;
-  if(SPR.bg)ctx.drawImage(SPR.bg.c,0,0,W,H);
+  /* The GPU paints the backdrop; the 2D canvas is cleared to transparent and
+     carries only the arena. BG stays true when WebGL is unavailable, and then
+     every baked layer below draws exactly as it always did. */
+  const BG=!GL.on;
+  if(!BG){glRender(Math.min(0.05,Math.max(0,G.t-(GL.last||G.t))));GL.last=G.t;ctx.clearRect(0,0,W,H);}
+  if(BG&&SPR.bg)ctx.drawImage(SPR.bg.c,0,0,W,H);
   /* a band change fades from the outgoing sky over 2.5s (RM hard-cuts) */
-  if(G.bgFade>0&&SPR.bgOld){
+  if(BG&&G.bgFade>0&&SPR.bgOld){
     ctx.globalAlpha=G.bgFade;
     ctx.drawImage(SPR.bgOld.c,0,0,W,H);
     ctx.globalAlpha=1;
@@ -5064,7 +5335,7 @@ function draw(){
      whole-section signal the ring recolour already grants RM players. */
   let dropA=0;
   if(G.pay>0)dropA=RM?0.9:Math.min(1,(1-G.dropFx)*1.6)*Math.min(1,G.pay*8);
-  if(dropA>0&&SPR.bg2){
+  if(BG&&dropA>0&&SPR.bg2){
     ctx.globalAlpha=dropA;
     ctx.drawImage(SPR.bg2.c,0,0,W,H);
     ctx.globalAlpha=1;
@@ -5078,9 +5349,29 @@ function draw(){
      idle board, breathing when the player runs hot, doubled through the
      payoff, gold through overdrive — and the drum break drops the room dark
      (drawn after the motes). RM keeps every layer static, as always. */
-  const mpulse=RM?0:G.beat*(0.30+0.70*Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow));
+  /* THE SKY BREATHES, IT DOES NOT TWITCH. This was G.beat — an impulse that
+     spikes to 1 and decays in a fifth of a second, so every backdrop layer
+     flinched on the beat and then sat dead for the rest of it. It is a
+     continuous musical phase now: a smooth swell across the bar riding a
+     slower swell across the four-bar phrase, both cosines, so nothing in the
+     sky ever snaps. The peak is lower than the old impulse and the mean is
+     about the same — the backdrop reads calmer while never being still.
+     G.beat still drives the comet, the rings, the embers and the HUD. The
+     punch belongs in the arena; the groove belongs in the sky. */
+  /* Both swells PEAK on their downbeat (+cos, not -cos). Two reasons, and the
+     second is the one that matters: light arriving with the beat is what the
+     old impulse did and what "grooving" looks like — but also, phased this way
+     the two minima can never coincide. The bar troughs at mid-bar, where the
+     phrase is near its top; the phrase troughs at mid-phrase, where the bar is
+     exactly at its top. Inverted, both bottomed out together on the first beat
+     of every phrase and the sky went flat at the very moment the music landed. */
+  const mp=musPos();
+  const swBar=0.5+0.5*Math.cos(TAU*((mp%8)/8));       /* one bar   ~2.3s */
+  const swPhrase=0.5+0.5*Math.cos(TAU*(mp/STEPS));    /* four bars ~9.2s */
+  const energy=Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow);
+  const mpulse=RM?0:SKY_SWELL*(0.60*swBar+0.40*swPhrase)*(0.40+0.60*energy);
   /* THE GALACTIC BAND — deepest light in the scene, and it answers the drop */
-  if(SPR.galaxy){
+  if(BG&&SPR.galaxy){
     ctx.globalAlpha=0.6*(1+0.30*mpulse);
     ctx.drawImage(SPR.galaxy.c,-28+sdx*0.2+camX*0.2,-28+sdy*0.2+camY*0.2,SPR.galaxy.w,SPR.galaxy.h);
     ctx.globalAlpha=1;
@@ -5092,28 +5383,42 @@ function draw(){
     }
   }
   /* the landmark: half the short side now, textured, lit by the arena */
-  if(SPR.planet){
+  if(BG&&SPR.planet){
     const ps=SPR.planet.w;
     ctx.drawImage(SPR.planet.c,-ps*0.55+sdx*0.15+camX*0.15,H-ps*0.42+sdy*0.15+camY*0.15,ps,ps);
   }
-  if(SPR.neb)for(let i=0;i<nebulas.length;i++){
+  /* THE CLOUD FIELD FLOWS. Each cloud wandered a fixed 2%-of-screen circle on
+     one sine before, which the eye reads as an oscillation returning to where
+     it started — a loop, not weather. Each now rides a slow Lissajous whose
+     DIRECTION is itself rotating, so the path never closes; with six clouds on
+     incommensurate rates the field never resolves into a pattern.
+     Size breathes on the four-bar phrase rather than the beat, so the sky
+     swells with the arrangement instead of ticking with it. */
+  if(BG&&SPR.neb)for(let i=0;i<nebulas.length;i++){
     const n=nebulas[i];
+    const sp=SPR.neb[i%SPR.neb.length];
+    const dr=amb*0.011*SKY_RATE*n.sp*n.dir+n.ph;   /* the turning drift basis */
+    const w1=Math.sin(amb*0.037*SKY_RATE*n.sp+n.ph);
+    const w2=Math.cos(amb*0.026*SKY_RATE*n.sp+n.ph*1.7);
+    const wob=RM?0:SKY_FLOW;
+    const nx=(n.x+wob*(w1*Math.cos(dr)-w2*Math.sin(dr)))*W;
+    const ny=(n.y+wob*(w1*Math.sin(dr)+w2*Math.cos(dr)))*H;
     /* the nebulae swell when the drop lands — the dangling hook, wired */
-    const nr=n.r*Math.max(W,H)*0.5*(1+(RM?0:0.18*G.dropFx+0.06*mpulse));
-    const nx=(n.x+0.02*Math.sin(amb*0.07+n.ph))*W;
-    const ny=(n.y+0.02*Math.cos(amb*0.05+n.ph))*H;
-    ctx.drawImage(SPR.neb[i].c,nx-nr,ny-nr,nr*2,nr*2);
+    const nr=n.r*Math.max(W,H)*0.5*
+      (1+(RM?0:0.18*G.dropFx+0.13*swPhrase+0.05*swBar));
+    ctx.globalAlpha=n.a;
+    ctx.drawImage(sp.c,nx-nr,ny-nr,nr*2,nr*2);
     if(dropA>0&&SPR.neb2){
-      ctx.globalAlpha=dropA;
-      ctx.drawImage(SPR.neb2[i].c,nx-nr,ny-nr,nr*2,nr*2);
-      ctx.globalAlpha=1;
+      ctx.globalAlpha=dropA*n.a;
+      ctx.drawImage(SPR.neb2[i%SPR.neb2.length].c,nx-nr,ny-nr,nr*2,nr*2);
     }
+    ctx.globalAlpha=1;
   }
   /* the warp wash behind the arena: blooms with the landing, sustains at low
      alpha while the section runs, drains with it. Suppressed under slow-mo
      so it never fights that vignette. */
   const wash=Math.min(0.85,((RM?0:0.45*G.dropFx)+0.30*G.pay)*(G.tsCur<0.98?0.4:1));
-  if(wash>0.01&&SPR.nebDrop){
+  if(BG&&wash>0.01&&SPR.nebDrop){
     ctx.globalAlpha=wash;
     const wr=R*2.2;
     ctx.drawImage(SPR.nebDrop.c,cx-wr,cy-wr,wr*2,wr*2);
@@ -5122,7 +5427,7 @@ function draw(){
   /* GOD RAYS. Two counter-rotated passes of the baked fan shimmer against
      each other; the drop throws them wide. Born outside the ring stack —
      the baked inner hole keeps the play annulus clean. */
-  if(SPR.rays){
+  if(BG&&SPR.rays){
     ctx.save();
     ctx.globalCompositeOperation='lighter';
     ctx.translate(cx,cy);
@@ -5147,27 +5452,30 @@ function draw(){
      visibly cleared around the arena. */
   const pcx=RM?0:-Math.cos(G.angle)*7*u,pcy=RM?0:-Math.sin(G.angle)*7*u;
   const fogAl=0.36*(1-0.5*Math.min(1,G.dropFx+0.6*G.pay))*(G.tsCur<0.98?0.6:1);
-  if(SPR.starsFar)ctx.drawImage(SPR.starsFar.c,-8+sdx*0.3+camX*0.3,-8+sdy*0.3+camY*0.3,SPR.starsFar.w,SPR.starsFar.h);
-  if(SPR.fogA){
+  if(BG&&SPR.starsFar)ctx.drawImage(SPR.starsFar.c,-8+sdx*0.3+camX*0.3,-8+sdy*0.3+camY*0.3,SPR.starsFar.w,SPR.starsFar.h);
+  if(BG&&SPR.fogA){
     ctx.globalAlpha=RM?0.4:fogAl;
     ctx.drawImage(SPR.fogA.c,-40+sdx*0.6+camX*0.6,-40+sdy*0.6+camY*0.6,SPR.fogA.w,SPR.fogA.h);
     ctx.globalAlpha=1;
   }
-  if(SPR.starsNear)ctx.drawImage(SPR.starsNear.c,-28+sdx+pcx+camX,-28+sdy+pcy+camY,SPR.starsNear.w,SPR.starsNear.h);
-  if(SPR.fogB&&!RM){
+  if(BG&&SPR.starsNear)ctx.drawImage(SPR.starsNear.c,-28+sdx+pcx+camX,-28+sdy+pcy+camY,SPR.starsNear.w,SPR.starsNear.h);
+  if(BG&&SPR.fogB&&!RM){
     ctx.globalAlpha=fogAl*0.8;
     ctx.drawImage(SPR.fogB.c,-40+sdx*1.4+pcx*1.6+camX*1.4,-40+sdy*1.4+pcy*1.6+camY*1.4,SPR.fogB.w,SPR.fogB.h);
     ctx.globalAlpha=1;
   }
   ctx.globalCompositeOperation='lighter';
   ctx.fillStyle='#dcebff';
-  for(const st of bgStars){
+  for(const st of (BG?bgStars:[])){
     /* the bright twinklers glint on the LANDED beat — the only continuously
        animated background element finally agrees with the 104bpm grid the
        rest of the game obeys. Gated on groove so a player who has not found
        the beat is not shown a pulsing sky, and strongest in the payoff. */
     let al=RM?0.4:(0.10+0.55*(0.5+0.5*Math.sin(amb*st.tw+st.ph)));
-    if(!RM&&st.r>1.2&&(G.groove>0||PLAY.heat>0.2))al*=(1+0.30*G.beat*(0.5+0.5*G.pay)+0.25*mpulse);
+    /* the glint stays — it is the one background element that agrees with the
+       grid — but most of the weight moved to the continuous swell, so the
+       field now rises and falls rather than blinking */
+    if(!RM&&st.r>1.2&&(G.groove>0||PLAY.heat>0.2))al*=(1+0.15*G.beat*(0.5+0.5*G.pay)+0.45*mpulse);
     ctx.globalAlpha=Math.min(1,al);
     ctx.beginPath();ctx.arc(st.x*W+sdx+pcx+camX,st.y*H+sdy+pcy+camY,st.r,0,TAU);ctx.fill();
   }
@@ -5175,7 +5483,7 @@ function draw(){
      orbit outside the outer ring, brightens inside the lamp's shell and
      under the sweep of light that leads the comet, and nods on the landed
      beat during the payoff. 44 tiny blits. */
-  if(SPR.mote){
+  if(BG&&SPR.mote){
     const R0=radiusOf(0);
     for(const m of MOTES){
       const a=m.ang+amb*m.sp*0.03;
@@ -5184,7 +5492,7 @@ function draw(){
       let al=RM?0.10+0.18*shell
              :(0.05+0.30*shell)*(1+1.6*Math.pow(Math.max(0,Math.cos(a-G.angle)),4));
       /* the dust nods on the landed beat once the player has found it */
-      if(!RM&&(G.pay>0||G.groove>0||PLAY.heat>0.2))al*=(1+0.7*G.beat*(G.pay>0?1:0.5)+0.4*mpulse);
+      if(!RM&&(G.pay>0||G.groove>0||PLAY.heat>0.2))al*=(1+0.30*G.beat*(G.pay>0?1:0.5)+0.75*mpulse);
       blit(SPR.mote,cx+Math.cos(a)*r+camX*1.1,cy+Math.sin(a)*r+camY*1.1,
         m.sz,0,Math.min(0.55,al));
     }
@@ -5637,7 +5945,7 @@ function draw(){
   /* THE GRADE: one quarter-res blit of baked photographic finish — corner
      falloff that tames stray bloom, a horizon lift, a band-axis bias. Above
      the game, below the scrim and HUD. */
-  if(SPR.grade)ctx.drawImage(SPR.grade.c,0,0,W,H);
+  if(BG&&SPR.grade)ctx.drawImage(SPR.grade.c,0,0,W,H);
   /* slow-mo tint — baked; this was the file's last per-frame gradient */
   if(G.tsCur<0.98&&SPR.slowTint){
     ctx.globalAlpha=Math.min(1,(1-G.tsCur)/0.45);
@@ -5898,18 +6206,20 @@ function hintText(){
   return null;
 }
 
-/* THE LADDER, DRAWN. Ten pips, one per tier, filled up to where this run got
+/* THE LADDER, DRAWN. One pip per LEVEL, filled up to the one this run reached
    — the same rotated-square idiom as the lap-ember pips, so the game says
-   "progress" one way rather than two. The empty half is the point as much as
-   the full half: a player who dies on level 3 can see that seven more exist,
-   which is the thing a bare score can never tell them. */
-/* `shown` caps how many filled pips have appeared yet — the death screen
-   fills them one at a time. Callers that want them all pass tier+1. */
-function drawLadder(x,y,tier,shown){
-  const pipW=13*u,x0=x-(LEVEL_MAX-1)*pipW/2;
+   "progress" one way rather than two. It counts the same ladder as the LEVEL
+   printed under it; it used to count the ten tiers instead, which put two
+   different ordinals in the same eyeline. The empty pips are the point as much
+   as the filled ones: a player who dies on level 1 can see that two more
+   exist, which is the thing a bare score can never tell them.
+   `shown` caps how many filled pips have appeared yet — the death screen
+   fills them one at a time. Callers that want them all pass G.level. */
+function drawLadder(x,y,level,shown){
+  const pipW=20*u,x0=x-(LEVEL_MAX-1)*pipW/2;
   for(let i=0;i<LEVEL_MAX;i++){
     ctx.save();ctx.translate(x0+i*pipW,y);ctx.rotate(Math.PI/4);
-    const on=i<=tier&&i<(shown===undefined?tier+1:shown);
+    const on=i<level&&i<(shown===undefined?level:shown);
     ctx.globalAlpha=on?0.95:0.25;
     if(on){ctx.fillStyle=COL.ember;ctx.fillRect(-3.4*u,-3.4*u,6.8*u,6.8*u);}
     else{ctx.strokeStyle='rgba(200,215,255,0.9)';ctx.lineWidth=1.2;
@@ -6395,15 +6705,15 @@ function drawHUD(){
        Sequenced off G.t-G.deadT, which keeps running while dead. */
     const td=G.t-G.deadT,skip=RM||G.deadSkip;
     const el=function(at,dur){return skip?1:Math.max(0,Math.min(1,(td-at)/(dur||0.18)));};
-    const pipsShown=skip?G.tier+1:Math.max(0,Math.floor((td-0.55)/0.07));
-    if(pipsShown>G.deadPips&&pipsShown<=G.tier+1){
+    const pipsShown=skip?G.level:Math.max(0,Math.floor((td-0.55)/PIPDT));
+    if(pipsShown>G.deadPips&&pipsShown<=G.level){
       G.deadPips=pipsShown;
       /* the ladder reveal walks the pentatonic — even the death screen is
          in the game's key */
       beep(PENT[Math.min(13,3+pipsShown)],0.06,'sine',0.03,undefined,0,0,0.2);
     }
-    const lvAt=0.55+0.07*(G.tier+1);   /* the moment the last pip lands */
-    if(el(0.45))drawLadder(cx,cy-104*u,G.tier,pipsShown);
+    const lvAt=0.55+PIPDT*G.level;   /* the moment the last pip lands */
+    if(el(0.45))drawLadder(cx,cy-104*u,G.level,pipsShown);
     const la=el(lvAt,0.15);
     if(la>0){
       ctx.globalAlpha=la;

@@ -62,6 +62,7 @@ curriculum pass so nothing new is ever met inside level 3.
 | Band meter | Dot row under the level readout — one dot per layer currently in the record; the newest pulses; the loop shows as a cyan member. | gold "NEW LAYER" lines, one-time "THE BAND — score adds layers" caption *(new)* |
 | New sounds | The star's instrument steps up at levels 4, 7, 10 (tier ladder). | "NEW SOUND" announcement, death-screen "next sound" hook |
 | Difficulty clock | Difficulty is a clock; good play nudges it forward a little (capped). Speed, caps and spawn rate never change *what* a level teaches. | (internal — documented here) |
+| Level record | The deepest level a device has ever reached (`cometloop:gl`). It moves at death, beside the high score, so the announcement fires exactly once and a retry of the same level stays quiet. | death screen: **FURTHEST YET** in place of NEW BEST, otherwise "BEST · LEVEL n · score"; the death-screen pip row, one pip per level *(new)* |
 
 ## The teaching channels
 
