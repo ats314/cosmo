@@ -2488,7 +2488,7 @@ const LV=[
  {dl0:90, end:215, name:'INTO THE RINGS', key:0.8909,
   mech:[['shard','gates block every ring \u2014 turn back'],
         ['shard','drifters slide \u2014 blinkers wink in and out'],
-        ['nova','new orbs: bass bomb, spotlight, the gold star'],
+        ['nova','new orbs: bass bomb, spotlight, magnetar, the star'],
         ['beat','run hot: overdrive, drum breaks']]},
  {dl0:215,end:340,name:'THE STORM', key:0.7937,
   mech:[['shard','sliding walls, then flickering pairs'],
@@ -2595,6 +2595,9 @@ function levelComplete(){
   flushLesson(true);   /* a lesson the finish line interrupted is still recorded */
   G.state='lvend';G.lvT=G.t;
   G.lvCard={done:true,next:G.level+1};
+  /* only a real advance offers a pick — a retry re-reads the same card and
+     must not hand out a second upgrade for dying */
+  if(G.level+1<=LEVEL_MAX)rollOffer();
   G.carryScore=G.score;
   /* the deepest-level record is written where every other record is — at
      death, beside G.best — so the announcement can fire exactly once. Bumping
@@ -3001,6 +3004,87 @@ function pickType(){
    rings and the inner ring costs twice the angle per shard, so three slots
    stopped being enough to play around long before the run ended. */
 function shieldMax(){const d=dl();return d<160?3:d<320?4:5;}
+/* ================= THE UPGRADE DRAFT =================
+   Three tiles on the calm card at the start of levels 2, 3 and 4. They are
+   UPGRADES, never new orbs: every player still meets every mechanic, taught
+   one at a time, so the curriculum rule survives a draft entirely intact —
+   and a card that says "hypernova lasts longer" asks the player to recognise
+   nothing new at the exact moment a playtester reported being overloaded.
+   Drawn without replacement, so no run ever offers the same card twice.
+   `ic` draws the icon at the origin, sized for a 78u tile. */
+const UPG=[
+ {id:'longstar',n:'LONGER STAR',d:'the star runs longer',c:'#ff4fd8',
+  ic:function(g,c){g.fillStyle=c;starPath(g,15,6.4);g.fill();
+    g.strokeStyle='#fff';g.lineWidth=2.6;g.lineCap='round';
+    g.beginPath();g.arc(0,0,23,-Math.PI/2,Math.PI*0.95);g.stroke();}},
+ {id:'deepbank',n:'DEEP BANK',d:'one more shield',c:'#7bffc8',
+  ic:function(g,c){g.strokeStyle=c;g.lineWidth=2.6;g.lineCap='round';
+    for(let k=0;k<4;k++){g.globalAlpha=k===3?1:0.5;
+      g.beginPath();g.arc(0,5,9+k*5.5,-Math.PI*0.86,-Math.PI*0.14);g.stroke();}
+    g.globalAlpha=1;}},
+ {id:'slowworld',n:'SLOW WORLD',d:'slow-mo slows spawns',c:'#b48bff',
+  ic:function(g,c){g.strokeStyle=c;g.lineWidth=2.4;
+    g.beginPath();g.arc(0,0,17,0,TAU);g.stroke();
+    g.strokeStyle='#fff';g.lineWidth=2.6;g.lineCap='round';
+    g.beginPath();g.moveTo(0,0);g.lineTo(0,-10);g.moveTo(0,0);g.lineTo(8,4);g.stroke();}},
+ {id:'richnova',n:'RICH NOVA',d:'every nova pays double',c:'#ffffff',
+  ic:function(g,c){g.strokeStyle=c;g.lineWidth=2.4;g.lineCap='round';
+    for(let k=0;k<8;k++){const a=k*TAU/8;
+      g.beginPath();g.moveTo(Math.cos(a)*7,Math.sin(a)*7);
+      g.lineTo(Math.cos(a)*19,Math.sin(a)*19);g.stroke();}
+    g.fillStyle=c;g.beginPath();g.arc(0,0,5,0,TAU);g.fill();}},
+ {id:'widepull',n:'WIDE PULL',d:'magnetar takes orbs',c:'#b8ff4d',
+  ic:function(g,c){g.strokeStyle=c;g.lineWidth=2.2;g.lineCap='round';
+    for(let k=0;k<5;k++){const a0=k*TAU/5;
+      g.beginPath();
+      for(let t=0;t<=1.0001;t+=0.1){const rr=21-14*t,aa=a0+t*1.4;
+        const px=Math.cos(aa)*rr,py=Math.sin(aa)*rr;t?g.lineTo(px,py):g.moveTo(px,py);}
+      g.stroke();}
+    g.fillStyle='#fff';g.beginPath();g.arc(0,0,4.6,0,TAU);g.fill();}},
+ {id:'hairtrig',n:'HAIR TRIGGER',d:'the drop arms sooner',c:'#5df0ff',
+  ic:function(g,c){g.fillStyle=c;g.beginPath();
+    g.moveTo(-3,-20);g.lineTo(10,-3);g.lineTo(2,-1.5);g.lineTo(7,20);
+    g.lineTo(-10,1.5);g.lineTo(-1.5,0);g.closePath();g.fill();}},
+ /* REDRAWN. It was three concentric rings, which at tile size was the same
+    picture as WIDE PULL sitting beside it. A cone with a shockwave leaving it
+    says "this pushes outward" where rings said only "circles". */
+ {id:'longfuse',n:'LONG FUSE',d:'the bomb clears wider',c:'#5df0ff',
+  ic:function(g,c){g.fillStyle=c;g.globalAlpha=0.85;
+    g.beginPath();g.moveTo(-16,-11);g.lineTo(-4,-11);g.lineTo(7,-19);
+    g.lineTo(7,19);g.lineTo(-4,11);g.lineTo(-16,11);g.closePath();g.fill();
+    g.globalAlpha=1;g.strokeStyle=c;g.lineCap='round';
+    for(let k=0;k<3;k++){g.globalAlpha=0.8-k*0.22;g.lineWidth=2.6-k*0.5;
+      g.beginPath();g.arc(9,0,(11+k*7),-0.85,0.85);g.stroke();}
+    g.globalAlpha=1;}},
+ {id:'stagelight',n:'STAGE LIGHT',d:'the spotlight lasts',c:'#b48bff',
+  ic:function(g,c){g.fillStyle=c;g.globalAlpha=0.32;
+    g.beginPath();g.moveTo(0,-14);g.lineTo(-18,21);g.lineTo(18,21);g.closePath();g.fill();
+    g.globalAlpha=1;g.fillStyle='#fff';g.beginPath();g.arc(0,-16,6.4,0,TAU);g.fill();}},
+ /* REDRAWN. It was a bracket that read as a book. A metronome with a WIDE
+    sweep is the picture of a forgiving timing window. */
+ {id:'steadyhand',n:'STEADY HAND',d:'a wider beat window',c:'#ffc857',
+  ic:function(g,c){g.strokeStyle=c;g.lineWidth=2.6;g.lineJoin='round';
+    g.beginPath();g.moveTo(-13,18);g.lineTo(-6,-16);g.lineTo(6,-16);g.lineTo(13,18);
+    g.closePath();g.stroke();
+    g.globalAlpha=0.30;g.fillStyle=c;
+    g.beginPath();g.moveTo(0,14);g.lineTo(-15,-14);g.lineTo(15,-14);g.closePath();g.fill();
+    g.globalAlpha=1;g.strokeStyle='#fff';g.lineWidth=2.6;g.lineCap='round';
+    g.beginPath();g.moveTo(0,14);g.lineTo(0,-13);g.stroke();
+    g.fillStyle='#fff';g.beginPath();g.arc(0,-2,3.4,0,TAU);g.fill();}}
+];
+function starPath(g,rr,ri){g.beginPath();
+  for(let i=0;i<10;i++){const sr=i%2?ri:rr,a=-Math.PI/2+i*Math.PI/5;
+    i?g.lineTo(Math.cos(a)*sr,Math.sin(a)*sr):g.moveTo(Math.cos(a)*sr,Math.sin(a)*sr);}
+  g.closePath();}
+const upgOn=id=>!!G.upg[id];
+/* Three from what is left, never repeating across a run. */
+function rollOffer(){
+  const pool=UPG.filter(x=>!G.upg[x.id]&&!G.offered[x.id]);
+  const pick=[];
+  for(let k=0;k<3&&pool.length;k++)pick.push(pool.splice((Math.random()*pool.length)|0,1)[0]);
+  G.offer=pick;
+  for(const o of pick)G.offered[o.id]=1;
+}
 const REV_FX=0.07; /* grace before a tap's effects fire, so swipes stay silent */
 const SND_SEEN={}; /* voices announced this visit — by crossing or level start */
 const G={
@@ -3039,6 +3123,7 @@ const G={
   spot:0,lastTapAt:-9,finEnd:0,        /* spotlight; last raw tap time; finale end flag */
   hyper:0,hyperD:0,hyperGlow:0,        /* hypernova: seconds left, full duration, backdrop envelope */
   mag:0,magD:0,magGlow:0,gotMag:false,magPlaced:false,  /* magnetar */
+  upg:{},offered:{},offer:[],offerRects:[],picks:[],  /* the upgrade draft */
   layerN:0,bandN:0,bandFx:0,           /* score layers unlocked; band-meter dot count + pulse */
   sndAt:0,sndStr:null,                 /* a NEW SOUND announcement waiting for its banner to clear */
   flashT:0,meetNext:0,teachSoft:false, /* flash rate-limit; lesson spacing; lesson-without-slowmo */
@@ -3681,6 +3766,7 @@ function die(){
     /* did the curriculum land: three placements is the whole intro set */
     pows_placed:G.powN,saw_warp:G.gotWarp,saw_nova:G.gotNova,saw_hyper:G.gotHyper,
     got_mag:G.gotMag,
+    picks:G.picks.join(','),pick_n:G.picks.length,
     /* DID THE TEACHING LAND. The two verbs, per run. did_hop is the one that
        matters: the hop is the unfamiliar gesture, it is now taught at 20s in
        the calm, and a run that ends with did_hop false is a run where the
@@ -3949,7 +4035,7 @@ cv.addEventListener('pointerdown',function(e){
     /* every visit begins at LIFT OFF — shared and borrowed phones kept
        inheriting a device's unlock, and friends thought the game had skipped
        level 1. Dying mid-run still retries the level you died on. */
-    G.level=1;
+    G.level=1;G.upg={};G.offered={};G.offer=[];G.picks=[];
     /* A GENUINE FIRST RUN GETS LEVEL 1'S CARD. The LIFT OFF card was dead
        data — lvCard was only ever built by levelComplete, so the one calm
        screen that pre-teaches the verbs, the orbit economy and the finale
@@ -3959,7 +4045,7 @@ cv.addEventListener('pointerdown',function(e){
     else startGame();
     return;
   }
-  if(G.state==='lvend'){G.lvPt={y:e.clientY};return;}  /* decided at lift */
+  if(G.state==='lvend'){G.lvPt={x:e.clientX,y:e.clientY};return;}  /* decided at lift */
   if(G.state==='dead'){
     /* the first tap after the lockout fast-forwards the reveal; the next
        one retries — a fast retrier is never made to sit through it */
@@ -4014,8 +4100,23 @@ cv.addEventListener('pointermove',function(e){
 function pdEnd(e){
   /* the level card between levels: any tap starts the next one */
   if(G.state==='lvend'&&G.lvPt){
-    G.lvPt=null;
+    const pt=G.lvPt;G.lvPt=null;
     if(G.t-G.lvT>0.6){
+      /* while an offer is on the card, ONLY a tile starts the level: the
+         choice is the gate, so nobody skips past a decision by tapping the
+         background and then wonders where their upgrade went */
+      if(G.offer&&G.offer.length){
+        const hit=G.offerRects.find(r=>pt.x>=r.x&&pt.x<=r.x+r.w&&pt.y>=r.y&&pt.y<=r.y+r.h);
+        if(!hit)return;
+        G.upg[hit.id]=1;G.picks.push(hit.id);
+        const u2=UPG.find(x=>x.id===hit.id);
+        track('pick_chosen',{upgrade:hit.id,game_level:Math.min(LEVEL_MAX,(G.lvCard&&G.lvCard.next)||1),
+          offered:G.offer.map(o=>o.id).join(','),pick_index:G.picks.length,run_index:G.runs});
+        G.offer=[];G.offerRects=[];
+        popup(cx,cy-40*u,u2?u2.n:'UPGRADED',u2?u2.c:COL.ember,1.4);
+        beep(523,0.14,'triangle',0.06,784);
+        cueTone(function(w){beep(1046,0.22,'sine',0.05,1568,w);});
+      }
       cardDone();
       startGame();braam(0.05);
     }
@@ -4057,7 +4158,7 @@ window.addEventListener('keydown',function(e){
   if(e.code==='Space'||e.code==='Enter'){
     e.preventDefault();ensureAudio();
     if(G.state==='menu'){
-      G.level=1;
+      G.level=1;G.upg={};G.offered={};G.offer=[];G.picks=[];
       if(!G.runs){G.state='lvend';G.lvT=G.t;G.lvCard={done:false,next:1};}
       else startGame();
     }else if(G.state==='lvend'){
@@ -6826,9 +6927,49 @@ function drawHUD(){
       ctx.textAlign='center';
       my+=26*u;
     }
+    /* THE DRAFT. Three tiles on the card that already exists, and the tap
+       that picks one IS the tap that starts the level — no extra screen, no
+       extra step, and the choice lands on the one calm moment the player is
+       already reading. */
+    G.offerRects=[];
+    if(G.offer&&G.offer.length){
+      const tw=76*u,th=88*u,gap=10*u;
+      const x0=cx-(G.offer.length*tw+(G.offer.length-1)*gap)/2;
+      const ty0=Math.min(my+16*u,bottomY-th-34*u);
+      for(let i=0;i<G.offer.length;i++){
+        const o=G.offer[i],bx=x0+i*(tw+gap);
+        G.offerRects.push({x:bx,y:ty0,w:tw,h:th,id:o.id});
+        ctx.save();
+        ctx.globalAlpha=a2;
+        const bg=ctx.createLinearGradient(0,ty0,0,ty0+th);
+        bg.addColorStop(0,'rgba(20,27,46,0.96)');bg.addColorStop(1,'rgba(10,15,28,0.96)');
+        ctx.fillStyle=bg;
+        ctx.beginPath();ctx.roundRect(bx,ty0,tw,th,10*u);ctx.fill();
+        ctx.strokeStyle=o.c;ctx.globalAlpha=a2*(RM?0.7:0.5+0.3*Math.sin(G.t*3+i));
+        ctx.lineWidth=1.6;
+        ctx.beginPath();ctx.roundRect(bx+0.8,ty0+0.8,tw-1.6,th-1.6,10*u);ctx.stroke();
+        ctx.globalAlpha=a2;
+        ctx.save();
+        ctx.translate(bx+tw/2,ty0+30*u);
+        ctx.scale(u*0.82,u*0.82);
+        ctx.shadowColor=o.c;ctx.shadowBlur=12;
+        o.ic(ctx,o.c);
+        ctx.restore();
+        text(o.n,bx+tw/2,ty0+58*u,fitSz(o.n,9.5*u,'800',tw-8*u),'800','#eaf1ff',0);
+        ctx.textAlign='center';
+        const words=o.d.split(' ');let ln='',lines=[];
+        for(const w of words){const t2=ln?ln+' '+w:w;
+          if(t2.length>16){lines.push(ln);ln=w;}else ln=t2;}
+        if(ln)lines.push(ln);
+        for(let k=0;k<Math.min(2,lines.length);k++)
+          text(lines[k],bx+tw/2,ty0+70*u+k*10*u,8*u,'600','rgba(200,215,255,0.7)',0);
+        ctx.restore();
+      }
+    }
     const pulse2=RM?1:0.72+0.28*Math.sin(G.t*3);
     ctx.globalAlpha=a2*pulse2;
-    textFx(c2.done?'TAP FOR LEVEL '+Math.min(LEVEL_MAX,c2.next):'TAP TO START',
+    textFx(G.offer&&G.offer.length?'CHOOSE ONE'
+      :(c2.done?'TAP FOR LEVEL '+Math.min(LEVEL_MAX,c2.next):'TAP TO START'),
       cx,bottomY,17*u,'800','#eaffff',COL.comet,'rgba(93,240,255,0.5)',4);
     ctx.globalAlpha=1;
   }else if(G.state==='menu'){

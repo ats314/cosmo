@@ -84,10 +84,22 @@ function frame(ms) {
   for (const fn of fns) fn(nowMs);
 }
 function fire(name, ev) { for (const fn of (listeners[name] || [])) fn(ev); }
-const pev = id => ({ pointerId: id, clientX: 200, clientY: 400, type: 'pointerup', preventDefault() {} });
+const pev = (id, x, y) => ({ pointerId: id, clientX: x ?? 200, clientY: y ?? 400,
+  type: 'pointerup', preventDefault() {} });
+/* Taps the centre of the first upgrade tile whenever the card is offering a
+   draft, and the ordinary spot otherwise. The draft deliberately makes a tile
+   the ONLY thing that starts the next level, so a harness tapping a fixed
+   point simply waits on the card forever — which is exactly what this one did
+   until it learned to press the real control. */
 const tap = id => {
-  fire('pointerdown', { ...pev(id), type: 'pointerdown' });
-  fire('pointerup', pev(id));
+  let x, y;
+  const n = st('G.offer && G.offer.length ? G.offer.length : 0');
+  if (n > 0) {
+    const r = JSON.parse(st('JSON.stringify(G.offerRects[0]||null)') || 'null');
+    if (r) { x = r.x + r.w / 2; y = r.y + r.h / 2; }
+  }
+  fire('pointerdown', { ...pev(id, x, y), type: 'pointerdown' });
+  fire('pointerup', pev(id, x, y));
 };
 
 const fail = [];
