@@ -827,6 +827,19 @@ function angDist(a,b){const d=Math.abs((a-b)%TAU);return d>Math.PI?TAU-d:d;}
    tempo never changes, only how finely the bar is cut. */
 function ringOf(){return G.state==='playing'?Math.min(RINGS.length-1,effRing()):0;}
 function radiusOf(i){return R*RADII[i];}
+/* AN EMBER'S RADIUS HAS ONE OWNER. Everything else in the arena lives at
+   radiusOf(ring), but the magnetar pull gives an ember a FREE radius in s.pr
+   so it can curve between rings instead of teleporting. Two draw passes read
+   an ember's position — the sprite and the bloom — and only the sprite was
+   taught about s.pr, so for the whole of every pull each ember's glow stayed
+   parked on the ring it started from while the ember itself flew inward, then
+   snapped across when s.ring was reassigned. Measured on three rings: sixteen
+   detached glows at once, up to 89px apart on a 390px screen. That is what a
+   playtester meant by "every time I pick up one of the magnet things this
+   happens to my screen".
+   One accessor now, and check.mjs fails the build if a star is ever positioned
+   from radiusOf() directly again. */
+function starR(s){return s.pr!==undefined?s.pr:radiusOf(s.ring);}
 function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r*AY];}
 
 /* ---------- audio ----------
@@ -4865,7 +4878,7 @@ function update(dt){
         G.score+=ex;G.secScore+=ex;
       }else if(G.od>0||G.hyper>0||G.shields>=shieldMax())G.score+=G.combo; /* overdrive, hypernova — and a FULL shield bank — double the pickup */
       G.lapEmbers++;G.embers++;
-      const p=posAt(s.a,radiusOf(s.ring));
+      const p=posAt(s.a,starR(s));
       burst(p[0],p[1],COL.ember,14,150);
       ripple(p[0],p[1],COL.ember);
       arcFlash(s.a,s.ring,COL.ember);
@@ -5249,7 +5262,7 @@ function drawBloom(){
   g.setTransform(s,0,0,s,0,0);
   g.globalCompositeOperation='lighter';
   for(const st of G.stars){
-    const p=posAt(st.a,radiusOf(st.ring));
+    const p=posAt(st.a,starR(st));      /* the glow rides WITH the ember */
     bloomDot(g,p[0],p[1],10*u,COL.ember);
   }
   for(const sp of G.spikes){
@@ -6010,7 +6023,7 @@ function draw(){
   /* embers */
   ctx.globalCompositeOperation='lighter';
   for(const s of G.stars){
-    const p=posAt(s.a,s.pr!==undefined?s.pr:radiusOf(s.ring));
+    const p=posAt(s.a,starR(s));
     let al=1;
     if(s.born&&s.t<0.25){
       /* a nova ember condenses from a white-hot point — the transmutation is

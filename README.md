@@ -340,6 +340,37 @@ lesson never showed for exactly the person who needed them. The orb-naming
 hints now outrank it while an orb is on the board, and after ten unanswered
 seconds it alternates with the survival lessons on a slow cycle.
 
+**The magnetar's glow flew without its ember.** Playtester, verbatim: "So every
+time I pick up one of the magnet things this happens to my screen." Two people
+reported it independently, every pickup, and they were describing a bug I put
+there when I built the pull.
+
+Every other object in the arena sits at `radiusOf(ring)`. The magnetar pull is
+the one exception: it hands each ember a FREE radius in `s.pr` so it can curve
+between rings instead of teleporting across them. Two passes draw an ember —
+the sprite pass and the bloom pass — and only the sprite was taught about
+`s.pr`. So for the whole of every pull, each ember's glow stayed parked on the
+ring it started from while the ember itself flew inward, and then snapped
+across the moment `s.ring` was reassigned.
+
+The comment I wrote above that code says `s.pr carries the drawn radius across
+the ring change so nothing teleports between tracks`. The bloom is exactly the
+thing that still teleported. Measured on three rings: **sixteen detached glows
+at once, up to 89px apart on a 390px-wide screen** — nearly a quarter of the
+display, for four and a half seconds, on the game's most spectacular move.
+
+An ember's radius has one owner now, `starR()`, and all three sites read it.
+`check.mjs` brace-matches the star loops and fails the build if any star is
+positioned from `radiusOf()` again — the guard was verified by reverting the
+bloom line and watching it fail, then restoring it.
+
+Worth naming the shape of this mistake, because it is not a typo: I introduced
+a second source of truth for a position, updated one reader, and shipped. The
+harnesses could not have caught it — they have no renderer — and reading the
+code did not catch it either, because the sprite pass looked correct in
+isolation. What caught it was rendering a pull in a real browser and measuring
+the distance between where the ember was drawn and where its glow was drawn.
+
 **The teaching says one thing, and it is true.** Owner, on a build that had
 just had its teaching retimed: *"There is often tutorial language that makes no
 logical sense to the way red things and gameplay work."* There was, and the
