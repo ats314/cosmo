@@ -40,11 +40,14 @@
     overscroll-behavior:none;touch-action:none;}
   canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-action:none;
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  #bg{z-index:0}  /* the WebGL backdrop sits under the 2D game canvas */
+  #c{z-index:1;background:transparent}
   #safe{position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;
     padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
 </style>
 </head>
 <body>
+<canvas id="bg"></canvas>
 <canvas id="c"></canvas>
 <div id="safe"></div>
 <script>
@@ -3620,6 +3623,7 @@ function reverseFX(){
 }
 function reverse(silent){
   G.dir*=-1;G.didReverse=true;
+  glRipple();   /* onTap -> a wave off the comet */
   /* You lose the lap and the streak multiplier, but the embers you already
      gathered stay banked — otherwise gates, which exist to force reversals,
      would systematically delete the score you turned around to protect.
@@ -3692,6 +3696,7 @@ function hop(step){
     return;
   }
   G.didHop=true;
+  glShear(step);   /* onSwipe -> the field shears along the vector */
   /* the rehearsal ends the instant the lesson lands — but ONLY the
      rehearsal: this used to clear every lesson, so hopping away from the
      thing being explained (complying with 'swipe to another ring'!)
@@ -5119,11 +5124,206 @@ function musPos(){
   }
   return (G.t/sd)%STEPS;
 }
+
+/* ================= THE BACKDROP RUNS ON THE GPU =================
+   A second canvas under the game canvas, running one fragment shader. The 2D
+   backdrop (baked gradients, galaxy, planet, nebulae, rays, fog, grade) is a
+   COMPLETE fallback: if WebGL is missing, refused, or fails to compile, GL.on
+   stays false and every one of those layers paints exactly as before. Nothing
+   about the simulation changes either way.
+   Why a shader at all: the old sky was radial-gradient sprites, which cannot
+   express filaments, dust lanes or flow no matter how they are animated. This
+   is two-level domain-warped fBm — the structure IS the maths. */
+const GL_SCALE=0.60;   /* render scale. THE perf dial: the field is smooth, so
+                          upscaling costs almost nothing visually. Drop toward
+                          0.4 if a phone struggles, raise to 1.0 on desktop. */
+const GL_COV=0.36, GL_EXP=1.45;   /* void threshold and exposure — see notes */
+const GL={on:false,g:null,pr:null,u:{},cv:null,vw:0,vh:0,
+  r:[[0,0,-1],[0,0,-1]],slot:0,shear:0,
+  scale:GL_SCALE,acc:0,n:0,slow:0};
+const GL_FS=`
+precision highp float;
+uniform vec2 uRes; uniform float uTime,uEnergy,uPal,uCov,uExp,uCombo,uBeat,uShr;
+uniform vec3 uR1,uR2;
+float hash21(vec2 p){ p=fract(p*vec2(123.34,345.45)); p+=dot(p,p+34.345); return fract(p.x*p.y); }
+float vnoise(vec2 p){ vec2 i=floor(p),f=fract(p); vec2 u=f*f*(3.0-2.0*f);
+  return mix(mix(hash21(i),hash21(i+vec2(1,0)),u.x),mix(hash21(i+vec2(0,1)),hash21(i+vec2(1,1)),u.x),u.y); }
+const mat2 M=mat2(1.62,1.18,-1.18,1.62);
+float fbm(vec2 p){ float v=0.,a=.5; for(int i=0;i<6;i++){ v+=a*vnoise(p); p=M*p; a*=.5;} return v; }
+float fbm4(vec2 p){ float v=0.,a=.5; for(int i=0;i<4;i++){ v+=a*vnoise(p); p=M*p; a*=.5;} return v; }
+float ridged(vec2 p){ float v=0.,a=.5; for(int i=0;i<5;i++){ float n=1.-abs(vnoise(p)*2.-1.); v+=a*n*n; p=M*p; a*=.5;} return v; }
+vec3 pcos(float t,vec3 a,vec3 b,vec3 c,vec3 d){ return a+b*cos(6.28318*(c*t+d)); }
+vec3 palette(float t){
+  if(uPal<0.5) return pcos(t,vec3(.30,.14,.42),vec3(.46,.24,.44),vec3(1.,1.,1.),vec3(.52,.62,.78));
+  if(uPal<1.5) return pcos(t,vec3(.16,.32,.35),vec3(.42,.40,.36),vec3(1.,.96,.88),vec3(.18,.42,.70));
+  return pcos(t,vec3(.34,.18,.20),vec3(.50,.34,.26),vec3(1.,.92,.76),vec3(.02,.16,.44));
+}
+vec3 starLayer(vec2 frag,float dens,float thr,float t,float sizek,float spikek){
+  vec2 su=frag/uRes.y*dens; vec2 sc=floor(su),sf=fract(su)-0.5;
+  float sh=hash21(sc+vec2(dens*3.1,dens*7.7));
+  if(sh<thr) return vec3(0.0);
+  float br=(sh-thr)/(1.0-thr);
+  vec2 off=vec2(hash21(sc+1.7),hash21(sc+4.3))-0.5; vec2 d=sf-off*0.78;
+  float tw=0.62+0.38*sin(t*(1.2+br*2.8)+sh*44.0);
+  float core=exp(-dot(d,d)*sizek)*tw*(0.35+br);
+  float sp=(exp(-abs(d.x)*110.0-abs(d.y)*1250.0)+exp(-abs(d.y)*110.0-abs(d.x)*1250.0))*spikek*br*br*tw;
+  return vec3(0.82,0.89,1.0)*(core+sp);
+}
+void main(){
+  vec2 frag=gl_FragCoord.xy; vec2 uv=(frag-0.5*uRes)/uRes.y; float t=uTime;
+  uv += vec2(uv.y,uv.x)*uShr*0.35;                       /* swipe shear */
+  vec2 disp=vec2(0.0);                                   /* two sources -> they interfere */
+  for(int i=0;i<2;i++){
+    vec3 R=(i==0)?uR1:uR2; if(R.z<0.0) continue;
+    vec2 dv=uv-R.xy; float d=length(dv)+1e-5;
+    disp += (dv/d)*sin(d*26.0-R.z*9.0)*exp(-d*2.4)*exp(-R.z*1.6)*0.055;
+  }
+  uv+=disp; float rd=length(uv);
+  vec2 p=uv*1.35; vec2 dr=vec2(t*0.013,t*0.009);
+  vec2 q=vec2(fbm(p+dr),fbm(p+vec2(5.2,1.3)-dr));
+  vec2 r=vec2(fbm(p+3.2*q+vec2(1.7,9.2)+dr*1.7),fbm(p+3.2*q+vec2(8.3,2.8)-dr*1.3));
+  float f=fbm(p+3.0*r+dr*0.6);
+  vec2 p2=uv*0.62+vec2(3.7,1.1);
+  vec2 q2=vec2(fbm4(p2-dr*0.5),fbm4(p2+vec2(2.1,7.4)+dr*0.4));
+  float f2=fbm4(p2+2.4*q2);
+  float dust=pow(ridged(p*1.6+r*1.2+dr),2.2);
+  float band=smoothstep(0.32,0.68,f)*0.82+smoothstep(0.26,0.97,f)*0.18;
+  band=mix(band,band*0.52+smoothstep(0.36,0.76,f2)*0.48,0.44);
+  band*=(1.0-0.66*dust);
+  float covA=fbm4(uv*0.75+vec2(9.1,4.4)+dr*0.35);
+  float covB=fbm4(uv*1.9+vec2(2.7,8.8)-dr*0.5);
+  band*=smoothstep(uCov,uCov+0.20,covA-0.18*(covB-0.5));
+  float m=clamp(band,0.0,1.0);
+  float ph=dot(r,vec2(0.9,0.7))+f*0.55+f2*0.30+t*0.010+uCombo*0.42;
+  m=pow(m,mix(1.0,0.72,uCombo));
+  float ca=0.022+0.05*rd;
+  vec3 col=vec3(palette(ph-ca).r,palette(ph).g,palette(ph+ca).b);
+  col*=pow(m,uExp);
+  col+=pow(m,3.2)*vec3(0.92,0.86,1.00)*0.62;
+  col+=pow(m,7.5)*vec3(1.0,0.97,0.92)*0.85;
+  col*=(0.74+0.52*uEnergy)*(1.0+0.30*uCombo);
+  col*=(1.0+0.16*uBeat);
+  col+=starLayer(frag,7.0,0.880,t,520.0,0.55);
+  col+=starLayer(frag,17.0,0.905,t,1500.0,0.14);
+  col+=starLayer(frag,38.0,0.930,t,5200.0,0.0);
+  col*=clamp(1.0-0.62*pow(length(uv*vec2(0.88,0.66)),1.9),0.0,1.0);
+  col+=vec3(0.010,0.013,0.032);
+  col+=(hash21(frag+t)-0.5)*0.018;
+  gl_FragColor=vec4(max(col,0.0),1.0);
+}`;
+function glInit(){
+  try{
+    const cv=document.getElementById('bg');
+    if(!cv||typeof cv.getContext!=='function')return false;
+    const g=cv.getContext('webgl',{antialias:false,alpha:false,depth:false,stencil:false})
+          ||cv.getContext('experimental-webgl');
+    /* the stubbed canvas in the test harness answers every property with a
+       function, so feature-detection has to check RESULTS, not existence */
+    if(!g||typeof g.createShader!=='function')return false;
+    const mk=function(ty,src){
+      const o=g.createShader(ty); if(!o)return null;
+      g.shaderSource(o,src); g.compileShader(o);
+      return g.getShaderParameter(o,g.COMPILE_STATUS)?o:null;
+    };
+    const vs=mk(g.VERTEX_SHADER,'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}');
+    const fs=mk(g.FRAGMENT_SHADER,GL_FS);
+    if(!vs||!fs)return false;
+    const pr=g.createProgram(); if(!pr)return false;
+    g.attachShader(pr,vs);g.attachShader(pr,fs);g.linkProgram(pr);
+    if(!g.getProgramParameter(pr,g.LINK_STATUS))return false;
+    g.useProgram(pr);
+    const b=g.createBuffer();g.bindBuffer(g.ARRAY_BUFFER,b);
+    g.bufferData(g.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),g.STATIC_DRAW);
+    const loc=g.getAttribLocation(pr,'p');
+    g.enableVertexAttribArray(loc);g.vertexAttribPointer(loc,2,g.FLOAT,false,0,0);
+    for(const n of ['uRes','uTime','uEnergy','uPal','uCov','uExp','uCombo','uBeat','uShr','uR1','uR2'])
+      GL.u[n]=g.getUniformLocation(pr,n);
+    GL.g=g;GL.cv=cv;GL.pr=pr;GL.on=true;
+    return true;
+  }catch(e){return false;}
+}
+function glResize(){
+  if(!GL.on)return;
+  try{
+    const s=Math.min(DPR,2)*GL.scale;
+    const w=Math.max(1,Math.round(W*s)),h=Math.max(1,Math.round(H*s));
+    if(w===GL.vw&&h===GL.vh)return;
+    GL.vw=w;GL.vh=h;GL.cv.width=w;GL.cv.height=h;GL.g.viewport(0,0,w,h);
+  }catch(e){GL.on=false;}
+}
+/* A ripple is seeded at the COMET, never at the touch point: this game has no
+   aimed input, and blooming a wave where the thumb landed would quietly teach
+   players that where they tap matters. Two slots, used round-robin, so two
+   ripples close together overlap and interfere on their own. */
+function glRipple(){
+  if(!GL.on||RM)return;
+  try{
+    const pp=posPlayer();
+    GL.r[GL.slot]=[(pp[0]-W*0.5)/H, ((H-pp[1])-H*0.5)/H, 0];
+    GL.slot=(GL.slot+1)%2;
+  }catch(e){}
+}
+function glShear(dir){ if(GL.on&&!RM)GL.shear=0.55*(dir<0?-1:1); }
+/* THE BACKDROP MUST NEVER COST THE GAME ITS FRAME RATE. This shader is the
+   most expensive thing in the file and it is running on hardware nobody can
+   enumerate. So it watches itself: sustained slow frames drop the render
+   scale (the field is smooth, so a smaller buffer upscales almost invisibly),
+   and if the cheapest scale is still slow it hands the backdrop back to the
+   baked 2D path and never tries again this run. Degrade, never stutter. */
+function glWatch(dt){
+  if(dt<=0||dt>0.5)return;                 /* ignore tab-switch spikes */
+  GL.acc+=dt;GL.n++;
+  if(GL.acc<1.0)return;
+  const avg=GL.acc/GL.n; GL.acc=0;GL.n=0;
+  if(avg>1/45){
+    GL.slow++;
+    if(GL.slow>=2){
+      GL.slow=0;
+      if(GL.scale>0.34){GL.scale=Math.max(0.34,GL.scale-0.14);GL.vw=GL.vh=0;}
+      else GL.on=false;                    /* the 2D backdrop takes over */
+    }
+  }else GL.slow=0;
+}
+function glRender(dt){
+  if(!GL.on)return;
+  glWatch(dt);
+  if(!GL.on)return;
+  try{
+    const g=GL.g;
+    for(let i=0;i<2;i++)if(GL.r[i][2]>=0){GL.r[i][2]+=dt*1.9;if(GL.r[i][2]>2.4)GL.r[i][2]=-1;}
+    GL.shear-=GL.shear*Math.min(1,dt*3.2);
+    glResize();
+    g.useProgram(GL.pr);
+    g.uniform2f(GL.u.uRes,GL.vw,GL.vh);
+    g.uniform1f(GL.u.uTime,RM?12:G.t);
+    g.uniform1f(GL.u.uEnergy,Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow));
+    g.uniform1f(GL.u.uCombo,Math.min(1,G.combo/6*0.55+G.groove/8*0.45));
+    g.uniform1f(GL.u.uBeat,RM?0:G.beat);
+    g.uniform1f(GL.u.uPal,Math.max(0,Math.min(2,skyI)));
+    g.uniform1f(GL.u.uCov,GL_COV);
+    g.uniform1f(GL.u.uExp,GL_EXP);
+    g.uniform1f(GL.u.uShr,RM?0:GL.shear);
+    g.uniform3f(GL.u.uR1,GL.r[0][0],GL.r[0][1],GL.r[0][2]);
+    g.uniform3f(GL.u.uR2,GL.r[1][0],GL.r[1][1],GL.r[1][2]);
+    g.drawArrays(g.TRIANGLES,0,3);
+  }catch(e){GL.on=false;}
+}
+/* Boot the GPU path here, not at the first resize(): GL is a const declared
+   just above, so anything earlier in the file would hit its temporal dead
+   zone. resize() deliberately does NOT call glResize — glRender does it every
+   frame and early-returns when the dimensions have not moved, which covers
+   orientation changes for free. */
+glInit();glResize();
 function draw(){
   const amb=RM?0:G.t;
-  if(SPR.bg)ctx.drawImage(SPR.bg.c,0,0,W,H);
+  /* The GPU paints the backdrop; the 2D canvas is cleared to transparent and
+     carries only the arena. BG stays true when WebGL is unavailable, and then
+     every baked layer below draws exactly as it always did. */
+  const BG=!GL.on;
+  if(!BG){glRender(Math.min(0.05,Math.max(0,G.t-(GL.last||G.t))));GL.last=G.t;ctx.clearRect(0,0,W,H);}
+  if(BG&&SPR.bg)ctx.drawImage(SPR.bg.c,0,0,W,H);
   /* a band change fades from the outgoing sky over 2.5s (RM hard-cuts) */
-  if(G.bgFade>0&&SPR.bgOld){
+  if(BG&&G.bgFade>0&&SPR.bgOld){
     ctx.globalAlpha=G.bgFade;
     ctx.drawImage(SPR.bgOld.c,0,0,W,H);
     ctx.globalAlpha=1;
@@ -5135,7 +5335,7 @@ function draw(){
      whole-section signal the ring recolour already grants RM players. */
   let dropA=0;
   if(G.pay>0)dropA=RM?0.9:Math.min(1,(1-G.dropFx)*1.6)*Math.min(1,G.pay*8);
-  if(dropA>0&&SPR.bg2){
+  if(BG&&dropA>0&&SPR.bg2){
     ctx.globalAlpha=dropA;
     ctx.drawImage(SPR.bg2.c,0,0,W,H);
     ctx.globalAlpha=1;
@@ -5171,7 +5371,7 @@ function draw(){
   const energy=Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow);
   const mpulse=RM?0:SKY_SWELL*(0.60*swBar+0.40*swPhrase)*(0.40+0.60*energy);
   /* THE GALACTIC BAND — deepest light in the scene, and it answers the drop */
-  if(SPR.galaxy){
+  if(BG&&SPR.galaxy){
     ctx.globalAlpha=0.6*(1+0.30*mpulse);
     ctx.drawImage(SPR.galaxy.c,-28+sdx*0.2+camX*0.2,-28+sdy*0.2+camY*0.2,SPR.galaxy.w,SPR.galaxy.h);
     ctx.globalAlpha=1;
@@ -5183,7 +5383,7 @@ function draw(){
     }
   }
   /* the landmark: half the short side now, textured, lit by the arena */
-  if(SPR.planet){
+  if(BG&&SPR.planet){
     const ps=SPR.planet.w;
     ctx.drawImage(SPR.planet.c,-ps*0.55+sdx*0.15+camX*0.15,H-ps*0.42+sdy*0.15+camY*0.15,ps,ps);
   }
@@ -5194,7 +5394,7 @@ function draw(){
      incommensurate rates the field never resolves into a pattern.
      Size breathes on the four-bar phrase rather than the beat, so the sky
      swells with the arrangement instead of ticking with it. */
-  if(SPR.neb)for(let i=0;i<nebulas.length;i++){
+  if(BG&&SPR.neb)for(let i=0;i<nebulas.length;i++){
     const n=nebulas[i];
     const sp=SPR.neb[i%SPR.neb.length];
     const dr=amb*0.011*SKY_RATE*n.sp*n.dir+n.ph;   /* the turning drift basis */
@@ -5218,7 +5418,7 @@ function draw(){
      alpha while the section runs, drains with it. Suppressed under slow-mo
      so it never fights that vignette. */
   const wash=Math.min(0.85,((RM?0:0.45*G.dropFx)+0.30*G.pay)*(G.tsCur<0.98?0.4:1));
-  if(wash>0.01&&SPR.nebDrop){
+  if(BG&&wash>0.01&&SPR.nebDrop){
     ctx.globalAlpha=wash;
     const wr=R*2.2;
     ctx.drawImage(SPR.nebDrop.c,cx-wr,cy-wr,wr*2,wr*2);
@@ -5227,7 +5427,7 @@ function draw(){
   /* GOD RAYS. Two counter-rotated passes of the baked fan shimmer against
      each other; the drop throws them wide. Born outside the ring stack —
      the baked inner hole keeps the play annulus clean. */
-  if(SPR.rays){
+  if(BG&&SPR.rays){
     ctx.save();
     ctx.globalCompositeOperation='lighter';
     ctx.translate(cx,cy);
@@ -5252,21 +5452,21 @@ function draw(){
      visibly cleared around the arena. */
   const pcx=RM?0:-Math.cos(G.angle)*7*u,pcy=RM?0:-Math.sin(G.angle)*7*u;
   const fogAl=0.36*(1-0.5*Math.min(1,G.dropFx+0.6*G.pay))*(G.tsCur<0.98?0.6:1);
-  if(SPR.starsFar)ctx.drawImage(SPR.starsFar.c,-8+sdx*0.3+camX*0.3,-8+sdy*0.3+camY*0.3,SPR.starsFar.w,SPR.starsFar.h);
-  if(SPR.fogA){
+  if(BG&&SPR.starsFar)ctx.drawImage(SPR.starsFar.c,-8+sdx*0.3+camX*0.3,-8+sdy*0.3+camY*0.3,SPR.starsFar.w,SPR.starsFar.h);
+  if(BG&&SPR.fogA){
     ctx.globalAlpha=RM?0.4:fogAl;
     ctx.drawImage(SPR.fogA.c,-40+sdx*0.6+camX*0.6,-40+sdy*0.6+camY*0.6,SPR.fogA.w,SPR.fogA.h);
     ctx.globalAlpha=1;
   }
-  if(SPR.starsNear)ctx.drawImage(SPR.starsNear.c,-28+sdx+pcx+camX,-28+sdy+pcy+camY,SPR.starsNear.w,SPR.starsNear.h);
-  if(SPR.fogB&&!RM){
+  if(BG&&SPR.starsNear)ctx.drawImage(SPR.starsNear.c,-28+sdx+pcx+camX,-28+sdy+pcy+camY,SPR.starsNear.w,SPR.starsNear.h);
+  if(BG&&SPR.fogB&&!RM){
     ctx.globalAlpha=fogAl*0.8;
     ctx.drawImage(SPR.fogB.c,-40+sdx*1.4+pcx*1.6+camX*1.4,-40+sdy*1.4+pcy*1.6+camY*1.4,SPR.fogB.w,SPR.fogB.h);
     ctx.globalAlpha=1;
   }
   ctx.globalCompositeOperation='lighter';
   ctx.fillStyle='#dcebff';
-  for(const st of bgStars){
+  for(const st of (BG?bgStars:[])){
     /* the bright twinklers glint on the LANDED beat — the only continuously
        animated background element finally agrees with the 104bpm grid the
        rest of the game obeys. Gated on groove so a player who has not found
@@ -5283,7 +5483,7 @@ function draw(){
      orbit outside the outer ring, brightens inside the lamp's shell and
      under the sweep of light that leads the comet, and nods on the landed
      beat during the payoff. 44 tiny blits. */
-  if(SPR.mote){
+  if(BG&&SPR.mote){
     const R0=radiusOf(0);
     for(const m of MOTES){
       const a=m.ang+amb*m.sp*0.03;
@@ -5745,7 +5945,7 @@ function draw(){
   /* THE GRADE: one quarter-res blit of baked photographic finish — corner
      falloff that tames stray bloom, a horizon lift, a band-axis bias. Above
      the game, below the scrim and HUD. */
-  if(SPR.grade)ctx.drawImage(SPR.grade.c,0,0,W,H);
+  if(BG&&SPR.grade)ctx.drawImage(SPR.grade.c,0,0,W,H);
   /* slow-mo tint — baked; this was the file's last per-frame gradient */
   if(G.tsCur<0.98&&SPR.slowTint){
     ctx.globalAlpha=Math.min(1,(1-G.tsCur)/0.45);
