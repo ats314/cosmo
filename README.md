@@ -67,8 +67,8 @@ first three have finish lines; the fourth does not:
 | Level | Name | Introduces | Song |
 |---|---|---|---|
 | 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor, the original groove |
-| 2 | INTO THE RINGS | gates, drifters, blinkers, sliding gates, flicker pairs, bass bomb, spotlight, the gold star | G minor, swung sixteenths |
-| 3 | THE STORM | **nothing** — everything known, everything active, with a finish line | F minor, rolling four-on-the-floor |
+| 2 | INTO THE RINGS | gates, drifters, blinkers, bass bomb, spotlight, magnetar, the gold star | G minor, swung sixteenths |
+| 3 | THE STORM | the two compounds — sliding gates, flicker pairs — then a finish line | F minor, rolling four-on-the-floor |
 | 4 | EVENT HORIZON | **nothing** — the same storm with no exit, at the speed ceiling. Endless. | E♭ minor |
 
 Level 3 used to be the endless one. Giving it a finish line and handing
@@ -186,24 +186,29 @@ So the mid-game now keeps the early game's discipline, one thing at a time:
   waits ~18s after each unlock.
 
 Mechanics unlock on a schedule, each announced with a banner — and the whole
-ladder now fits inside levels 1–2 (the curriculum rule):
+ladder fits inside levels 1–3, with level 4 as the exam (the curriculum rule).
+`dl` is difficulty-seconds: wall time plus the nudge good play earns, so a
+strong run reaches each rung sooner than a struggling one. Each banner's `sub`
+is word-for-word the lesson that fires when the shape first spawns; they are
+one sentence, and `smoke.mjs` fails the build if they drift apart:
 
-| ≈ | Unlock |
-|---|---|
-| L1 +22s | second ring |
-| L1 +33s | twin shards — too wide to outrun, hop over |
-| L1 +73s | third ring |
-| L2 +18s | gates — every ring blocked, reverse |
-| L2 +58s | drifters — these ones move |
-| L2 +90s | blinkers — they flicker, time your pass |
-| L2 +112s | sliding gates — the wall slides, reverse early |
-| L2 +134s | flicker pairs — one gap at a time, never both |
-| L3 +0s | storm — no new tricks, everything at once |
+| dl | Level | Unlock and its one sentence |
+|---|---|---|
+| 12 | 1 | second ring — *swipe up or down to change ring* |
+| 18 | 1 | twin shards — *no room between them — swipe to another ring* |
+| 40 | 1 | third ring — *inside is tighter — the music runs hotter* |
+| 100 | 2 | gates — *every ring is blocked — tap to turn around* |
+| 128 | 2 | drifters — *it slides — the gap moves with it* |
+| 165 | 2 | blinkers — *harmless while dim — cross it then* |
+| 240 | 3 | sliding gates — *the wall slides — turn around early* |
+| 295 | 3 | flicker pairs — *only one is solid — cross the dim one* |
+| 340 | 4 | storm — *no new tricks — just more of everything* |
 
-Those times assume a player earning no difficulty nudge at all, which is the
-slowest the schedule ever runs; scoring well pulls everything forward by up
-to 40 seconds. Every gap clears the 9-second lesson spacing and a banner's
-full display, so each shape still gets its solo introduction. A crossing
+Because the ladder is keyed to `dl` rather than the clock, a player earning no
+nudge at all sees the slowest the schedule ever runs; scoring well pulls
+everything forward by up to 40 seconds. Every gap clears the 9-second lesson
+spacing and a banner's full display, so each shape still gets its solo
+introduction. A crossing
 never fires during a finale — the exam must not be announced over the
 graduation ceremony — and the level-3 start owns the STORM crossing
 silently, because its intro card is the announcement.
@@ -330,16 +335,91 @@ cap means it can never stall a run.
 
 **The hint ladder cannot deadlock any more.** The swipe prompt used to hold
 the hint slot for as long as the player had not hopped — which for the player
-drowning at 30 seconds was the entire run, so "red kills you" and the shield
+drowning at 30 seconds was the entire run, so the red lesson and the shield
 lesson never showed for exactly the person who needed them. The orb-naming
 hints now outrank it while an orb is on the board, and after ten unanswered
 seconds it alternates with the survival lessons on a slow cycle.
+
+**The teaching says one thing, and it is true.** Owner, on a build that had
+just had its teaching retimed: *"There is often tutorial language that makes no
+logical sense to the way red things and gameplay work."* There was, and the
+audit found the same defect in five places — every one of them a sentence the
+game could be caught contradicting inside a single run.
+
+The worst was red. The level 1 card says *red costs a shield — you start with
+two*, and that is exactly what the code does. Three other channels — the
+first-encounter lesson, the hint ladder and the menu key — flatly said **red
+kills you**, which is false for the first two hits of every run. A playtester
+reported hitting "a ton of reds" before dying and concluded he had misread
+something. He had not. The game told him one rule and then visibly broke it,
+twenty seconds apart, which is the fastest way to make a player stop trusting
+anything else it says. All four now carry the same sentence; the lethal half is
+taught where it becomes true, by the `LAST SHIELD — RED KILLS NOW` popup at the
+moment the bank empties.
+
+The others were the same failure in miniature. The DRIFTERS banner said *these
+ones chase you* — a drifter is given one fixed random heading well under player
+speed and never steers, which the spawn code's own comment says in as many
+words. Both drifter channels then said *keep moving*, an instruction naming an
+action the game does not have: there is no input that stops you. TWIN SHARDS
+said *too wide to outrun*, in a game with one fixed speed where nothing is ever
+outrun. THIRD RING promised *faster and higher* — angular speed is identical on
+every ring (one `G.speed`, no radius term) and an ember pays the same wherever
+it is taken; the only real reward for diving is the filter lift, which is what
+the banner names now.
+
+**And FLICKER PAIRS was fixed in the code rather than the copy.** Its lesson
+promised *only one is ever solid*. The pair is offset half a cycle but ran at
+`armed()`'s 0.55 duty, so both halves were armed for 10% of every cycle: a
+player who read the sentence, waited for the gap and crossed it died doing
+precisely what they had been told. The sentence was the good design, so the
+mechanic moved to meet it — pairs run at duty 0.5 and strictly alternate, one
+solid side and one gap at every instant. `smoke.mjs` walks a full period and
+fails the build on a single frame where both or neither is armed.
+
+**One sentence per idea, and the same one every time.** Each tier banner's
+`sub` is now word-for-word the `MEET` lesson for its formation, and the death
+coach reads that same lesson rather than a paraphrase. It had four hand-written
+special cases sitting above a fallback that already did this, so a gate death
+said *gates want you to turn back* while the banner said *every ring blocked*
+and the lesson said *every ring is blocked* — and the player was left to notice
+those were one rule and not three. Repetition of one sentence teaches;
+paraphrase reads as more rules, which is what *"initially I felt like there were
+like eight rules"* was actually counting. A `smoke.mjs` assertion keeps banner
+and lesson identical, and another forbids any lesson from claiming red kills
+outright.
+
+**The menu key is four rows, not nine.** It is the densest block of text in the
+game and the first thing anybody reads. The shield, the slow-mo orb and the
+nova each have a hint-ladder rung that fires the first time one is actually on
+screen; the inner ring has the THIRD RING banner and the camp hint; the beat
+drop has the build prompt and a 3-2-1 countdown. Each of those teaches beside
+the thing itself, which a row read before the thing exists cannot do. What
+survives is what you need before you touch anything: the two gestures, the
+thing that pays, and the thing that hurts. The later level cards had gone on
+making the same mistake one screen later — level 2's card named gates, drifters
+and blinkers on a screen shown up to 75 seconds before the first one exists,
+then listed four orbs the player had no referent for. Two lines each now, and
+they say what the level *is* rather than what it will contain.
+
+**Three overprints, found by screenshotting rather than reading.** `LAPS ×N`
+drew at exactly the `y` of `HYPERNOVA` and `SPOTLIGHT ×2` — the three timed
+states were correctly chained with `else if` and the lap streak sat on its own
+`if`, guarded against overdrive alone. The share pill had been positioned
+against the last line above it twice, and both times a new line was added
+underneath it afterwards; it was being stroked straight through *next sound:
+twin synths at level 4* for every player below tier 9. And `hintGlyph` assigned
+`globalAlpha` absolutely, ignoring whatever its caller had set, so on the death
+screen a lone red diamond floated over the ladder for two and a half seconds
+explaining nothing while the sentence it belonged to was still at zero. None of
+these are reachable by the harnesses — there is no renderer in CI — which is
+the standing argument for putting eyes on the actual pixels.
 
 **Every formation teaches itself on first contact.** The first time a twin,
 gate, drifter, blinker, sliding gate or flicker pair ever spawns on a device,
 time dilates for about three seconds, further spawns hold, and the one
 relevant sentence sits dead centre with its glyph while the new thing is
-actually on screen — "every ring is blocked — tap to turn back" arrives while
+actually on screen — "every ring is blocked — tap to turn around" arrives while
 the first gate is visibly barring every ring. Acting ends nothing; it is a
 pause, not a test. Three bugs used to spend this once-ever lesson invisibly,
 and all are fixed: a landed hop cancelled any running lesson (complying with
@@ -1080,7 +1160,7 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   leads its motion, the blinker a hollow crystal whose core *fills* as re-arm
   approaches — the old dormant glyph was dimmest at the exact moment it was
   about to become lethal — and the plain single keeps the square. The red
-  glow is identical across all three, so "red kills you" stays one lesson.
+  glow is identical across all three, so red stays one lesson.
 - **Nova embers condense.** A converted shard's ember is born as a white-hot
   point collapsing to size over a quarter second instead of the generic
   fade-in, and the front's speed now scales with the actual ring radius, so

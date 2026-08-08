@@ -179,6 +179,29 @@ try {
   // every spawnable formation and every reward orb carries a lesson
   if (!st("TIERS.every(t=>!t.type||!!MEET[t.type])")) throw new Error('a tier type has no MEET lesson');
   if (!st("['bass','spot','hyper','lapcost'].every(k=>MEET[k]&&MEET[k].soft)")) throw new Error('a reward lesson lost its no-slow-mo flag');
+  // ONE SENTENCE PER IDEA. A tier banner's sub and its formation's lesson are
+  // the same rule said twice — when they drifted into paraphrases the player
+  // was asked to notice that "every ring blocked", "every ring is blocked" and
+  // "gates want you to turn back" were one instruction, not three. They are
+  // literally identical strings now, and this is what keeps them that way.
+  // (the opening `single` tier has no banner and so no sub — nothing to match)
+  const drifted = st("JSON.stringify(TIERS.filter(t=>t.type&&t.sub&&t.sub!==MEET[t.type].t).map(t=>t.name))");
+  if (drifted !== '[]') throw new Error('a tier sub drifted from its lesson: ' + drifted);
+  // and no channel may go back to claiming red kills outright: it costs a
+  // shield, and every run starts with two. The one place that phrase is legal
+  // is the popup fired at the moment the bank actually empties.
+  const lies = st("JSON.stringify(Object.keys(MEET).filter(k=>/red kills/.test(MEET[k].t)))");
+  if (lies !== '[]') throw new Error('a lesson says red kills you outright: ' + lies);
+  // FLICKER PAIRS: "only one is solid" has to be true at every instant of the
+  // cycle, not 90% of it. Walk a full period at 120 samples and require
+  // exactly one armed member throughout — both-armed is the death a player
+  // takes while doing precisely what the lesson told them to do.
+  const pair = st(
+    "(function(){var a={blink:true,bo:0,duty:0.5,bt:0},b={blink:true,bo:BLINK*0.5,duty:0.5,bt:0}," +
+    "both=0,none=0;for(var i=0;i<120;i++){a.bt=b.bt=BLINK*i/120;" +
+    "var x=armed(a),y=armed(b);if(x&&y)both++;if(!x&&!y)none++;}return both+','+none;})()");
+  if (pair !== '0,0') throw new Error('flicker pair is not strictly alternating (both,none = ' + pair + ')');
+  console.log('teaching text is one voice ok; flicker pair strictly alternates');
   // a landed hop must not cancel a 'see' lesson (only the hop rehearsal)
   st("G.teach=2;G.teachKind='see';G.teachHint=MEET.single;G.teachType='single';" +
      "G.nRings=Math.max(2,G.nRings);G.hopP=1;G.ringI=0");

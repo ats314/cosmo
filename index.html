@@ -2483,17 +2483,26 @@ const LV=[
     something. He had not; the card had. */
  {dl0:0,  end:90,  name:'LIFT OFF', key:1,
   mech:[['tap','tap anywhere to turn around'],
-        ['swipe','swipe up or down to change rings'],
+        ['swipe','swipe up or down to change ring'],   /* singular, as everywhere else */
         ['shard','red costs a shield \u2014 you start with two']]},
+ /* THE LATER CARDS STOPPED PREVIEWING THE SYLLABUS. The note above explains
+    why level 1's card came down to three lines; levels 2-4 then went on making
+    the identical mistake one screen later. Level 2's card listed gates,
+    drifters and blinkers \u2014 which unlock at dl 100, 128 and 165, so all three
+    were named on a card shown at dl 90, up to 75 seconds before the first one
+    exists \u2014 and then named four orbs the player had no referent for in a
+    single line. Each of those has a banner that names it and a lesson that
+    explains it at the moment it arrives, with a specimen lit and the world
+    slowed. A card cannot compete with that; it can only spend the player's
+    attention in advance.
+    Two lines each now, and they say what the level IS rather than what it will
+    contain. Nothing is left untaught, which curriculum.mjs verifies. */
  {dl0:90, end:215, name:'INTO THE RINGS', key:0.8909,
-  mech:[['shard','gates block every ring \u2014 turn back'],
-        ['shard','drifters slide \u2014 blinkers wink in and out'],
-        ['nova','new orbs: bass bomb, spotlight, magnetar, the star'],
-        ['beat','run hot: overdrive, drum breaks']]},
+  mech:[['shard','red starts arriving in shapes'],
+        ['beat','tap in time and the band grows']]},
  {dl0:215,end:340,name:'THE STORM', key:0.7937,
-  mech:[['shard','sliding walls, then flickering pairs'],
-        ['beat','the full band'],
-        ['star','survive to the dive']]},
+  mech:[['shard','the shapes start combining'],
+        ['star','survive to the star dive']]},
  /* THE STORM used to be endless and therefore last. It has a finish line and a
     star dive of its own now, and EVENT HORIZON takes over as the level you do
     not finish — which keeps "the last level is the exam" true rather than
@@ -2502,8 +2511,7 @@ const LV=[
     curriculum rule is untouched by the extra level. The fourth song drops
     another whole step (A -> G -> F -> Eb); going deeper keeps deepening. */
  {dl0:340,end:Infinity,name:'EVENT HORIZON', key:0.7071,
-  mech:[['shard','past the point of return'],
-        ['beat','the band at the ceiling'],
+  mech:[['shard','no new tricks — everything at once'],
         ['star','how far can you ride?']]}];
 /* Declared here rather than beside the death-screen helpers so loadPrefs can
    clamp against it — it used to sit 1,300 lines further down, which put it in
@@ -2900,12 +2908,20 @@ function emberGap(){return Math.max(0.30,(1.35-dl()*0.003)/G.nRings);}
    ladder was never the problem, since almost nobody reaches it either way. */
 const TIERS=[
   {at:0,  type:'single',name:null},
-  {at:12, type:null,    name:'SECOND RING', sub:'swipe up or down to switch track',rings:2},
-  {at:18, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 swipe to another ring'},
-  {at:40, type:null,    name:'THIRD RING',  sub:'inside is tighter, faster and higher',rings:3},
-  {at:100,type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 tap to turn back'},
-  {at:128,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
-  {at:165,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
+  /* Every sub is word-for-word its type's MEET lesson (see the note there);
+     the ring tiers, which have no formation and so no lesson, use the same
+     vocabulary as the menu key and the hint ladder. "switch track" named a
+     thing called a track that appears nowhere else in the game. */
+  {at:12, type:null,    name:'SECOND RING', sub:'swipe up or down to change ring',rings:2},
+  {at:18, type:'twin',  name:'TWIN SHARDS', sub:'no room between them \u2014 swipe to another ring'},
+  /* "faster and higher" was two claims and neither was true: angular speed is
+     the same on every ring (one G.speed, no radius term) and an ember pays the
+     same wherever you take it. The filter lift IS real \u2014 RINGS[].lift climbs
+     0/380/820 going in \u2014 so the honest reward is the one the player can hear. */
+  {at:40, type:null,    name:'THIRD RING',  sub:'inside is tighter \u2014 the music runs hotter',rings:3},
+  {at:100,type:'gate',  name:'GATES',       sub:'every ring is blocked \u2014 tap to turn around'},
+  {at:128,type:'drift', name:'DRIFTERS',    sub:'it slides \u2014 the gap moves with it'},
+  {at:165,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 cross it then'},
   /* THE TWO HARDEST SHAPES NOW LAND IN LEVEL 3 (owner: "the hardest mechanics
      should be reserved for level 3 teaching, that will allow more time to
      learn"). Both are COMPOUNDS — a gate that also drifts, a twin that also
@@ -2917,8 +2933,8 @@ const TIERS=[
      nothing. Level 2 now carries three shapes ~35 apart instead of five ~22
      apart, level 3 carries the two compounds 55 apart with room for their
      lessons to find calm, and level 4 is the exam. */
-  {at:240,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
-  {at:295,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
+  {at:240,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn around early'},
+  {at:295,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is solid \u2014 cross the dim one'},
   {at:340,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
 ];
 function tierIndex(){
@@ -3348,14 +3364,30 @@ function reverseEscape(minArc){
    list can never go stale again (it used to be an enumeration naming two
    orbs that had been cut from the game, which ran the spotlight and the
    gold star through full threat-grade slow-mo). */
+/* ONE SENTENCE PER IDEA, AND THE SAME ONE EVERY TIME. Each lesson here is
+   word-for-word the `sub` on its tier banner: the banner names the shape, the
+   lesson repeats the rule while a specimen is lit, and the death coach says it
+   a third time. Repetition of one sentence teaches; three paraphrases of one
+   sentence read as three rules, which is what "there were like eight rules"
+   was actually counting. Changing one of these means changing both. */
 const MEET={
-  single:  {t:'red kills you — get out of its lane',g:'shard'},
-  twin:    {t:'too wide to outrun — swipe to another ring',g:'swipe'},
-  gate:    {t:'every ring is blocked — tap to turn back',g:'tap'},
-  drift:   {t:'this one slides — keep moving',g:'shard'},
+  /* NOT "red kills you". It does not — not for the first two hits of any run,
+     because every run starts with two shields, and the level 1 card says so in
+     as many words twenty seconds earlier. The game was teaching a rule and
+     then visibly breaking it, which is the fastest way to make a player stop
+     trusting anything else it tells them. The lethal half is taught where it
+     becomes true: the LAST SHIELD popup, at the moment the bank empties. */
+  single:  {t:'red costs a shield — get out of its way',g:'shard'},
+  twin:    {t:'no room between them — swipe to another ring',g:'swipe'},
+  gate:    {t:'every ring is blocked — tap to turn around',g:'tap'},
+  /* NOT "these ones chase you", and not "keep moving" — a drifter is given a
+     fixed random heading well under player speed and never steers, and there
+     is no input in this game that stops you moving. Both halves named a
+     behaviour the player would then watch not happen. */
+  drift:   {t:'it slides — the gap moves with it',g:'shard'},
   blink:   {t:'harmless while dim — cross it then',g:'shard'},
-  driftgate:{t:'the wall slides — turn back early',g:'tap'},
-  blinktwin:{t:'only one is ever solid — wait your moment',g:'shard'},
+  driftgate:{t:'the wall slides — turn around early',g:'tap'},
+  blinktwin:{t:'only one is solid — cross the dim one',g:'shard'},
   bass:  {t:'bass bomb — clears the lane, drops the low end',g:'nova',soft:1},
   spot:  {t:'spotlight — you take the lead, taps pay double',g:'beat',soft:1},
   hyper: {t:'the gold star — untouchable at double speed',g:'star',soft:1},
@@ -3461,12 +3493,14 @@ function spawnSpike(){
          the unfamiliar verb */
       const ttag=(G.teach>0&&G.teachType===type)?1:0;
       if(type==='blinktwin'){
-        /* Half a cycle apart, so the pair alternates: there is always exactly
-           one lethal side and one gap. Both are briefly armed at the crossover
-           and never both dormant, which is what stops it being a free pass. */
+        /* Half a cycle apart AT DUTY 0.5, so the pair strictly alternates:
+           at every instant exactly one side is lethal and the other is the
+           gap. Never both dormant (no free pass) and — the half that used to
+           be false — never both armed, so "only one is solid at a time" is a
+           promise the mechanic actually keeps. */
         const bl=rand(4.4,6.2);
-        G.spikes.push(mkSpike(a,ring,{blink:true,bo:0,life:bl,tw:type,spot:ttag}));
-        G.spikes.push(mkSpike(a+off,ring,{blink:true,bo:BLINK*0.5,life:bl,tw:type,spot:ttag}));
+        G.spikes.push(mkSpike(a,ring,{blink:true,bo:0,duty:0.5,life:bl,tw:type,spot:ttag}));
+        G.spikes.push(mkSpike(a+off,ring,{blink:true,bo:BLINK*0.5,duty:0.5,life:bl,tw:type,spot:ttag}));
       }else{
         G.spikes.push(mkSpike(a,ring,{life:life,tw:type,spot:ttag}));
         G.spikes.push(mkSpike(a+off,ring,{life:life,tw:type,spot:ttag}));
@@ -3664,14 +3698,17 @@ function die(){
      player does not need another demand. */
   const secs=G.deadT-G.started;
   if(!G.didHop&&G.nRings>1)G.coach={t:'you never changed rings — swipe up or down',g:'swipe'};
-  else if(G.lastHit==='gate'||G.lastHit==='driftgate')G.coach={t:'gates want you to turn back — tap early',g:'tap'};
-  else if(G.lastHit==='blink')G.coach={t:'blinkers are harmless while dim — cross them then',g:'shard'};
-  else if(G.lastHit==='twin')G.coach={t:'twins are hopped, not outrun — swipe away',g:'swipe'};
-  /* every remaining named killer coaches from its own lesson line — the
-     chain used to go silent for a drifter or flicker-pair death past 30s,
-     which is precisely the death the mid-game hands out */
+  /* EVERY NAMED KILLER COACHES WITH ITS OWN LESSON, WORD FOR WORD. Four of
+     these were hand-written paraphrases sitting above the fallback that
+     already read MEET — so a gate death said "gates want you to turn back",
+     the gate banner said "every ring blocked", and the gate lesson said "every
+     ring is blocked", and the player was asked to notice those were one rule.
+     The fallback was right and the special cases were the bug. */
   else if(G.lastHit!=='single'&&MEET[G.lastHit])G.coach={t:MEET[G.lastHit].t,g:MEET[G.lastHit].g};
-  else if(secs<30)G.coach={t:'red kills you — hop away or turn around',g:'shard'};
+  /* a plain red got through, which by definition means the bank was empty:
+     name the state that made it lethal rather than contradicting the rule the
+     player was taught twenty seconds ago */
+  else if(secs<30)G.coach={t:'with no shields left, red kills',g:'shard'};
   else G.coach=null;
   /* A DEATH RE-ARMS THE LESSON IT DISPROVES, once per type per device: if
      the killer's lesson was already spent, the next encounter re-offers it
@@ -4017,9 +4054,15 @@ function deadSeqDone(){
    retry tap right after dying can never land on it by accident. */
 function shareRect(){
   const w=132*u,h=42*u;
-  /* cy+76u collided with the best-groove line at cy+78u once that was added.
-     Positioned against the LAST element above it, not against the score. */
-  return{x:cx-w/2,y:cy+92*u,w:w,h:h};
+  /* POSITIONED AGAINST A LINE THAT KEEPS MOVING. cy+76u collided with the
+     best-groove line at cy+78u once that was added; cy+92u then collided with
+     the retention line at cy+94u once THAT was added, so the pill was being
+     stroked straight through "next sound: twin synths at level 4" for every
+     player below tier 9 — which is nearly all of them, on the one screen
+     everybody reads. Sits below that line now, and is clamped off TAP TO RETRY
+     so a short viewport cannot stack the two instead. */
+  const bY=Math.min(H-24*u-safeBot,cy+R+52*u);
+  return{x:cx-w/2,y:Math.min(cy+108*u,bY-h-18*u),w:w,h:h};
 }
 function inShare(x,y){
   if(G.state!=='dead'||G.t-G.deadT<=0.6||!deadSeqDone())return false;
@@ -4212,7 +4255,16 @@ const BLINK=SPB*2;
 /* bt restarts at 0 the moment a shard arms, so a pair cannot be staggered by
    seeding bt — bo shifts where in the cycle it starts instead. */
 function blinkPhase(s){return (s.bt+(s.bo||0))%BLINK;}
-function armed(s){return s.blink?(blinkPhase(s)<BLINK*0.55):true;}
+/* THE PROMISE HAS TO BE TRUE. A flicker pair is offset by exactly half a
+   cycle, so a 0.55 duty left BOTH sides armed for 10% of every cycle — and
+   the lesson explaining the pair says "only one is solid at a time". A
+   player who read the sentence, waited for the gap and died in it was not
+   misreading the game; the game was lying. A pair runs at duty 0.5, where
+   exactly one side is lethal at every instant and the sentence holds
+   literally. A lone blinker keeps 0.55 — it has nothing to contradict. */
+const BDUTY=0.55;
+function duty(s){return s.duty||BDUTY;}
+function armed(s){return s.blink?(blinkPhase(s)<BLINK*duty(s)):true;}
 function updateSpikes(sdt,lethal){
   const er=effRing(),pr=radiusOf(er);
   for(let i=G.spikes.length-1;i>=0;i--){
@@ -6030,8 +6082,8 @@ function draw(){
     }else if(s.phase===1){
       if(armed(s)){
         /* three kin, one halo: the silhouette says the behaviour, the shared
-           red glow keeps "red kills you" a single lesson. Gate segments keep
-           the plain crystal — the bar already tells their story. */
+           red glow keeps "red costs a shield" a single lesson. Gate segments
+           keep the plain crystal — the bar already tells their story. */
         /* rotated to the ring angle, so the baked bright face always looks
            back at the hub — one key light across the whole board */
         if(s.blink&&!s.gate)blit(SPR.shardBlink,p[0],p[1],1,s.a,1);
@@ -6042,7 +6094,7 @@ function draw(){
            q runs 1→0 across the window, and the old alpha followed it, so
            the shard was faintest at the exact moment it was about to become
            lethal. The countdown now runs the right way. */
-        const q=1-(blinkPhase(s)-BLINK*0.55)/(BLINK*0.45);
+        const q=1-(blinkPhase(s)-BLINK*duty(s))/(BLINK*(1-duty(s)));
         drawShardOutline(p[0],p[1],10*u,0.45+0.4*(1-q),true,1-q);
       }
     }else{
@@ -6381,16 +6433,24 @@ function drawMute(){
    are visible on screen: rings, stars, shields. */
 function hintGlyph(kind,x,y,s){
   const ph=RM?0.45:(G.t*0.85)%1;
+  /* THE GLYPH FADES WITH ITS SENTENCE. Every alpha below used to be an
+     absolute assignment, so a diagram ignored the globalAlpha its caller had
+     just set and punched in at full brightness while the words beside it were
+     still at zero. On the death screen that meant ~2.5 seconds of a lone red
+     diamond floating over the ladder explaining nothing, and on every level
+     card the row icons arrived before their own text. `ga` folds the caller's
+     alpha into all of them; nothing draws brighter than the line it labels. */
+  const ga=ctx.globalAlpha;
   ctx.save();
   ctx.lineCap='round';ctx.lineJoin='round';
   ctx.strokeStyle='#eaf3ff';ctx.fillStyle='#eaf3ff';ctx.lineWidth=1.9*u;
   if(kind==='tap'){
     /* a thumb press, and the reversal it causes */
-    ctx.globalAlpha=0.45*(1-ph)+0.15;ctx.lineWidth=2.4*u;
+    ctx.globalAlpha=ga*(0.45*(1-ph)+0.15);ctx.lineWidth=2.4*u;
     ctx.beginPath();ctx.arc(x,y,s*(0.26+0.5*ph),0,TAU);ctx.stroke();
-    ctx.globalAlpha=0.95;
+    ctx.globalAlpha=ga*(0.95);
     ctx.beginPath();ctx.arc(x,y,s*0.23,0,TAU);ctx.fill();
-    ctx.globalAlpha=0.85;ctx.lineWidth=2.2*u;
+    ctx.globalAlpha=ga*(0.85);ctx.lineWidth=2.2*u;
     for(const d of [-1,1]){
       ctx.beginPath();ctx.arc(x,y,s*0.62,d>0?-0.5:Math.PI-0.5,d>0?0.5:Math.PI+0.5);ctx.stroke();
       const a2=d>0?0.5:Math.PI+0.5, ax=x+Math.cos(a2)*s*0.62, ay=y+Math.sin(a2)*s*0.62;
@@ -6400,44 +6460,44 @@ function hintGlyph(kind,x,y,s){
     }
   }else if(kind==='swipe'){
     /* two rings seen edge on, and a thumb crossing from one to the other */
-    ctx.globalAlpha=0.6;ctx.lineWidth=2.6*u;
+    ctx.globalAlpha=ga*(0.6);ctx.lineWidth=2.6*u;
     ctx.strokeStyle='rgba(150,190,255,1)';
     ctx.beginPath();ctx.moveTo(x-s*0.52,y-s*0.46);ctx.lineTo(x+s*0.52,y-s*0.46);ctx.stroke();
     ctx.beginPath();ctx.moveTo(x-s*0.52,y+s*0.46);ctx.lineTo(x+s*0.52,y+s*0.46);ctx.stroke();
     const ty=y-s*0.46+s*0.92*ph;
     ctx.strokeStyle='#eaf3ff';ctx.fillStyle='#eaf3ff';
-    ctx.globalAlpha=0.25;ctx.lineWidth=2.4*u;      /* the path already travelled */
+    ctx.globalAlpha=ga*(0.25);ctx.lineWidth=2.4*u;      /* the path already travelled */
     ctx.beginPath();ctx.moveTo(x,y-s*0.46);ctx.lineTo(x,ty);ctx.stroke();
-    ctx.globalAlpha=1;
+    ctx.globalAlpha=ga*(1);
     ctx.beginPath();ctx.arc(x,ty,s*0.2,0,TAU);ctx.fill();
     ctx.lineWidth=2.4*u;
     ctx.beginPath();ctx.moveTo(x-s*0.19,ty+s*0.16);ctx.lineTo(x,ty+s*0.36);
     ctx.lineTo(x+s*0.19,ty+s*0.16);ctx.stroke();
   }else if(kind==='star'){
-    blit(SPR.ember,x,y,s/26,0,0.95);
+    blit(SPR.ember,x,y,s/26,0,ga*0.95);   /* blit sets alpha absolutely too */
   }else if(kind==='shard'){
-    ctx.globalAlpha=0.95;ctx.fillStyle=COL.shard;
+    ctx.globalAlpha=ga*(0.95);ctx.fillStyle=COL.shard;
     ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);
     ctx.fillRect(-s*0.27,-s*0.27,s*0.54,s*0.54);ctx.restore();
   }else if(kind==='shield'){
-    ctx.globalAlpha=0.95;ctx.strokeStyle=COL.shield;ctx.fillStyle=COL.shield;
+    ctx.globalAlpha=ga*(0.95);ctx.strokeStyle=COL.shield;ctx.fillStyle=COL.shield;
     ctx.lineWidth=2.2*u;
     ctx.beginPath();ctx.arc(x,y,s*0.34,0,TAU);ctx.stroke();
     ctx.beginPath();ctx.arc(x,y,s*0.13,0,TAU);ctx.fill();
   }else if(kind==='beat'){
     /* the same contracting ring the comet wears, so the prompt names it */
-    ctx.globalAlpha=0.95;ctx.beginPath();ctx.arc(x,y,s*0.18,0,TAU);ctx.fill();
-    ctx.globalAlpha=0.25+0.55*ph;ctx.lineWidth=(1.3+1.6*ph)*u;
+    ctx.globalAlpha=ga*(0.95);ctx.beginPath();ctx.arc(x,y,s*0.18,0,TAU);ctx.fill();
+    ctx.globalAlpha=ga*(0.25+0.55*ph);ctx.lineWidth=(1.3+1.6*ph)*u;
     ctx.beginPath();ctx.arc(x,y,s*(0.62-0.34*ph),0,TAU);ctx.stroke();
   }else if(kind==='build'){
-    ctx.globalAlpha=0.28;ctx.fillStyle=COL.warp;
+    ctx.globalAlpha=ga*(0.28);ctx.fillStyle=COL.warp;
     ctx.fillRect(x-s*0.5,y-s*0.1,s,s*0.2);
-    ctx.globalAlpha=0.95;
+    ctx.globalAlpha=ga*(0.95);
     ctx.fillRect(x-s*0.5,y-s*0.1,s*(0.25+0.7*ph),s*0.2);
   }else if(kind==='warp'){
     /* the counter-rotating squares of the slow-mo orb, at the pace it gives
        you rather than the pace it spins at — the diagram should feel slow */
-    ctx.globalAlpha=0.95;ctx.strokeStyle=COL.warp;ctx.lineWidth=2.2*u;
+    ctx.globalAlpha=ga*(0.95);ctx.strokeStyle=COL.warp;ctx.lineWidth=2.2*u;
     ctx.save();ctx.translate(x,y);ctx.rotate(ph*Math.PI/2);
     ctx.strokeRect(-s*0.31,-s*0.31,s*0.62,s*0.62);ctx.restore();
     ctx.save();ctx.translate(x,y);ctx.rotate(-ph*Math.PI/2+Math.PI/4);
@@ -6445,7 +6505,7 @@ function hintGlyph(kind,x,y,s){
   }else if(kind==='nova'){
     /* the eight-point star of the nova orb, with one red square already
        turning: the sentence says what happens, this says it faster */
-    ctx.globalAlpha=0.95;ctx.strokeStyle=COL.nova;ctx.lineWidth=1.9*u;
+    ctx.globalAlpha=ga*(0.95);ctx.strokeStyle=COL.nova;ctx.lineWidth=1.9*u;
     ctx.save();ctx.translate(x,y);ctx.rotate(ph*Math.PI/4);
     ctx.beginPath();
     for(let i=0;i<16;i++){
@@ -6454,7 +6514,7 @@ function hintGlyph(kind,x,y,s){
       else ctx.lineTo(Math.cos(aa)*sr,Math.sin(aa)*sr);
     }
     ctx.closePath();ctx.stroke();ctx.restore();
-    ctx.globalAlpha=0.95;ctx.fillStyle=COL.nova;
+    ctx.globalAlpha=ga*(0.95);ctx.fillStyle=COL.nova;
     ctx.beginPath();ctx.arc(x,y,s*0.1,0,TAU);ctx.fill();
   }
   ctx.restore();
@@ -6505,7 +6565,8 @@ function hintText(){
       return {t:'swipe up or down to change ring',g:'swipe'};
   }
   if(!G.didLap&&a<22)return {t:'collect stars, then finish a lap',g:'star'};
-  if(!G.didDodge&&G.spikes.length)return {t:'red kills you \u2014 get out of its way',g:'shard'};
+  /* the same sentence MEET.single uses, because it is the same rule */
+  if(!G.didDodge&&G.spikes.length)return {t:'red costs a shield \u2014 get out of its way',g:'shard'};
   /* Named after the ring now visibly contracting onto the comet, and phrased
      as an invitation rather than an instruction — a struggling player does not
      need another demand. */
@@ -6514,7 +6575,7 @@ function hintText(){
      learned it weeks ago and has not used it today. */
   /* three rings up and camped on the outside: name what they are missing */
   if(G.nRings>=3&&G.campT>25)
-    return {t:'dive in \u2014 the music runs hotter inside',g:'swipe'};
+    return {t:'inside is tighter \u2014 the music runs hotter',g:'swipe'};
   if(G.bestGroove<2&&a>28&&G.groove<2)return {t:'tap in time with the beat',g:'beat'};
   /* Named at the ARC, where the answer actually is, and earlier — waiting
      until 34s meant most players never saw why a drop happened. */
@@ -6658,20 +6719,22 @@ function drawHUD(){
        second once per orbit, so the run's longest-commitment behaviour was
        also its least visible. It no longer claims to earn a drop by itself —
        everything feeds one meter now, and that meter is drawn below. */
-    if(G.hyper>0&&roomy){
+    /* ONE LINE OWNS top+154u. Four draws wrote to this exact y: the three
+       timed states, correctly chained with else-if, and then LAPS on its own
+       `if`, guarded against G.od alone. So a lap streak printed straight
+       through HYPERNOVA and through SPOTLIGHT ×2 — two of the three moments
+       the player most needs to read the state they are in, and both of them
+       moments a streak is likely to be running. The streak is the least urgent
+       of the four (it is ambient; the others are on a clock), so it yields to
+       all three rather than the guard growing one condition at a time. */
+    const timed=G.hyper>0?['HYPERNOVA','rgba(255,220,130,0.98)']:
+                G.od>0   ?['OVERDRIVE ×2','rgba(255,200,87,0.95)']:
+                G.spot>0 ?['SPOTLIGHT ×2','rgba(234,241,255,0.95)']:null;
+    if(timed&&roomy){
       ctx.globalAlpha=0.7+0.3*G.beat;
-      text('HYPERNOVA',cx,top+154*u,11*u,'800','rgba(255,220,130,0.98)',3);
+      text(timed[0],cx,top+154*u,11*u,'800',timed[1],3);
       ctx.globalAlpha=1;
-    }else if(G.od>0&&roomy){
-      ctx.globalAlpha=0.7+0.3*G.beat;
-      text('OVERDRIVE ×2',cx,top+154*u,11*u,'800','rgba(255,200,87,0.95)',3);
-      ctx.globalAlpha=1;
-    }else if(G.spot>0&&roomy){
-      ctx.globalAlpha=0.7+0.3*G.beat;
-      text('SPOTLIGHT ×2',cx,top+154*u,11*u,'800','rgba(234,241,255,0.95)',3);
-      ctx.globalAlpha=1;
-    }
-    if(G.lapStreak>=2&&roomy&&G.od<=0){
+    }else if(G.lapStreak>=2&&roomy){
       ctx.globalAlpha=0.5;
       text('LAPS \u00d7'+G.lapStreak,cx,top+154*u,9.5*u,'700',
         'rgba(255,200,120,0.85)',2);
@@ -6988,20 +7051,24 @@ function drawHUD(){
       text('best \u00b7 '+G.best,cx,ty+20*u,12*u,'700',
         'rgba(255,200,87,0.7)',2);
     }
-    /* The three orbs are rows now rather than the line "green saves you \u00b7
-       violet slows \u00b7 white clears", which asked a player to hold three colour
-       words in their head and match them to dots they had not seen yet. A row
-       draws the orb, so the match is made for them \u2014 and it still works for
-       anyone who cannot separate violet from white on a phone in sunlight. */
+    /* FOUR ROWS, NOT NINE. This is the densest block of text in the game and
+       the first thing anybody reads \u2014 the playtester who counted "like eight
+       rules" was counting this screen and the level 1 card together. Five rows
+       went and not one of them went untaught: the shield, the slow-mo orb and
+       the nova each get a hint-ladder rung the first time one is actually on
+       screen (see hintText), the inner ring gets the THIRD RING banner and the
+       camp hint, and the beat drop gets the build prompt and a 3\u20112\u20111 countdown.
+       Every one of those teaches beside the thing itself, which a row read
+       before the thing exists cannot do \u2014 and curriculum.mjs is what proves
+       this screen was not the last explanation any of them had.
+       What survives is what you need BEFORE you touch anything: the two
+       gestures, the thing that pays, and the thing that hurts. Each still
+       draws its own diagram, which is what made the colour-word line
+       ("green saves you \u00b7 violet slows \u00b7 white clears") unnecessary. */
     const rows=[['tap','tap anywhere to turn around'],
                 ['swipe','swipe up or down to change ring'],
-                ['swipe','inside is tighter — and the music gets hotter'],
                 ['star','collect stars \u2014 a full orbit pays big'],
-                ['shard','red kills you'],
-                ['shield','a shield takes one hit for you'],
-                ['warp','this orb slows everything down'],
-                ['nova','this orb turns every red into a star'],
-                ['beat','time the beat drop \u2014 huge bonus']];
+                ['shard','red costs a shield \u2014 then it kills']];
     /* LAID OUT FROM THE ROOM AVAILABLE, not from a constant. The key was eight
        rows at a hardcoded y0 away from running off the bottom of a short
        phone; it now takes the gap between the title and TAP TO START and
@@ -7098,8 +7165,14 @@ function drawHUD(){
     if(G.lands>0)brag.push(G.lands+(G.lands===1?' drop landed':' drops landed'));
     if(brag.length)
       text(brag.join('  ·  '),cx,cy+78*u,11*u,'600','rgba(170,135,255,0.7)',0);
-    /* the retention hook: name the sound the ladder is still holding */
-    if(G.tier<9){
+    /* the retention hook: name the sound the ladder is still holding.
+       IT YIELDS RATHER THAN STACKING. Moving the share pill below this line
+       fixed portrait but not landscape, where cy and bottomY are barely 140u
+       apart: there the pill's clamp lifts it straight back onto this line and
+       the collision returns. This is the most droppable row on the screen —
+       the score, the level, the coach and RETRY are all load-bearing — so on a
+       viewport with no room for both, it is the one that goes. */
+    if(G.tier<9&&cy+94*u<shareRect().y-9*u){
       const nx=G.tier>=6?['electric guitar',10]:G.tier>=3?['synth lead',7]:['twin synths',4];
       ctx.globalAlpha=el(lvAt+0.6)*0.9;
       text('next sound: '+nx[0]+' at level '+nx[1],cx,cy+94*u,10.5*u,'600',
