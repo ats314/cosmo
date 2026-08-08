@@ -922,34 +922,38 @@ function buildBus(){
    actually reproduce, so it is present on a speaker without being boomy. */
 let BED=null;
 /* ---------- music ----------
-   Adaptive layering, which is how games do this: ONE fixed tempo and key, with
-   layers entering as the difficulty clock rises. Nothing speeds up or changes
-   key mid-run, so it can never lurch; what changes is how much of the
-   arrangement you are hearing.
+   Adaptive layering, which is how games do this: ONE fixed tempo, with layers
+   entering as the difficulty clock rises. Nothing speeds up and nothing
+   changes key mid-LEVEL, so it can never lurch; what changes inside a level is
+   how much of the arrangement you are hearing.
 
-   In A minor, deliberately the same key the SFX pentatonic sits in, so nothing
-   the game plays can clash with what the music is doing underneath it.
-   i - VI - III - VII: the progression resolves without ever settling, which is
-   what you want under a run that is trying not to end. */
+   The key and the progression are per level, not per game — see PROG and
+   LV[].key. What every level shares is the constraint: its chords are drawn
+   from the natural minor of its own tonic, which is the mode the SFX
+   pentatonic is scaled into, so nothing the game plays can clash with what the
+   music is doing underneath it. That guarantee is the reason the progressions
+   are what they are, and musiccheck.mjs is where it is enforced.
+
+   CH below is level 1's row, and only that: applyLevelMusic overwrites it from
+   PROG on every level change. It is declared with real values rather than
+   empty because buildBed retunes from CH[0] before a level is ever started. */
 const BPM=104,SPB=60/BPM,STEPS=32;      /* 4 bars of 4, counted in eighths */
-const CH=[[110,220,261.63,329.63],      /* Am  */
-          [ 87.31,174.61,220,261.63],   /* F   */
-          [130.81,261.63,329.63,392],   /* C   */
-          [ 98,196,246.94,293.66]];     /* G   */
+const CH=[[110,220,261.63,329.63],      /* Am  — level 1's i  */
+          [ 87.31,174.61,220,261.63],   /* F   — level 1's VI */
+          [130.81,261.63,329.63,392],   /* C   — level 1's III */
+          [ 98,196,246.94,293.66]];     /* G   — level 1's VII */
 /* Pentatonic degrees for the arp and the counter-line, as indices into PENT. */
 /* ARP tops out at degree 4 (784Hz) on purpose: the player's floor is 784 and a
    boundary only reads as a boundary if the band actually stops below it. */
 const ARP=[0,2,4,2,3,2,4,3],CNT=[7,5,4,5,7,8,7,5];
-/* The score-anchored layer ladder — thresholds, and a two-bar riff (in
-   eighths; -1 rests) that stays under the player's register floor. */
+/* The score-anchored layer ladder. The riff and the solo it used to declare
+   here (RIFF, SOLO) are deleted: they were superseded by the per-level RIFFL
+   and SOLOL and had no reader left, so they sat in the distributed file as two
+   tunes nobody plays — and, worse, as the obvious thing to edit for anyone
+   trying to change the riff. */
 const LAYER_AT=[600,1400,2400,3600];
 const LAYER_NAME=['NEW LAYER: PULSE','NEW LAYER: SYNTH RIFF',
                   'NEW LAYER: SUB','NEW LAYER: SHIMMER'];
-const RIFF=[0,-1,2,-1,3,-1,2,-1, 0,-1,2,-1,4,3,2,-1];
-/* The written solo the lead plays over every payoff's afterglow — a four-bar
-   phrase in eighths (-1 rests), arcing up and resolving down. */
-const SOLO=[7,-1,8,-1,9,-1,8,7, -1,5,-1,7,-1,-1,5,-1,
-            6,-1,7,-1,9,-1,10,-1, 9,8,-1,7,-1,5,-1,-1];
 /* ---------- the payoff section ----------
    A drop is not a moment, it is a DOOR. What was shipped fired six voices for
    1.3s and then returned to exactly the arrangement it had been playing, so
@@ -975,29 +979,82 @@ const PAY=64,S16=SPB/4,PAYLEN=PAY*(SPB/2),PAYREST=9.24;
 /* 8 bars x 16 sixteenths of PENT degrees, -1 = rest. The accents are 3+3+2 and
    share not one position with ARP's straight eighths, which is what makes it
    read as a different piece of music rather than the same music louder. */
-const HOOK=[
-/*0 Am*/  8,-1,-1, 6,-1,-1, 5,-1,  6,-1,-1, 8,-1,-1, 9,-1,
-/*1 F */  8,-1,-1, 6,-1,-1, 5,-1,  3,-1,-1, 5,-1,-1,-1,-1,
-/*2 C */ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
-/*3 G */ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
-/*4 Am*/  8,-1,-1, 6,-1,-1, 5,-1,  6,-1,-1, 8,-1,-1, 9,-1,
-/*5 F */  8,-1,-1, 6,-1,-1, 5,-1,  3,-1,-1, 5,-1,-1,-1,-1,
-/*6 C */ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
-/*7 G */  9,-1,-1, 8,-1,-1, 7,-1,  6,-1,-1, 5,-1,-1,-1,-1];  /* the descent */
-/* sixteenths to the next note, so a note can be as long as the gap it owns */
-const HOOKG=(function(){const g=new Array(128).fill(0);
-  for(let s=0;s<128;s++){if(HOOK[s]<0)continue;let n=1;
-    while(n<16&&HOOK[(s+n)%128]<0)n++;g[s]=n;}return g;})();
+/* ONE HOOK FOR FOUR LEVELS was the last place "each level is its own song"
+   stopped being true. The payoff is the loudest, most-anticipated thing in
+   the game, and every level's peak stated the same tune transposed — so the
+   deeper a player got, the more the reward sounded like the reward they had
+   already been given.
+   The RHYTHM is shared on purpose, and that is not laziness. Those accent
+   positions are the hook's signature, they are what keeps it clear of ARP's
+   straight eighths, and they are the grid the response bars answer against.
+   Four different rhythms would be four different pieces of music; four
+   melodies over one rhythm is a game with a tune. So bars 2, 3 and 6 stay
+   the player's on every level, bar 7 is always the written descent, and only
+   the pitches move.
+   The bar comments below name bars, not chords. The rise latches at whichever
+   bar line comes next, so a section can begin on any of the four chords —
+   PAY = 2 x STEPS guarantees only that it ENDS where it started. The hook is
+   pentatonic throughout precisely so it does not care. */
+const HOOKL=[
+/* LIFT OFF — arcs up, falls back, reaches once at the top of the bar */
+[/*0*/  8,-1,-1, 6,-1,-1, 5,-1,  6,-1,-1, 8,-1,-1, 9,-1,
+ /*1*/  8,-1,-1, 6,-1,-1, 5,-1,  3,-1,-1, 5,-1,-1,-1,-1,
+ /*2*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*3*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*4*/  8,-1,-1, 6,-1,-1, 5,-1,  6,-1,-1, 8,-1,-1, 9,-1,
+ /*5*/  8,-1,-1, 6,-1,-1, 5,-1,  3,-1,-1, 5,-1,-1,-1,-1,
+ /*6*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*7*/  9,-1,-1, 8,-1,-1, 7,-1,  6,-1,-1, 5,-1,-1,-1,-1],  /* the descent */
+/* INTO THE RINGS — climbs, and the second bar ends ABOVE where it began, so
+   the statement hangs unanswered the way the level's own iv chord does */
+[/*0*/  5,-1,-1, 7,-1,-1, 8,-1,  7,-1,-1, 5,-1,-1, 7,-1,
+ /*1*/  8,-1,-1, 7,-1,-1, 5,-1,  7,-1,-1, 8,-1,-1,-1,-1,
+ /*2*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*3*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*4*/  5,-1,-1, 7,-1,-1, 8,-1,  7,-1,-1, 5,-1,-1, 7,-1,
+ /*5*/  8,-1,-1, 7,-1,-1, 5,-1,  7,-1,-1, 8,-1,-1,-1,-1,
+ /*6*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*7*/  8,-1,-1, 7,-1,-1, 6,-1,  5,-1,-1, 3,-1,-1,-1,-1],  /* the descent */
+/* THE STORM — narrow and insistent, built on a repeated note. The level whose
+   bass line is a climb gets the tune that refuses to move */
+[/*0*/  6,-1,-1, 6,-1,-1, 8,-1,  6,-1,-1, 5,-1,-1, 6,-1,
+ /*1*/  8,-1,-1, 8,-1,-1, 9,-1,  8,-1,-1, 6,-1,-1,-1,-1,
+ /*2*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*3*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*4*/  6,-1,-1, 6,-1,-1, 8,-1,  6,-1,-1, 5,-1,-1, 6,-1,
+ /*5*/  8,-1,-1, 8,-1,-1, 9,-1,  8,-1,-1, 6,-1,-1,-1,-1,
+ /*6*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*7*/  9,-1,-1, 8,-1,-1, 6,-1,  5,-1,-1, 4,-1,-1,-1,-1],  /* the descent */
+/* EVENT HORIZON — the widest leaps in the game. Over a tonic pedal a melody
+   can go anywhere, so this one does */
+[/*0*/  5,-1,-1, 9,-1,-1, 8,-1,  9,-1,-1, 5,-1,-1, 8,-1,
+ /*1*/  6,-1,-1,10,-1,-1, 9,-1,  8,-1,-1, 6,-1,-1,-1,-1,
+ /*2*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*3*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*4*/  5,-1,-1, 9,-1,-1, 8,-1,  9,-1,-1, 5,-1,-1, 8,-1,
+ /*5*/  6,-1,-1,10,-1,-1, 9,-1,  8,-1,-1, 6,-1,-1,-1,-1,
+ /*6*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*7*/ 10,-1,-1, 9,-1,-1, 8,-1,  6,-1,-1, 5,-1,-1,-1,-1]]; /* the descent */
 /* A SECOND ENDING for bars 4-5, played on every other section, so two drops
-   in a row never state the hook identically. 32 slots because the two bars
-   sit over different chords (Am then F); the accents keep the 3+3+2 grammar
-   or the bars stop reading as the same tune. */
-const HOOKB=[
-/*4 Am*/  8,-1,-1, 9,-1,-1,11,-1,  9,-1,-1, 8,-1,-1, 6,-1,
-/*5 F */  8,-1,-1, 6,-1,-1, 5,-1,  8,-1,-1, 9,-1,-1,-1,-1];
-const HOOKBG=(function(){const g=new Array(32).fill(0);
-  for(let s=0;s<32;s++){if(HOOKB[s]<0)continue;let n=1;
-    while(n<16&&HOOKB[(s+n)%32]<0)n++;g[s]=n;}return g;})();
+   in a row never state the hook identically. 32 slots per level because the
+   two bars sit over different chords; the accents keep the 3+3+2 grammar or
+   the bars stop reading as the same tune. */
+const HOOKBL=[
+[/*4*/  8,-1,-1, 9,-1,-1,11,-1,  9,-1,-1, 8,-1,-1, 6,-1,
+ /*5*/  8,-1,-1, 6,-1,-1, 5,-1,  8,-1,-1, 9,-1,-1,-1,-1],
+[/*4*/  5,-1,-1, 8,-1,-1, 9,-1,  8,-1,-1, 7,-1,-1, 5,-1,
+ /*5*/  7,-1,-1, 8,-1,-1, 9,-1, 10,-1,-1, 8,-1,-1,-1,-1],
+[/*4*/  6,-1,-1, 8,-1,-1, 6,-1,  9,-1,-1, 8,-1,-1, 6,-1,
+ /*5*/  8,-1,-1, 9,-1,-1, 8,-1, 10,-1,-1, 9,-1,-1,-1,-1],
+[/*4*/  5,-1,-1, 8,-1,-1,10,-1,  9,-1,-1, 8,-1,-1, 5,-1,
+ /*5*/  6,-1,-1, 9,-1,-1,11,-1, 10,-1,-1, 8,-1,-1,-1,-1]];
+/* sixteenths to the next note, so a note can be as long as the gap it owns.
+   One derivation for both tables now — it wraps on the table's own length,
+   which is what the two hand-written copies each did for their own size. */
+const hookGaps=function(tab){const L=tab.length,g=new Array(L).fill(0);
+  for(let s=0;s<L;s++){if(tab[s]<0)continue;let n=1;
+    while(n<16&&tab[(s+n)%L]<0)n++;g[s]=n;}return g;};
+const HOOKGL=HOOKL.map(hookGaps),HOOKBGL=HOOKBL.map(hookGaps);
 /* If the player answers with nothing, the band covers — but LATE in the bar,
    so the first half of every response bar is unconditionally theirs. */
 const GHOST=[-1,-1,-1,-1,-1,-1, 8,-1, 6,-1,-1, 5,-1,-1,-1,-1];
@@ -1123,11 +1180,19 @@ function kick(t,g){
     v.gain.exponentialRampToValueAtTime(0.0001,t+0.24);
     o.connect(v);v.connect(A.bed);o.start(t);o.stop(t+0.27);}catch(e){}
 }
-/* 1900Hz noise is what a phone reproduces of a snare; the 196Hz body is for
-   headphones and is deliberately half the gain. */
+/* 1900Hz noise is what a phone reproduces of a snare; the body underneath is
+   for headphones and is deliberately half the gain.
+   THE BODY IS TUNED NOW. It was a hardcoded 196Hz on every level — G3, which
+   is the VII in A minor and sits in key there for the obvious reason that A
+   minor is the key it was picked in. It is not in key anywhere else, and on
+   EVENT HORIZON it is a semitone above the tonic chord's own third, which is
+   the one level a good player spends twenty minutes inside. The interval was
+   what was wanted, so the interval is what is stored: a minor seventh over
+   whatever the level's tonic is. 110 * 2^(10/12) is 196.0, so level 1's snare
+   is unchanged to the cycle and the other three stop rubbing. */
 function snare(t,g,wet){
   hat(t,g,1900,0.17,wet);
-  note(196,t,0.085,'triangle',g*0.5,900,0);
+  note(CH[0][0]*1.7818,t,0.085,'triangle',g*0.5,900,0);
 }
 /* THE BASS VOICE: the drop's floor as an instrument — a saw growl a
    speaker can hear, a sine sub for headphones, a square glint for a phone.
@@ -1423,21 +1488,33 @@ function fireDrop(t){
      — a third of the budget spent where the target device reproduces nothing,
      smearing across the first two bars of the hook it exists to introduce.
      Shorter now, and the stabs moved up an octave to pre-echo the hook. */
-  note(55, t,0.55,'sawtooth',0.045,620);          /* headphone weight only */
-  note(110,t,0.60,'sawtooth',0.055,2600);
+  /* THE DROP WAS IN THE WRONG KEY ON THREE LEVELS OUT OF FOUR. Every pitch
+     below was an absolute literal — 55/110 and 41.2/82.4 and the 110/164.81
+     braam are A and E, chosen when A minor was the only key the game had. The
+     stabs beside them use PENT and transpose correctly, which is what hid it:
+     half of the loudest event in the game followed the level and half of it
+     did not. On THE STORM that fixed A natural sounds a semitone against F
+     minor's own A flat, at the single moment the arrangement is most exposed.
+     Written as intervals over the level's tonic now, which is what was always
+     meant — CH[0][0] is 110 on level 1, so level 1 is unchanged. */
+  const f=CH[0][0];
+  note(f*0.5,t,0.55,'sawtooth',0.045,620);        /* headphone weight only */
+  note(f,    t,0.60,'sawtooth',0.055,2600);
   note(PENT[8],t,0.45,'square',0.034,6000,-0.22);
   note(PENT[5],t,0.45,'square',0.034,6000, 0.22);
   hat(t,0.060,2400,0.55,0.55);                    /* the crash, wet */
   /* THE FLOOR DROPS OUT (playtest: "the payoff isn't big enough"). A real
      sub boom under the crash — headphone weight — its octave for the phone
-     speaker, and a long dark wash so the hit has a tail instead of an edge. */
-  note(41.2,t,0.90,'sine',0.060,320);
-  note(82.4,t,0.70,'triangle',0.050,700);
+     speaker, and a long dark wash so the hit has a tail instead of an edge.
+     The fifth BELOW the tonic, an octave and a fourth down: 2^(-17/12). */
+  note(f*0.374577,t,0.90,'sine',0.060,320);
+  note(f*0.749154,t,0.70,'triangle',0.050,700);
   hat(t,0.030,900,0.9,0.6);
   /* the braam: a fifth-stack brass bloom swelling out of the impact — the
-     trailer-score hit the playtest asked for by name */
-  swellPad(110,t,1.4,0.040,0);
-  swellPad(164.81,t,1.4,0.030,0.15);
+     trailer-score hit the playtest asked for by name. Tonic and its fifth,
+     which is what 110 and 164.81 were. */
+  swellPad(f,t,1.4,0.040,0);
+  swellPad(f*1.49831,t,1.4,0.030,0.15);
   /* No kick here on purpose. The caller runs payoffStep at this same t and its
      bar 0 fires one — the impact and the section starting are ONE event, and
      scheduling both put two kicks on the same sample. */
@@ -1519,14 +1596,19 @@ function payoffStep(t,ch,k){
   const pan=(pb%2)?0.30:-0.30,gh=(0.048+0.014*k)*w;
   /* every other section takes the second ending in bars 4-5 */
   const alt=(MU.payN%2===0)&&(pb===4||pb===5);
+  /* the level's own hook — see HOOKL. Clamped because payoffStep is reachable
+     from the menu demo and from a section still draining after a level change,
+     and a hook table is not something to read off the end of. */
+  const li=Math.max(0,Math.min(HOOKL.length-1,(G.level||1)-1));
+  const hk=HOOKL[li],hkg=HOOKGL[li],hb=HOOKBL[li],hbg=HOOKBGL[li];
   for(let j=0;j<2;j++){
     const s16=ps*2+j,ix=pb*16+s16;
-    const d=alt?HOOKB[(pb-4)*16+s16]:HOOK[ix];
+    const d=alt?hb[(pb-4)*16+s16]:hk[ix];
     if(d<0)continue;
     /* the pickups are earned: someone fighting for their life gets the tune's
        bones, someone working the controls gets it with all its ornaments */
     if((s16===3||s16===11)&&PLAY.heat<=0.30)continue;
-    const tt=t+j*S16,gap=alt?HOOKBG[(pb-4)*16+s16]:HOOKG[ix];
+    const tt=t+j*S16,gap=alt?hbg[(pb-4)*16+s16]:hkg[ix];
     lead(PENT[d],tt,gap>8?0.50:Math.min(0.34,0.06+0.075*gap),gh,5200,pan);
     /* the inner-ring crown: the hook doubled at the octave (five pentatonic
        degrees up), quieter and brighter — the fattest the record ever gets */
@@ -1595,18 +1677,23 @@ function fireLift(){
 }
 /* ONE BAR OF DRUMS. The band steps out, the kit walks a fill down through
    tom-voiced triangles, and the player's inputs land on top as snares and
-   kicks — see performerHit. The crash back in is scheduled by musicStep. */
+   kicks — see performerHit. The crash back in is scheduled by musicStep.
+   The toms were absolute too: 261.63 / 220 / 174.61 is C4 A3 F3, which is a
+   descending III - i - VI in A minor and nothing in particular anywhere else.
+   `kf` carries the fill into the level's key while leaving the figure written
+   in the A the rest of this file is written in; it is 1 on level 1. */
 function breakStep(beat,t){
+  const kf=CH[0][0]/110;
   hat(t+S16,0.008,4800,0.035,0,0,7600);  /* a 16th shaker keeps the grid audible */
   if(beat===0)kick(t,0.075);
   if(beat===1)hat(t,0.016,7200,0.05);
   if(beat===2){kick(t,0.050);hat(t,0.012,8000,0.04);}
-  if(beat===3)note(261.63,t,0.14,'triangle',0.05,1200,-0.2);
+  if(beat===3)note(261.63*kf,t,0.14,'triangle',0.05,1200,-0.2);
   if(beat===4)snare(t,0.055,0.35);
-  if(beat===5)note(220,t,0.14,'triangle',0.05,1100,0.2);
+  if(beat===5)note(220*kf,t,0.14,'triangle',0.05,1100,0.2);
   if(beat===6){snare(t,0.045,0.30);snare(t+S16,0.030,0.30);}
   if(beat===7){snare(t,0.050,0.35);snare(t+S16,0.055,0.40);
-    note(174.61,t,0.16,'triangle',0.05,1000,0);}
+    note(174.61*kf,t,0.16,'triangle',0.05,1000,0);}
 }
 /* Which layers are audible right now. Intensity is the difficulty clock, so
    the arrangement thickens as the run gets harder and a long run genuinely
@@ -1735,9 +1822,11 @@ function musicStep(i,t,k){
       /* the whaa breathes on EVEN bars; the strings answer on the odd
          ones — call and response instead of a pile on every downbeat */
       if((k>0.35||hot)&&bar%2===0)swellPad(ch[0],t,0.55,0.026+0.016*k,0);}
-    /* EACH LEVEL HAS ITS OWN BASSLINE — the largest single difference
-       between the three songs. L1 walks, L2 pushes off the beat (the
-       swung deep-house lean), L3 ROLLS relentless eighths. */
+    /* EACH LEVEL HAS ITS OWN BASSLINE. L1 walks, L2 pushes off the beat (the
+       swung deep-house lean), L3 ROLLS relentless eighths, L4 jumps the
+       octave. This used to be the largest single difference between the
+       songs, back when all four walked the same chords in different keys;
+       the progressions differ now too, so it is one of several. */
     if(G.level===1){
       if(beat===2)bassN(ch[0],t+S16,0.16,bg*0.80);
       if(beat===5)bassN(ch[3]/2,t,0.18,bg*0.85);
@@ -1749,10 +1838,20 @@ function musicStep(i,t,k){
       if(beat===3)bassN(ch[2]/2,t,0.17,bg*0.85);
       if(beat===4)bassN(ch[0],t+S16,0.11,bg*0.55);
       if(beat===6)bassN(ch[3]/2,t+S16,0.15,bg*0.80);
-    }else{
+    }else if(G.level===3){
       bassN(ch[0],t,beat%2?0.10:0.15,bg*(beat===0?1:(beat%2?0.5:0.72)));
       if(beat===4)bassN(ch[2]/2,t,0.14,bg*0.80);
       if(beat===7)bassN(ch[1]/2,t+S16,0.10,bg*0.55);
+    }else{
+      /* L4 JUMPS THE OCTAVE. Level 4 had no bassline of its own: the branch
+         above caught it, so the endless level — the one good players spend
+         most of a session inside — was the only level whose bottom end was
+         second-hand. It alternates root and octave on the eighths now, the
+         oldest bass figure the genre has. bassN puts a sine an octave under
+         whatever it is handed, so the weight never leaves the floor while the
+         audible fundamental keeps stepping up and back down. */
+      bassN(beat%2?ch[1]:ch[0],t,0.11,bg*(beat===0?1:(beat%2?0.62:0.80)));
+      if(beat===6)bassN(ch[3]/2,t+S16,0.12,bg*0.62);
     }
   }
   /* THE SOLO (playtest: "some keyboard solos"). After every payoff the lead
@@ -1860,10 +1959,12 @@ function musicStep(i,t,k){
   if((k>0.20||PLAY.heat>0.30||hot)&&beat===0&&bar%2===1)
     swellPad(bar%4===1?ch[2]*2:ch[3]*2,t,2.6,0.024+0.014*k,(bar%4<2)?-0.2:0.2);
   if((k>0.5||hot)&&bar%4===3&&beat===4)riser(t,2*SPB,0.016,1600);
-  /* EACH LEVEL IS ITS OWN SONG: key, chords, arp, bassline, riff and solo
-     all swap at startGame (the bed retunes itself from CH), and the kit has
-     a real identity per level — L2 swings with a soft clap lean, L3 drives
-     four-on-the-floor with an offbeat hat everywhere. */
+  /* EACH LEVEL IS ITS OWN SONG: key, chord SHAPE, arp, bassline, riff, solo
+     and payoff hook all swap at startGame (the bed retunes itself from CH),
+     and every level past the first has a kit identity — L2 swings with a soft
+     clap lean, L3 drives four-on-the-floor with an offbeat hat everywhere, L4
+     rides an open offbeat hat and doubles the floor. L1 is the reference: it
+     has no lean because it IS the lean the others are heard against. */
   if(G.level===2){
     if(beat===2||beat===6)hat(t+S16*1.16,0.007,4400,0.03,0,0,7200);
     if(beat===7)hat(t+S16,0.006,4200,0.03,0,0,7000);
@@ -1872,6 +1973,18 @@ function musicStep(i,t,k){
   if(G.level===3){
     if((beat===2||beat===6)&&ringOf()===0)kick(t,0.032);
     if((k>0.30||hot)&&beat%2===1)hat(t,0.008,4200,0.04,0,0.3,6800);
+  }
+  if(G.level===4){
+    /* AND LEVEL 4 HAD NO KIT EITHER — the branches above stopped at three, so
+       the only percussion identity the endless level ever had was whatever
+       the ring and the sky band happened to be lending it. It RIDES: the
+       offbeat hat is open rather than clipped (a long dark decay into the dub
+       delay, where L3's is a short tick), and the floor doubles onto the
+       half-beats once the run is warm. The level with no finish line is the
+       one that never stops driving. */
+    if(beat%2===1)hat(t,0.012,3600,0.15,0,0.35,6400);
+    if((k>0.25||hot)&&(beat===2||beat===6))kick(t,0.030);
+    if((k>0.45||hot)&&beat===7)snare(t+S16,0.022,0.28);
   }
   /* THE SKY FLAVOURS THE KIT (playtest: "more electro beats"). Each palette
      band the run climbs through puts its own spin on the percussion: band 1
@@ -1901,8 +2014,13 @@ function musicStep(i,t,k){
   /* the third layer was a SECOND bassline playing a different pattern
      against bassN — the single worst clash in the mix. It is a held sub
      drone now: one voice, one note per bar, pure weight under everything. */
+  /* ...and on level 4 it stops following the chord and becomes a PEDAL. That
+     level's progression leaves the tonic and returns inside four bars
+     (i VI VII i); pinning the sub to the tonic under it is what turns a chord
+     loop into a drone with harmony moving over the top, which is the whole
+     point of a pedal point. Every other level keeps the bar's own root. */
   if(G.score>=LAYER_AT[2]&&beat===0)
-    note(ch[0]/2,t,1.5,'triangle',0.020,300,0);
+    note((G.level===4?CH[0][0]:ch[0])/2,t,1.5,'triangle',0.020,300,0);
   if(G.score>=LAYER_AT[3]&&beat===7)
     note(PENT[11]*0.5,t+S16,0.22,'sine',0.010,3600,(bar%2)?0.35:-0.35,undefined,0.5);
   /* OVERDRIVE: eight bars of double-time — the eleventh notch. Every gate
@@ -1946,10 +2064,15 @@ function musicStep(i,t,k){
    A short percussive note tolerates the ~72ms average delay that quantising
    costs, where a sustained one would not. And consecutive inputs walk a figure
    instead of repeating a pitch, so tapping back and forth is a phrase. */
-/* All three figures stay inside 0..5 so the ring transposition below applies
-   uniformly. HOPOUT descends because outward means a LOWER ring index and a
-   lower register — the old tables played the rising figure while moving down. */
-const REVSEQ=[0,2,4,5,4,2,3,1],HOPIN=[2,3,5,4],HOPOUT=[3,2,0,1];
+/* The three figures live INLINE in performerHit, not here. There were named
+   constants at this line — REVSEQ, HOPIN, HOPOUT — with no reader and, having
+   drifted, with different values from the tables actually played: REVSEQ said
+   [0,2,4,5,4,2,3,1] where the live tap figure is [0,2,1,3,2,0,3,1]. The
+   comment they carried described their own range (0..5) as the reason the ring
+   transposition works, while the live tables stay inside 0..3. Anyone tuning
+   the tap phrase would have edited them and heard nothing change, then
+   believed a range claim that was not true of the running code. Deleted rather
+   than rewired: one copy of a table is the only safe number of copies. */
 /* THE CHORD IS THE INSTRUMENT (playtest: "I don't feel the game being
    harmonious with my movements... general music theory is off"). The old
    figures walked the pentatonic SCALE, which is in key but indifferent to
@@ -2439,19 +2562,30 @@ function panAt(x){return Math.max(-1,Math.min(1,((x-cx)/(W*0.5))*0.55));}
    together is consonant — which is what a ten-shard nova cascade needs. */
 /* Extended to fourteen so the PLAYER has a register above the band. Degrees
    0-4 are the band's; 4-13 are the player's, and every one of those is above
-   the ~500Hz a phone speaker gives up on. Still A minor pentatonic throughout,
-   so nothing here can clash with anything else. */
+   the ~500Hz a phone speaker gives up on. One minor pentatonic throughout,
+   scaled per level by LV[].key, so nothing here can clash with anything else.
+   THAT IS A CONSTRAINT ON THE CHORDS, NOT A FACT ABOUT THEM. A minor
+   pentatonic contains the tonic, third, fourth, fifth and seventh of its
+   scale, so it is consonant against any triad built from the natural minor
+   and is NOT safe against chords borrowed from outside it — a major dominant,
+   the obvious way to make a minor progression sound more finished, puts a
+   raised leading tone a semitone under the pentatonic's own seventh in every
+   sound effect the game has. Every row of PROG is diatonic to its own natural
+   minor for this reason and no other. musiccheck.mjs holds the line. */
 const PENT=[440,523.25,587.33,659.25,783.99,880,1046.5,1174.66,1318.5,1568,
             1760,2093,2349.32,2637];
 const PENT_BASE=PENT.slice();
 /* ---------- levels ----------
-   The run is three LEVELS now, each with a clear finish line on the
-   difficulty clock, an intro card naming the mechanics it will introduce,
-   and its own song — same 104bpm grid (the dub delay stays in time), but a
-   new key, new chords, new arp contour and a different lean to the kit.
-   Each level transposes DOWN (A minor, then G, then F): going deeper into
-   the game literally deepens the music. Progress persists; death retries
-   the level you are on, so later levels are trainable without regrinding. */
+   The run is four LEVELS, the first three with a clear finish line on the
+   difficulty clock, each with an intro card naming the mechanics it will
+   introduce, and each with its own song — same 104bpm grid (the dub delay
+   stays in time), but a new key, a new PROGRESSION, a new arp contour, its
+   own bassline, its own payoff hook and a different lean to the kit.
+   The keys descend a whole step at a time (A minor, then G, then F, then Eb):
+   going deeper into the game literally deepens the music. The progressions
+   are not transpositions of each other — see PROG, which is where the four
+   songs stop being one song. Progress persists; death retries the level you
+   are on, so later levels are trainable without regrinding. */
 /* THE CURRICULUM RULE (owner's spec, near-verbatim): every mechanic is
    introduced and explained by the end of level 2 \u2014 by the start of level 3
    the player knows how everything works and all of it is active. So level 1
@@ -2505,7 +2639,8 @@ const LV=[
     making level 3 both the exam and the middle of the game.
     Neither introduces anything: every tier still unlocks by dl 215, so the
     curriculum rule is untouched by the extra level. The fourth song drops
-    another whole step (A -> G -> F -> Eb); going deeper keeps deepening. */
+    another whole step (A -> G -> F -> Eb) and, since it is the level nobody
+    finishes, walks the one progression that never leaves home — see PROG. */
  {dl0:340,end:Infinity,name:'EVENT HORIZON', key:0.7071,
   mech:[['shard','no new tricks — everything at once'],
         ['star','how far can you ride?']]}];
@@ -2513,20 +2648,56 @@ const LV=[
    clamp against it — it used to sit 1,300 lines further down, which put it in
    its own temporal dead zone for everything that boots first. */
 const LEVEL_MAX=LV.length;
+/* FOUR KEYS WAS NOT FOUR SONGS. Every level walked the identical
+   i-VI-III-VII and differed only by transposition, so the harmony under
+   EVENT HORIZON was the harmony under LIFT OFF played lower — and the chord
+   loop is the one thing a player hears continuously for fifteen minutes.
+   "Each level is its own song" was true of the bassline, the riff and the
+   solo, and false of the thing underneath all three.
+   Each level owns a different minor-mode cadence now. The transposition
+   ladder is unchanged (A -> G -> F -> Eb, see LV[].key): going deeper still
+   deepens the music, and now it also changes what the music is DOING.
+
+   Every shape is diatonic to its level's natural minor, which is the
+   constraint that actually binds here: PENT is scaled by the same L.key and
+   every sound effect in the game speaks through it, so one chord from
+   outside the mode would put the entire SFX layer out of tune with the band.
+   Checked numerically rather than by ear — exact octaves, perfect fifths, and
+   no chord introducing a semitone rub against the pentatonic that the shipped
+   progressions did not already carry.
+
+   Level 1 is deliberately untouched: it is the first impression, and the
+   groove a returning player already knows. */
 const PROG=[
+ /* LIFT OFF — A minor — i VI III VII. Resolves without ever settling, which
+    is what you want under a run that is trying not to end. */
  [[110,220,261.63,329.63],[87.31,174.61,220,261.63],
-  [130.81,261.63,329.63,392],[98,196,246.94,293.66]],          /* Am F C G  */
- [[98,196,233.08,293.66],[77.78,155.56,196,233.08],
-  [116.54,233.08,293.66,349.23],[87.31,174.61,220,261.63]],    /* Gm Eb Bb F */
- [[87.31,174.61,207.65,261.63],[69.30,138.59,174.61,207.65],
-  [103.83,207.65,261.63,311.13],[77.78,155.56,196,233.08]],    /* Fm Db Ab Eb */
- /* EVENT HORIZON continues the descent: another whole step down, the same
-    i-VI-III-VII the other three walk. Level 4 crashed on arrival without this
-    — PROG, ARPL, RIFFL and SOLOL are all indexed by G.level-1 and all stopped
-    at three, so the fourth level read undefined. curriculum.mjs is the only
-    harness that drives far enough to have found it. */
+  [130.81,261.63,329.63,392],[98,196,246.94,293.66]],          /* Am F  C  G  */
+ /* INTO THE RINGS — G minor — i VII VI iv. The roots walk down and keep
+    walking: G F Eb C, the descending minor tetrachord, with the iv landing
+    below the tonic rather than closing above it — so every four bars the loop
+    hands itself back unresolved and has to climb to start again.
+    The iv is voiced at C2 rather than C3 for that reason and one other: the
+    pad glides between chords (setTargetAtTime, see the retune), so a chord
+    that leaps is a chord you HEAR swoop. C3 made this the largest glide in
+    the game at nine semitones; continuing the descent makes it three. */
+ [[98,196,233.08,293.66],[87.31,174.61,220,261.63],
+  [77.78,155.56,196,233.08],[65.41,130.81,155.56,196]],        /* Gm F  Eb Cm */
+ /* THE STORM — F minor — i III v VI. The roots climb: F Ab C spells the
+    tonic triad and Db leans one semitone past the top of it. The only one of
+    the four whose bass is a LINE rather than a set of leaps. */
+ [[87.31,174.61,207.65,261.63],[103.83,207.65,261.63,311.13],
+  [130.81,261.63,311.13,392],[138.59,277.18,349.23,415.30]],   /* Fm Ab Cm Db */
+ /* EVENT HORIZON — Eb minor — i VI VII i. A pedal: it leaves home and is
+    back inside four bars, forever, which is what the level with no finish
+    line should sound like. The third score layer pins its sub to the tonic
+    underneath (see the sub drone) so the bottom never moves at all.
+    Level 4 crashed on arrival before this row existed — PROG, ARPL, RIFFL and
+    SOLOL are all indexed by G.level-1 and all stopped at three, so the fourth
+    level read undefined. curriculum.mjs is the only harness that drives far
+    enough to have found it. */
  [[77.78,155.56,184.99,233.08],[61.74,123.47,155.56,184.99],
-  [92.50,184.99,233.08,277.18],[69.30,138.59,174.61,207.65]]]; /* Ebm Cb Gb Db */
+  [69.30,138.59,174.61,207.65],[77.78,155.56,184.99,233.08]]]; /* Ebm Cb Db Ebm */
 const ARPL=[[0,2,4,2,3,2,4,3],[0,3,1,4,2,4,3,1],[0,1,3,2,4,2,3,1],[0,4,2,3,1,3,4,2]];
 /* per-level written parts: the riff layer and the afterglow solo are
    different tunes on each level, not the same tune transposed */

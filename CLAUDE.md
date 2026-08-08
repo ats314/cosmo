@@ -46,13 +46,13 @@ Deployed to GitHub Pages from `main`. The published page is the product.
 | `README.md` | Design record — why the game is the way it is. |
 | `MECHANICS.md` | The mechanics ledger: one row per player-facing mechanic, where it is introduced, every channel that explains it. |
 | `LICENSE` | All-rights-reserved proprietary grant. |
-| `tools/*.mjs` | The four CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
-| `.github/workflows/pages.yml` | Runs all four checks on every PR; only `main` deploys. |
+| `tools/*.mjs` | The five CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
+| `.github/workflows/pages.yml` | Runs all five checks on every PR; only `main` deploys. |
 | `*.png`, `manifest.webmanifest` | Icons, share image, PWA manifest. |
 
 ## The checks
 
-All four run on every pull request and must pass. Run them locally before
+All five run on every pull request and must pass. Run them locally before
 pushing — they are fast and need nothing installed.
 
 ```sh
@@ -60,12 +60,22 @@ node tools/check.mjs       # parses; required elements; teaching-data drift
 node tools/smoke.mjs       # loads and plays the game in a stubbed DOM
 node tools/dropcheck.mjs   # the build meter still delivers beat drops
 node tools/curriculum.mjs  # nothing is left untaught by level 3
+node tools/musiccheck.mjs  # four levels, four songs, each in its own key
 ```
 
 `smoke.mjs` is the one that catches real bugs: it loads the game into a stubbed
 DOM and actually plays it — menu demo, taps, swipes, keyboard, minutes of
 simulated play, resize, tab visibility, death, retry, level 2. Audio stays off,
 which exercises every audio guard.
+
+`musiccheck.mjs` is the only harness that runs the arrangement. `smoke.mjs`
+removes WebAudio deliberately and `dropcheck.mjs` never drives past level 2, so
+before it existed the per-level songs had no coverage: deleting level 4's riff
+and solo rows left all four other checks green and crashed the browser. It
+stubs WebAudio instead of removing it and asserts on what was actually
+scheduled. **Anything that touches `PROG`, the hooks, the per-level basslines
+or kits, or any pitch in the audio path belongs in this harness** — a musical
+regression is otherwise invisible to CI by construction.
 
 **The harnesses are not deterministic.** The game uses unseeded `Math.random`,
 so run-length-dependent output (the `struggle` counter, death timings) varies
@@ -91,6 +101,17 @@ Breaking one of these is a product regression, not a style question.
   corrupts historical rows.
 - **Audio is optional everywhere.** The game must be completable with no
   WebAudio at all. Every audio path is guarded; keep it that way.
+- **Every chord is diatonic to its level's natural minor, and every pitch is
+  written as an interval over the level's tonic.** These are one rule seen from
+  two sides. The SFX pentatonic is scaled into each level's key and every sound
+  in the game speaks through it, so a chord borrowed from outside the mode —
+  a major dominant being the obvious temptation — puts the entire effects layer
+  a semitone out against the band. And an absolute pitch is a chord from
+  outside the mode on three levels out of four: the beat drop, the snare body
+  and the tom fill were each hardcoded to A-minor pitches and each rang wrong
+  everywhere else, unnoticed for as long as the levels differed only by
+  transposition. Never write a bare frequency into the audio path. `PROG` and
+  `musiccheck.mjs` are where both halves are enforced.
 - **No aimed input.** There is no target to hit anywhere in this game. Landing
   the beat drop is *any* move in the window, wherever the thumb is.
 - **A lesson may only reference actions and objects the game actually has.**
