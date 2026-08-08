@@ -130,13 +130,45 @@ Breaking one of these is a product regression, not a style question.
 
 ## Workflow
 
-- Develop on the branch assigned for the session; never push to a different
-  branch without explicit permission. Never commit directly to `main`.
-- Open pull requests as drafts. All four checks must be green.
+**You are the agent. You ship. The owner gives guidance, not process steps.**
+
+That means the whole mechanical chain is yours and none of it is worth asking
+about: branch, commit, push, open the pull request, watch the checks, merge it,
+and update the docs in the same breath. A green pull request sitting open is not
+a finished task — it is a task stopped one step early.
+
+This paragraph exists because of a specific failure. This file used to say
+"open pull requests as drafts", and a session read that as *stop here and wait
+to be told*. It left two green pull requests open, reported them as the
+deliverable, and the owner had to say "merge" three times, the last two in
+capitals. The instruction was about how a pull request starts, not about who
+finishes it, but it was the only sentence here about merging and so it became
+the rule. It is replaced rather than clarified.
+
+- **Merge your own work.** Open pull requests ready for review, not as drafts.
+  Squash-merge as soon as all five checks are green — that matches the history,
+  where each commit on `main` carries its `(#N)`. Do not ask first. Do not wait
+  for review that was never coming.
+- **Never merge red, and never merge unverified.** The five checks are the gate,
+  and `main` publishes to the live page on merge, so a red merge is a broken
+  product for real players. If a check fails, fix it or say plainly why you are
+  not going to.
+- **Never commit directly to `main`.** This is not an approval gate; it is how
+  CI gets to run before the deploy does. The pull request is the mechanism, not
+  the permission.
+- **Develop on the branch assigned for the session.** Push somewhere else only
+  with explicit permission — but splitting unrelated work onto its own branch is
+  usually the right instinct, so ask for it rather than shipping a pull request
+  that does two things.
+- **Say what you could not verify.** The thing genuinely worth escalating is
+  never the merge; it is judgement the agent does not have. You cannot hear the
+  audio or see the screen. Ship the work and name what needs the owner's ears
+  and eyes, rather than holding the work hostage to it.
 - Commit messages in this repo are substantive: what changed, and *why* it was
   wrong before. Match that register.
 - Update `README.md` when behaviour changes, `MECHANICS.md` when a mechanic
-  changes, and this file when a constraint changes.
+  changes, and this file when a constraint changes. Unprompted, in the same
+  commit. Documentation is part of the change, not a follow-up.
 
 ## Reviewing this repository
 
