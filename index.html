@@ -5592,8 +5592,10 @@ function draw(){
      near-black stage and every gameplay object wins its contrast back. The
      atmosphere lives in the corners, where eyes rest between moments. */
   if(SPR.pool){
-    const pw=SPR.pool.w;
-    ctx.drawImage(SPR.pool.c,cx-pw/2,cy-pw/2,pw,pw);
+    /* the stage stretches with the arena too, or the top and bottom of the
+       ellipse hang outside the darkening the whole contrast budget depends on */
+    const pw=SPR.pool.w,ph=pw*AY;
+    ctx.drawImage(SPR.pool.c,cx-pw/2,cy-ph/2,pw,ph);
   }
 
   ctx.save();
@@ -5608,7 +5610,23 @@ function draw(){
   for(let i=0;i<G.nRings;i++){
     const rr=radiusOf(i),on=(G.hopP>=1&&G.ringI===i);
     const tn=RINGS[Math.min(RINGS.length-1,i)].tint;
-    if(SPR.ringCh&&SPR.ringCh[i])blit(SPR.ringCh[i],cx,cy,1,0,on?1.0:0.6);
+    /* THE CONDUIT IS BAKED, SO IT CANNOT FOLLOW AY THE WAY A PATH CAN.
+       Every orbit PATH became an ellipse with the arena, but this ring is a
+       pre-rendered circular cross-section blitted at the hub — it stayed
+       perfectly round underneath its own elliptical track, which is exactly
+       what a playtester photographed. Stretching it at draw time puts the
+       geometry right. The channel walls do thicken toward the top and bottom
+       of the loop as a consequence; on a soft gradient band that reads as the
+       track leaning away rather than as an error, and it is the only way to
+       keep a baked cross-section on an elliptical path. */
+    if(SPR.ringCh&&SPR.ringCh[i]){
+      const sp=SPR.ringCh[i],d=sp.s;
+      ctx.save();
+      ctx.globalAlpha=on?1.0:0.6;
+      ctx.translate(cx,cy);ctx.scale(1,AY);
+      ctx.drawImage(sp.c,-d/2,-d/2,d,d);
+      ctx.restore();
+    }
     ctx.save();
     ctx.globalCompositeOperation='lighter';
     const mine=effRing()===i;
