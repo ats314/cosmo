@@ -205,6 +205,43 @@ const PROG = $('PROG');
 const HOOKL = $('HOOKL');
 const LEVELS = [1, 2, 3, 4];
 
+console.log('--- the SFX scale is in the same key as the band ---');
+/* THE HALF OF THE INVARIANT NOTHING WAS CHECKING. CLAUDE.md states it as one
+   rule: every chord is diatonic to its level's natural minor, because the SFX
+   pentatonic is scaled into that key and every sound in the game speaks
+   through it. The chord half was enforced below. The other half — that the
+   scale and the chords are in the SAME key — was not enforced anywhere.
+
+   Two tables have to agree and nothing made them: LV[].key scales PENT (every
+   sound effect), and PROG carries the chords (the band). Change one without
+   the other and the entire effects layer plays in a different key from the
+   music, with every check green. That is not a hypothetical drift — it is the
+   single edit most likely to be made by someone retuning a level, since the
+   key value looks like the place a key lives. */
+{
+  const PENT_BASE = $('PENT_BASE');
+  const pc = f => ((Math.round(69 + 12 * Math.log2(f / 440)) % 12) + 12) % 12;
+  const NOTE = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+  const LV = $('LV');
+  for (const L of LEVELS) {
+    const key = LV[L - 1].key;
+    const tonic = pc(PROG[L - 1][0][0]);
+    /* the minor pentatonic degrees, in semitones over the tonic */
+    const want = new Set([0, 3, 5, 7, 10].map(d => (tonic + d) % 12));
+    const got = new Set(PENT_BASE.map(f => pc(f * key)));
+    const extra = [...got].filter(p => !want.has(p));
+    const missing = [...want].filter(p => !got.has(p));
+    if (extra.length || missing.length) {
+      fail(`level ${L}: the SFX pentatonic is not the minor pentatonic of `
+        + `${NOTE[tonic]} — LV[${L - 1}].key (${key}) and PROG[${L - 1}] disagree about the key. `
+        + `unexpected ${extra.map(p => NOTE[p]).join(',') || 'none'}; `
+        + `absent ${missing.map(p => NOTE[p]).join(',') || 'none'}`);
+    } else {
+      ok(`level ${L}: SFX scale is ${NOTE[tonic]} minor pentatonic, matching its chords`);
+    }
+  }
+}
+
 console.log('--- every level schedules its own harmony ---');
 const heard = {};
 for (const L of LEVELS) {
