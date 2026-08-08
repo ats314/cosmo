@@ -2469,11 +2469,10 @@ const LV=[
  {dl0:90, end:215, name:'INTO THE RINGS', key:0.8909,
   mech:[['shard','gates block every ring \u2014 turn back'],
         ['shard','drifters slide \u2014 blinkers wink in and out'],
-        ['shard','then: sliding walls and flickering pairs'],
         ['nova','new orbs: bass bomb, spotlight, the gold star'],
         ['beat','run hot: overdrive, drum breaks']]},
  {dl0:215,end:340,name:'THE STORM', key:0.7937,
-  mech:[['shard','no new tricks \u2014 everything at once'],
+  mech:[['shard','sliding walls, then flickering pairs'],
         ['beat','the full band'],
         ['star','survive to the dive']]},
  /* THE STORM used to be endless and therefore last. It has a finish line and a
@@ -2497,21 +2496,31 @@ const PROG=[
  [[98,196,233.08,293.66],[77.78,155.56,196,233.08],
   [116.54,233.08,293.66,349.23],[87.31,174.61,220,261.63]],    /* Gm Eb Bb F */
  [[87.31,174.61,207.65,261.63],[69.30,138.59,174.61,207.65],
-  [103.83,207.65,261.63,311.13],[77.78,155.56,196,233.08]]];   /* Fm Db Ab Eb */
-const ARPL=[[0,2,4,2,3,2,4,3],[0,3,1,4,2,4,3,1],[0,1,3,2,4,2,3,1]];
+  [103.83,207.65,261.63,311.13],[77.78,155.56,196,233.08]],    /* Fm Db Ab Eb */
+ /* EVENT HORIZON continues the descent: another whole step down, the same
+    i-VI-III-VII the other three walk. Level 4 crashed on arrival without this
+    — PROG, ARPL, RIFFL and SOLOL are all indexed by G.level-1 and all stopped
+    at three, so the fourth level read undefined. curriculum.mjs is the only
+    harness that drives far enough to have found it. */
+ [[77.78,155.56,184.99,233.08],[61.74,123.47,155.56,184.99],
+  [92.50,184.99,233.08,277.18],[69.30,138.59,174.61,207.65]]]; /* Ebm Cb Gb Db */
+const ARPL=[[0,2,4,2,3,2,4,3],[0,3,1,4,2,4,3,1],[0,1,3,2,4,2,3,1],[0,4,2,3,1,3,4,2]];
 /* per-level written parts: the riff layer and the afterglow solo are
    different tunes on each level, not the same tune transposed */
 const RIFFL=[
  [0,-1,2,-1,3,-1,2,-1, 0,-1,2,-1,4,3,2,-1],
  [0,-1,-1,3,-1,2,-1,-1, 1,-1,-1,3,-1,4,-1,2],
- [0,2,-1,0,3,-1,0,2, 4,-1,3,2,-1,0,-1,-1]];
+ [0,2,-1,0,3,-1,0,2, 4,-1,3,2,-1,0,-1,-1],
+ [0,-1,2,3,-1,2,0,-1, 3,4,-1,3,2,-1,0,-1]];
 const SOLOL=[
  [7,-1,8,-1,9,-1,8,7, -1,5,-1,7,-1,-1,5,-1,
   6,-1,7,-1,9,-1,10,-1, 9,8,-1,7,-1,5,-1,-1],
  [5,-1,-1,7,-1,8,-1,-1, 9,-1,8,-1,7,-1,-1,5,
   -1,6,-1,8,-1,-1,9,-1, 10,-1,9,8,-1,7,-1,-1],
  [7,7,-1,9,-1,7,9,-1, 10,-1,9,-1,8,7,-1,-1,
-  5,-1,7,-1,8,-1,9,10, -1,9,-1,7,-1,5,-1,-1]];
+  5,-1,7,-1,8,-1,9,10, -1,9,-1,7,-1,5,-1,-1],
+ [9,-1,10,-1,9,8,-1,7, -1,9,-1,10,-1,12,-1,10,
+  9,-1,7,-1,8,-1,9,-1, 7,5,-1,7,-1,-1,5,-1]];
 function applyLevelMusic(){
   const L=LV[G.level-1];
   for(let i=0;i<PENT.length;i++)PENT[i]=PENT_BASE[i]*L.key;
@@ -2873,11 +2882,22 @@ const TIERS=[
   {at:18, type:'twin',  name:'TWIN SHARDS', sub:'too wide to outrun \u2014 swipe to another ring'},
   {at:40, type:null,    name:'THIRD RING',  sub:'inside is tighter, faster and higher',rings:3},
   {at:100,type:'gate',  name:'GATES',       sub:'every ring blocked \u2014 tap to turn back'},
-  {at:122,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
-  {at:144,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
-  {at:166,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
-  {at:188,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
-  {at:215,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
+  {at:128,type:'drift', name:'DRIFTERS',    sub:'these ones chase you \u2014 keep moving'},
+  {at:165,type:'blink', name:'BLINKERS',    sub:'harmless while dim \u2014 pass them then'},
+  /* THE TWO HARDEST SHAPES NOW LAND IN LEVEL 3 (owner: "the hardest mechanics
+     should be reserved for level 3 teaching, that will allow more time to
+     learn"). Both are COMPOUNDS — a gate that also drifts, a twin that also
+     blinks — so meeting them 22 dl-seconds apart, immediately after meeting
+     their two ingredients, was the densest stretch in the game and landed
+     exactly where a playtester reported losing track of the rules.
+     Adding level 4 had made this worse rather than better: every tier still
+     unlocked inside dl 0-215 while an entire level, dl 215-340, taught
+     nothing. Level 2 now carries three shapes ~35 apart instead of five ~22
+     apart, level 3 carries the two compounds 55 apart with room for their
+     lessons to find calm, and level 4 is the exam. */
+  {at:240,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn back early'},
+  {at:295,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is ever solid \u2014 wait for it'},
+  {at:340,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
 ];
 function tierIndex(){
   const d=dl();

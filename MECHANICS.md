@@ -8,7 +8,16 @@ Level 3 opens with everything known and everything active.**
 Difficulty-level (`dl`) values are difficulty-seconds — see `dl()` in
 `index.html`. Level windows: level 1 spans dl 0–90, level 2 spans 90–215,
 level 3 spans 215–340, and level 4 is 340 onward. A tier marked *(moved)* was
-pulled forward by the curriculum pass so nothing new is ever met past level 2.
+pulled forward by the curriculum pass so nothing new is ever met past level 3.
+
+**Teaching runs through level 3 now.** The two compound shapes — a gate that
+also drifts, a twin that also blinks — used to arrive 22 dl-seconds apart at
+the end of level 2, immediately after their two ingredients, which was the
+densest stretch in the game and exactly where a playtester reported losing
+track of the rules. Adding level 4 had made that worse rather than better:
+every tier still unlocked inside dl 0–215 while an entire level taught nothing.
+Level 2 now carries three shapes ~35 apart instead of five ~22 apart, level 3
+carries the two compounds 55 apart, and level 4 is the exam.
 
 **Level 3 used to be endless and therefore last.** It has a finish line and a
 star dive of its own now, and level 4 (EVENT HORIZON) took over as the level
@@ -49,15 +58,20 @@ there were exactly three levels.
 | Gates | One angle blocked on EVERY ring — hopping cannot save you; reverse. Checked for solvability before spawning. | dl 100 | banner, MEET lesson, death coach |
 | Drifters | Shards that slide along their ring; the chevron's point leads their motion. | dl 122 *(moved from 205)* | banner, MEET lesson, longer first telegraphs, death coach *(new)* |
 | Blinkers | Phase on a two-beat cycle: harmless while dim, lethal while lit; the core fills as re-arm approaches. | dl 144 *(moved from 250)* | banner, MEET lesson, longer first telegraphs, death coach |
-| Sliding gates | A gate whose wall drifts — reverse early, the exit is crowding shut. | dl 166 *(moved from 295)* | banner, MEET lesson, death coach |
-| Flicker pairs | A twin whose halves alternate: exactly one is ever solid, one gap at a time. | dl 188 *(moved from 340)* | banner, MEET lesson, death coach *(new)* |
 | Hypernova (gold star) | Sixteen beats of invincibility at nearly double speed: reds convert to paying embers on contact, everything pays double, the kit doubles to sixteenths. | guaranteed first post-curriculum placement on level 2 | MEET lesson naming the speed *(reworded)*, no slow-mo *(fixed)* |
 | Bass bomb (cyan orb) | Clears every shard in the neighbourhood and drops the low end. | guaranteed on level 2 *(new — was a dice roll)* | MEET lesson |
 | Spotlight (white/violet orb) | Four bars where you are the lead: your instrument doubles, tight taps pay double. | guaranteed on level 2 *(new — was a dice roll)* | MEET lesson, no slow-mo *(fixed)* |
 | Overdrive | Hold the heat near max for a full bar: eight bars of double-time with embers and on-beat taps paying double. | heat-driven, reachable late L1, named on L2 card | "OVERDRIVE ×2" readout, gold band meter |
 | Drum break | The band steps out for a bar and your inputs ARE the fill — taps land as snares, hops as kicks. | heat-driven, named on L2 card | caption *(per-run again, new)*, input flashes — snare white, kick gold *(new)* |
 
-## Levels 3 and 4 — THE STORM, then EVENT HORIZON (the exam)
+## Level 3 — THE STORM (the last teaching level)
+
+| Mechanic | How it works | Introduced | Explained by |
+|---|---|---|---|
+| Sliding gates | A gate whose wall drifts — reverse early, the exit is crowding shut. | dl 240 *(moved into level 3)* | banner, MEET lesson, death coach |
+| Flicker pairs | A twin whose halves alternate: exactly one is ever solid, one gap at a time. | dl 295 *(moved into level 3)* | banner, MEET lesson, death coach |
+
+## Level 4 — EVENT HORIZON (the exam)
 
 | Mechanic | How it works | Introduced | Explained by |
 |---|---|---|---|

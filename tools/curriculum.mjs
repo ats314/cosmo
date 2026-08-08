@@ -1,9 +1,9 @@
 /* The curriculum rule, executed: every mechanic is introduced and explained
-   by the end of level 2 — by the start of level 3 the player has met every
+   by the end of level 3 — by the start of level 4 the player has met every
    formation, seen every lesson, and had every orb placed. This drives the
    real game headlessly (same scaffold as smoke.mjs) with an invulnerable,
    periodically-hopping player, taps through the level cards, and fails the
-   build if level 3 opens with anything left untaught. */
+   build if level 4 opens with anything left untaught. */
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
@@ -102,8 +102,11 @@ tap(pid++);                                       // card -> level 1
 
 const levelAt = { 1: 0 };
 let guard = 0, placedByEndL2 = null;
-while (st('G.level') < 3 || st('age()') < 30) {
-  if (++guard > 60000) { fail.push('never reached level 3 + 30s in 16 sim minutes'); break; }
+/* THE EXAM IS LEVEL 4 NOW. Teaching runs through level 3 — the two compound
+   shapes moved there so they get room instead of arriving 22 dl-seconds apart
+   at the end of level 2 — so the acceptance criterion moved with them. */
+while (st('G.level') < 4 || st('age()') < 30) {
+  if (++guard > 90000) { fail.push('never reached level 4 + 30s in 25 sim minutes'); break; }
   frame(16.7);
   if (guard % 30 === 0) st('G.invuln=1e12');      // an immortal playtester
   if (guard % 300 === 0 && st("G.state==='playing'") && st('G.nRings') > 1) {
@@ -117,7 +120,8 @@ while (st('G.level') < 3 || st('age()') < 30) {
     for (let i = 0; i < 60; i++) frame(16.7);
     const lv = st('G.lvCard&&G.lvCard.next');
     /* the placed flags reset each startGame, so level 2's record is read
-       at its completion card, before level 3 wipes them */
+       at its completion card, before the next level wipes them. The musical
+       orbs are still guaranteed on level 2 — only the two hard SHAPES moved */
     if (lv === 3 && st('G.lvCard.done') && !placedByEndL2) {
       placedByEndL2 = {
         hyper: st('G.hyperPlaced'), bass: st('G.bassPlaced'), spot: st('G.spotPlaced'),
@@ -129,22 +133,22 @@ while (st('G.level') < 3 || st('age()') < 30) {
   if (st("G.state==='dead'")) { fail.push('the invulnerable player died'); break; }
 }
 
-/* the acceptance criterion: level 3 opens with nothing left to teach —
+/* the acceptance criterion: level 4 opens with nothing left to teach —
    every formation AND every musical orb has had its lesson */
 const TAUGHT = ['single', 'twin', 'gate', 'drift', 'blink', 'driftgate', 'blinktwin',
   'bass', 'spot', 'hyper'];
-const seenAt3 = st('Object.keys(G.seen).join(",")');
+const seenAtExam = st('Object.keys(G.seen).join(",")');
 for (const f of TAUGHT) {
-  if (!st(`G.seen['${f}']||G.seen2['${f}']`)) fail.push(`level 3 started without the ${f} lesson (seen: ${seenAt3})`);
+  if (!st(`G.seen['${f}']||G.seen2['${f}']`)) fail.push(`level 4 started without the ${f} lesson (seen: ${seenAtExam})`);
 }
 if (!placedByEndL2) fail.push('level 2 completion card never observed');
 else for (const [flag, name] of [['hyper', 'hypernova'], ['bass', 'bass bomb'], ['spot', 'spotlight']]) {
   if (!placedByEndL2[flag]) fail.push(`level 2 ended without the ${name} ever placed`);
 }
-if (st('G.tier') !== 9) fail.push('level 3 did not open on the STORM tier, tier=' + st('G.tier'));
-if (st('G.level') !== 3) fail.push('run is not on level 3, level=' + st('G.level'));
+if (st('G.tier') !== 9) fail.push('level 4 did not open on the STORM tier, tier=' + st('G.tier'));
+if (st('G.level') !== 4) fail.push('run is not on level 4, level=' + st('G.level'));
 
-/* banners arrive in ladder order, none of them during level 3 */
+/* banners arrive in ladder order, none of them during level 4 */
 const order = banners.filter(([, b]) => b !== 'THE FINALE').map(([, b]) => b);
 const ladder = ['SECOND RING', 'TWIN SHARDS', 'THIRD RING', 'GATES', 'DRIFTERS',
   'BLINKERS', 'SLIDING GATES', 'FLICKER PAIRS'];
@@ -155,12 +159,12 @@ for (let i = 1; i < ladder.length; i++) {
   }
 }
 for (const [lv, b] of banners) {
-  if (lv >= 3 && ladder.includes(b)) fail.push(`tier banner "${b}" fired inside level 3 — the exam introduced something`);
+  if (lv >= 4 && ladder.includes(b)) fail.push(`tier banner "${b}" fired inside level 4 — the exam introduced something`);
 }
 
 if (fail.length) {
   for (const f of fail) console.error('FAIL ', f);
   process.exit(1);
 }
-console.log('OK  the curriculum holds: every formation lessoned and every orb placed by level 3');
+console.log('OK  the curriculum holds: every formation lessoned and every orb placed by level 4');
 console.log('    banners:', banners.map(([lv, b]) => `L${lv}:${b}`).join(' · '));
