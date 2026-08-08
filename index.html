@@ -2511,7 +2511,10 @@ const LV=[
     Two lines each now, and they say what the level IS rather than what it will
     contain. Nothing is left untaught, which curriculum.mjs verifies. */
  {dl0:90, end:215, name:'INTO THE RINGS', key:0.8909,
-  mech:[['shard','red starts arriving in shapes'],
+  /* TWIN unlocks at dl 18 and level 1 runs dl 0-90, so every reader of this
+     card has already met the shapes. GATES at dl 100 is what level 2 actually
+     opens with. */
+  mech:[['shard','red starts blocking whole rings'],
         ['beat','tap in time and the band grows']]},
  {dl0:215,end:340,name:'THE STORM', key:0.7937,
   mech:[['shard','the shapes start combining'],
@@ -2620,6 +2623,16 @@ function levelComplete(){
      must not hand out a second upgrade for dying */
   if(G.level+1<=LEVEL_MAX)rollOffer();
   G.carryScore=G.score;
+  /* THE WHOLE RUN, NOT THE LAST LEVEL. startGame restores the carried score
+     but zeroed every counter beside it and re-baselined the clock, so a player
+     who cleared three levels and died 30s into level 4 shared a four-figure
+     cumulative score next to "3 orbits · ×1 streak · 0:30" — a six-minute
+     session reported as half a minute, with the score as the only honest
+     number on a screen whose entire job is to summarise the run. */
+  G.carryOrbits=G.orbits;G.carryLands=G.lands;
+  G.carryStreak=Math.max(G.carryStreak,G.bestStreak);
+  G.carryGroove=Math.max(G.carryGroove,G.bestGroove);
+  G.carryTime=(G.carryTime||0)+Math.max(0,G.t-G.started);
   /* the deepest-level record is written where every other record is — at
      death, beside G.best — so the announcement can fire exactly once. Bumping
      it here instead meant the record had already moved by the time the death
@@ -2996,7 +3009,16 @@ const TIERS=[
      lessons to find calm, and level 4 is the exam. */
   {at:240,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn around early'},
   {at:295,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is solid \u2014 cross the dim one'},
-  {at:340,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
+  /* THE EYE, not STORM. This sub can never render — a dl 340 crossing on
+     level 3 always falls inside the suppressed endgame window, and on level 4
+     startGame pre-climbs G.tier before the first frame — but the NAME is the
+     only label tierLabel() can return on level 4, so every level-4 run printed
+     "LEVEL 4 · STORM" in the header, on the death screen and in the share
+     text, seconds after the card named the level EVENT HORIZON. LV[2].name is
+     'THE STORM'; two different things cannot share it. Renamed rather than
+     deleted: smoke.mjs asserts the last tier's `at` equals level 3's finish
+     line, so removing the entry fails the build. */
+  {at:340,type:null,    name:'THE EYE',     sub:'no new tricks \u2014 just more of everything'}
 ];
 function tierIndex(){
   const d=dl();
@@ -3169,7 +3191,8 @@ const G={
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
   newLevel:false, /* did this run reach deeper than any before it */
   swipeAsked:false,selRects:[],selPt:null,selFx:0,selFrom:null,swipeRect:null,
-  level:1,lvlMax:1,lvT:0,lvCard:null,carryScore:0, /* the three-level structure,
+  level:1,lvlMax:1,lvT:0,lvCard:null,carryScore:0,
+  carryOrbits:0,carryStreak:0,carryTime:0,carryLands:0,carryGroove:0, /* the three-level structure,
     and the deepest level ever reached — the only level record there is */
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
   orbits:0,bestStreak:0,shareFx:0, /* run summary, for the death screen and share */
@@ -3182,7 +3205,7 @@ const G={
   embers:0,blocks:0,phases:0,lastHit:'none', /* telemetry counters */
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
-  shields:0,invuln:0,slow:0,slowD:4,tsCur:1,sinceShield:0,revPend:0,didShield:false,
+  shields:0,invuln:0,slow:0,slowD:4,shMax:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
   didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,gotShield:false,
   gotBass:false,gotSpot:false,hyperPlaced:false,
   dropsEarned:0,loopN:0,nearN:0,bestCombo:0,holdTimeout:false, /* play-style aggregates for run_ended */
@@ -3459,7 +3482,14 @@ const MEET={
   blinktwin:{t:'only one is solid — cross the dim one',g:'shard'},
   bass:  {t:'bass bomb — clears the lane, drops the low end',g:'nova',soft:1},
   spot:  {t:'spotlight — you take the lead, taps pay double',g:'beat',soft:1},
-  hyper: {t:'the gold star — untouchable at double speed',g:'star',soft:1},
+  /* NOT "gold", and not "double". COL.hyper is '#ff4fd8' and SPR.powHyper
+     fills with it — the orb is magenta. Gold is COL.ember, the colour of the
+     ordinary collectibles the player is picking up continuously, so the one
+     sentence whose job is to identify the object sent them hunting for the
+     most common thing on screen. The speed is 1+0.9*hv, eased in and out, so
+     "double" rounded up on a value that spends a fifth of its life below even
+     1.9x. */
+  hyper: {t:'the pink star — untouchable and fast',g:'star',soft:1},
   mag:   {t:'magnetar — every ember comes to you',g:'star',soft:1},
   /* not a spawned object: fired by the first reversal that discards most of
      an orbit — the one rule of the scoring economy nothing else teaches */
@@ -3471,7 +3501,10 @@ const MEET={
      the moment the player first touches it. */
   music: {t:'your moves play the music — every tap is a note',g:'beat',soft:1},
   beat:  {t:'that was on the beat — tight timing pays and opens the band',g:'beat',soft:1},
-  combo: {t:'combo — each star pays more than the last',g:'star',soft:1}};
+  /* the chain caps at 6 (G.combo=Math.min(G.combo+1,6)) and the lesson fires
+     at 3, so it promised an unbounded climb three rungs before it flattened
+     and no player-facing string named the ceiling */
+  combo: {t:'combo — chain stars, up to +6 each',g:'star',soft:1}};
 function firstMeet(type){
   if(G.seen[type]||!MEET[type])return;
   /* A LESSON WAITS FOR A CALM BEAT. Mid-game, first encounters used to fire
@@ -3668,7 +3701,8 @@ function startGame(){
      ladder already climbed to the level's floor — silently, because the
      intro card just did the announcing */
   applyLevelMusic();
-  if(G.carryScore){G.score=G.carryScore;G.mile=Math.floor(G.score/250);G.carryScore=0;}
+  const carried=!!G.carryScore;
+  if(carried){G.score=G.carryScore;G.mile=Math.floor(G.score/250);G.carryScore=0;}
   /* seed the layer ladder from the carried score, or level 2's first frame
      fires a gold NEW LAYER braam for a layer that has been audible since
      the middle of level 1 — a false announcement that spends the channel's
@@ -3683,6 +3717,12 @@ function startGame(){
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
   G.build=0;G.buildFx=0;G.buildSeg=0;G.buildSrc={ember:0,hop:0,time:0,orbit:0};
   G.landFx=null;G.lands=0;G.secScore=0;G.secMult=1;G.secFx=null;
+  /* counters restored AFTER the resets above, so the carry survives them —
+     sums for the things you accumulate, max for the things you peak at. A run
+     that did not carry a score is a fresh run and clears them. */
+  if(carried){G.orbits=G.carryOrbits;G.lands=G.carryLands;
+    G.bestStreak=G.carryStreak;G.bestGroove=G.carryGroove;}
+  else{G.carryOrbits=0;G.carryLands=0;G.carryStreak=0;G.carryGroove=0;G.carryTime=0;}
   G.teach=0;G.teachKind=null;G.teachHint=null;G.campT=0;G.holdD=0;G.hopHintT=0;G.coach=null;
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
   G.sparkT=0;G.sparkN=0;
@@ -4043,7 +4083,7 @@ function hop(step){
    filled/hollow bar reports how far the run got without spoiling what is in
    the tiers you have not reached. */
 function runTime(){
-  const s=Math.max(0,Math.round(G.deadT-G.started));
+  const s=Math.max(0,Math.round((G.carryTime||0)+G.deadT-G.started));
   return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
 }
 function tierLabel(){
@@ -4618,7 +4658,13 @@ function update(dt){
          pickups leave, and two intro bars pass with the sequencer fading
          in before the first call. The duet then narrates itself with a
          STANDING instruction line for its whole length. */
-      G.banner={str:'THE FINALE',sub:'chase the brightest star \u2014 quick chains pay double',t:0};
+      /* NOT "UNLOCKED". Nothing is unlocked on this path — G.tier, G.nRings
+         and the spawn pool are untouched by the finale latch, and the tier
+         block is separately suppressed inside the endgame window — so every
+         player clearing a level read UNLOCKED / THE FINALE at the moment the
+         level was being taken away. One hardcoded eyebrow served two opposite
+         events, which no wording can fix. */
+      G.banner={str:'THE FINALE',eyebrow:'FINISH LINE',sub:'chase the brightest star \u2014 quick chains pay double',t:0};
       /* a hypernova carried into the dive would fight the dive's own
          momentum curve — the star gets a graceful second to wind down */
       G.hyper=Math.min(G.hyper,1.0);
@@ -4737,6 +4783,18 @@ function update(dt){
     if(G.hyper===0)G.invuln=Math.max(G.invuln,G.t+1.2);
   }
   G.hyperGlow+=(((G.hyper>0)?1:0)-G.hyperGlow)*Math.min(1,dt*3);
+  /* THE PROMISE IS WITHDRAWN ON A CLOCK, SO SAY SO. shieldMax() steps 3->4->5
+     at dl 160 and 320. A bank sitting full at 3/3 stops being full the instant
+     the clock crosses, the ember doubling stops with it, and nothing was ever
+     said — the player just watched their score rate drop for no visible
+     reason. The shimmer is closed at the same moment so the state and the
+     signal agree. */
+  const smx=shieldMax();
+  if(G.shMax&&smx>G.shMax&&G.shields>=G.shMax){
+    say('BANK DEEPER \u2014 one more to fill',2,6);
+    cueState(false);
+  }
+  G.shMax=smx;
   if(G.mag>0)G.mag=Math.max(0,G.mag-dt);
   G.magGlow+=(((G.mag>0)?1:0)-G.magGlow)*Math.min(1,dt*4);
   /* the layer ladder: a score crossing names the layer that just joined */
@@ -4834,7 +4892,7 @@ function update(dt){
       }
     }
     if(T.name){
-      G.banner={str:T.name,sub:T.subFn?T.subFn():T.sub,t:0};
+      G.banner={str:T.name,eyebrow:'UNLOCKED',sub:T.subFn?T.subFn():T.sub,t:0};
       fireLift();      /* ceremony, not a chorus — see fireLift */
       ripple(cx,cy,COL.ember);   /* earned, so gold — see the banner draw */
       /* the unlock call, reserved for banners alone — the generic triangle
@@ -4999,7 +5057,18 @@ function update(dt){
       if(MU&&MU.pay>0){
         const ex=G.combo*(G.secMult||1);
         G.score+=ex;G.secScore+=ex;
-      }else if(G.od>0||G.hyper>0||G.shields>=shieldMax())G.score+=G.combo; /* overdrive, hypernova — and a FULL shield bank — double the pickup */
+      /* SPOTLIGHT JOINS THE ONLY DOUBLING TEST IN THE GAME. Three strings
+         asserted "SPOTLIGHT x2" — the lesson, the say() and a HUD chip sitting
+         in the same slot and the same grammar as OVERDRIVE x2, which genuinely
+         doubles here — while the spotlight's complete effect inventory was a
+         flat +8 on a tight tap, performer gain x1.5 and a bed duck. Nothing
+         was doubled. Worse, under this repo's "audio is optional everywhere"
+         rule it paid literally ZERO: judgeTiming returns early without an
+         AudioContext, so no tap is ever judged tight, yet the orb is
+         force-placed on level 2 with no audio condition and the x2 chip draws
+         off G.spot alone. One token makes the badge true, makes it true with
+         no WebAudio, and puts it in the category it was already claiming. */
+      }else if(G.od>0||G.spot>0||G.hyper>0||G.shields>=shieldMax())G.score+=G.combo;
       G.lapEmbers++;G.embers++;
       const p=posAt(s.a,starR(s));
       burst(p[0],p[1],COL.ember,14,150);
@@ -5126,7 +5195,12 @@ function update(dt){
         }else{
           G.shields++;popup(p[0],p[1]-20*u,'SHIELD \u00d7'+G.shields,COL.shield);
           if(G.shields>=shieldMax()){
-            say('SHIELDS FULL \u2014 everything pays double',2,7);
+            /* NOT "everything". Exactly one score source doubles on a full
+               bank — the ember at the pickup above. The orbit, which is the
+               largest payout in the game at up to 86, is paid with a bare
+               G.score+=bonus, so a player who read "everything" watched
+               ORBIT +86 print unchanged seconds later. */
+            say('SHIELDS FULL \u2014 stars pay double',2,7);
             cueState(true);   /* overcharge opens \u2014 the rising shimmer */
           }
         }
@@ -5783,6 +5857,24 @@ function glRender(dt){
    frame and early-returns when the dimensions have not moved, which covers
    orientation changes for free. */
 glInit();glResize();
+/* A LOST CONTEXT WAS UNRECOVERABLE AND SILENT. There was no listener of either
+   kind: iOS drops a WebGL context under memory pressure or on a backgrounded
+   tab, and the default action of the lost event is to make restoration
+   impossible. The backdrop would simply stop, with GL.on still true, so
+   glRender kept issuing calls into a dead context every frame and the 2D
+   fallback — which exists precisely for this — never took over. Prevent the
+   default so a restore can happen, hand the backdrop to the 2D path meanwhile,
+   and rebuild on restore. */
+try{
+  if(GL.cv){
+    GL.cv.addEventListener('webglcontextlost',function(ev){
+      ev.preventDefault();GL.on=false;
+    },false);
+    GL.cv.addEventListener('webglcontextrestored',function(){
+      GL.vw=GL.vh=0;glInit();glResize();
+    },false);
+  }
+}catch(e){}
 function draw(){
   const amb=RM?0:G.t;
   /* The GPU paints the backdrop; the 2D canvas is cleared to transparent and
@@ -6886,7 +6978,11 @@ function drawHUD(){
       ctx.globalAlpha=1;
     }else if(G.lapStreak>=2&&roomy){
       ctx.globalAlpha=0.5;
-      text('LAPS \u00d7'+G.lapStreak,cx,top+154*u,9.5*u,'700',
+      /* NOT "xN". lapStreak is not a multiplier: the orbit pays
+         base+min(7*(streak-1),28), saturated at five laps, so x5, x7 and x20
+         all pay the same +28 while the number climbs on in the same slot and
+         the same idiom as OVERDRIVE x2, which is a real multiplier. */
+      text('LAPS '+G.lapStreak+' IN A ROW',cx,top+154*u,9*u,'700',
         'rgba(255,200,120,0.85)',2);
       ctx.globalAlpha=1;
     }
@@ -6939,7 +7035,7 @@ function drawHUD(){
          failure colour, which is a strange thing to do to the only reward the
          ladder ever hands out. Ember gold is what the game already uses for
          everything earned. */
-      text('UNLOCKED',cx,by-19*u,12*u,'800','rgba(255,200,87,0.75)',3);
+      text(b.eyebrow||'UNLOCKED',cx,by-19*u,12*u,'800','rgba(255,200,87,0.75)',3);
       textFx(b.str,cx,by,fitSz(b.str,20*u,'800',W-20*u,4),'800','#ffe9b0',COL.ember,'rgba(255,200,87,0.5)',4);
       text(b.sub,cx,by+20*u,fitSz(b.sub,12*u,'600',W-16*u),'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
@@ -7478,9 +7574,15 @@ function drawHUD(){
        the score, the level, the coach and RETRY are all load-bearing — so on a
        viewport with no room for both, it is the one that goes. */
     if(G.tier<9&&cy+94*u<shareRect().y-9*u){
-      const nx=G.tier>=6?['electric guitar',10]:G.tier>=3?['synth lead',7]:['twin synths',4];
+      /* 4, 7 and 10 were one-based TIER rungs printed with the word "level",
+         two lines below "LEVEL n" on a four-level ladder — the last surviving
+         breach of the two-ladders invariant, and the exact failure the retired
+         cometloop:level key exists because of. The correct numbers (1, 2, 4)
+         are non-monotonic against the player's own progress and would read as
+         a bug, so the ordinal goes; the ladder is drawn on this same screen. */
+      const nx=G.tier>=6?'electric guitar':G.tier>=3?'synth lead':'twin synths';
       ctx.globalAlpha=el(lvAt+0.6)*0.9;
-      text('next sound: '+nx[0]+' at level '+nx[1],cx,cy+94*u,10.5*u,'600',
+      text('next sound: '+nx+' \u2014 keep climbing',cx,cy+94*u,10.5*u,'600',
         'rgba(200,215,255,0.42)',0);
       ctx.globalAlpha=1;
     }

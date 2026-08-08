@@ -340,6 +340,58 @@ lesson never showed for exactly the person who needed them. The orb-naming
 hints now outrank it while an orb is on the board, and after ten unanswered
 seconds it alternates with the survival lessons on a slow cycle.
 
+**Ten more sentences that did not match the game.** The audit's remaining
+confirmed findings, cleared in one pass. Four needed the code to move, not the
+copy:
+
+- **`SPOTLIGHT ×2` doubled nothing.** Three strings asserted it — the lesson,
+  the announcement, and a HUD chip sharing a slot and a grammar with
+  `OVERDRIVE ×2`, which genuinely doubles. The spotlight's entire effect
+  inventory was a flat +8 on a tight tap, performer gain ×1.5 and a bed duck.
+  Worse, under this repo's *audio is optional everywhere* rule it paid
+  **literally zero**: `judgeTiming` returns early with no `AudioContext`, so no
+  tap is ever judged tight, yet the orb is force-placed on level 2 with no
+  audio condition and the chip draws off `G.spot` alone. Adding `G.spot>0` to
+  the game's one doubling test makes the badge true, and true without sound.
+- **Every level-clear ceremony was captioned `UNLOCKED`** — including the
+  finale, where nothing unlocks: the tier, the ring count and the spawn pool
+  are untouched by the finale latch. One hardcoded eyebrow served two opposite
+  events, so no wording could fix it; the banner carries its own eyebrow now
+  and the finale reads `FINISH LINE`.
+- **The death screen mixed one run-scoped number with three level-scoped
+  ones.** `startGame` restored the carried score but zeroed every counter
+  beside it and re-baselined the clock, so clearing three levels and dying 30s
+  into level 4 printed a four-figure cumulative score next to *"3 orbits · ×1
+  streak · 0:30"* — a six-minute session reported as half a minute. The
+  counters carry now: sums for orbits and drops, max for the streaks, and the
+  clock spans the run. Verified: 3 levels + 30s reads **5:15**, not 0:30.
+- **`TIERS[9]` was named `STORM`,** which is also `LV[2].name` (`THE STORM`).
+  Its `sub` can never render, but its *name* is the only label `tierLabel()`
+  can return on level 4 — so every level-4 run printed `LEVEL 4 · STORM` in the
+  header, on the death screen and in the share text, seconds after the card
+  named the level EVENT HORIZON. Renamed to `THE EYE`; deleting it would fail
+  `smoke.mjs`, which asserts the last tier sits on level 3's finish line.
+
+And six wordings:
+
+| was | now | because |
+|---|---|---|
+| the **gold** star — untouchable at double speed | the **pink** star — untouchable and fast | `COL.hyper` is `#ff4fd8`; gold is the colour of the ordinary embers |
+| SHIELDS FULL — **everything** pays double | SHIELDS FULL — **stars** pay double | the orbit payout, up to 86, is untouched |
+| combo — each star pays more than the last | combo — chain stars, **up to +6 each** | the chain caps at 6 and the lesson fires at 3 |
+| red starts arriving in shapes | red starts blocking whole rings | twins unlock at dl 18, inside level 1 |
+| next sound: X at **level 7 / 10** | next sound: X — keep climbing | those are tier rungs, on a four-level ladder |
+| LAPS **×**7 | LAPS 7 IN A ROW | the streak bonus saturates at five laps |
+
+Two more, from the bug hunt rather than the copy audit. `shieldMax()` steps
+3→4→5 on the difficulty clock, so a bank sitting full silently stopped being
+full and the doubling stopped with no message — that crossing now says **BANK
+DEEPER** and closes the shimmer. And there was **no `webglcontextlost` handler
+of either kind**: iOS drops a WebGL context under memory pressure, the default
+action makes restoration impossible, and `GL.on` stayed true so the renderer
+kept issuing calls into a dead context while the 2D fallback that exists for
+exactly this never took over.
+
 **Which way is out is now the player's call.** Playtester, verbatim: *"can you
 make it so slide up always changes to outer ring and down to inner? i think
 that's what my brain wants, so that would make it easier (for me,
