@@ -64,12 +64,12 @@ all of it converging on the same late game, none of it touching the ceiling.
 The run is **four levels**, each with an intro card and its own song. The
 first three have finish lines; the fourth does not:
 
-| Level | Name | Introduces | Song |
-|---|---|---|---|
-| 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor, the original groove |
-| 2 | INTO THE RINGS | gates, drifters, blinkers, bass bomb, spotlight, magnetar, the gold star | G minor, swung sixteenths |
-| 3 | THE STORM | the two compounds — sliding gates, flicker pairs — then a finish line | F minor, rolling four-on-the-floor |
-| 4 | EVENT HORIZON | **nothing** — the same storm with no exit, at the speed ceiling. Endless. | E♭ minor |
+| Level | Name | Introduces | Key | Progression | Groove |
+|---|---|---|---|---|---|
+| 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor | i–♭VI–♭III–♭VII | the original groove |
+| 2 | INTO THE RINGS | gates, drifters, blinkers, bass bomb, spotlight, magnetar, the gold star | G minor | i–♭VII–♭VI–iv | swung sixteenths, bass off the beat |
+| 3 | THE STORM | the two compounds — sliding gates, flicker pairs — then a finish line | F minor | i–♭III–v–♭VI | rolling four-on-the-floor |
+| 4 | EVENT HORIZON | **nothing** — the same storm with no exit, at the speed ceiling. Endless. | E♭ minor | i–♭VI–♭VII–i, over a tonic pedal | octave bass, open offbeat hat |
 
 Level 3 used to be the endless one. Giving it a finish line and handing
 "endless" to level 4 keeps *the last level is the exam* true, rather than
@@ -96,9 +96,12 @@ level 1's card too (once per device — it was dead data before: the one calm
 screen written to pre-teach the verbs never actually rendered), and a death
 on level 2 or 3 retries *through that level's card*, so the syllabus for
 exactly the mechanics that just killed you is re-read from a calm screen at
-the moment it is most relevant. Each level transposes DOWN a whole step
-(A → G → F): going deeper into the game literally deepens the music, with
-the same 104bpm grid so the dub delay never falls out of time. Every visit
+the moment it is most relevant. Each level's key drops a whole step
+(A → G → F → E♭): going deeper into the game literally deepens the music, with
+the same 104bpm grid so the dub delay never falls out of time. The keys
+descend but the songs are not transpositions of each other — each level walks
+a *different* progression, which is the difference between four keys and four
+songs. Every visit
 starts at level 1 — the game used to resume a device's highest unlock from
 the menu, and playtesters on shared or borrowed phones read that as "the
 game skipped level 1," so the resume was cut. Within a run nothing is
@@ -129,11 +132,61 @@ pattern). The fix is arrangement discipline, not more subtraction:
 - **Call and response on the downbeat.** The bar-line whaa breathes on
   even bars, the string swell answers on odd ones, and the root's bright
   octave double is deleted — the downbeat is no longer twelve oscillators
-  deep. And the three songs are **actually three
-arrangements**, not one tune transposed: each level has its own bassline
-(L1 walks, L2 pushes off the beat, L3 rolls relentless eighths), its own
-riff, its own afterglow solo, and its own kit identity (L2 swings with a
-soft clap lean, L3 drives an offbeat hat everywhere).
+  deep.
+
+**Four songs, not one song in four keys.** The four levels are **four
+arrangements**: each has its own bassline (L1 walks, L2 pushes off the beat,
+L3 rolls relentless eighths, L4 jumps the octave), its own riff, its own
+afterglow solo, its own payoff hook, and — past level 1, which is the
+reference the others are heard against — its own kit identity (L2 swings with
+a soft clap lean, L3 drives an offbeat hat everywhere, L4 rides an open hat
+and doubles the floor).
+
+For a long time that claim had a hole in the middle of it. Every level walked
+the identical i–♭VI–♭III–♭VII and differed only by transposition, so the chord
+loop — the one thing a player hears continuously for fifteen minutes — was the
+one part of the song that never actually changed. Each level owns a different
+minor-mode cadence now: level 2 walks the descending tetrachord down past its
+own tonic and hands the loop back unresolved, level 3's roots climb F–A♭–C–D♭
+so its bass is a line rather than a set of leaps, and level 4 pedals home every
+four bars, which is what the level with no finish line should sound like.
+
+The constraint that picks them is not taste. The SFX pentatonic is scaled into
+each level's key and every sound in the game speaks through it, so a chord from
+outside the natural minor puts the whole effects layer out of tune with the
+band — which is why none of the four progressions uses the borrowed major
+dominant that would be the obvious way to make a minor loop sound more
+finished. All four rows were checked numerically rather than by ear: exact
+octaves, perfect fifths, every chord diatonic, and no semitone rub against the
+pentatonic that the shipped progressions did not already carry.
+
+**Level 4 had been getting the leftovers.** Its bassline branch fell through to
+level 3's, it had no kit block at all, and the endless level — the one good
+players spend most of a session inside — was the only one whose bottom end and
+percussion were second-hand. It has an octave-jumping bass, an open offbeat
+hat, a doubled floor, and a sub drone pinned to the tonic under its pedal
+progression, so the bottom never moves at all.
+
+**Three things were in the wrong key on three levels out of four.** All
+pre-existing, all found by auditing every absolute pitch in the audio path
+once the progressions started to differ:
+
+- The **beat drop's impact** — its sub boom and the braam swelling out of it —
+  was hardcoded to A and E. The pentatonic stabs beside it transposed
+  correctly, which is exactly what hid it: half of the loudest event in the
+  game followed the key and half of it did not. On THE STORM that fixed A♮ rang
+  a semitone against F minor's own A♭, at the moment the arrangement is most
+  exposed.
+- The **snare body** was a fixed 196Hz. That is G3, the ♭VII in A minor, in key
+  there because A minor is the key it was chosen in — and not in E♭ minor at
+  all, where it sits a semitone above the tonic chord's third.
+- The **drum break's tom fill** was C4–A3–F3, a descending ♭III–i–♭VI in A
+  minor and nothing in particular anywhere else.
+
+All three are written as intervals over the level's tonic now. Level 1 is
+unchanged — its snare is still 196Hz to the cycle and its drop is within
+0.15 cents of what shipped, the remaining drift being the old literals' own
+rounding.
 
 **The loop recorder.** The owner's idea, near-verbatim: "if I'm stuck
 between two reds I just intuitively click back and forth along the beat —
@@ -1098,8 +1151,10 @@ marked the moment it happens, not discovered a bar later.
 underneath that swells with engagement (one tap is a note, a flurry is a
 chord), earns a dotted-eighth echo panned opposite once the groove is found —
 against the 3+3+2 world one tap sounds like three — and the figures are
-chord-aware, leaning with the bar's harmony (Am steady, F down, C up, G home)
-so a run of taps follows the song instead of circling a static position.
+chord-aware, resolving against whatever chord is sounding in that bar rather
+than against a fixed scale, so a run of taps follows the song instead of
+circling a static position — and follows it on all four levels, since the
+figures are chord-tone *indices* and each level's chords differ.
 
 **Embers play the band's own instrument — and now they GIVE.** The pickup
 was a sine ding, then a chord-aware square that still pitched UP with the
@@ -1237,14 +1292,18 @@ slot, so forty taps inside a single frame produce exactly one — two notes in o
 slot is not a faster rhythm, it is a flam, and it is how mashing would otherwise
 stack nodes.
 
-The score is **adaptive layering**: one fixed tempo (104bpm) and one key
-(A minor, deliberately the key the SFX pentatonic sits in, so nothing the game
-plays can clash with it), with layers entering as the difficulty clock rises —
-bass, then a pentatonic arp, then hats, then a counter-line, with the arp
-moving from quarters to eighths past 62% intensity. Nothing changes tempo or
-key mid-run, so it can never lurch; what changes is how much of the
-arrangement you hear. It is also the only channel that tells you speed has
-climbed from 1.4 to 4.2 rad/s.
+The score is **adaptive layering**: one fixed tempo (104bpm) for the whole
+game, and one key per level — with layers entering as the difficulty clock
+rises: bass, then a pentatonic arp, then hats, then a counter-line, with the
+arp moving from quarters to eighths past 62% intensity. Nothing changes tempo
+ever, and nothing changes key mid-*level*, so it can never lurch; what changes
+inside a level is how much of the arrangement you hear. It is also the only
+channel that tells you speed has climbed from 1.4 to 4.2 rad/s.
+
+The SFX pentatonic is scaled into whatever key is playing, which is what keeps
+the effects layer from clashing with the band. That is a constraint on the
+chords rather than a fact about them, and it is the reason every level's
+progression stays inside its own natural minor — see the Levels section.
 
 Notes are scheduled **ahead on the audio clock**, never from the frame clock,
 which stalls whenever the tab is backgrounded. A stall longer than 0.4s
@@ -1485,9 +1544,10 @@ node tools/check.mjs       # parses, elements, teaching-data drift
 node tools/smoke.mjs       # loads and plays the game headlessly
 node tools/dropcheck.mjs   # the build meter still delivers drops
 node tools/curriculum.mjs  # nothing is left untaught by level 3
+node tools/musiccheck.mjs  # four levels, four songs, all in their own key
 ```
 
-All four run on every pull request; only `main` goes on to publish.
+All five run on every pull request; only `main` goes on to publish.
 
 `check.mjs` confirms the inline script still parses, that the elements it
 looks up by ID are still in the document, and that the teaching tables have
@@ -1503,6 +1563,24 @@ which also exercises every audio guard. `dropcheck.mjs` re-runs that harness
 with a stubbed AudioContext and fails if the build meter stops delivering beat
 drops at a playable cadence. `curriculum.mjs` plays a whole run headlessly and
 fails if level 3 ever opens with a mechanic the player was never shown.
+
+`musiccheck.mjs` is the one that runs the *arrangement*. The other four never
+did: `smoke.mjs` removes WebAudio on purpose, which is how it proves every
+audio path is guarded, and `dropcheck.mjs` — the only audio-on harness — never
+drives past level 2. The consequence was that the per-level songs had no
+coverage at all. Deleting level 4's riff and solo rows outright left all four
+checks green while crashing the real game on level 4 with an undefined index.
+
+So this one stubs WebAudio rather than removing it, drives the real scheduler
+at every level, and asserts what came out: that each level's pad voices *its*
+chords and nothing else, that the four progressions are four distinct shapes
+rather than one transposed, that the four payoff hooks are four distinct tunes
+sharing one rhythmic signature, that the response bars stay silent, that level
+4 has a bassline and a kit of its own, that no pad voice glides more than an
+octave between chords (the pad portamentos, so a chord that leaps is a chord
+you hear swoop), and that every pitch in the drop, the snare body and the tom
+fill is diatonic to the key actually playing. It also pins level 1: its snare
+is still 196Hz and its drop still within a cent of what shipped.
 
 ## License
 

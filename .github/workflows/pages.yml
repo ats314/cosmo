@@ -30,6 +30,11 @@ jobs:
       # Plays the whole run headlessly and fails if level 3 ever opens with
       # a mechanic left untaught — the curriculum rule, enforced.
       - run: node tools/curriculum.mjs
+      # The only harness that runs the arrangement. smoke.mjs removes WebAudio
+      # on purpose and dropcheck.mjs never drives past level 2, so before this
+      # existed the per-level songs had no coverage at all: deleting level 4's
+      # riff and solo rows left all four checks green and crashed the browser.
+      - run: node tools/musiccheck.mjs
 
   deploy:
     # Only main publishes; pull requests get the check alone.
