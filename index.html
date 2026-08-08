@@ -2472,10 +2472,25 @@ const LV=[
         ['shard','then: sliding walls and flickering pairs'],
         ['nova','new orbs: bass bomb, spotlight, the gold star'],
         ['beat','run hot: overdrive, drum breaks']]},
- {dl0:215,end:Infinity,name:'THE STORM', key:0.7937,
+ {dl0:215,end:340,name:'THE STORM', key:0.7937,
   mech:[['shard','no new tricks \u2014 everything at once'],
-        ['beat','the full band, endless'],
+        ['beat','the full band'],
+        ['star','survive to the dive']]},
+ /* THE STORM used to be endless and therefore last. It has a finish line and a
+    star dive of its own now, and EVENT HORIZON takes over as the level you do
+    not finish — which keeps "the last level is the exam" true rather than
+    making level 3 both the exam and the middle of the game.
+    Neither introduces anything: every tier still unlocks by dl 215, so the
+    curriculum rule is untouched by the extra level. The fourth song drops
+    another whole step (A -> G -> F -> Eb); going deeper keeps deepening. */
+ {dl0:340,end:Infinity,name:'EVENT HORIZON', key:0.7071,
+  mech:[['shard','past the point of return'],
+        ['beat','the band at the ceiling'],
         ['star','how far can you ride?']]}];
+/* Declared here rather than beside the death-screen helpers so loadPrefs can
+   clamp against it — it used to sit 1,300 lines further down, which put it in
+   its own temporal dead zone for everything that boots first. */
+const LEVEL_MAX=LV.length;
 const PROG=[
  [[110,220,261.63,329.63],[87.31,174.61,220,261.63],
   [130.81,261.63,329.63,392],[98,196,246.94,293.66]],          /* Am F C G  */
@@ -2588,7 +2603,7 @@ function loadPrefs(){
      ten-rung tier ordinal, so a device that stored a 7 under it would read
      back as level 7 of 3. `cometloop:gl` is the one level record. */
   const gl=parseInt(readLocal('cometloop:gl'),10);
-  if(!isNaN(gl))G.lvlMax=Math.max(1,Math.min(3,gl));
+  if(!isNaN(gl))G.lvlMax=Math.max(1,Math.min(LEVEL_MAX,gl));
   const m=readLocal('cometloop:muted');
   if(m!==null)muted=(m==='1');
   /* Deliberately never reset by startGame: it records whether this human has
@@ -2618,7 +2633,7 @@ function loadPrefs(){
     }).catch(function(){});
     window.storage.get('cometloop:gl').then(function(r){
       const v=r&&parseInt(r.value,10);
-      if(v&&!isNaN(v))G.lvlMax=Math.max(G.lvlMax,Math.min(3,v));
+      if(v&&!isNaN(v))G.lvlMax=Math.max(G.lvlMax,Math.min(LEVEL_MAX,v));
     }).catch(function(){});
     window.storage.get('cometloop:muted').then(function(r){
       if(r)muted=(r.value==='1');
@@ -3697,7 +3712,7 @@ function retry(){
    ladder is only ever `tier` — two scales, two names, no overlap. */
 function cardDone(){
   const c=G.lvCard||{done:false,next:1};
-  G.level=Math.min(3,c.next);
+  G.level=Math.min(LEVEL_MAX,c.next);
   track('card_shown',{game_level:G.level,after_clear:!!c.done,
     seconds:+(G.t-G.lvT).toFixed(1),run_index:G.runs});
 }
@@ -3810,7 +3825,6 @@ function tierLabel(){
    own name. The pip bar had stopped saying anything anyway — the curriculum
    pass folded every tier into levels 1-2, so it saturates the moment level 3
    opens and stays full for the rest of an endless level. */
-const LEVEL_MAX=LV.length;
 /* seconds between two pips landing on the death screen — read by the reveal,
    by the LEVEL punch-in that waits for the last pip, and by the lockout that
    waits for all three */
@@ -5219,7 +5233,10 @@ vec3 pcos(float t,vec3 a,vec3 b,vec3 c,vec3 d){ return a+b*cos(6.28318*(c*t+d));
 vec3 palette(float t){
   if(uPal<0.5) return pcos(t,vec3(.30,.14,.42),vec3(.46,.24,.44),vec3(1.,1.,1.),vec3(.52,.62,.78));
   if(uPal<1.5) return pcos(t,vec3(.16,.32,.35),vec3(.42,.40,.36),vec3(1.,.96,.88),vec3(.18,.42,.70));
-  return pcos(t,vec3(.34,.18,.20),vec3(.50,.34,.26),vec3(1.,.92,.76),vec3(.02,.16,.44));
+  if(uPal<2.5) return pcos(t,vec3(.34,.18,.20),vec3(.50,.34,.26),vec3(1.,.92,.76),vec3(.02,.16,.44));
+  /* EVENT HORIZON: crimson falling into violet, the coldest and least
+     welcoming of the four — the sky past the point of return */
+  return pcos(t,vec3(.34,.12,.30),vec3(.46,.20,.40),vec3(1.,.88,1.),vec3(.34,.08,.62));
 }
 vec3 starLayer(vec2 frag,float dens,float thr,float t,float sizek,float spikek){
   vec2 su=frag/uRes.y*dens; vec2 sc=floor(su),sf=fract(su)-0.5;
@@ -5363,7 +5380,7 @@ function glRender(dt){
     g.uniform1f(GL.u.uEnergy,Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow));
     g.uniform1f(GL.u.uCombo,Math.min(1,G.combo/6*0.55+G.groove/8*0.45));
     g.uniform1f(GL.u.uBeat,RM?0:G.beat);
-    g.uniform1f(GL.u.uPal,Math.max(0,Math.min(2,skyI)));
+    g.uniform1f(GL.u.uPal,Math.max(0,Math.min(3,skyI)));
     g.uniform1f(GL.u.uCov,GL_COV);
     g.uniform1f(GL.u.uExp,GL_EXP);
     g.uniform1f(GL.u.uShr,RM?0:GL.shear);
@@ -6705,7 +6722,7 @@ function drawHUD(){
     }
   }else if(G.state==='lvend'){
     const c2=G.lvCard||{done:false,next:1};
-    const L=LV[Math.min(2,c2.next-1)];
+    const L=LV[Math.min(LEVEL_MAX-1,c2.next-1)];
     const a2=Math.min(1,(G.t-G.lvT)/0.35);
     ctx.globalAlpha=a2;
     let y2=cy-150*u;
@@ -6715,7 +6732,7 @@ function drawHUD(){
         'rgba(210,225,255,0.7)',1);
       y2+=58*u;
     }
-    text('LEVEL '+Math.min(3,c2.next),cx,y2,14*u,'800','rgba(255,200,87,0.8)',3);
+    text('LEVEL '+Math.min(LEVEL_MAX,c2.next),cx,y2,14*u,'800','rgba(255,200,87,0.8)',3);
     textFx(L.name,cx,y2+26*u,22*u,'800','#ffffff','#9fd8ff','rgba(125,228,255,0.45)',4);
     let my=y2+62*u;
     for(const m of L.mech){
@@ -6727,7 +6744,7 @@ function drawHUD(){
     }
     const pulse2=RM?1:0.72+0.28*Math.sin(G.t*3);
     ctx.globalAlpha=a2*pulse2;
-    textFx(c2.done?'TAP FOR LEVEL '+Math.min(3,c2.next):'TAP TO START',
+    textFx(c2.done?'TAP FOR LEVEL '+Math.min(LEVEL_MAX,c2.next):'TAP TO START',
       cx,bottomY,17*u,'800','#eaffff',COL.comet,'rgba(93,240,255,0.5)',4);
     ctx.globalAlpha=1;
   }else if(G.state==='menu'){

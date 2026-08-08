@@ -46,9 +46,15 @@ if (!tiers || !lv) fail.push('TIERS or LV table not found');
 else {
   const ats = [...tiers[1].matchAll(/at:\s*(\d+)/g)].map(m => +m[1]);
   const ends = [...lv[1].matchAll(/end:\s*(\d+)/g)].map(m => +m[1]);
-  const l2end = Math.max(...ends);   /* level 3's end is Infinity, not numeric */
-  if (!ats.length || !ends.length || Math.max(...ats) > l2end) {
-    fail.push(`a tier unlocks after dl ${l2end} — level 3 must introduce nothing (ats: ${ats})`);
+  /* LEVEL 2's finish line, read positionally — NOT max(ends). While there were
+     exactly three levels those were the same number, because level 3's end is
+     Infinity and so never matched the numeric regex. Adding a fourth level
+     made max(ends) level 3's finish line instead, which would have quietly
+     started permitting a tier to unlock inside level 3 — the one thing this
+     guard exists to prevent, failing open rather than closed. */
+  const l2end = ends[1];
+  if (!ats.length || ends.length < 2 || Math.max(...ats) > l2end) {
+    fail.push(`a tier unlocks after dl ${l2end} — nothing may be introduced past level 2 (ats: ${ats})`);
   }
 }
 
