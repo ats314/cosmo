@@ -6994,11 +6994,27 @@ function drawHUD(){
        that picks one IS the tap that starts the level — no extra screen, no
        extra step, and the choice lands on the one calm moment the player is
        already reading. */
+    /* SIZED FROM THE ROOM ON THE SCREEN, NOT FROM A CONSTANT. Playtest,
+       verbatim: "the selection of power ups between levels — i had to
+       screenshot so i can zoom in and read. i'm old." He was right: the tile
+       was a hardcoded 76u wide with its description set at 8u, which is 8
+       PHYSICAL PIXELS on a phone. Three of those tiles used 248u of a 390u
+       screen and left 142u of margin doing nothing.
+       The row now claims the width it has and the type scales with the tile,
+       so the same layout reads on a 360-wide phone and a tablet. Height is
+       derived from the gap between the last mechanic row and CHOOSE ONE, and
+       the tile is whichever of the two constraints binds first — so a short
+       viewport shrinks the tiles instead of sliding them up through the text
+       above, which is what the old upward clamp did. */
     G.offerRects=[];
     if(G.offer&&G.offer.length){
-      const tw=76*u,th=88*u,gap=10*u;
-      const x0=cx-(G.offer.length*tw+(G.offer.length-1)*gap)/2;
-      const ty0=Math.min(my+16*u,bottomY-th-34*u);
+      const n=G.offer.length,gap=9*u;
+      const availW=Math.min(W-24*u,430*u);
+      const availH=Math.max(74*u,bottomY-28*u-(my+10*u));
+      const tw=Math.min((availW-(n-1)*gap)/n,availH/1.18);
+      const th=tw*1.18;
+      const x0=cx-(n*tw+(n-1)*gap)/2;
+      const ty0=Math.min(my+14*u,bottomY-th-30*u);
       for(let i=0;i<G.offer.length;i++){
         const o=G.offer[i],bx=x0+i*(tw+gap);
         G.offerRects.push({x:bx,y:ty0,w:tw,h:th,id:o.id});
@@ -7007,25 +7023,49 @@ function drawHUD(){
         const bg=ctx.createLinearGradient(0,ty0,0,ty0+th);
         bg.addColorStop(0,'rgba(20,27,46,0.96)');bg.addColorStop(1,'rgba(10,15,28,0.96)');
         ctx.fillStyle=bg;
-        ctx.beginPath();ctx.roundRect(bx,ty0,tw,th,10*u);ctx.fill();
+        const rr=Math.min(13*u,tw*0.12);
+        ctx.beginPath();ctx.roundRect(bx,ty0,tw,th,rr);ctx.fill();
         ctx.strokeStyle=o.c;ctx.globalAlpha=a2*(RM?0.7:0.5+0.3*Math.sin(G.t*3+i));
         ctx.lineWidth=1.6;
-        ctx.beginPath();ctx.roundRect(bx+0.8,ty0+0.8,tw-1.6,th-1.6,10*u);ctx.stroke();
+        ctx.beginPath();ctx.roundRect(bx+0.8,ty0+0.8,tw-1.6,th-1.6,rr);ctx.stroke();
         ctx.globalAlpha=a2;
+        /* every measurement below is a fraction of the tile, so the artwork
+           and the type keep their proportions at whatever size it came out */
         ctx.save();
-        ctx.translate(bx+tw/2,ty0+30*u);
-        ctx.scale(u*0.82,u*0.82);
+        ctx.translate(bx+tw/2,ty0+th*0.335);
+        const isc=(tw/(76*u))*u*0.82;
+        ctx.scale(isc,isc);
         ctx.shadowColor=o.c;ctx.shadowBlur=12;
         o.ic(ctx,o.c);
         ctx.restore();
-        text(o.n,bx+tw/2,ty0+58*u,fitSz(o.n,9.5*u,'800',tw-8*u),'800','#eaf1ff',0);
         ctx.textAlign='center';
-        const words=o.d.split(' ');let ln='',lines=[];
-        for(const w of words){const t2=ln?ln+' '+w:w;
-          if(t2.length>16){lines.push(ln);ln=w;}else ln=t2;}
-        if(ln)lines.push(ln);
+        /* floors as well as ceilings: a landscape phone binds on height and
+           makes the tile small, and without a floor the type would come out
+           SMALLER than the fixed sizes this replaced — the opposite of the
+           point. 9.5/8 are exactly what the old hardcoded layout used, so no
+           viewport can regress. */
+        const nsz=Math.max(9.5*u,Math.min(13.5*u,tw*0.125));
+        text(o.n,bx+tw/2,ty0+th*0.645,fitSz(o.n,nsz,'800',tw-10*u),'800','#eaf1ff',0);
+        /* WRAPPED ON MEASURED WIDTH, NOT A CHARACTER COUNT. The old rule broke
+           at 16 characters regardless of the glyphs, then hard-capped at two
+           lines, so a description that needed a third was silently truncated —
+           which is how "the magnetar takes orbs as well" shipped rendering as
+           "the magnetar takes orbs as". Two lines is still the budget, but now
+           the type shrinks until the sentence FITS in two rather than losing
+           its ending. */
+        let dsz=Math.max(8*u,Math.min(11*u,tw*0.098)),lines;
+        const wrap=function(sz){
+          ctx.font='600 '+Math.round(sz)+'px '+F;
+          const out=[];let ln='';
+          for(const w of o.d.split(' ')){const t2=ln?ln+' '+w:w;
+            if(ln&&ctx.measureText(t2).width>tw-12*u){out.push(ln);ln=w;}else ln=t2;}
+          if(ln)out.push(ln);
+          return out;
+        };
+        lines=wrap(dsz);
+        while(lines.length>2&&dsz>7*u){dsz-=0.5*u;lines=wrap(dsz);}
         for(let k=0;k<Math.min(2,lines.length);k++)
-          text(lines[k],bx+tw/2,ty0+70*u+k*10*u,8*u,'600','rgba(200,215,255,0.7)',0);
+          text(lines[k],bx+tw/2,ty0+th*0.79+k*dsz*1.18,dsz,'600','rgba(206,220,255,0.82)',0);
         ctx.restore();
       }
     }
