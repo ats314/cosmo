@@ -81,7 +81,25 @@ const RM=(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matc
 const COL={comet:'#5df0ff',ember:'#ffc857',shard:'#ff5d73',shield:'#7bffc8',warp:'#b48bff',nova:'#ffffff'};
 const LAP_EMB_MAX=4; /* embers per orbit that still raise the payout */
 
-let W=0,H=0,DPR=1,cx=0,cy=0,R=0,u=1,safeTop=0,safeBot=0;
+/* THE ARENA IS AN ELLIPSE (playtest, near-verbatim: "I wonder if the orbits
+   were stretched out more to an oval shape vertically so that they were all a
+   little bit bigger and took up more of the screen ... so that the orbits
+   would be spaced out a little bit more"). He was right, and it is measurable:
+   on a 390x844 phone the arena is WIDTH-constrained at R=167px while 277px of
+   vertical room is available, so 110px a side was going unused.
+   R stays the horizontal radius; AY is the vertical multiplier. Every position
+   in the game flows through posAt(), and canvas ellipse() takes the same
+   PARAMETRIC angle posAt() does — a point at angle a sits at
+   (cx + R cos a, cy + R·AY sin a) either way — so paths and objects agree for
+   free, and unlike a canvas scale() this distorts neither sprites nor stroke
+   widths.
+   ARENA_STRETCH is the A/B dial: 0 restores the exact circle, 1 takes all the
+   room the cap allows. To compare live, set it in the console and call
+   resize(). */
+let ARENA_STRETCH=0.75;
+const ARENA_MAX_Y=1.55;   /* even a very tall screen stops here — past this it
+                             reads as an egg rather than a wider orbit */
+let W=0,H=0,DPR=1,cx=0,cy=0,R=0,AY=1,u=1,safeTop=0,safeBot=0;
 let bgStars=[];
 /* Ring 0 is the outermost. Adding a ring adds a higher index further in, so
    existing rings never move when a new one appears. Declared ahead of the
@@ -750,6 +768,12 @@ function resize(){
      (15u sprite at 1.86x = 28u) at the widest point of the outer ring. */
   const hBox=W/2-30*u;
   R=Math.max(52,Math.min(hBox,vBox));
+  /* R is width-bound in portrait, so the leftover vertical room is exactly
+     what the stretch spends. Capped, and never below 1, so a landscape screen
+     (where vBox is the binding constraint) simply stays circular. */
+  AY=1;
+  if(ARENA_STRETCH>0&&R>0)
+    AY=1+(Math.max(1,Math.min(vBox/R,ARENA_MAX_Y))-1)*Math.min(1,ARENA_STRETCH);
   cy=(topLim+botLim)/2;
   /* normalised coords: the star field never needs rebuilding on resize */
   if(!bgStars.length){
@@ -776,7 +800,7 @@ function angDist(a,b){const d=Math.abs((a-b)%TAU);return d>Math.PI?TAU-d:d;}
    tempo never changes, only how finely the bar is cut. */
 function ringOf(){return G.state==='playing'?Math.min(RINGS.length-1,effRing()):0;}
 function radiusOf(i){return R*RADII[i];}
-function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r];}
+function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r*AY];}
 
 /* ---------- audio ----------
    Everything is synthesised; there are no audio files. The layout is a fixed
@@ -3901,7 +3925,12 @@ cv.addEventListener('pointermove',function(e){
     G.didReverse=pd.saved.dr;
     G.lapCut=0;   /* the lap is restored, so there is no cost to teach */
   }
-  pd.radial=dx*Math.cos(pd.ang)+dy*Math.sin(pd.ang);
+  /* The outward normal at parametric angle a is (cos a, AY sin a), not
+     (cos a, sin a): on a stretched arena the pure-cos/sin basis would read a
+     vertical flick near the top of the loop as barely radial at all. */
+  const rnx=Math.cos(pd.ang),rny=Math.sin(pd.ang)*AY;
+  const rnl=Math.hypot(rnx,rny)||1;
+  pd.radial=(dx*rnx+dy*rny)/rnl;
   /* A flick almost exactly along the ring is genuinely ambiguous — keep
      watching rather than guessing; it resolves as the finger travels. */
   if(Math.abs(pd.radial)>=len*RADIAL_MIN){
@@ -5016,7 +5045,7 @@ function drawRingGlow(){
     /* the light under the comet breathes with the landed beat */
     ctx.globalAlpha=L[1]*(RM?1:1+0.30*G.beat);
     ctx.lineWidth=L[2]*u;
-    ctx.beginPath();ctx.arc(cx,cy,rr,G.angle-L[0],G.angle+L[0]);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,G.angle-L[0],G.angle+L[0]);ctx.stroke();
   }
   ctx.restore();
 }
@@ -5590,7 +5619,7 @@ function draw(){
     ctx.lineDashOffset=RM?0:-(Math.floor(G.t/(mine?SPB/4:SPB/2))*5*u*(mine?G.dir:1))%(20*u);
     ctx.strokeStyle='rgb('+tn+')';ctx.lineWidth=2*u;
     ctx.globalAlpha=(mine?0.20:0.08)+0.10*G.pay;
-    ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,0,TAU);ctx.stroke();
     ctx.setLineDash([]);
     if(SPR.pip)for(let k=0;k<8;k++){
       const pp=posAt(k*TAU/8,rr);
@@ -5607,7 +5636,7 @@ function draw(){
       ctx.strokeStyle='rgba('+tn+','+(on?0.46:0.17)+')';
     }
     ctx.lineWidth=1.3;
-    ctx.beginPath();ctx.arc(cx,cy,rr,0,TAU);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,0,TAU);ctx.stroke();
     ctx.globalAlpha=1;
   }
   /* THE METER IS INVISIBLE NOW (owner: "get rid of the purple build-up
@@ -5639,7 +5668,7 @@ function draw(){
     ctx.globalAlpha=0.55;
     ctx.strokeStyle=G.lapEmbers>=3?COL.ember:(G.lapEmbers>=1?COL.comet:'rgba(170,195,255,0.55)');
     ctx.lineWidth=3;
-    ctx.beginPath();ctx.arc(cx,cy,lr,a0,a1);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(cx,cy,lr,lr*AY,0,a0,a1);ctx.stroke();
     ctx.globalAlpha=1;
   }
   /* THE COST OF TURNING BACK, DRAWN. On a committed reverse the discarded
@@ -5655,7 +5684,7 @@ function draw(){
     ctx.globalAlpha=0.5*(1-k);
     ctx.strokeStyle='rgba(255,205,120,0.9)';
     ctx.lineWidth=3;
-    ctx.beginPath();ctx.arc(cx,cy,rr,b0,b1);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,b0,b1);ctx.stroke();
     ctx.globalAlpha=1;
   }
   /* embers banked this orbit are drawn in the HUD — see drawHUD */
@@ -5763,7 +5792,7 @@ function draw(){
       const rr=radiusOf(s.ring),back=-Math.sign(s.va)*0.30;
       ctx.globalAlpha=0.3;ctx.strokeStyle=COL.shard;ctx.lineWidth=2.5;
       ctx.beginPath();
-      ctx.arc(cx,cy,rr,Math.min(s.a,s.a+back),Math.max(s.a,s.a+back));
+      ctx.ellipse(cx,cy,rr,rr*AY,0,Math.min(s.a,s.a+back),Math.max(s.a,s.a+back));
       ctx.stroke();ctx.globalAlpha=1;
     }
     if(s.phase===0){
@@ -5830,23 +5859,23 @@ function draw(){
     ctx.strokeStyle=COL.ember;
     ctx.globalAlpha=lf*0.30*L.mag;
     ctx.lineWidth=(3+9*lf)*u*L.mag;
-    ctx.beginPath();ctx.arc(cx,cy,rr,a0,a1);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,a0,a1);ctx.stroke();
     ctx.globalAlpha=lf*0.62*L.mag;
     ctx.lineWidth=(1.4+3*lf)*u*L.mag;
-    ctx.beginPath();ctx.arc(cx,cy,rr,a0,a1);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,a0,a1);ctx.stroke();
     if(sweep<TAU){
       const head=L.dir>0?a1:a0,w=0.22;
       ctx.strokeStyle='#fffdf2';
       ctx.globalAlpha=Math.min(1,lf*1.3)*L.mag;
       ctx.lineWidth=(3.5+5*lf)*u*L.mag;
-      ctx.beginPath();ctx.arc(cx,cy,rr,head-w*(L.dir>0?1:0),head+w*(L.dir>0?0:1));ctx.stroke();
+      ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,head-w*(L.dir>0?1:0),head+w*(L.dir>0?0:1));ctx.stroke();
     }
   }
   for(const a of G.arcs){
     const lf=Math.max(a.life,0),half=0.09+0.5*(1-lf);
     ctx.globalAlpha=lf*lf*0.75;
     ctx.strokeStyle=a.col;ctx.lineWidth=(1+4*lf)*u;
-    ctx.beginPath();ctx.arc(cx,cy,radiusOf(a.ring),a.a-half,a.a+half);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(cx,cy,radiusOf(a.ring),radiusOf(a.ring)*AY,0,a.a-half,a.a+half);ctx.stroke();
   }
   /* ripples — the big earned moments carry a fat baked annulus instead of a
      hairline stroke */
