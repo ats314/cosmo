@@ -52,44 +52,39 @@ for (const id of upgIds) {
     fail.push(`upgrade '${id}' is offered to the player but never read — upgOn('${id}') has no call site`);
   }
 }
-/* AN EMBER'S RADIUS HAS ONE OWNER. Every other object in the arena sits at
-   radiusOf(ring), but the magnetar pull gives an ember a free radius in s.pr so
-   it can curve between rings. Two passes draw an ember — the sprite and the
-   bloom — and only the sprite was taught about s.pr, so for the whole of every
-   pull each ember's glow stayed parked on the ring it started from: sixteen
-   detached glows at once, up to 89px apart on a 390px screen.
-   starR() is the single accessor now. This fails the build if any star is ever
-   positioned from radiusOf() directly again, which is the exact drift that
-   produced the bug — the sprite pass was correct and the bloom was not. */
-if (!/function starR\(s\)\{return s\.pr!==undefined\?s\.pr:radiusOf\(s\.ring\);\}/.test(src)) {
-  fail.push('starR() accessor is missing — an ember\'s radius has one owner');
-}
-/* Brace-matched loop bodies, not a fixed context window: the bloom pass walks
-   G.stars and then G.spikes back to back, and a loose look-behind flagged the
-   spike loop, which legitimately uses radiusOf. */
-const bodyAt = (from) => {
-  let i = src.indexOf('{', from), d = 0;
-  if (i < 0) return '';
-  for (let j = i; j < src.length; j++) {
-    if (src[j] === '{') d++;
-    else if (src[j] === '}' && --d === 0) return src.slice(i, j);
-  }
-  return src.slice(i);
-};
-/* both shapes the star list is walked in: for..of, and the reverse index loop
-   that owns collection */
-const starLoops = [
-  ...src.matchAll(/for\s*\(\s*const\s+(\w+)\s+of\s+G\.stars\s*\)/g),
-  ...src.matchAll(/for\s*\(\s*let\s+\w+\s*=\s*G\.stars\.length[^)]*\)/g),
+/* AN EMBER'S RADIUS HAS ONE OWNER, AND THIS IS WHAT KEEPS IT THAT WAY.
+   The magnetar pull gave an ember a free radius in s.pr so it could curve
+   between rings, and every pass that draws an ember then had to read it. The
+   bloom pass did not, so each ember's glow stayed parked on the ring it started
+   from: sixteen detached glows at once, up to 89px apart on a 390px screen.
+
+   The first version of this guard required a starR() accessor and checked that
+   star loops used it. That guard passed while the bug came back, because it
+   only inspected loops it could recognise as star loops — the WIDE PULL path
+   put a free radius on ORBS, and no rule here covered those.
+
+   So the guard is inverted. Rather than police the synchronisation of two
+   radii, it fails if a second radius exists at all. There is nothing to keep
+   in sync and nothing for a draw pass to disagree about; radiusOf(ring) is the
+   only radius an ember or an orb has. If a mechanic ever needs one to leave its
+   ring again, this check is the conversation to have first — and whatever
+   replaces it must cover every draw pass, which the previous one did not. */
+/* Matched on an OPERATOR, not on the bare name: a comment explaining why the
+   free radius is gone contains the characters `s.pr`, and a guard that fails
+   the build for describing itself is a guard nobody keeps. Requiring an
+   assignment or a comparison also keeps GL.pr — the WebGL pixel ratio, an
+   unrelated field — out of it. A free radius has to be assigned before it can
+   be read, so catching the assignment catches the reintroduction. */
+const freeRadius = [
+  ...src.matchAll(/\b(?:s|st|sp|ts|pw|nn|st2|st3)\.pr\s*(?:[-+*/]?=[^=]|!==|===|==|!=)/g),
 ];
-for (const m of starLoops) {
-  const v = m[1] || 's';
-  const body = m[1] ? bodyAt(m.index) : bodyAt(m.index);
-  const bad = body.match(new RegExp(`posAt\\(${v}\\.a\\s*,\\s*(?!starR\\()[^)]*\\)`));
-  if (bad) {
-    const line = src.slice(0, m.index).split('\n').length;
-    fail.push(`a star is positioned without starR() in the loop at script line ${line}: ${bad[0]}`);
-  }
+if (freeRadius.length) {
+  const lines = [...new Set(freeRadius.map(m => src.slice(0, m.index).split('\n').length))];
+  fail.push(`an ember or orb has a free radius again (.pr) at script line(s) ${lines.join(', ')} — `
+    + 'that is the detached-glow bug returning; see the note in check.mjs');
+}
+if (/function starR\s*\(/.test(src)) {
+  fail.push('starR() is back without the guard that has to come with it — see the note in check.mjs');
 }
 /* the curriculum rule: every tier unlocks by level 2's finish line, so
    level 3 introduces nothing — see MECHANICS.md. The finish line is read

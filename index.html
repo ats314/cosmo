@@ -86,7 +86,7 @@ const RM=(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matc
    hypernova now at ~318deg, far enough from the shard that the two never trade
    places at speed, and nowhere near anything that means "collect me". */
 const COL={comet:'#5df0ff',ember:'#ffc857',shard:'#ff5d73',shield:'#7bffc8',
-  warp:'#b48bff',nova:'#ffffff',hyper:'#ff4fd8',mag:'#b8ff4d'};
+  warp:'#b48bff',nova:'#ffffff',hyper:'#ff4fd8'};
 const LAP_EMB_MAX=4; /* embers per orbit that still raise the payout */
 
 /* THE ARENA IS AN ELLIPSE (playtest, near-verbatim: "I wonder if the orbits
@@ -644,25 +644,6 @@ function buildSprites(bandOnly){
     }
     g.closePath();g.stroke();
   });
-  /* MAGNETAR — a neutron star with a colossal magnetic field, and the mechanic
-     needs no sentence: six field lines curling into a bright core, and for
-     eight beats every ember on the board curves in along them. */
-  SPR.powMag=makeSprite(12*u+22,function(g){
-    g.shadowColor=COL.mag;g.shadowBlur=13;
-    g.strokeStyle=COL.mag;g.lineWidth=2.4;g.lineCap='round';
-    for(let k=0;k<6;k++){
-      const a0=k*TAU/6;
-      g.beginPath();
-      for(let t=0;t<=1.0001;t+=0.08){
-        const rr=(11-7.5*t)*u,aa=a0+t*1.5;
-        const px=Math.cos(aa)*rr,py=Math.sin(aa)*rr;
-        t?g.lineTo(px,py):g.moveTo(px,py);
-      }
-      g.stroke();
-    }
-    g.shadowBlur=8;g.fillStyle='#ffffff';
-    g.beginPath();g.arc(0,0,3.1*u,0,TAU);g.fill();
-  });
   SPR.powHyper=makeSprite(12*u+22,function(g){
     /* the friends asked for exactly this: "like a star in Mario" — so it IS
        a five-point star, gold with a white edge, recognisable at a glance */
@@ -827,19 +808,18 @@ function angDist(a,b){const d=Math.abs((a-b)%TAU);return d>Math.PI?TAU-d:d;}
    tempo never changes, only how finely the bar is cut. */
 function ringOf(){return G.state==='playing'?Math.min(RINGS.length-1,effRing()):0;}
 function radiusOf(i){return R*RADII[i];}
-/* AN EMBER'S RADIUS HAS ONE OWNER. Everything else in the arena lives at
-   radiusOf(ring), but the magnetar pull gives an ember a FREE radius in s.pr
-   so it can curve between rings instead of teleporting. Two draw passes read
-   an ember's position — the sprite and the bloom — and only the sprite was
-   taught about s.pr, so for the whole of every pull each ember's glow stayed
-   parked on the ring it started from while the ember itself flew inward, then
-   snapped across when s.ring was reassigned. Measured on three rings: sixteen
-   detached glows at once, up to 89px apart on a 390px screen. That is what a
-   playtester meant by "every time I pick up one of the magnet things this
-   happens to my screen".
-   One accessor now, and check.mjs fails the build if a star is ever positioned
-   from radiusOf() directly again. */
-function starR(s){return s.pr!==undefined?s.pr:radiusOf(s.ring);}
+/* AN EMBER'S RADIUS HAS ONE OWNER, AND IT IS ITS RING. It briefly had two: the
+   magnetar pull gave an ember a FREE radius in s.pr so it could curve between
+   rings instead of teleporting, and every pass that draws an ember then had to
+   be taught to read it. Several passes draw an ember. The bloom pass was not
+   taught, so for the whole of every pull each ember's glow stayed parked on the
+   ring it started from while the ember flew inward — sixteen detached glows at
+   once, up to 89px apart on a 390px screen. That was fixed with a starR()
+   accessor and a build guard, and it broke again anyway, because the guard only
+   covered loops it could recognise as star loops.
+   The mechanic is gone and so is the free radius. There is nothing left to
+   disagree about: radiusOf(s.ring) is the only radius an ember has. Anything
+   that reintroduces a per-object radius reintroduces this whole bug class. */
 function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r*AY];}
 
 /* ---------- audio ----------
@@ -3132,14 +3112,6 @@ const UPG=[
       g.beginPath();g.moveTo(Math.cos(a)*7,Math.sin(a)*7);
       g.lineTo(Math.cos(a)*19,Math.sin(a)*19);g.stroke();}
     g.fillStyle=c;g.beginPath();g.arc(0,0,5,0,TAU);g.fill();}},
- {id:'widepull',n:'WIDE PULL',d:'magnetar pulls orbs too',c:'#b8ff4d',
-  ic:function(g,c){g.strokeStyle=c;g.lineWidth=2.2;g.lineCap='round';
-    for(let k=0;k<5;k++){const a0=k*TAU/5;
-      g.beginPath();
-      for(let t=0;t<=1.0001;t+=0.1){const rr=21-14*t,aa=a0+t*1.4;
-        const px=Math.cos(aa)*rr,py=Math.sin(aa)*rr;t?g.lineTo(px,py):g.moveTo(px,py);}
-      g.stroke();}
-    g.fillStyle='#fff';g.beginPath();g.arc(0,0,4.6,0,TAU);g.fill();}},
  {id:'hairtrig',n:'HAIR TRIGGER',d:'the drop arms sooner',c:'#5df0ff',
   ic:function(g,c){g.fillStyle=c;g.beginPath();
     g.moveTo(-3,-20);g.lineTo(10,-3);g.lineTo(2,-1.5);g.lineTo(7,20);
@@ -3223,7 +3195,6 @@ const G={
   odGlow:0,brkGlow:0,finGlow:0,        /* backdrop envelopes: overdrive, break dim, dive gold */
   spot:0,lastTapAt:-9,finEnd:0,        /* spotlight; last raw tap time; finale end flag */
   hyper:0,hyperD:0,hyperGlow:0,        /* hypernova: seconds left, full duration, backdrop envelope */
-  mag:0,magD:0,magGlow:0,gotMag:false,magPlaced:false,  /* magnetar */
   upg:{},offered:{},offer:[],offerRects:[],picks:[],  /* the upgrade draft */
   layerN:0,bandN:0,bandFx:0,           /* score layers unlocked; band-meter dot count + pulse */
   sndAt:0,sndStr:null,                 /* a NEW SOUND announcement waiting for its banner to clear */
@@ -3501,7 +3472,6 @@ const MEET={
      "double" rounded up on a value that spends a fifth of its life below even
      1.9x. */
   hyper: {t:'the pink star — untouchable and fast',g:'star',soft:1},
-  mag:   {t:'magnetar — every ember comes to you',g:'star',soft:1},
   /* not a spawned object: fired by the first reversal that discards most of
      an orbit — the one rule of the scoring economy nothing else teaches */
   lapcost:{t:'turning back restarts the orbit — stars stay banked',g:'star',soft:1},
@@ -3675,15 +3645,15 @@ function spawnPow(){
     type='bass';
   }else if(G.level>=2&&!G.spotPlaced){
     type='spot';
-  }else if(G.level>=2&&!G.magPlaced){
-    /* MAGNETAR is base-set, not a draft pick: everyone meets it, taught on
-       level 2 with the rest, so the curriculum rule covers it the same way. */
-    type='mag';
   }else{
     /* the family expansion: three musical orbs join the rotation */
     const rr=Math.random();
-    type=rr<0.28?'shield':rr<0.44?'warp':rr<0.57?'nova':
-         rr<0.70?'bass':rr<0.82?'spot':rr<0.93?'mag':'hyper';
+    /* MAGNETAR's 0.11 share is redistributed proportionally across the
+       remaining six rather than handed to one of them, so removing it changes
+       what can appear and not how often the others appear relative to each
+       other. */
+    type=rr<0.31?'shield':rr<0.49?'warp':rr<0.64?'nova':
+         rr<0.79?'bass':rr<0.92?'spot':'hyper';
   }
   for(let i=0;i<24;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
@@ -3692,8 +3662,7 @@ function spawnPow(){
       if(type==='hyper')G.hyperPlaced=true;
       if(type==='bass')G.bassPlaced=true;
       if(type==='spot')G.spotPlaced=true;
-      if(type==='mag')G.magPlaced=true;
-      if(type==='bass'||type==='spot'||type==='hyper'||type==='mag')firstMeet(type);
+      if(type==='bass'||type==='spot'||type==='hyper')firstMeet(type);
       G.sinceShield=(type==='shield')?0:G.sinceShield+1;
       /* counts PLACEMENTS, not pickups: a player who misses the slow-mo still
          advances the curriculum, or a run spent dodging would serve nothing
@@ -3739,7 +3708,6 @@ function startGame(){
   G.sparkT=0;G.sparkN=0;
   G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;G.finGlow=0;
   G.spot=0;G.lastTapAt=-9;G.finEnd=0;G.hyper=0;G.hyperD=0;G.hyperGlow=0;
-  G.mag=0;G.magD=0;G.magGlow=0;
   FIN.on=false;FIN.pend=false;FIN.done=false;FIN.step=0;FIN.score=0;FIN.got=0;FIN.voices=0;FIN.t0=0;FIN.trail.length=0;
   PLAY.tape.length=0;
   LOOP.pat=null;LOOP.n=0;LOOP.until=0;LOOP.heard=false;
@@ -3770,10 +3738,9 @@ function startGame(){
      all. Each clears the instant the thing is done, so a veteran sees each for
      well under a second. */
   G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;G.gotShield=false;
-  G.gotMag=false;
   G.gotBass=false;G.gotSpot=false;
   G.dropsEarned=0;G.loopN=0;G.nearN=0;G.bestCombo=0;G.holdTimeout=false;
-  G.hyperPlaced=false;G.bassPlaced=false;G.spotPlaced=false;G.magPlaced=false;
+  G.hyperPlaced=false;G.bassPlaced=false;G.spotPlaced=false;
   G.didReverse=false;G.didHop=false;G.didLap=false;
   G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];G.novas=[];
   G.stop=0;
@@ -3922,7 +3889,6 @@ function die(){
     game_level:G.level,best_game_level:G.lvlMax,
     /* did the curriculum land: three placements is the whole intro set */
     pows_placed:G.powN,saw_warp:G.gotWarp,saw_nova:G.gotNova,saw_hyper:G.gotHyper,
-    got_mag:G.gotMag,
     picks:G.picks.join(','),pick_n:G.picks.length,
     /* DID THE TEACHING LAND. The two verbs, per run. did_hop is the one that
        matters: the hop is the unfamiliar gesture, it is now taught at 20s in
@@ -4806,8 +4772,6 @@ function update(dt){
     cueState(false);
   }
   G.shMax=smx;
-  if(G.mag>0)G.mag=Math.max(0,G.mag-dt);
-  G.magGlow+=(((G.mag>0)?1:0)-G.magGlow)*Math.min(1,dt*4);
   /* the layer ladder: a score crossing names the layer that just joined */
   let lyn=0;for(let li=0;li<LAYER_AT.length;li++)if(G.score>=LAYER_AT[li])lyn++;
   if(lyn>G.layerN){
@@ -5030,34 +4994,16 @@ function update(dt){
   for(let i=G.stars.length-1;i>=0;i--){
     const s=G.stars[i];s.t+=sdt;
     if(s.t>s.life){G.stars.splice(i,1);continue;}
-    if(G.mag>0){
-      /* THE PULL. Stars live in (angle, ring) space and collection is "on my
-         ring, swept by my angle" — so attraction is an ease on both, and every
-         ember arrives through the ORDINARY collection path, firing its
-         ordinary note and its ordinary combo. s.pr carries the drawn radius
-         across the ring change so nothing teleports between tracks. */
-      const tr=curR();
-      if(s.pr===undefined)s.pr=radiusOf(s.ring);
-      let d=G.angle-s.a;
-      while(d>Math.PI)d-=TAU; while(d<-Math.PI)d+=TAU;
-      const k=Math.min(1,sdt*3.4);
-      /* THE EMBER MATCHES YOUR ORBIT FIRST, THEN CLOSES. A plain ease toward
-         a MOVING target never arrives: with the comet advancing at omega and
-         the pull correcting at 3.4/s, the error obeys e' = omega - 3.4e and
-         settles at a constant omega/3.4 radians instead of reaching zero.
-         speedAt() runs 1.30-3.00, so that resting lag is 0.38-0.88 rad against
-         a collection tolerance of 0.12-0.22 — three to seven times too wide to
-         ever be swept. Simulating the real loop at 64 evenly spaced angles:
-         34 of 64 arrived, at EVERY speed. Half of every magnetar was embers
-         that fell into a trailing orbit behind the comet, rode there for the
-         whole eight beats, and expired 1.2s after the field ended.
-         Feeding the comet's own angular velocity forward makes the error obey
-         e' = -3.4e, which converges to zero from either side. Same simulation:
-         64 of 64, at every speed. "every ember comes to you" is now true. */
-      s.a+=G.dir*G.speed*sdt+d*k; s.pr+=(tr-s.pr)*k;
-      s.life=Math.max(s.life,s.t+1.2);      /* never expire mid-flight */
-      if(Math.abs(s.pr-tr)<7*u){s.ring=effRing();s.pr=undefined;}
-    }else if(s.pr!==undefined)s.pr=undefined;
+    /* THE MAGNETAR PULL WAS HERE. It gave an ember a free radius so it could
+       curve between rings, and that free radius is what broke the picture:
+       every pass that draws an ember has to read it, the arena has several,
+       and one of them drifting back to the ring radius detaches a glow from
+       its ember. It was found once, fixed with an accessor and a build guard,
+       and broke again. Removed on the owner's call rather than fixed a second
+       time — an ember's radius is its ring's radius now, with no exception for
+       anything to disagree about. Do not reintroduce a per-object radius here
+       without reintroducing an accessor and a guard that covers EVERY draw
+       pass, which the previous guard did not. */
     if(s.ring===er&&sweptHit(s.a,(22*u)/radiusOf(er))){
       G.stars.splice(i,1);
       G.combo=Math.min(G.combo+1,6);G.comboT=CW;
@@ -5081,7 +5027,7 @@ function update(dt){
          no WebAudio, and puts it in the category it was already claiming. */
       }else if(G.od>0||G.spot>0||G.hyper>0||G.shields>=shieldMax())G.score+=G.combo;
       G.lapEmbers++;G.embers++;
-      const p=posAt(s.a,starR(s));
+      const p=posAt(s.a,radiusOf(s.ring));
       burst(p[0],p[1],COL.ember,14,150);
       ripple(p[0],p[1],COL.ember);
       arcFlash(s.a,s.ring,COL.ember);
@@ -5146,20 +5092,6 @@ function update(dt){
   /* power-ups */
   for(let i=G.pows.length-1;i>=0;i--){
     const s=G.pows[i];s.t+=sdt;
-    /* WIDE PULL: the magnetar takes ORBS as well as embers. Same ease as the
-       star pull, including the feed-forward that makes it actually arrive —
-       an orb left trailing behind the comet would be the old magnetar bug
-       reintroduced on the more valuable object. */
-    if(G.mag>0&&upgOn('widepull')){
-      const tr=curR();
-      if(s.pr===undefined)s.pr=radiusOf(s.ring);
-      let d=G.angle-s.a;
-      while(d>Math.PI)d-=TAU; while(d<-Math.PI)d+=TAU;
-      const k=Math.min(1,sdt*3.4);
-      s.a+=G.dir*G.speed*sdt+d*k; s.pr+=(tr-s.pr)*k;
-      s.life=Math.max(s.life,s.t+1.2);
-      if(Math.abs(s.pr-tr)<7*u){s.ring=effRing();s.pr=undefined;}
-    }else if(s.pr!==undefined)s.pr=undefined;
     if(s.t>s.life){
       /* an unseen musical orb that expires unlessoned comes back: the
          level-2 guarantee is of the INTRODUCTION, not of one spawn roll —
@@ -5167,27 +5099,26 @@ function update(dt){
       if(s.type==='bass'&&!G.seen.bass)G.bassPlaced=false;
       else if(s.type==='spot'&&!G.seen.spot)G.spotPlaced=false;
       else if(s.type==='hyper'&&!G.seen.hyper)G.hyperPlaced=false;
-      else if(s.type==='mag'&&!G.seen.mag)G.magPlaced=false;
       G.pows.splice(i,1);continue;
     }
     /* a musical orb's lesson keeps knocking while the orb exists: the one
        call at placement could hit a busy moment, defer, and the orb —
        guaranteed once per level-2 run — leave unexplained. firstMeet's own
        guards (seen, calm, spacing) make the retry free. */
-    if(!G.seen[s.type]&&(s.type==='bass'||s.type==='spot'||s.type==='hyper'||s.type==='mag'))firstMeet(s.type);
+    if(!G.seen[s.type]&&(s.type==='bass'||s.type==='spot'||s.type==='hyper'))firstMeet(s.type);
     if(s.ring===er&&sweptHit(s.a,(22*u)/radiusOf(er))){
       const p=posAt(s.a,radiusOf(s.ring));
       G.pows.splice(i,1);
       /* using an orb IS the introduction — better than any sentence about
          it, and it stops a redundant lesson firing after the experience */
-      if((s.type==='bass'||s.type==='spot'||s.type==='hyper'||s.type==='mag')&&!G.seen[s.type]){
+      if((s.type==='bass'||s.type==='spot'||s.type==='hyper')&&!G.seen[s.type]){
         G.seen[s.type]=1;savePref('cometloop:seen',Object.keys(G.seen).join(','));
       }
       arcFlash(s.a,s.ring,
         s.type==='shield'?COL.shield:
         s.type==='warp'||s.type==='spot'?COL.warp:
         s.type==='bass'?COL.comet:
-        s.type==='hyper'?COL.hyper:s.type==='mag'?COL.mag:COL.nova);
+        s.type==='hyper'?COL.hyper:COL.nova);
       if(s.type==='shield'){
         const span=panAt(p[0]);
         G.gotShield=true;   /* the naming hint retires on first pickup */
@@ -5261,21 +5192,6 @@ function update(dt){
           note(PENT[11],AC.currentTime+w+S16,0.24,'sawtooth',0.026,3600,-0.2,A.perf);
         });
         try{if(navigator.vibrate)navigator.vibrate(14);}catch(e){}
-      }else if(s.type==='mag'){
-        /* MAGNETAR. Eight beats in which every ember on the board curves in.
-           The cascade IS the reward: stars are the band's own instrument, so a
-           dozen arriving in sequence is a phrase the player caused, which is
-           the whole thesis of the game pointed at a single pickup. */
-        G.magD=SPB*8;G.mag=G.magD;G.gotMag=true;
-        popup(p[0],p[1]-24*u,'MAGNETAR!',COL.mag,1.5);
-        if(!RM){
-          G.rings.push({x:p[0],y:p[1],r:8*u,life:1,col:COL.mag,sp:520,dec:1.2,fat:1});
-          for(let k=0;k<3;k++)
-            G.rings.push({x:p[0],y:p[1],r:(26+k*16)*u,life:0.7,col:COL.mag,sp:-180,dec:1.5});
-        }
-        burst(p[0],p[1],COL.mag,22,240);
-        beep(196,0.20,'sawtooth',0.055,392);
-        cueTone(function(w){beep(392,0.26,'triangle',0.05,784,w);});
       }else if(s.type==='hyper'){
         /* HYPERNOVA (Hunter: "temporary invincibility... speed cranks up
            significantly... making beautiful music in the zone at hyper
@@ -5388,8 +5304,6 @@ function drawPow(x,y,s,al){
     ctx.fillStyle=COL.warp;
     ctx.beginPath();ctx.arc(x,y,1.6*u,0,TAU);ctx.fill();
     ctx.restore();
-  }else if(s.type==='mag'){
-    blit(SPR.powMag,x,y,pulse,s.t*0.9,al);   /* it spins: a field, turning */
   }else if(s.type==='hyper'){
     /* upright with a wobble — a star that spins reads as a shard of light,
        a star that stands reads as THE star */
@@ -5484,7 +5398,7 @@ function drawBloom(){
   g.setTransform(s,0,0,s,0,0);
   g.globalCompositeOperation='lighter';
   for(const st of G.stars){
-    const p=posAt(st.a,starR(st));      /* the glow rides WITH the ember */
+    const p=posAt(st.a,radiusOf(st.ring));
     bloomDot(g,p[0],p[1],10*u,COL.ember);
   }
   for(const sp of G.spikes){
@@ -6263,7 +6177,7 @@ function draw(){
   /* embers */
   ctx.globalCompositeOperation='lighter';
   for(const s of G.stars){
-    const p=posAt(s.a,starR(s));
+    const p=posAt(s.a,radiusOf(s.ring));
     let al=1;
     if(s.born&&s.t<0.25){
       /* a nova ember condenses from a white-hot point — the transmutation is
@@ -6284,7 +6198,7 @@ function draw(){
   ctx.globalCompositeOperation='source-over';
   /* power-ups */
   for(const s of G.pows){
-    const p=posAt(s.a,starR(s));   /* pows carry .pr under WIDE PULL too */
+    const p=posAt(s.a,radiusOf(s.ring));
     let al=1;
     if(s.t<0.3)al=s.t/0.3;
     else if(s.life-s.t<0.8)al=(s.life-s.t)/0.8;
@@ -7306,9 +7220,9 @@ function drawHUD(){
         text(o.n,bx+tw/2,ty0+th*0.645,fitSz(o.n,nsz,'800',tw-10*u),'800','#eaf1ff',0);
         /* WRAPPED ON MEASURED WIDTH, NOT A CHARACTER COUNT. The old rule broke
            at 16 characters regardless of the glyphs, then hard-capped at two
-           lines, so a description that needed a third was silently truncated —
-           which is how "the magnetar takes orbs as well" shipped rendering as
-           "the magnetar takes orbs as". Two lines is still the budget, but now
+           lines, so a description that needed a third was silently truncated:
+           the longest tile description in the table at the time shipped with
+           its last two words missing. Two lines is still the budget, but now
            the type shrinks until the sentence FITS in two rather than losing
            its ending. */
         let dsz=Math.max(8*u,Math.min(11*u,tw*0.098)),lines;

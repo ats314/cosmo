@@ -67,7 +67,7 @@ first three have finish lines; the fourth does not:
 | Level | Name | Introduces | Song |
 |---|---|---|---|
 | 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor, the original groove |
-| 2 | INTO THE RINGS | gates, drifters, blinkers, bass bomb, spotlight, magnetar, the gold star | G minor, swung sixteenths |
+| 2 | INTO THE RINGS | gates, drifters, blinkers, bass bomb, spotlight, the gold star | G minor, swung sixteenths |
 | 3 | THE STORM | the two compounds — sliding gates, flicker pairs — then a finish line | F minor, rolling four-on-the-floor |
 | 4 | EVENT HORIZON | **nothing** — the same storm with no exit, at the speed ceiling. Endless. | E♭ minor |
 
@@ -457,7 +457,9 @@ Every telemetry event carries `swipe_mode`. Two control schemes means every
 completion and death rate would otherwise silently average two different games
 together and stop being readable.
 
-**Nine tiles the player chose between, and not one of them did anything.** The
+**Nine tiles the player chose between, and not one of them did anything.**
+(Nine at the time — `WIDE PULL` went with the magnetar, so there are eight
+now.) The
 same audit found `upgOn` — the accessor every upgrade effect was supposed to go
 through — with **zero call sites in 7,257 lines**. Each of the nine ids
 appeared exactly once in the file: in its own row of the `UPG` table. `G.upg`
@@ -478,18 +480,15 @@ All nine are wired now, each verified to change the value it claims to:
 | DEEP BANK | 2 shields | 3 |
 | SLOW WORLD | 4s | 6s |
 | RICH NOVA | 1 ember/shard | 2 |
-| WIDE PULL | orbs ignored | orbs pulled |
 | HAIR TRIGGER | meter 1.0 | 0.85 |
 | LONG FUSE | 1.05 rad | 1.5 |
 | STAGE LIGHT | 9.2s | 13.8s |
 | STEADY HAND | 0.032s | 0.045s |
 
-Three of the descriptions were wrong even once wired, and changed with them.
+Two of the descriptions were wrong even once wired, and changed with them.
 *"slow-mo slows spawns"* sold the base game back to the player — slow-mo
 already slows every spawn for everyone, through `tsT` into `sdt` into all three
-spawn clocks — so it is *"slow-mo runs longer"* now. *"magnetar takes orbs"*
-named an object class the magnetar had never touched; the word that makes it an
-upgrade rather than a restatement is *"too"*.
+spawn clocks — so it is *"slow-mo runs longer"* now.
 
 **DEEP BANK gives a third starting shield rather than raising the cap.** The
 obvious wiring — `shieldMax()+1` — would have made overcharge *harder* to
@@ -497,75 +496,50 @@ reach, since overcharge requires a FULL bank, so a tile reading as pure upside
 would quietly have cost score; and `SHIELDS FULL` would have printed with a
 visibly empty pip. "One more shield" should mean one more shield.
 
-`WIDE PULL` gives a power-up orb a free radius the same way the magnetar gives
-one to an ember, so the orb draw had to be routed through `starR()` in the same
-change — otherwise it would have reproduced the detached-glow bug above on the
-more valuable object.
-
 `check.mjs` now fails the build if any offered upgrade id has no `upgOn` call
 site. Verified by deleting one wiring and watching it fail.
 
-**And the magnetar was only collecting a third of the board.** The glow bug
-above was the visible half of "the mechanic is broken". Underneath it was a
-control-theory mistake in the pull itself, found by an audit that checked every
-player-facing sentence against the code implementing it.
+**MAGNETAR IS REMOVED.** Owner's call, on the shipped build: *"Magnetar just
+broke the screen again. Remove that mechanic entirely. You can't fix it."*
 
-The lesson promises *every ember comes to you*. The pull was a plain
-first-order ease toward the comet's current angle at a fixed 3.4/s. But the
-comet is not standing still — it orbits at `G.speed`, which `speedAt()` runs
-from 1.30 to 3.00. Easing toward a moving target at a fixed rate never arrives:
-the error obeys `e' = ω − 3.4e` and settles at a constant `ω/3.4` radians
-rather than reaching zero. That resting lag is 0.38–0.88 rad against a
-collection tolerance of 0.12–0.22 rad — three to seven times too wide to ever
-be swept.
+The two entries that used to sit here recorded fixing it twice — once for a
+pull that only collected a third of the board, and once for a glow that flew
+without its ember. Both are gone with the mechanic, but the second is worth
+keeping as a lesson, because it is the reason removal was the right call rather
+than a third fix.
 
-So every ember that started behind the comet fell into a trailing orbit, rode
-there for the whole eight beats, and expired 1.2 seconds after the field ended.
-Simulating the real loop at 64 evenly spaced angles: **34 of 64 arrived, at
-every speed.** A/B in the running game with 24 seeded embers across three
-rings: **38% collected before, 100% after.**
+Every object in the arena sits at `radiusOf(ring)`. The magnetar pull was the
+one exception: it handed each ember a FREE radius in `s.pr` so it could curve
+between rings instead of teleporting across them. Several passes draw an ember.
+Only some of them were taught about `s.pr`, so each ember's glow stayed parked
+on the ring it started from while the ember flew inward — **sixteen detached
+glows at once, up to 89px apart on a 390px-wide screen**, on the game's most
+spectacular move. Two playtesters reported it independently, verbatim: *"every
+time I pick up one of the magnet things this happens to my screen."*
 
-The fix is to feed the comet's own angular velocity forward, so the pull
-corrects the *relative* error instead of chasing an absolute position:
-`s.a += G.dir*G.speed*sdt + d*k`. The error then obeys `e' = −3.4e` and
-converges from either side.
+That was fixed with a `starR()` accessor and a build guard, and it came back
+anyway. The guard only inspected loops it could recognise as star loops, and
+`WIDE PULL` — the upgrade that extended the pull to power-up orbs — put a free
+radius on objects the guard never looked at. A guard that covers the cases you
+thought of is not a guard against the mistake you keep making.
 
-This is the flicker-pairs precedent again: the sentence was the good design, so
-the mechanic moved to meet it rather than the copy being weakened to describe
-the bug. The alternative — rewording it to "sweeps up the embers ahead" — would
-have documented a power-up that visibly queues half the board behind you and
-then kills it.
+The shape of the mistake is worth naming, because it was never a typo: a second
+source of truth for a position, one reader updated, shipped. The harnesses
+could not catch it — they have no renderer — and reading the code did not catch
+it either, because each pass looked correct in isolation.
 
-**The magnetar's glow flew without its ember.** Playtester, verbatim: "So every
-time I pick up one of the magnet things this happens to my screen." Two people
-reported it independently, every pickup, and they were describing a bug I put
-there when I built the pull.
+So the removal is not a retreat from a hard bug; it deletes the category. With
+no free radius there is no second source of truth, nothing to keep in sync, and
+nothing for a draw pass to disagree about. `check.mjs` now enforces the absence
+rather than the synchronisation: it fails the build if an ember or an orb is
+given a `.pr` again, or if `starR()` returns without the guard that has to come
+with it. Verified by reintroducing the assignment and watching the build fail.
 
-Every other object in the arena sits at `radiusOf(ring)`. The magnetar pull is
-the one exception: it hands each ember a FREE radius in `s.pr` so it can curve
-between rings instead of teleporting across them. Two passes draw an ember —
-the sprite pass and the bloom pass — and only the sprite was taught about
-`s.pr`. So for the whole of every pull, each ember's glow stayed parked on the
-ring it started from while the ember itself flew inward, and then snapped
-across the moment `s.ring` was reassigned.
+`WIDE PULL` goes with it, leaving eight upgrade tiles. Magnetar's share of the
+orb spawn roll is redistributed proportionally across the remaining six orbs,
+so removing it changes what can appear without changing how often the others
+appear relative to each other.
 
-The comment I wrote above that code says `s.pr carries the drawn radius across
-the ring change so nothing teleports between tracks`. The bloom is exactly the
-thing that still teleported. Measured on three rings: **sixteen detached glows
-at once, up to 89px apart on a 390px-wide screen** — nearly a quarter of the
-display, for four and a half seconds, on the game's most spectacular move.
-
-An ember's radius has one owner now, `starR()`, and all three sites read it.
-`check.mjs` brace-matches the star loops and fails the build if any star is
-positioned from `radiusOf()` again — the guard was verified by reverting the
-bloom line and watching it fail, then restoring it.
-
-Worth naming the shape of this mistake, because it is not a typo: I introduced
-a second source of truth for a position, updated one reader, and shipped. The
-harnesses could not have caught it — they have no renderer — and reading the
-code did not catch it either, because the sprite pass looked correct in
-isolation. What caught it was rendering a pull in a real browser and measuring
-the distance between where the ember was drawn and where its glow was drawn.
 
 **The teaching says one thing, and it is true.** Owner, on a build that had
 just had its teaching retimed: *"There is often tutorial language that makes no
