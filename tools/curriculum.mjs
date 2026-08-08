@@ -84,6 +84,24 @@ function frame(ms) {
   for (const fn of fns) fn(nowMs);
 }
 function fire(name, ev) { for (const fn of (listeners[name] || [])) fn(ev); }
+
+/* A FRESH DEVICE IS ASKED WHICH SWIPE RULE IT WANTS. Two rules exist now —
+   screen-absolute (up is the outer ring) and radial (away from the middle is
+   the outer ring) — and they disagree only at the top and bottom of the loop,
+   so the choice is made on a live arena rather than described. It sits between
+   the menu tap and the level-1 card, once per device. Every harness has to
+   press its PLAY control or it simply waits on the screen forever. */
+function passSwipeChooser(st, frame, fire, pev, pid) {
+  if (st('G.state') !== 'swipesel') return pid;
+  for (let i = 0; i < 30; i++) frame(16.7);      // a draw pass fills selRects
+  const r = JSON.parse(st('JSON.stringify(G.selRects.find(x=>x.id==="play")||null)') || 'null');
+  if (!r) throw new Error('the swipe chooser drew no PLAY control');
+  const x = r.x + r.w / 2, y = r.y + r.h / 2;
+  fire('pointerdown', { ...pev(pid, x, y, 'pointerdown'), type: 'pointerdown' });
+  fire('pointerup', { ...pev(pid, x, y, 'pointerup'), type: 'pointerup' });
+  if (st('G.state') === 'swipesel') throw new Error('PLAY did not leave the swipe chooser');
+  return pid + 1;
+}
 const pev = (id, x, y) => ({ pointerId: id, clientX: x ?? 200, clientY: y ?? 400,
   type: 'pointerup', preventDefault() {} });
 /* Taps the centre of the first upgrade tile whenever the card is offering a
@@ -107,7 +125,8 @@ const banners = [];
 let lastBanner = null, pid = 100, hopFlip = false;
 
 for (let i = 0; i < 300; i++) frame(16.7);       // menu settles
-tap(pid++);                                       // fresh device -> LIFT OFF card
+tap(pid++);                                       // fresh device -> swipe chooser
+pid = passSwipeChooser(st, frame, fire, pev, pid);
 if (st('G.state') !== 'lvend') fail.push('fresh device skipped the level-1 card');
 for (let i = 0; i < 60; i++) frame(16.7);
 tap(pid++);                                       // card -> level 1

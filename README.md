@@ -340,6 +340,206 @@ lesson never showed for exactly the person who needed them. The orb-naming
 hints now outrank it while an orb is on the board, and after ten unanswered
 seconds it alternates with the survival lessons on a slow cycle.
 
+**Ten more sentences that did not match the game.** The audit's remaining
+confirmed findings, cleared in one pass. Four needed the code to move, not the
+copy:
+
+- **`SPOTLIGHT ×2` doubled nothing.** Three strings asserted it — the lesson,
+  the announcement, and a HUD chip sharing a slot and a grammar with
+  `OVERDRIVE ×2`, which genuinely doubles. The spotlight's entire effect
+  inventory was a flat +8 on a tight tap, performer gain ×1.5 and a bed duck.
+  Worse, under this repo's *audio is optional everywhere* rule it paid
+  **literally zero**: `judgeTiming` returns early with no `AudioContext`, so no
+  tap is ever judged tight, yet the orb is force-placed on level 2 with no
+  audio condition and the chip draws off `G.spot` alone. Adding `G.spot>0` to
+  the game's one doubling test makes the badge true, and true without sound.
+- **Every level-clear ceremony was captioned `UNLOCKED`** — including the
+  finale, where nothing unlocks: the tier, the ring count and the spawn pool
+  are untouched by the finale latch. One hardcoded eyebrow served two opposite
+  events, so no wording could fix it; the banner carries its own eyebrow now
+  and the finale reads `FINISH LINE`.
+- **The death screen mixed one run-scoped number with three level-scoped
+  ones.** `startGame` restored the carried score but zeroed every counter
+  beside it and re-baselined the clock, so clearing three levels and dying 30s
+  into level 4 printed a four-figure cumulative score next to *"3 orbits · ×1
+  streak · 0:30"* — a six-minute session reported as half a minute. The
+  counters carry now: sums for orbits and drops, max for the streaks, and the
+  clock spans the run. Verified: 3 levels + 30s reads **5:15**, not 0:30.
+- **`TIERS[9]` was named `STORM`,** which is also `LV[2].name` (`THE STORM`).
+  Its `sub` can never render, but its *name* is the only label `tierLabel()`
+  can return on level 4 — so every level-4 run printed `LEVEL 4 · STORM` in the
+  header, on the death screen and in the share text, seconds after the card
+  named the level EVENT HORIZON. Renamed to `THE EYE`; deleting it would fail
+  `smoke.mjs`, which asserts the last tier sits on level 3's finish line.
+
+And six wordings:
+
+| was | now | because |
+|---|---|---|
+| the **gold** star — untouchable at double speed | the **pink** star — untouchable and fast | `COL.hyper` is `#ff4fd8`; gold is the colour of the ordinary embers |
+| SHIELDS FULL — **everything** pays double | SHIELDS FULL — **stars** pay double | the orbit payout, up to 86, is untouched |
+| combo — each star pays more than the last | combo — chain stars, **up to +6 each** | the chain caps at 6 and the lesson fires at 3 |
+| red starts arriving in shapes | red starts blocking whole rings | twins unlock at dl 18, inside level 1 |
+| next sound: X at **level 7 / 10** | next sound: X — keep climbing | those are tier rungs, on a four-level ladder |
+| LAPS **×**7 | LAPS 7 IN A ROW | the streak bonus saturates at five laps |
+
+Two more, from the bug hunt rather than the copy audit. `shieldMax()` steps
+3→4→5 on the difficulty clock, so a bank sitting full silently stopped being
+full and the doubling stopped with no message — that crossing now says **BANK
+DEEPER** and closes the shimmer. And there was **no `webglcontextlost` handler
+of either kind**: iOS drops a WebGL context under memory pressure, the default
+action makes restoration impossible, and `GL.on` stayed true so the renderer
+kept issuing calls into a dead context while the 2D fallback that exists for
+exactly this never took over.
+
+**Which way is out is now the player's call.** Playtester, verbatim: *"can you
+make it so slide up always changes to outer ring and down to inner? i think
+that's what my brain wants, so that would make it easier (for me,
+definitely)."*
+
+There are two coherent rules and neither is correct. **Away is out** (radial)
+reads the swipe against the line from the centre through the comet, so at the
+bottom of the loop you swipe *down* to go out. **Up is out** (screen) ignores
+where the comet is: up is the outer ring, always. They agree at the sides of
+the loop and invert at the bottom, and which one a person's hand expects is not
+something the game gets to decide for them.
+
+So it is asked once, on the first tap of a fresh device, on a screen that runs
+the real rings and the real `hop()` — because a written description of the
+difference does not land. An arrow at the comet shows where *this* rule says
+out is right now: under the radial rule it visibly rotates as the comet
+travels, under the screen rule it stays pinned upward. The chooser opens with
+the comet at the bottom of the loop, which is the one place the two rules are
+opposites; opening at the top would have presented a screen on which both
+choices look identical. The controls sit inside the hollow of the ring system
+so the comet orbits *around* them rather than behind them.
+
+**The wording had been describing the wrong game.** Five channels said "swipe
+up or down to change ring" — the menu key, the level 1 card, the SECOND RING
+banner, the hint ladder and the death coach. That is the *screen* rule, and the
+build has been shipping the *radial* one. Every one of them now resolves
+through `swipeWords()` at draw time, so the sentence always describes the rule
+in force.
+
+`swipeOut()` is the single place either rule is expressed and both gesture
+paths — mid-drag resolution and resolution at lift — call it, so they cannot
+drift apart. `smoke.mjs` asserts the two rules agree at the top of the loop and
+invert at the bottom; collapsing them to the same expression fails the build.
+
+Every telemetry event carries `swipe_mode`. Two control schemes means every
+completion and death rate would otherwise silently average two different games
+together and stop being readable.
+
+**Nine tiles the player chose between, and not one of them did anything.** The
+same audit found `upgOn` — the accessor every upgrade effect was supposed to go
+through — with **zero call sites in 7,257 lines**. Each of the nine ids
+appeared exactly once in the file: in its own row of the `UPG` table. `G.upg`
+was written by the pick handler and read only by the no-repeat filter and the
+telemetry payload.
+
+So the game stopped the player at every level boundary, printed CHOOSE ONE,
+spent their attention on three tiles, wrote the pick to analytics, and then ran
+identically whichever they took. It was also quietly poisoning the data:
+`G.picks` rides on every event, so any future read of "which upgrade correlates
+with survival" would have been measuring noise.
+
+All nine are wired now, each verified to change the value it claims to:
+
+| tile | off | on |
+|---|---|---|
+| LONGER STAR | 9.2s | 13.8s |
+| DEEP BANK | 2 shields | 3 |
+| SLOW WORLD | 4s | 6s |
+| RICH NOVA | 1 ember/shard | 2 |
+| WIDE PULL | orbs ignored | orbs pulled |
+| HAIR TRIGGER | meter 1.0 | 0.85 |
+| LONG FUSE | 1.05 rad | 1.5 |
+| STAGE LIGHT | 9.2s | 13.8s |
+| STEADY HAND | 0.032s | 0.045s |
+
+Three of the descriptions were wrong even once wired, and changed with them.
+*"slow-mo slows spawns"* sold the base game back to the player — slow-mo
+already slows every spawn for everyone, through `tsT` into `sdt` into all three
+spawn clocks — so it is *"slow-mo runs longer"* now. *"magnetar takes orbs"*
+named an object class the magnetar had never touched; the word that makes it an
+upgrade rather than a restatement is *"too"*.
+
+**DEEP BANK gives a third starting shield rather than raising the cap.** The
+obvious wiring — `shieldMax()+1` — would have made overcharge *harder* to
+reach, since overcharge requires a FULL bank, so a tile reading as pure upside
+would quietly have cost score; and `SHIELDS FULL` would have printed with a
+visibly empty pip. "One more shield" should mean one more shield.
+
+`WIDE PULL` gives a power-up orb a free radius the same way the magnetar gives
+one to an ember, so the orb draw had to be routed through `starR()` in the same
+change — otherwise it would have reproduced the detached-glow bug above on the
+more valuable object.
+
+`check.mjs` now fails the build if any offered upgrade id has no `upgOn` call
+site. Verified by deleting one wiring and watching it fail.
+
+**And the magnetar was only collecting a third of the board.** The glow bug
+above was the visible half of "the mechanic is broken". Underneath it was a
+control-theory mistake in the pull itself, found by an audit that checked every
+player-facing sentence against the code implementing it.
+
+The lesson promises *every ember comes to you*. The pull was a plain
+first-order ease toward the comet's current angle at a fixed 3.4/s. But the
+comet is not standing still — it orbits at `G.speed`, which `speedAt()` runs
+from 1.30 to 3.00. Easing toward a moving target at a fixed rate never arrives:
+the error obeys `e' = ω − 3.4e` and settles at a constant `ω/3.4` radians
+rather than reaching zero. That resting lag is 0.38–0.88 rad against a
+collection tolerance of 0.12–0.22 rad — three to seven times too wide to ever
+be swept.
+
+So every ember that started behind the comet fell into a trailing orbit, rode
+there for the whole eight beats, and expired 1.2 seconds after the field ended.
+Simulating the real loop at 64 evenly spaced angles: **34 of 64 arrived, at
+every speed.** A/B in the running game with 24 seeded embers across three
+rings: **38% collected before, 100% after.**
+
+The fix is to feed the comet's own angular velocity forward, so the pull
+corrects the *relative* error instead of chasing an absolute position:
+`s.a += G.dir*G.speed*sdt + d*k`. The error then obeys `e' = −3.4e` and
+converges from either side.
+
+This is the flicker-pairs precedent again: the sentence was the good design, so
+the mechanic moved to meet it rather than the copy being weakened to describe
+the bug. The alternative — rewording it to "sweeps up the embers ahead" — would
+have documented a power-up that visibly queues half the board behind you and
+then kills it.
+
+**The magnetar's glow flew without its ember.** Playtester, verbatim: "So every
+time I pick up one of the magnet things this happens to my screen." Two people
+reported it independently, every pickup, and they were describing a bug I put
+there when I built the pull.
+
+Every other object in the arena sits at `radiusOf(ring)`. The magnetar pull is
+the one exception: it hands each ember a FREE radius in `s.pr` so it can curve
+between rings instead of teleporting across them. Two passes draw an ember —
+the sprite pass and the bloom pass — and only the sprite was taught about
+`s.pr`. So for the whole of every pull, each ember's glow stayed parked on the
+ring it started from while the ember itself flew inward, and then snapped
+across the moment `s.ring` was reassigned.
+
+The comment I wrote above that code says `s.pr carries the drawn radius across
+the ring change so nothing teleports between tracks`. The bloom is exactly the
+thing that still teleported. Measured on three rings: **sixteen detached glows
+at once, up to 89px apart on a 390px-wide screen** — nearly a quarter of the
+display, for four and a half seconds, on the game's most spectacular move.
+
+An ember's radius has one owner now, `starR()`, and all three sites read it.
+`check.mjs` brace-matches the star loops and fails the build if any star is
+positioned from `radiusOf()` again — the guard was verified by reverting the
+bloom line and watching it fail, then restoring it.
+
+Worth naming the shape of this mistake, because it is not a typo: I introduced
+a second source of truth for a position, updated one reader, and shipped. The
+harnesses could not have caught it — they have no renderer — and reading the
+code did not catch it either, because the sprite pass looked correct in
+isolation. What caught it was rendering a pull in a real browser and measuring
+the distance between where the ember was drawn and where its glow was drawn.
+
 **The teaching says one thing, and it is true.** Owner, on a build that had
 just had its teaching retimed: *"There is often tutorial language that makes no
 logical sense to the way red things and gameplay work."* There was, and the

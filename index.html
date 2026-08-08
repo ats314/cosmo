@@ -827,6 +827,19 @@ function angDist(a,b){const d=Math.abs((a-b)%TAU);return d>Math.PI?TAU-d:d;}
    tempo never changes, only how finely the bar is cut. */
 function ringOf(){return G.state==='playing'?Math.min(RINGS.length-1,effRing()):0;}
 function radiusOf(i){return R*RADII[i];}
+/* AN EMBER'S RADIUS HAS ONE OWNER. Everything else in the arena lives at
+   radiusOf(ring), but the magnetar pull gives an ember a FREE radius in s.pr
+   so it can curve between rings instead of teleporting. Two draw passes read
+   an ember's position — the sprite and the bloom — and only the sprite was
+   taught about s.pr, so for the whole of every pull each ember's glow stayed
+   parked on the ring it started from while the ember itself flew inward, then
+   snapped across when s.ring was reassigned. Measured on three rings: sixteen
+   detached glows at once, up to 89px apart on a 390px screen. That is what a
+   playtester meant by "every time I pick up one of the magnet things this
+   happens to my screen".
+   One accessor now, and check.mjs fails the build if a star is ever positioned
+   from radiusOf() directly again. */
+function starR(s){return s.pr!==undefined?s.pr:radiusOf(s.ring);}
 function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r*AY];}
 
 /* ---------- audio ----------
@@ -1286,7 +1299,7 @@ function build(amount,src){
   G.build=Math.min(busy?0.96:1.5,G.build+amount);
   if(amount>=0.01)G.buildFx=1;   /* real contributions blink the arc */
   G.buildSrc[src]=(G.buildSrc[src]||0)+amount;
-  if(!busy&&G.build>=1){
+  if(!busy&&G.build>=(upgOn('hairtrig')?0.85:1)){
     G.build=0;
     let best='ember',bv=-1;
     for(const k in G.buildSrc)if(G.buildSrc[k]>bv){bv=G.buildSrc[k];best=k;}
@@ -2085,7 +2098,7 @@ function judgeTiming(x,y){
   if(off>8)return 0;
   const dev=Math.abs(off-PLAY.bias);
   PLAY.bias+=(off-PLAY.bias)*0.18;  /* learns the device, and the player */
-  if(dev<TIGHT){
+  if(dev<(upgOn('steadyhand')?0.045:TIGHT)){
     /* RIDING THE SECTION IS THE SCORE. During the payoff every tight hit
        pays — not just climbs — multiplied by a perfect landing. Playing
        through the drop is the skill; nothing asks you to stop. */
@@ -2483,7 +2496,7 @@ const LV=[
     something. He had not; the card had. */
  {dl0:0,  end:90,  name:'LIFT OFF', key:1,
   mech:[['tap','tap anywhere to turn around'],
-        ['swipe','swipe up or down to change ring'],   /* singular, as everywhere else */
+        ['swipe',null],   /* null = resolved at draw time by swipeWords() */
         ['shard','red costs a shield \u2014 you start with two']]},
  /* THE LATER CARDS STOPPED PREVIEWING THE SYLLABUS. The note above explains
     why level 1's card came down to three lines; levels 2-4 then went on making
@@ -2498,7 +2511,10 @@ const LV=[
     Two lines each now, and they say what the level IS rather than what it will
     contain. Nothing is left untaught, which curriculum.mjs verifies. */
  {dl0:90, end:215, name:'INTO THE RINGS', key:0.8909,
-  mech:[['shard','red starts arriving in shapes'],
+  /* TWIN unlocks at dl 18 and level 1 runs dl 0-90, so every reader of this
+     card has already met the shapes. GATES at dl 100 is what level 2 actually
+     opens with. */
+  mech:[['shard','red starts blocking whole rings'],
         ['beat','tap in time and the band grows']]},
  {dl0:215,end:340,name:'THE STORM', key:0.7937,
   mech:[['shard','the shapes start combining'],
@@ -2607,6 +2623,16 @@ function levelComplete(){
      must not hand out a second upgrade for dying */
   if(G.level+1<=LEVEL_MAX)rollOffer();
   G.carryScore=G.score;
+  /* THE WHOLE RUN, NOT THE LAST LEVEL. startGame restores the carried score
+     but zeroed every counter beside it and re-baselined the clock, so a player
+     who cleared three levels and died 30s into level 4 shared a four-figure
+     cumulative score next to "3 orbits · ×1 streak · 0:30" — a six-minute
+     session reported as half a minute, with the score as the only honest
+     number on a screen whose entire job is to summarise the run. */
+  G.carryOrbits=G.orbits;G.carryLands=G.lands;
+  G.carryStreak=Math.max(G.carryStreak,G.bestStreak);
+  G.carryGroove=Math.max(G.carryGroove,G.bestGroove);
+  G.carryTime=(G.carryTime||0)+Math.max(0,G.t-G.started);
   /* the deepest-level record is written where every other record is — at
      death, beside G.best — so the announcement can fire exactly once. Bumping
      it here instead meant the record had already moved by the time the death
@@ -2645,6 +2671,9 @@ function loadPrefs(){
   if(!isNaN(gl))G.lvlMax=Math.max(1,Math.min(LEVEL_MAX,gl));
   const m=readLocal('cometloop:muted');
   if(m!==null)muted=(m==='1');
+  /* absent means this device has never been asked — the chooser is shown once */
+  const sw=readLocal('cometloop:swipe');
+  if(sw==='screen'||sw==='radial'){SWIPE_MODE=sw;G.swipeAsked=true;}
   /* Deliberately never reset by startGame: it records whether this human has
      ever found the mechanic, not whether this run has. */
   if(readLocal('cometloop:groove')==='1')G.didGroove=true;
@@ -2719,6 +2748,10 @@ function track(name,props){
   try{
     const pr=props||{};
     pr.$process_person_profile=false;    /* anonymous events, by declaration */
+    /* TWO CONTROL SCHEMES MEANS EVERY NUMBER NEEDS TO SAY WHICH ONE. Without
+       this, level-completion and death rates silently average two different
+       games together and stop being readable. */
+    pr.swipe_mode=SWIPE_MODE;
     pr.$current_url=location.href;
     const body=JSON.stringify({api_key:POSTHOG_KEY,event:name,
       distinct_id:TELE_ID,properties:pr});
@@ -2735,6 +2768,47 @@ track('$pageview',{});
    NOT counted inside bump(), which also fires when a swipe hits the outermost
    or innermost ring — that is the game answering correctly, not a misread. */
 const GEST={tap:0,swipe:0,lateSwipe:0,unresolved:0};
+
+/* ---------- which way is out ----------
+   Two rules, and they only disagree at the top and bottom of the loop.
+   RADIAL reads the swipe against the line from the centre through the comet,
+   so "away from the middle" is always outward — at the bottom of the loop that
+   means swiping DOWN to go out. SCREEN ignores where the comet is: up is the
+   outer ring, down is the inner one, always.
+   Radial is what the game has been playtested on. Screen was the original, and
+   a playtester asked for it back: "can you make it so slide up always changes
+   to outer ring and down to inner? i think that's what my brain wants."
+   Neither is correct — they are different mental models of the same loop, and
+   which one a person holds is not something the game gets to decide for them.
+   So it is a choice, made once on a screen where both can actually be felt.
+   swipeOut() is the ONLY place either rule is expressed; both gesture
+   resolution paths call it, so they can never drift apart. */
+let SWIPE_MODE='radial';
+/* THE SENTENCE HAS TO FOLLOW THE RULE. Five channels described the hop as
+   "swipe up or down", which is the SCREEN rule — and the game has been
+   shipping the RADIAL one, where at the bottom of the loop you swipe DOWN to
+   go out. So the instruction has been describing a mechanic the build does not
+   have, for every player, in the menu key, the level 1 card, the SECOND RING
+   banner, the hint ladder and the death coach. Now there are two rules, one of
+   them is the player's own choice, and exactly one sentence describes each. */
+function swipeWords(){
+  return SWIPE_MODE==='screen'?'swipe up or down to change ring'
+                              :'swipe out or in to change ring';
+}
+function swipeOut(dx,dy,ang){
+  if(SWIPE_MODE==='screen')return dy<0;          /* up is out, wherever you are */
+  /* The outward normal at parametric angle a is (cos a, AY sin a), not
+     (cos a, sin a): on a stretched arena the pure basis reads a vertical flick
+     near the top of the loop as barely radial at all. */
+  return dx*Math.cos(ang)+dy*Math.sin(ang)*AY>0;
+}
+/* how far the gesture leans along whichever axis the mode cares about — the
+   commit threshold needs a magnitude, not just a sign */
+function swipeLean(dx,dy,ang){
+  if(SWIPE_MODE==='screen')return Math.abs(dy);
+  const rnx=Math.cos(ang),rny=Math.sin(ang)*AY;
+  return Math.abs((dx*rnx+dy*rny)/(Math.hypot(rnx,rny)||1));
+}
 
 /* ---------- state ---------- */
 const CW=2.5;   /* combo window seconds */
@@ -2912,7 +2986,7 @@ const TIERS=[
      the ring tiers, which have no formation and so no lesson, use the same
      vocabulary as the menu key and the hint ladder. "switch track" named a
      thing called a track that appears nowhere else in the game. */
-  {at:12, type:null,    name:'SECOND RING', sub:'swipe up or down to change ring',rings:2},
+  {at:12, type:null,    name:'SECOND RING', subFn:swipeWords,rings:2},
   {at:18, type:'twin',  name:'TWIN SHARDS', sub:'no room between them \u2014 swipe to another ring'},
   /* "faster and higher" was two claims and neither was true: angular speed is
      the same on every ring (one G.speed, no radius term) and an ember pays the
@@ -2935,7 +3009,16 @@ const TIERS=[
      lessons to find calm, and level 4 is the exam. */
   {at:240,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn around early'},
   {at:295,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is solid \u2014 cross the dim one'},
-  {at:340,type:null,    name:'STORM',       sub:'no new tricks \u2014 just more of everything'}
+  /* THE EYE, not STORM. This sub can never render — a dl 340 crossing on
+     level 3 always falls inside the suppressed endgame window, and on level 4
+     startGame pre-climbs G.tier before the first frame — but the NAME is the
+     only label tierLabel() can return on level 4, so every level-4 run printed
+     "LEVEL 4 · STORM" in the header, on the death screen and in the share
+     text, seconds after the card named the level EVENT HORIZON. LV[2].name is
+     'THE STORM'; two different things cannot share it. Renamed rather than
+     deleted: smoke.mjs asserts the last tier's `at` equals level 3's finish
+     line, so removing the entry fails the build. */
+  {at:340,type:null,    name:'THE EYE',     sub:'no new tricks \u2014 just more of everything'}
 ];
 function tierIndex(){
   const d=dl();
@@ -3029,7 +3112,7 @@ function shieldMax(){const d=dl();return d<160?3:d<320?4:5;}
    Drawn without replacement, so no run ever offers the same card twice.
    `ic` draws the icon at the origin, sized for a 78u tile. */
 const UPG=[
- {id:'longstar',n:'LONGER STAR',d:'the star runs longer',c:'#ff4fd8',
+ {id:'longstar',n:'LONGER STAR',d:'the pink star lasts longer',c:'#ff4fd8',
   ic:function(g,c){g.fillStyle=c;starPath(g,15,6.4);g.fill();
     g.strokeStyle='#fff';g.lineWidth=2.6;g.lineCap='round';
     g.beginPath();g.arc(0,0,23,-Math.PI/2,Math.PI*0.95);g.stroke();}},
@@ -3038,7 +3121,7 @@ const UPG=[
     for(let k=0;k<4;k++){g.globalAlpha=k===3?1:0.5;
       g.beginPath();g.arc(0,5,9+k*5.5,-Math.PI*0.86,-Math.PI*0.14);g.stroke();}
     g.globalAlpha=1;}},
- {id:'slowworld',n:'SLOW WORLD',d:'slow-mo slows spawns',c:'#b48bff',
+ {id:'slowworld',n:'SLOW WORLD',d:'slow-mo runs longer',c:'#b48bff',
   ic:function(g,c){g.strokeStyle=c;g.lineWidth=2.4;
     g.beginPath();g.arc(0,0,17,0,TAU);g.stroke();
     g.strokeStyle='#fff';g.lineWidth=2.6;g.lineCap='round';
@@ -3049,7 +3132,7 @@ const UPG=[
       g.beginPath();g.moveTo(Math.cos(a)*7,Math.sin(a)*7);
       g.lineTo(Math.cos(a)*19,Math.sin(a)*19);g.stroke();}
     g.fillStyle=c;g.beginPath();g.arc(0,0,5,0,TAU);g.fill();}},
- {id:'widepull',n:'WIDE PULL',d:'magnetar takes orbs',c:'#b8ff4d',
+ {id:'widepull',n:'WIDE PULL',d:'magnetar pulls orbs too',c:'#b8ff4d',
   ic:function(g,c){g.strokeStyle=c;g.lineWidth=2.2;g.lineCap='round';
     for(let k=0;k<5;k++){const a0=k*TAU/5;
       g.beginPath();
@@ -3107,7 +3190,9 @@ const G={
   state:'menu',t:0,started:0,deadT:0,
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
   newLevel:false, /* did this run reach deeper than any before it */
-  level:1,lvlMax:1,lvT:0,lvCard:null,carryScore:0, /* the three-level structure,
+  swipeAsked:false,selRects:[],selPt:null,selFx:0,selFrom:null,swipeRect:null,
+  level:1,lvlMax:1,lvT:0,lvCard:null,carryScore:0,
+  carryOrbits:0,carryStreak:0,carryTime:0,carryLands:0,carryGroove:0, /* the three-level structure,
     and the deepest level ever reached — the only level record there is */
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
   orbits:0,bestStreak:0,shareFx:0, /* run summary, for the death screen and share */
@@ -3120,7 +3205,7 @@ const G={
   embers:0,blocks:0,phases:0,lastHit:'none', /* telemetry counters */
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
-  shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
+  shields:0,invuln:0,slow:0,slowD:4,shMax:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
   didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,gotShield:false,
   gotBass:false,gotSpot:false,hyperPlaced:false,
   dropsEarned:0,loopN:0,nearN:0,bestCombo:0,holdTimeout:false, /* play-style aggregates for run_ended */
@@ -3241,13 +3326,20 @@ function novaConvert(s){
      player's ring, so their embers used to coincide exactly. Each ember now
      steps along the lane in the direction of travel until it has room, so a
      converted wall reads as a string of notes you sweep through in order. */
+  /* RICH NOVA doubles the yield, and the second ember walks the same spacing
+     search as the first — so a doubled wall is a longer necklace, never two
+     embers stacked on one another (which is the exact complaint the spacing
+     walk was written for). */
   let ea=s.a;
-  for(let f=0;f<8&&G.stars.some(function(st){
-      return st.ring===ring&&angDist(st.a,ea)<0.30;});f++)
-    ea+=0.36*(G.dir||1);
-  /* born marks a nova ember: it condenses from a white-hot point instead of
-     the generic fade-in, so the transmutation is watched rather than implied */
-  G.stars.push({a:ea,ring:ring,t:0,life:rand(6.0,8.0),born:1});
+  const yield2=upgOn('richnova')?2:1;
+  for(let c=0;c<yield2;c++){
+    for(let f=0;f<8&&G.stars.some(function(st){
+        return st.ring===ring&&angDist(st.a,ea)<0.30;});f++)
+      ea+=0.36*(G.dir||1);
+    /* born marks a nova ember: it condenses from a white-hot point instead of
+       the generic fade-in, so the transmutation is watched rather than implied */
+    G.stars.push({a:ea,ring:ring,t:0,life:rand(6.0,8.0),born:1});
+  }
   burst(q[0],q[1],COL.nova,9,200);
   burst(q[0],q[1],COL.ember,7,130);
   arcFlash(s.a,s.ring,COL.nova);
@@ -3390,7 +3482,14 @@ const MEET={
   blinktwin:{t:'only one is solid — cross the dim one',g:'shard'},
   bass:  {t:'bass bomb — clears the lane, drops the low end',g:'nova',soft:1},
   spot:  {t:'spotlight — you take the lead, taps pay double',g:'beat',soft:1},
-  hyper: {t:'the gold star — untouchable at double speed',g:'star',soft:1},
+  /* NOT "gold", and not "double". COL.hyper is '#ff4fd8' and SPR.powHyper
+     fills with it — the orb is magenta. Gold is COL.ember, the colour of the
+     ordinary collectibles the player is picking up continuously, so the one
+     sentence whose job is to identify the object sent them hunting for the
+     most common thing on screen. The speed is 1+0.9*hv, eased in and out, so
+     "double" rounded up on a value that spends a fifth of its life below even
+     1.9x. */
+  hyper: {t:'the pink star — untouchable and fast',g:'star',soft:1},
   mag:   {t:'magnetar — every ember comes to you',g:'star',soft:1},
   /* not a spawned object: fired by the first reversal that discards most of
      an orbit — the one rule of the scoring economy nothing else teaches */
@@ -3402,7 +3501,10 @@ const MEET={
      the moment the player first touches it. */
   music: {t:'your moves play the music — every tap is a note',g:'beat',soft:1},
   beat:  {t:'that was on the beat — tight timing pays and opens the band',g:'beat',soft:1},
-  combo: {t:'combo — each star pays more than the last',g:'star',soft:1}};
+  /* the chain caps at 6 (G.combo=Math.min(G.combo+1,6)) and the lesson fires
+     at 3, so it promised an unbounded climb three rungs before it flattened
+     and no player-facing string named the ceiling */
+  combo: {t:'combo — chain stars, up to +6 each',g:'star',soft:1}};
 function firstMeet(type){
   if(G.seen[type]||!MEET[type])return;
   /* A LESSON WAITS FOR A CALM BEAT. Mid-game, first encounters used to fire
@@ -3599,7 +3701,8 @@ function startGame(){
      ladder already climbed to the level's floor — silently, because the
      intro card just did the announcing */
   applyLevelMusic();
-  if(G.carryScore){G.score=G.carryScore;G.mile=Math.floor(G.score/250);G.carryScore=0;}
+  const carried=!!G.carryScore;
+  if(carried){G.score=G.carryScore;G.mile=Math.floor(G.score/250);G.carryScore=0;}
   /* seed the layer ladder from the carried score, or level 2's first frame
      fires a gold NEW LAYER braam for a layer that has been audible since
      the middle of level 1 — a false announcement that spends the channel's
@@ -3614,6 +3717,12 @@ function startGame(){
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
   G.build=0;G.buildFx=0;G.buildSeg=0;G.buildSrc={ember:0,hop:0,time:0,orbit:0};
   G.landFx=null;G.lands=0;G.secScore=0;G.secMult=1;G.secFx=null;
+  /* counters restored AFTER the resets above, so the carry survives them —
+     sums for the things you accumulate, max for the things you peak at. A run
+     that did not carry a score is a fresh run and clears them. */
+  if(carried){G.orbits=G.carryOrbits;G.lands=G.carryLands;
+    G.bestStreak=G.carryStreak;G.bestGroove=G.carryGroove;}
+  else{G.carryOrbits=0;G.carryLands=0;G.carryStreak=0;G.carryGroove=0;G.carryTime=0;}
   G.teach=0;G.teachKind=null;G.teachHint=null;G.campT=0;G.holdD=0;G.hopHintT=0;G.coach=null;
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
   G.sparkT=0;G.sparkN=0;
@@ -3642,7 +3751,7 @@ function startGame(){
   /* Two to start, always. One was a single mistake between a new player and
      the retry screen, and shields are now purely "you live" — see the block
      path in updateSpikes. */
-  G.shields=2;
+  G.shields=2+(upgOn('deepbank')?1:0);   /* DEEP BANK: literally 'one more shield' */
   G.invuln=0;G.slow=0;G.tsCur=1;G.sinceShield=0;G.revPend=0;G.didShield=false;
   /* Reset EVERY run, so the ladder replays from the top every time. These were
      lifetime flags, permanently true after run one — which meant a returning
@@ -3697,7 +3806,7 @@ function die(){
      already measured. One line, phrased as an invitation — a struggling
      player does not need another demand. */
   const secs=G.deadT-G.started;
-  if(!G.didHop&&G.nRings>1)G.coach={t:'you never changed rings — swipe up or down',g:'swipe'};
+  if(!G.didHop&&G.nRings>1)G.coach={t:'you never changed rings — '+(SWIPE_MODE==='screen'?'swipe up or down':'swipe out or in'),g:'swipe'};
   /* EVERY NAMED KILLER COACHES WITH ITS OWN LESSON, WORD FOR WORD. Four of
      these were hand-written paraphrases sitting above the fallback that
      already read MEET — so a gate death said "gates want you to turn back",
@@ -3974,7 +4083,7 @@ function hop(step){
    filled/hollow bar reports how far the run got without spoiling what is in
    the tiers you have not reached. */
 function runTime(){
-  const s=Math.max(0,Math.round(G.deadT-G.started));
+  const s=Math.max(0,Math.round((G.carryTime||0)+G.deadT-G.started));
   return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
 }
 function tierLabel(){
@@ -4079,6 +4188,25 @@ cv.addEventListener('pointerdown',function(e){
        inheriting a device's unlock, and friends thought the game had skipped
        level 1. Dying mid-run still retries the level you died on. */
     G.level=1;G.upg={};G.offered={};G.offer=[];G.picks=[];
+    /* WHICH WAY IS OUT, ASKED ONCE. Two rules exist and they disagree only at
+       the top and bottom of the loop; which one a person's hand expects is not
+       something the game can decide for them. Asked on the first tap of a
+       fresh device, before the level-1 card, and never again — the menu keeps
+       a control for changing it later. */
+    /* the menu's swipe row is a control: a hand can want one rule on day one
+       and the other on day three, and nothing else on this screen is tappable
+       so a mis-tap only ever costs a look at the chooser */
+    if(G.swipeRect&&e.clientX>=G.swipeRect.x&&e.clientX<=G.swipeRect.x+G.swipeRect.w&&
+       e.clientY>=G.swipeRect.y&&e.clientY<=G.swipeRect.y+G.swipeRect.h){
+      G.selFrom='menu';G.swipeAsked=false;
+    }
+    if(!G.swipeAsked){
+      G.state='swipesel';G.lvT=G.t;G.nRings=3;G.ringI=1;G.hopFromI=1;G.hopP=1;
+      G.angle=Math.PI/2;   /* bottom of the loop: the one place the rules disagree */
+      G.trail.length=0;    /* or the angle jump draws a chord across the arena */
+      G.stars=[];G.spikes=[];G.pows=[];
+      return;
+    }
     /* A GENUINE FIRST RUN GETS LEVEL 1'S CARD. The LIFT OFF card was dead
        data — lvCard was only ever built by levelComplete, so the one calm
        screen that pre-teaches the verbs, the orbit economy and the finale
@@ -4089,6 +4217,14 @@ cv.addEventListener('pointerdown',function(e){
     return;
   }
   if(G.state==='lvend'){G.lvPt={x:e.clientX,y:e.clientY};return;}  /* decided at lift */
+  if(G.state==='swipesel'){
+    /* a press anywhere may become a swipe; whether it was a TAP on a control
+       is decided at lift, exactly as the level card does it */
+    G.selPt={x:e.clientX,y:e.clientY};
+    if(pd)return;
+    pd={id:e.pointerId,x:e.clientX,y:e.clientY,saved:null,ang:G.angle,far:0,lean:0,out:false,swiped:false};
+    return;
+  }
   if(G.state==='dead'){
     /* the first tap after the lockout fast-forwards the reveal; the next
        one retries — a fast retrier is never made to sit through it */
@@ -4099,7 +4235,7 @@ cv.addEventListener('pointerdown',function(e){
   tryLand();     /* any input in the window lands the drop — and still plays */
   const saved={lap:G.lapAcc,streak:G.lapStreak,dr:G.didReverse};
   reverse(true); /* direction flips instantly; sound and sparks wait */
-  pd={id:e.pointerId,x:e.clientX,y:e.clientY,saved:saved,ang:G.angle,far:0,radial:0,swiped:false};
+  pd={id:e.pointerId,x:e.clientX,y:e.clientY,saved:saved,ang:G.angle,far:0,lean:0,out:false,swiped:false};
 });
 /* RADIAL SWIPE. Direction is read against the line from the centre through
    the comet, so "away from the middle" always means out and "toward the
@@ -4108,7 +4244,7 @@ cv.addEventListener('pointerdown',function(e){
    is what the player was actually looking at when they committed. */
 const RADIAL_MIN=0.34; /* ~20 degrees off tangential before we call it */
 cv.addEventListener('pointermove',function(e){
-  if(!pd||pd.id!==e.pointerId||G.state!=='playing')return;
+  if(!pd||pd.id!==e.pointerId||(G.state!=='playing'&&G.state!=='swipesel'))return;
   const dx=e.clientX-pd.x,dy=e.clientY-pd.y;
   const len=Math.sqrt(dx*dx+dy*dy);
   pd.far=len;
@@ -4118,23 +4254,24 @@ cv.addEventListener('pointermove',function(e){
        didReverse comes back too — a run whose only "reverse" was speculative
        must not report the tap lesson as learned. */
     pd.swiped=true;
-    G.revPend=0;
-    G.dir*=-1;
-    G.lapAcc=pd.saved.lap;
-    G.lapStreak=pd.saved.streak;
-    G.didReverse=pd.saved.dr;
-    G.lapCut=0;   /* the lap is restored, so there is no cost to teach */
+    if(pd.saved){
+      G.revPend=0;
+      G.dir*=-1;
+      G.lapAcc=pd.saved.lap;
+      G.lapStreak=pd.saved.streak;
+      G.didReverse=pd.saved.dr;
+      G.lapCut=0;   /* the lap is restored, so there is no cost to teach */
+    }
   }
-  /* The outward normal at parametric angle a is (cos a, AY sin a), not
-     (cos a, sin a): on a stretched arena the pure-cos/sin basis would read a
-     vertical flick near the top of the loop as barely radial at all. */
-  const rnx=Math.cos(pd.ang),rny=Math.sin(pd.ang)*AY;
-  const rnl=Math.hypot(rnx,rny)||1;
-  pd.radial=(dx*rnx+dy*rny)/rnl;
+  /* Both the lean and its sign come from the mode (see swipeOut). Under the
+     screen rule the reference angle is irrelevant, which is exactly the point
+     of that rule. */
+  pd.lean=swipeLean(dx,dy,pd.ang);
+  pd.out=swipeOut(dx,dy,pd.ang);
   /* A flick almost exactly along the ring is genuinely ambiguous — keep
      watching rather than guessing; it resolves as the finger travels. */
-  if(Math.abs(pd.radial)>=len*RADIAL_MIN){
-    const out=pd.radial>0;
+  if(pd.lean>=len*RADIAL_MIN){
+    const out=pd.out;
     pd=null;
     GEST.swipe++;          /* resolved mid-drag: the clean case */
     hop(out?-1:1);
@@ -4165,6 +4302,28 @@ function pdEnd(e){
     }
     return;
   }
+  if(G.state==='swipesel'&&G.selPt){
+    const pt=G.selPt;G.selPt=null;
+    const swiped=pd&&pd.swiped;
+    if(!swiped){
+      const hit=G.selRects.find(r=>pt.x>=r.x&&pt.x<=r.x+r.w&&pt.y>=r.y&&pt.y<=r.y+r.h);
+      if(hit&&hit.id==='play'){
+        savePref('cometloop:swipe',SWIPE_MODE);
+        G.swipeAsked=true;
+        track('swipe_mode_chosen',{mode:SWIPE_MODE,hops:GEST.swipe+GEST.lateSwipe});
+        pd=null;
+        if(G.selFrom==='menu'){G.selFrom=null;G.state='menu';}
+        else{G.state='lvend';G.lvT=G.t;G.lvCard={done:false,next:1};}
+        beep(523,0.14,'triangle',0.06,784);
+        return;
+      }
+      if(hit&&hit.id!==SWIPE_MODE){
+        SWIPE_MODE=hit.id;G.selFx=1;
+        beep(392,0.10,'triangle',0.05,588);
+      }
+      pd=null;return;
+    }
+  }
   if(pd&&e&&pd.id!==e.pointerId)return;
   if(pd){
     if(pd.swiped){
@@ -4173,21 +4332,21 @@ function pdEnd(e){
          dragged back to its start used to read as a committed hop in the
          abandoned direction. pointercancel keeps the stored values; its
          coordinates are not trustworthy. */
-      let rad=pd.radial,far=pd.far;
+      let lean=pd.lean||0,out=pd.out,far=pd.far;
       if(e&&e.type==='pointerup'){
         const dx=e.clientX-pd.x,dy=e.clientY-pd.y;
         far=Math.sqrt(dx*dx+dy*dy);
-        rad=dx*Math.cos(pd.ang)+dy*Math.sin(pd.ang);
+        lean=swipeLean(dx,dy,pd.ang);out=swipeOut(dx,dy,pd.ang);
       }
       /* A clear lean commits; a flick essentially along the ring has no
-         radial answer, so bump rather than coin-flip. */
-      if(far>=18&&Math.abs(rad)>far*0.12){GEST.lateSwipe++;hop(rad>0?-1:1);}
+         answer under either rule, so bump rather than coin-flip. */
+      if(far>=18&&lean>far*0.12){GEST.lateSwipe++;hop(out?-1:1);}
       /* Swiped and got nothing. This is the misread rate worth watching.
          During the hop rehearsal a failed swipe extends the lesson instead
          of just thudding. */
       else{GEST.unresolved++;bump();
         if(G.teach>0&&G.teachKind==='hop')G.teach=Math.min(8,G.teach+2.5);}
-    }else{
+    }else if(G.state==='playing'){
       GEST.tap++;
       commitReverseFX();
     }
@@ -4388,7 +4547,7 @@ function update(dt){
   const tsT=G.slow>0?0.55:1;
   G.tsCur+=(tsT-G.tsCur)*Math.min(1,dt*8);
   /* the menu demo hops at a third speed, so the gesture reads as a gesture */
-  if(G.hopP<1)G.hopP=Math.min(1,G.hopP+dt/(G.state==='menu'?HOP*3.5:HOP));
+  if(G.hopP<1)G.hopP=Math.min(1,G.hopP+dt/((G.state==='menu'||G.state==='swipesel')?HOP*3.5:HOP));
   /* The grace holds while the finger is still down: a slow deliberate swipe
      used to outlive the 70ms window, fire the reverse beep and sparks, and
      then roll back anyway — sound for a reverse that never happened. A held
@@ -4445,6 +4604,10 @@ function update(dt){
   /* dir matters on the menu now: the demo reverses the comet for real */
   if(G.state==='menu'){G.sweep=0;G.angle+=0.8*dt*G.dir;pushTrail();menuDemo(dt);return;}
   if(G.state==='lvend'){G.sweep=0;G.angle+=0.8*dt*G.dir;pushTrail();return;}
+  /* THE CHOOSER IS A SANDBOX, not a diagram. It runs the real rings, the real
+     comet and the real hop() — the only way to know which rule your thumb
+     wants is to use it. Slow enough to read, and nothing here can hurt you. */
+  if(G.state==='swipesel'){G.sweep=0;G.angle+=0.62*dt*G.dir;pushTrail();return;}
   if(G.state==='dead'){G.sweep=0;updateSpikes(dt,false);return;}
 
   /* playing */
@@ -4495,7 +4658,13 @@ function update(dt){
          pickups leave, and two intro bars pass with the sequencer fading
          in before the first call. The duet then narrates itself with a
          STANDING instruction line for its whole length. */
-      G.banner={str:'THE FINALE',sub:'chase the brightest star \u2014 quick chains pay double',t:0};
+      /* NOT "UNLOCKED". Nothing is unlocked on this path — G.tier, G.nRings
+         and the spawn pool are untouched by the finale latch, and the tier
+         block is separately suppressed inside the endgame window — so every
+         player clearing a level read UNLOCKED / THE FINALE at the moment the
+         level was being taken away. One hardcoded eyebrow served two opposite
+         events, which no wording can fix. */
+      G.banner={str:'THE FINALE',eyebrow:'FINISH LINE',sub:'chase the brightest star \u2014 quick chains pay double',t:0};
       /* a hypernova carried into the dive would fight the dive's own
          momentum curve — the star gets a graceful second to wind down */
       G.hyper=Math.min(G.hyper,1.0);
@@ -4614,6 +4783,18 @@ function update(dt){
     if(G.hyper===0)G.invuln=Math.max(G.invuln,G.t+1.2);
   }
   G.hyperGlow+=(((G.hyper>0)?1:0)-G.hyperGlow)*Math.min(1,dt*3);
+  /* THE PROMISE IS WITHDRAWN ON A CLOCK, SO SAY SO. shieldMax() steps 3->4->5
+     at dl 160 and 320. A bank sitting full at 3/3 stops being full the instant
+     the clock crosses, the ember doubling stops with it, and nothing was ever
+     said — the player just watched their score rate drop for no visible
+     reason. The shimmer is closed at the same moment so the state and the
+     signal agree. */
+  const smx=shieldMax();
+  if(G.shMax&&smx>G.shMax&&G.shields>=G.shMax){
+    say('BANK DEEPER \u2014 one more to fill',2,6);
+    cueState(false);
+  }
+  G.shMax=smx;
   if(G.mag>0)G.mag=Math.max(0,G.mag-dt);
   G.magGlow+=(((G.mag>0)?1:0)-G.magGlow)*Math.min(1,dt*4);
   /* the layer ladder: a score crossing names the layer that just joined */
@@ -4711,7 +4892,7 @@ function update(dt){
       }
     }
     if(T.name){
-      G.banner={str:T.name,sub:T.sub,t:0};
+      G.banner={str:T.name,eyebrow:'UNLOCKED',sub:T.subFn?T.subFn():T.sub,t:0};
       fireLift();      /* ceremony, not a chorus — see fireLift */
       ripple(cx,cy,COL.ember);   /* earned, so gold — see the banner draw */
       /* the unlock call, reserved for banners alone — the generic triangle
@@ -4849,7 +5030,20 @@ function update(dt){
       let d=G.angle-s.a;
       while(d>Math.PI)d-=TAU; while(d<-Math.PI)d+=TAU;
       const k=Math.min(1,sdt*3.4);
-      s.a+=d*k; s.pr+=(tr-s.pr)*k;
+      /* THE EMBER MATCHES YOUR ORBIT FIRST, THEN CLOSES. A plain ease toward
+         a MOVING target never arrives: with the comet advancing at omega and
+         the pull correcting at 3.4/s, the error obeys e' = omega - 3.4e and
+         settles at a constant omega/3.4 radians instead of reaching zero.
+         speedAt() runs 1.30-3.00, so that resting lag is 0.38-0.88 rad against
+         a collection tolerance of 0.12-0.22 — three to seven times too wide to
+         ever be swept. Simulating the real loop at 64 evenly spaced angles:
+         34 of 64 arrived, at EVERY speed. Half of every magnetar was embers
+         that fell into a trailing orbit behind the comet, rode there for the
+         whole eight beats, and expired 1.2s after the field ended.
+         Feeding the comet's own angular velocity forward makes the error obey
+         e' = -3.4e, which converges to zero from either side. Same simulation:
+         64 of 64, at every speed. "every ember comes to you" is now true. */
+      s.a+=G.dir*G.speed*sdt+d*k; s.pr+=(tr-s.pr)*k;
       s.life=Math.max(s.life,s.t+1.2);      /* never expire mid-flight */
       if(Math.abs(s.pr-tr)<7*u){s.ring=effRing();s.pr=undefined;}
     }else if(s.pr!==undefined)s.pr=undefined;
@@ -4863,9 +5057,20 @@ function update(dt){
       if(MU&&MU.pay>0){
         const ex=G.combo*(G.secMult||1);
         G.score+=ex;G.secScore+=ex;
-      }else if(G.od>0||G.hyper>0||G.shields>=shieldMax())G.score+=G.combo; /* overdrive, hypernova — and a FULL shield bank — double the pickup */
+      /* SPOTLIGHT JOINS THE ONLY DOUBLING TEST IN THE GAME. Three strings
+         asserted "SPOTLIGHT x2" — the lesson, the say() and a HUD chip sitting
+         in the same slot and the same grammar as OVERDRIVE x2, which genuinely
+         doubles here — while the spotlight's complete effect inventory was a
+         flat +8 on a tight tap, performer gain x1.5 and a bed duck. Nothing
+         was doubled. Worse, under this repo's "audio is optional everywhere"
+         rule it paid literally ZERO: judgeTiming returns early without an
+         AudioContext, so no tap is ever judged tight, yet the orb is
+         force-placed on level 2 with no audio condition and the x2 chip draws
+         off G.spot alone. One token makes the badge true, makes it true with
+         no WebAudio, and puts it in the category it was already claiming. */
+      }else if(G.od>0||G.spot>0||G.hyper>0||G.shields>=shieldMax())G.score+=G.combo;
       G.lapEmbers++;G.embers++;
-      const p=posAt(s.a,radiusOf(s.ring));
+      const p=posAt(s.a,starR(s));
       burst(p[0],p[1],COL.ember,14,150);
       ripple(p[0],p[1],COL.ember);
       arcFlash(s.a,s.ring,COL.ember);
@@ -4930,6 +5135,20 @@ function update(dt){
   /* power-ups */
   for(let i=G.pows.length-1;i>=0;i--){
     const s=G.pows[i];s.t+=sdt;
+    /* WIDE PULL: the magnetar takes ORBS as well as embers. Same ease as the
+       star pull, including the feed-forward that makes it actually arrive —
+       an orb left trailing behind the comet would be the old magnetar bug
+       reintroduced on the more valuable object. */
+    if(G.mag>0&&upgOn('widepull')){
+      const tr=curR();
+      if(s.pr===undefined)s.pr=radiusOf(s.ring);
+      let d=G.angle-s.a;
+      while(d>Math.PI)d-=TAU; while(d<-Math.PI)d+=TAU;
+      const k=Math.min(1,sdt*3.4);
+      s.a+=G.dir*G.speed*sdt+d*k; s.pr+=(tr-s.pr)*k;
+      s.life=Math.max(s.life,s.t+1.2);
+      if(Math.abs(s.pr-tr)<7*u){s.ring=effRing();s.pr=undefined;}
+    }else if(s.pr!==undefined)s.pr=undefined;
     if(s.t>s.life){
       /* an unseen musical orb that expires unlessoned comes back: the
          level-2 guarantee is of the INTRODUCTION, not of one spawn roll —
@@ -4976,7 +5195,12 @@ function update(dt){
         }else{
           G.shields++;popup(p[0],p[1]-20*u,'SHIELD \u00d7'+G.shields,COL.shield);
           if(G.shields>=shieldMax()){
-            say('SHIELDS FULL \u2014 everything pays double',2,7);
+            /* NOT "everything". Exactly one score source doubles on a full
+               bank — the ember at the pickup above. The orbit, which is the
+               largest payout in the game at up to 86, is paid with a bare
+               G.score+=bonus, so a player who read "everything" watched
+               ORBIT +86 print unchanged seconds later. */
+            say('SHIELDS FULL \u2014 stars pay double',2,7);
             cueState(true);   /* overcharge opens \u2014 the rising shimmer */
           }
         }
@@ -4984,7 +5208,7 @@ function update(dt){
         ripple(p[0],p[1],COL.shield);
         cueTone(function(w){beep(520,0.12,'triangle',0.06,780,w);});
       }else if(s.type==='warp'){
-        G.slow=4;G.gotWarp=true;
+        G.slow=upgOn('slowworld')?6:4;G.slowD=G.slow;G.gotWarp=true;
         popup(p[0],p[1]-20*u,'SLOW-MO',COL.warp);
         burst(p[0],p[1],COL.warp,14,150);
         ripple(p[0],p[1],COL.warp);
@@ -4995,7 +5219,7 @@ function update(dt){
            end drops — a pitch-fall boom into a one-bar heavy kick figure.
            The clear reuses novaConvert, so the shards pay like a nova's. */
         for(let j=G.spikes.length-1;j>=0;j--)
-          if(angDist(G.spikes[j].a,G.angle)<1.05)novaConvert(G.spikes.splice(j,1)[0]);
+          if(angDist(G.spikes[j].a,G.angle)<(upgOn('longfuse')?1.5:1.05))novaConvert(G.spikes.splice(j,1)[0]);
         popup(p[0],p[1]-24*u,'BASS BOMB!',COL.comet,1.5);
         burst(p[0],p[1],COL.comet,24,260);
         ripple(p[0],p[1],COL.comet);
@@ -5015,7 +5239,7 @@ function update(dt){
         /* SPOTLIGHT: four bars where YOU are the lead — your instrument
            doubles and brightens, the band steps back a notch, and every
            tight tap pays double. A performance, not a transaction. */
-        G.spot=16*SPB;G.gotSpot=true;
+        G.spot=(upgOn('stagelight')?24:16)*SPB;G.gotSpot=true;
         cueState(true);
         popup(p[0],p[1]-24*u,'SPOTLIGHT!',COL.warp,1.5);
         burst(p[0],p[1],'#eaf1ff',20,220);
@@ -5048,7 +5272,7 @@ function update(dt){
            nothing can touch you, the comet runs at nearly double speed,
            the kit rides sixteenths, and every red you plow through turns
            into a paying ember right on your lane. */
-        G.hyperD=SPB*16;G.hyper=G.hyperD;G.gotHyper=true;
+        G.hyperD=SPB*(upgOn('longstar')?24:16);G.hyper=G.hyperD;G.gotHyper=true;
         popup(p[0],p[1]-24*u,'HYPERNOVA!',COL.hyper,1.7);
         say('HYPERNOVA \u2014 nothing can touch you',3,5);
         burst(p[0],p[1],'#ffffff',22,280);
@@ -5249,7 +5473,7 @@ function drawBloom(){
   g.setTransform(s,0,0,s,0,0);
   g.globalCompositeOperation='lighter';
   for(const st of G.stars){
-    const p=posAt(st.a,radiusOf(st.ring));
+    const p=posAt(st.a,starR(st));      /* the glow rides WITH the ember */
     bloomDot(g,p[0],p[1],10*u,COL.ember);
   }
   for(const sp of G.spikes){
@@ -5633,6 +5857,24 @@ function glRender(dt){
    frame and early-returns when the dimensions have not moved, which covers
    orientation changes for free. */
 glInit();glResize();
+/* A LOST CONTEXT WAS UNRECOVERABLE AND SILENT. There was no listener of either
+   kind: iOS drops a WebGL context under memory pressure or on a backgrounded
+   tab, and the default action of the lost event is to make restoration
+   impossible. The backdrop would simply stop, with GL.on still true, so
+   glRender kept issuing calls into a dead context every frame and the 2D
+   fallback — which exists precisely for this — never took over. Prevent the
+   default so a restore can happen, hand the backdrop to the 2D path meanwhile,
+   and rebuild on restore. */
+try{
+  if(GL.cv){
+    GL.cv.addEventListener('webglcontextlost',function(ev){
+      ev.preventDefault();GL.on=false;
+    },false);
+    GL.cv.addEventListener('webglcontextrestored',function(){
+      GL.vw=GL.vh=0;glInit();glResize();
+    },false);
+  }
+}catch(e){}
 function draw(){
   const amb=RM?0:G.t;
   /* The GPU paints the backdrop; the 2D canvas is cleared to transparent and
@@ -6004,13 +6246,13 @@ function draw(){
   /* slow-mo timer arc */
   if(G.slow>0){
     ctx.strokeStyle=COL.warp;ctx.lineWidth=3;
-    ctx.beginPath();ctx.arc(cx,cy,14*u,-Math.PI/2,-Math.PI/2+TAU*(G.slow/4));ctx.stroke();
+    ctx.beginPath();ctx.arc(cx,cy,14*u,-Math.PI/2,-Math.PI/2+TAU*(G.slow/(G.slowD||4)));ctx.stroke();
   }
 
   /* embers */
   ctx.globalCompositeOperation='lighter';
   for(const s of G.stars){
-    const p=posAt(s.a,s.pr!==undefined?s.pr:radiusOf(s.ring));
+    const p=posAt(s.a,starR(s));
     let al=1;
     if(s.born&&s.t<0.25){
       /* a nova ember condenses from a white-hot point — the transmutation is
@@ -6031,7 +6273,7 @@ function draw(){
   ctx.globalCompositeOperation='source-over';
   /* power-ups */
   for(const s of G.pows){
-    const p=posAt(s.a,radiusOf(s.ring));
+    const p=posAt(s.a,starR(s));   /* pows carry .pr under WIDE PULL too */
     let al=1;
     if(s.t<0.3)al=s.t/0.3;
     else if(s.life-s.t<0.8)al=(s.life-s.t)/0.8;
@@ -6562,7 +6804,7 @@ function hintText(){
   if(!G.didHop&&G.nRings>1){
     if(!G.hopHintT)G.hopHintT=a;
     if(a-G.hopHintT<10||Math.floor(a/6)%2===0)
-      return {t:'swipe up or down to change ring',g:'swipe'};
+      return {t:swipeWords(),g:'swipe'};
   }
   if(!G.didLap&&a<22)return {t:'collect stars, then finish a lap',g:'star'};
   /* the same sentence MEET.single uses, because it is the same rule */
@@ -6736,7 +6978,11 @@ function drawHUD(){
       ctx.globalAlpha=1;
     }else if(G.lapStreak>=2&&roomy){
       ctx.globalAlpha=0.5;
-      text('LAPS \u00d7'+G.lapStreak,cx,top+154*u,9.5*u,'700',
+      /* NOT "xN". lapStreak is not a multiplier: the orbit pays
+         base+min(7*(streak-1),28), saturated at five laps, so x5, x7 and x20
+         all pay the same +28 while the number climbs on in the same slot and
+         the same idiom as OVERDRIVE x2, which is a real multiplier. */
+      text('LAPS '+G.lapStreak+' IN A ROW',cx,top+154*u,9*u,'700',
         'rgba(255,200,120,0.85)',2);
       ctx.globalAlpha=1;
     }
@@ -6789,7 +7035,7 @@ function drawHUD(){
          failure colour, which is a strange thing to do to the only reward the
          ladder ever hands out. Ember gold is what the game already uses for
          everything earned. */
-      text('UNLOCKED',cx,by-19*u,12*u,'800','rgba(255,200,87,0.75)',3);
+      text(b.eyebrow||'UNLOCKED',cx,by-19*u,12*u,'800','rgba(255,200,87,0.75)',3);
       textFx(b.str,cx,by,fitSz(b.str,20*u,'800',W-20*u,4),'800','#ffe9b0',COL.ember,'rgba(255,200,87,0.5)',4);
       text(b.sub,cx,by+20*u,fitSz(b.sub,12*u,'600',W-16*u),'600','rgba(210,225,255,0.75)',0);
       ctx.globalAlpha=1;
@@ -6984,9 +7230,10 @@ function drawHUD(){
     textFx(L.name,cx,y2+26*u,22*u,'800','#ffffff','#9fd8ff','rgba(125,228,255,0.45)',4);
     let my=y2+62*u;
     for(const m of L.mech){
+      const mt=m[1]||swipeWords();
       hintGlyph(m[0],cx-112*u,my-5*u,16*u);
       ctx.textAlign='left';
-      text(m[1],cx-94*u,my,fitSz(m[1],11.5*u,'600',W/2+82*u),'600','rgba(214,228,255,0.85)',0);
+      text(mt,cx-94*u,my,fitSz(mt,11.5*u,'600',W/2+82*u),'600','rgba(214,228,255,0.85)',0);
       ctx.textAlign='center';
       my+=26*u;
     }
@@ -6994,11 +7241,27 @@ function drawHUD(){
        that picks one IS the tap that starts the level — no extra screen, no
        extra step, and the choice lands on the one calm moment the player is
        already reading. */
+    /* SIZED FROM THE ROOM ON THE SCREEN, NOT FROM A CONSTANT. Playtest,
+       verbatim: "the selection of power ups between levels — i had to
+       screenshot so i can zoom in and read. i'm old." He was right: the tile
+       was a hardcoded 76u wide with its description set at 8u, which is 8
+       PHYSICAL PIXELS on a phone. Three of those tiles used 248u of a 390u
+       screen and left 142u of margin doing nothing.
+       The row now claims the width it has and the type scales with the tile,
+       so the same layout reads on a 360-wide phone and a tablet. Height is
+       derived from the gap between the last mechanic row and CHOOSE ONE, and
+       the tile is whichever of the two constraints binds first — so a short
+       viewport shrinks the tiles instead of sliding them up through the text
+       above, which is what the old upward clamp did. */
     G.offerRects=[];
     if(G.offer&&G.offer.length){
-      const tw=76*u,th=88*u,gap=10*u;
-      const x0=cx-(G.offer.length*tw+(G.offer.length-1)*gap)/2;
-      const ty0=Math.min(my+16*u,bottomY-th-34*u);
+      const n=G.offer.length,gap=9*u;
+      const availW=Math.min(W-24*u,430*u);
+      const availH=Math.max(74*u,bottomY-28*u-(my+10*u));
+      const tw=Math.min((availW-(n-1)*gap)/n,availH/1.18);
+      const th=tw*1.18;
+      const x0=cx-(n*tw+(n-1)*gap)/2;
+      const ty0=Math.min(my+14*u,bottomY-th-30*u);
       for(let i=0;i<G.offer.length;i++){
         const o=G.offer[i],bx=x0+i*(tw+gap);
         G.offerRects.push({x:bx,y:ty0,w:tw,h:th,id:o.id});
@@ -7007,25 +7270,49 @@ function drawHUD(){
         const bg=ctx.createLinearGradient(0,ty0,0,ty0+th);
         bg.addColorStop(0,'rgba(20,27,46,0.96)');bg.addColorStop(1,'rgba(10,15,28,0.96)');
         ctx.fillStyle=bg;
-        ctx.beginPath();ctx.roundRect(bx,ty0,tw,th,10*u);ctx.fill();
+        const rr=Math.min(13*u,tw*0.12);
+        ctx.beginPath();ctx.roundRect(bx,ty0,tw,th,rr);ctx.fill();
         ctx.strokeStyle=o.c;ctx.globalAlpha=a2*(RM?0.7:0.5+0.3*Math.sin(G.t*3+i));
         ctx.lineWidth=1.6;
-        ctx.beginPath();ctx.roundRect(bx+0.8,ty0+0.8,tw-1.6,th-1.6,10*u);ctx.stroke();
+        ctx.beginPath();ctx.roundRect(bx+0.8,ty0+0.8,tw-1.6,th-1.6,rr);ctx.stroke();
         ctx.globalAlpha=a2;
+        /* every measurement below is a fraction of the tile, so the artwork
+           and the type keep their proportions at whatever size it came out */
         ctx.save();
-        ctx.translate(bx+tw/2,ty0+30*u);
-        ctx.scale(u*0.82,u*0.82);
+        ctx.translate(bx+tw/2,ty0+th*0.335);
+        const isc=(tw/(76*u))*u*0.82;
+        ctx.scale(isc,isc);
         ctx.shadowColor=o.c;ctx.shadowBlur=12;
         o.ic(ctx,o.c);
         ctx.restore();
-        text(o.n,bx+tw/2,ty0+58*u,fitSz(o.n,9.5*u,'800',tw-8*u),'800','#eaf1ff',0);
         ctx.textAlign='center';
-        const words=o.d.split(' ');let ln='',lines=[];
-        for(const w of words){const t2=ln?ln+' '+w:w;
-          if(t2.length>16){lines.push(ln);ln=w;}else ln=t2;}
-        if(ln)lines.push(ln);
+        /* floors as well as ceilings: a landscape phone binds on height and
+           makes the tile small, and without a floor the type would come out
+           SMALLER than the fixed sizes this replaced — the opposite of the
+           point. 9.5/8 are exactly what the old hardcoded layout used, so no
+           viewport can regress. */
+        const nsz=Math.max(9.5*u,Math.min(13.5*u,tw*0.125));
+        text(o.n,bx+tw/2,ty0+th*0.645,fitSz(o.n,nsz,'800',tw-10*u),'800','#eaf1ff',0);
+        /* WRAPPED ON MEASURED WIDTH, NOT A CHARACTER COUNT. The old rule broke
+           at 16 characters regardless of the glyphs, then hard-capped at two
+           lines, so a description that needed a third was silently truncated —
+           which is how "the magnetar takes orbs as well" shipped rendering as
+           "the magnetar takes orbs as". Two lines is still the budget, but now
+           the type shrinks until the sentence FITS in two rather than losing
+           its ending. */
+        let dsz=Math.max(8*u,Math.min(11*u,tw*0.098)),lines;
+        const wrap=function(sz){
+          ctx.font='600 '+Math.round(sz)+'px '+F;
+          const out=[];let ln='';
+          for(const w of o.d.split(' ')){const t2=ln?ln+' '+w:w;
+            if(ln&&ctx.measureText(t2).width>tw-12*u){out.push(ln);ln=w;}else ln=t2;}
+          if(ln)out.push(ln);
+          return out;
+        };
+        lines=wrap(dsz);
+        while(lines.length>2&&dsz>7*u){dsz-=0.5*u;lines=wrap(dsz);}
         for(let k=0;k<Math.min(2,lines.length);k++)
-          text(lines[k],bx+tw/2,ty0+70*u+k*10*u,8*u,'600','rgba(200,215,255,0.7)',0);
+          text(lines[k],bx+tw/2,ty0+th*0.79+k*dsz*1.18,dsz,'600','rgba(206,220,255,0.82)',0);
         ctx.restore();
       }
     }
@@ -7034,6 +7321,103 @@ function drawHUD(){
     textFx(G.offer&&G.offer.length?'CHOOSE ONE'
       :(c2.done?'TAP FOR LEVEL '+Math.min(LEVEL_MAX,c2.next):'TAP TO START'),
       cx,bottomY,17*u,'800','#eaffff',COL.comet,'rgba(93,240,255,0.5)',4);
+    ctx.globalAlpha=1;
+  }else if(G.state==='swipesel'){
+    /* WHICH WAY IS OUT. Two rules, and they only disagree at the top and
+       bottom of the loop — at the sides they are the same gesture, which is
+       precisely why a written description of the difference does not land.
+       So the screen is the real arena with the real hop(): the arrow at the
+       comet shows where THIS rule says "out" is, right now, and under the
+       radial rule it visibly rotates as the comet travels while under the
+       screen rule it stays pinned upward. Swipe, watch, switch, swipe again. */
+    const selA=Math.min(1,(G.t-G.lvT)/0.35);
+    ctx.globalAlpha=selA;
+    const sTop=top+46*u;
+    textFx('WHICH WAY IS OUT?',cx,sTop,fitSz('WHICH WAY IS OUT?',24*u,'800',W-30*u),'800',
+      '#ffffff','#9fd8ff','rgba(125,228,255,0.45)',4);
+    text('swipe the rings to try it \u2014 both work',cx,sTop+22*u,
+      fitSz('swipe the rings to try it \u2014 both work',11.5*u,'600',W-30*u),'600',
+      'rgba(210,225,255,0.72)',0);
+
+    /* the arrow, drawn AT the comet, pointing wherever this rule says out is */
+    const pp=posPlayer();
+    let ax,ay;
+    if(SWIPE_MODE==='screen'){ax=0;ay=-1;}
+    else{const nx=Math.cos(G.angle),ny=Math.sin(G.angle)*AY,nl=Math.hypot(nx,ny)||1;ax=nx/nl;ay=ny/nl;}
+    ctx.save();
+    ctx.globalAlpha=selA*(RM?0.9:0.62+0.3*Math.sin(G.t*3));
+    ctx.strokeStyle=COL.comet;ctx.fillStyle=COL.comet;
+    ctx.lineWidth=2.6*u;ctx.lineCap='round';ctx.lineJoin='round';
+    const a0=22*u,a1=46*u;
+    ctx.beginPath();
+    ctx.moveTo(pp[0]+ax*a0,pp[1]+ay*a0);
+    ctx.lineTo(pp[0]+ax*a1,pp[1]+ay*a1);ctx.stroke();
+    const px=-ay,py=ax;   /* perpendicular, for the head */
+    ctx.beginPath();
+    ctx.moveTo(pp[0]+ax*a1,pp[1]+ay*a1);
+    ctx.lineTo(pp[0]+ax*(a1-9*u)+px*6.5*u,pp[1]+ay*(a1-9*u)+py*6.5*u);
+    ctx.lineTo(pp[0]+ax*(a1-9*u)-px*6.5*u,pp[1]+ay*(a1-9*u)-py*6.5*u);
+    ctx.closePath();ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha=selA;
+
+    /* the two rules, as tappable rows */
+    G.selRects=[];
+    const rows=[['screen','UP IS OUT','up = outer ring, always'],
+                ['radial','AWAY IS OUT','away from the middle = outer']];
+    const rw=Math.min(W-40*u,236*u),rh=50*u,rgap=8*u;
+    const pBtnH=42*u;
+    /* centred in the hollow of the ring system, so the comet orbits AROUND
+       the controls rather than behind them */
+    let ry=cy-(rows.length*rh+(rows.length-1)*rgap+pBtnH+14*u)/2;
+    for(const rw2 of rows){
+      const on=SWIPE_MODE===rw2[0];
+      const rx=cx-rw/2;
+      G.selRects.push({x:rx,y:ry,w:rw,h:rh,id:rw2[0]});
+      ctx.save();ctx.globalAlpha=selA;
+      ctx.fillStyle=on?'rgba(30,54,84,0.96)':'rgba(16,22,38,0.92)';
+      ctx.beginPath();ctx.roundRect(rx,ry,rw,rh,12*u);ctx.fill();
+      ctx.strokeStyle=on?COL.comet:'rgba(140,170,220,0.30)';
+      ctx.lineWidth=on?2:1.2;
+      ctx.beginPath();ctx.roundRect(rx+1,ry+1,rw-2,rh-2,12*u);ctx.stroke();
+      /* the selected row carries the same arrow idiom as the comet, so the
+         row and the thing it controls are visibly the same statement */
+      const gx=rx+22*u,gy=ry+rh/2;
+      ctx.strokeStyle=on?COL.comet:'rgba(170,196,235,0.55)';
+      ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=2.4*u;
+      if(rw2[0]==='screen'){
+        ctx.beginPath();ctx.moveTo(gx,gy+10*u);ctx.lineTo(gx,gy-9*u);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(gx,gy-13*u);ctx.lineTo(gx-5.5*u,gy-5*u);
+        ctx.lineTo(gx+5.5*u,gy-5*u);ctx.closePath();ctx.fill();
+      }else{
+        ctx.beginPath();ctx.arc(gx,gy,5*u,0,TAU);ctx.stroke();
+        for(const aa of [-0.9,0.9]){
+          const ux=Math.cos(aa),uy=Math.sin(aa);
+          ctx.beginPath();ctx.moveTo(gx+ux*8*u,gy+uy*8*u);
+          ctx.lineTo(gx+ux*15*u,gy+uy*15*u);ctx.stroke();
+        }
+      }
+      ctx.textAlign='left';
+      text(rw2[1],rx+42*u,gy-3*u,fitSz(rw2[1],13.5*u,'800',rw-50*u),'800',
+        on?'#eaf1ff':'rgba(214,228,255,0.75)',0);
+      text(rw2[2],rx+42*u,gy+14*u,fitSz(rw2[2],10*u,'600',rw-50*u),'600',
+        on?'rgba(200,220,255,0.85)':'rgba(190,206,235,0.5)',0);
+      ctx.textAlign='center';
+      ctx.restore();
+      ry+=rh+rgap;
+    }
+    /* PLAY */
+    const pw=Math.min(150*u,W-60*u),pxb=cx-pw/2,pyb=ry+14*u;
+    G.selRects.push({x:pxb,y:pyb,w:pw,h:pBtnH,id:'play'});
+    ctx.save();
+    ctx.globalAlpha=selA*(RM?1:0.78+0.22*Math.sin(G.t*3));
+    ctx.strokeStyle=COL.comet;ctx.lineWidth=1.8;
+    ctx.beginPath();ctx.roundRect(pxb,pyb,pw,pBtnH,pBtnH/2);ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha=selA;
+    ctx.textBaseline='middle';
+    textFx('PLAY',cx,pyb+pBtnH/2,17*u,'800','#eaffff',COL.comet,'rgba(93,240,255,0.5)',4);
+    ctx.textBaseline='alphabetic';
     ctx.globalAlpha=1;
   }else if(G.state==='menu'){
     const ty=Math.max(top+40*u,cy-R-46*u);
@@ -7066,13 +7450,14 @@ function drawHUD(){
        draws its own diagram, which is what made the colour-word line
        ("green saves you \u00b7 violet slows \u00b7 white clears") unnecessary. */
     const rows=[['tap','tap anywhere to turn around'],
-                ['swipe','swipe up or down to change ring'],
+                ['swipe',swipeWords()],
                 ['star','collect stars \u2014 a full orbit pays big'],
                 ['shard','red costs a shield \u2014 then it kills']];
     /* LAID OUT FROM THE ROOM AVAILABLE, not from a constant. The key was eight
        rows at a hardcoded y0 away from running off the bottom of a short
        phone; it now takes the gap between the title and TAP TO START and
        divides it, so adding a row shrinks the leading instead of overflowing. */
+    G.swipeRect=null;
     const kTop=ty+(G.best>0?34*u:22*u), kBot=bottomY-24*u;
     const rh=Math.min(24*u,Math.max(15*u,(kBot-kTop)/rows.length));
     const fs=Math.min(13*u,rh*0.56), gs=Math.min(20*u,rh*0.84);
@@ -7080,11 +7465,27 @@ function drawHUD(){
        the rows shrink to 24u and leave the rest as one dead band, and a block
        floating above a void reads as a layout accident. */
     const y0=(kTop+kBot)/2-(rows.length-1)*rh/2, gx=cx-118*u;
+    /* The swipe row is the one tappable line on this screen — it reopens the
+       chooser, so the rule stays changeable after the once-per-device question.
+       Its label is measured at the size it will DRAW at (an earlier version
+       measured under the row font and then drew smaller, so the reserve was
+       wrong and 'change' printed straight through the sentence), and the
+       sentence is fitted into what is left rather than the full width. */
+    const chSz=fs*0.82;
+    ctx.font='700 '+Math.round(chSz)+'px '+F;
+    const chW=ctx.measureText('change').width+10*u;
     for(let i=0;i<rows.length;i++){
-      const ry=y0+i*rh;
+      const ry=y0+i*rh, isSw=rows[i][0]==='swipe';
+      const avail=W-gx-28*u-(isSw?chW:0);
       hintGlyph(rows[i][0],gx,ry-fs*0.35,gs);
       ctx.textAlign='left';
-      text(rows[i][1],gx+20*u,ry,fitSz(rows[i][1],fs,'600',W-gx-28*u),'600','rgba(214,228,255,0.88)',0);
+      text(rows[i][1],gx+20*u,ry,fitSz(rows[i][1],fs,'600',avail),'600','rgba(214,228,255,0.88)',0);
+      if(isSw){
+        G.swipeRect={x:gx-14*u,y:ry-rh*0.62,w:W-gx-4*u,h:rh};
+        ctx.globalAlpha=0.55;
+        text('change',W-16*u-chW+10*u,ry,chSz,'700','rgba(93,240,255,0.9)',0);
+        ctx.globalAlpha=1;
+      }
     }
     ctx.textAlign='center';
     /* Opened from a chat app, iOS presents the page as a modal sheet, and that
@@ -7173,9 +7574,15 @@ function drawHUD(){
        the score, the level, the coach and RETRY are all load-bearing — so on a
        viewport with no room for both, it is the one that goes. */
     if(G.tier<9&&cy+94*u<shareRect().y-9*u){
-      const nx=G.tier>=6?['electric guitar',10]:G.tier>=3?['synth lead',7]:['twin synths',4];
+      /* 4, 7 and 10 were one-based TIER rungs printed with the word "level",
+         two lines below "LEVEL n" on a four-level ladder — the last surviving
+         breach of the two-ladders invariant, and the exact failure the retired
+         cometloop:level key exists because of. The correct numbers (1, 2, 4)
+         are non-monotonic against the player's own progress and would read as
+         a bug, so the ordinal goes; the ladder is drawn on this same screen. */
+      const nx=G.tier>=6?'electric guitar':G.tier>=3?'synth lead':'twin synths';
       ctx.globalAlpha=el(lvAt+0.6)*0.9;
-      text('next sound: '+nx[0]+' at level '+nx[1],cx,cy+94*u,10.5*u,'600',
+      text('next sound: '+nx+' \u2014 keep climbing',cx,cy+94*u,10.5*u,'600',
         'rgba(200,215,255,0.42)',0);
       ctx.globalAlpha=1;
     }

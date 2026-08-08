@@ -97,6 +97,24 @@ vm.runInContext(src, sandbox, { filename: 'index.html' });
 const st = e => vm.runInContext(e, sandbox);
 function frame(ms) { nowMs += ms; const f = calls.raf.splice(0); for (const fn of f) fn(nowMs); }
 function fire(name, ev) { for (const fn of (listeners[name] || [])) fn(ev); }
+
+/* A FRESH DEVICE IS ASKED WHICH SWIPE RULE IT WANTS. Two rules exist now —
+   screen-absolute (up is the outer ring) and radial (away from the middle is
+   the outer ring) — and they disagree only at the top and bottom of the loop,
+   so the choice is made on a live arena rather than described. It sits between
+   the menu tap and the level-1 card, once per device. Every harness has to
+   press its PLAY control or it simply waits on the screen forever. */
+function passSwipeChooser(st, frame, fire, pev, pid) {
+  if (st('G.state') !== 'swipesel') return pid;
+  for (let i = 0; i < 30; i++) frame(16.7);      // a draw pass fills selRects
+  const r = JSON.parse(st('JSON.stringify(G.selRects.find(x=>x.id==="play")||null)') || 'null');
+  if (!r) throw new Error('the swipe chooser drew no PLAY control');
+  const x = r.x + r.w / 2, y = r.y + r.h / 2;
+  fire('pointerdown', { ...pev(pid, x, y, 'pointerdown'), type: 'pointerdown' });
+  fire('pointerup', { ...pev(pid, x, y, 'pointerup'), type: 'pointerup' });
+  if (st('G.state') === 'swipesel') throw new Error('PLAY did not leave the swipe chooser');
+  return pid + 1;
+}
 const pev = (id, x, y, type) => ({ pointerId: id, clientX: x, clientY: y, type, preventDefault() {} });
 
 /* boot: menu frame, then tap to start (unlocks audio, builds MU) */
@@ -104,6 +122,7 @@ frame(16.7);
 fire('pointerdown', pev(1, 200, 420, 'pointerdown'));
 fire('pointerup', pev(1, 200, 420, 'pointerup'));
 frame(16.7);
+passSwipeChooser(st, frame, fire, pev, 800);
 console.log('MU exists:', !!st('MU'), '| state:', st('G.state'));
 
 /* Deathless drop-cadence regression: feed the meter, hold invulnerability,
