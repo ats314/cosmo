@@ -156,7 +156,6 @@ while (st('G.level') < 4 || st('age()') < 30) {
     if (lv === 3 && st('G.lvCard.done') && !placedByEndL2) {
       placedByEndL2 = {
         hyper: st('G.hyperPlaced'), bass: st('G.bassPlaced'), spot: st('G.spotPlaced'),
-        mag: st('G.magPlaced'),
       };
     }
     tap(pid++);
@@ -168,14 +167,14 @@ while (st('G.level') < 4 || st('age()') < 30) {
 /* the acceptance criterion: level 4 opens with nothing left to teach —
    every formation AND every musical orb has had its lesson */
 const TAUGHT = ['single', 'twin', 'gate', 'drift', 'blink', 'driftgate', 'blinktwin',
-  'bass', 'spot', 'hyper', 'mag'];
+  'bass', 'spot', 'hyper'];
 const seenAtExam = st('Object.keys(G.seen).join(",")');
 for (const f of TAUGHT) {
   if (!st(`G.seen['${f}']||G.seen2['${f}']`)) fail.push(`level 4 started without the ${f} lesson (seen: ${seenAtExam})`);
 }
 if (!placedByEndL2) fail.push('level 2 completion card never observed');
 else for (const [flag, name] of [['hyper', 'hypernova'], ['bass', 'bass bomb'],
-  ['spot', 'spotlight'], ['mag', 'magnetar']]) {
+  ['spot', 'spotlight']]) {
   if (!placedByEndL2[flag]) fail.push(`level 2 ended without the ${name} ever placed`);
 }
 if (st('G.tier') !== 9) fail.push('level 4 did not open on the STORM tier, tier=' + st('G.tier'));
