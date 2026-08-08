@@ -2987,7 +2987,7 @@ const TIERS=[
      vocabulary as the menu key and the hint ladder. "switch track" named a
      thing called a track that appears nowhere else in the game. */
   {at:12, type:null,    name:'SECOND RING', subFn:swipeWords,rings:2},
-  {at:18, type:'twin',  name:'TWIN SHARDS', sub:'no room between them \u2014 swipe to another ring'},
+  {at:18, type:'twin',  name:'TWIN SHARDS', sub:'two at once \u2014 swipe to another ring'},
   /* "faster and higher" was two claims and neither was true: angular speed is
      the same on every ring (one G.speed, no radius term) and an ember pays the
      same wherever you take it. The filter lift IS real \u2014 RINGS[].lift climbs
@@ -3470,7 +3470,18 @@ const MEET={
      trusting anything else it tells them. The lethal half is taught where it
      becomes true: the LAST SHIELD popup, at the moment the bank empties. */
   single:  {t:'red costs a shield — get out of its way',g:'shard'},
-  twin:    {t:'no room between them — swipe to another ring',g:'swipe'},
+  /* THIS GAME HAS NO AIMED MOVEMENT. The comet travels a fixed circle at a
+     fixed speed and there are exactly two verbs: turn around, change ring.
+     There is no positioning, no threading, no stopping, no aiming. So a lesson
+     that talks about the space between two objects is describing a manoeuvre
+     that does not exist here — the player was never trying to go between them
+     and has no way to. It reads as a non-sequitur because it IS one.
+     Two earlier wordings both failed this way and I diagnosed them as two
+     different bugs: one invoked outrunning (there is one fixed speed), the
+     other invoked fitting through a gap. Same mistake twice — importing a
+     manoeuvre from a genre this game is not.
+     What is left is what the game actually has: a count, and a verb. */
+  twin:    {t:'two at once — swipe to another ring',g:'swipe'},
   gate:    {t:'every ring is blocked — tap to turn around',g:'tap'},
   /* NOT "these ones chase you", and not "keep moving" — a drifter is given a
      fixed random heading well under player speed and never steers, and there
