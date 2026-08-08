@@ -86,7 +86,7 @@ const RM=(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matc
    hypernova now at ~318deg, far enough from the shard that the two never trade
    places at speed, and nowhere near anything that means "collect me". */
 const COL={comet:'#5df0ff',ember:'#ffc857',shard:'#ff5d73',shield:'#7bffc8',
-  warp:'#b48bff',nova:'#ffffff',hyper:'#ff4fd8'};
+  warp:'#b48bff',nova:'#ffffff',hyper:'#ff4fd8',mag:'#b8ff4d'};
 const LAP_EMB_MAX=4; /* embers per orbit that still raise the payout */
 
 /* THE ARENA IS AN ELLIPSE (playtest, near-verbatim: "I wonder if the orbits
@@ -643,6 +643,25 @@ function buildSprites(bandOnly){
       else g.lineTo(Math.cos(aa)*sr,Math.sin(aa)*sr);
     }
     g.closePath();g.stroke();
+  });
+  /* MAGNETAR — a neutron star with a colossal magnetic field, and the mechanic
+     needs no sentence: six field lines curling into a bright core, and for
+     eight beats every ember on the board curves in along them. */
+  SPR.powMag=makeSprite(12*u+22,function(g){
+    g.shadowColor=COL.mag;g.shadowBlur=13;
+    g.strokeStyle=COL.mag;g.lineWidth=2.4;g.lineCap='round';
+    for(let k=0;k<6;k++){
+      const a0=k*TAU/6;
+      g.beginPath();
+      for(let t=0;t<=1.0001;t+=0.08){
+        const rr=(11-7.5*t)*u,aa=a0+t*1.5;
+        const px=Math.cos(aa)*rr,py=Math.sin(aa)*rr;
+        t?g.lineTo(px,py):g.moveTo(px,py);
+      }
+      g.stroke();
+    }
+    g.shadowBlur=8;g.fillStyle='#ffffff';
+    g.beginPath();g.arc(0,0,3.1*u,0,TAU);g.fill();
   });
   SPR.powHyper=makeSprite(12*u+22,function(g){
     /* the friends asked for exactly this: "like a star in Mario" — so it IS
@@ -3019,6 +3038,7 @@ const G={
   odGlow:0,brkGlow:0,finGlow:0,        /* backdrop envelopes: overdrive, break dim, dive gold */
   spot:0,lastTapAt:-9,finEnd:0,        /* spotlight; last raw tap time; finale end flag */
   hyper:0,hyperD:0,hyperGlow:0,        /* hypernova: seconds left, full duration, backdrop envelope */
+  mag:0,magD:0,magGlow:0,gotMag:false,magPlaced:false,  /* magnetar */
   layerN:0,bandN:0,bandFx:0,           /* score layers unlocked; band-meter dot count + pulse */
   sndAt:0,sndStr:null,                 /* a NEW SOUND announcement waiting for its banner to clear */
   flashT:0,meetNext:0,teachSoft:false, /* flash rate-limit; lesson spacing; lesson-without-slowmo */
@@ -3254,6 +3274,7 @@ const MEET={
   bass:  {t:'bass bomb — clears the lane, drops the low end',g:'nova',soft:1},
   spot:  {t:'spotlight — you take the lead, taps pay double',g:'beat',soft:1},
   hyper: {t:'the gold star — untouchable at double speed',g:'star',soft:1},
+  mag:   {t:'magnetar — every ember comes to you',g:'star',soft:1},
   /* not a spawned object: fired by the first reversal that discards most of
      an orbit — the one rule of the scoring economy nothing else teaches */
   lapcost:{t:'turning back restarts the orbit — stars stay banked',g:'star',soft:1},
@@ -3422,11 +3443,15 @@ function spawnPow(){
     type='bass';
   }else if(G.level>=2&&!G.spotPlaced){
     type='spot';
+  }else if(G.level>=2&&!G.magPlaced){
+    /* MAGNETAR is base-set, not a draft pick: everyone meets it, taught on
+       level 2 with the rest, so the curriculum rule covers it the same way. */
+    type='mag';
   }else{
     /* the family expansion: three musical orbs join the rotation */
     const rr=Math.random();
-    type=rr<0.30?'shield':rr<0.48?'warp':rr<0.62?'nova':
-         rr<0.76?'bass':rr<0.90?'spot':'hyper';
+    type=rr<0.28?'shield':rr<0.44?'warp':rr<0.57?'nova':
+         rr<0.70?'bass':rr<0.82?'spot':rr<0.93?'mag':'hyper';
   }
   for(let i=0;i<24;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
@@ -3435,7 +3460,8 @@ function spawnPow(){
       if(type==='hyper')G.hyperPlaced=true;
       if(type==='bass')G.bassPlaced=true;
       if(type==='spot')G.spotPlaced=true;
-      if(type==='bass'||type==='spot'||type==='hyper')firstMeet(type);
+      if(type==='mag')G.magPlaced=true;
+      if(type==='bass'||type==='spot'||type==='hyper'||type==='mag')firstMeet(type);
       G.sinceShield=(type==='shield')?0:G.sinceShield+1;
       /* counts PLACEMENTS, not pickups: a player who misses the slow-mo still
          advances the curriculum, or a run spent dodging would serve nothing
@@ -3474,6 +3500,7 @@ function startGame(){
   G.sparkT=0;G.sparkN=0;
   G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;G.finGlow=0;
   G.spot=0;G.lastTapAt=-9;G.finEnd=0;G.hyper=0;G.hyperD=0;G.hyperGlow=0;
+  G.mag=0;G.magD=0;G.magGlow=0;
   FIN.on=false;FIN.pend=false;FIN.done=false;FIN.step=0;FIN.score=0;FIN.got=0;FIN.voices=0;FIN.t0=0;FIN.trail.length=0;
   PLAY.tape.length=0;
   LOOP.pat=null;LOOP.n=0;LOOP.until=0;LOOP.heard=false;
@@ -3504,9 +3531,10 @@ function startGame(){
      all. Each clears the instant the thing is done, so a veteran sees each for
      well under a second. */
   G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;G.gotShield=false;
+  G.gotMag=false;
   G.gotBass=false;G.gotSpot=false;
   G.dropsEarned=0;G.loopN=0;G.nearN=0;G.bestCombo=0;G.holdTimeout=false;
-  G.hyperPlaced=false;G.bassPlaced=false;G.spotPlaced=false;
+  G.hyperPlaced=false;G.bassPlaced=false;G.spotPlaced=false;G.magPlaced=false;
   G.didReverse=false;G.didHop=false;G.didLap=false;
   G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];G.novas=[];
   G.stop=0;
@@ -3652,6 +3680,7 @@ function die(){
     game_level:G.level,best_game_level:G.lvlMax,
     /* did the curriculum land: three placements is the whole intro set */
     pows_placed:G.powN,saw_warp:G.gotWarp,saw_nova:G.gotNova,saw_hyper:G.gotHyper,
+    got_mag:G.gotMag,
     /* DID THE TEACHING LAND. The two verbs, per run. did_hop is the one that
        matters: the hop is the unfamiliar gesture, it is now taught at 20s in
        the calm, and a run that ends with did_hop false is a run where the
@@ -4432,6 +4461,8 @@ function update(dt){
     if(G.hyper===0)G.invuln=Math.max(G.invuln,G.t+1.2);
   }
   G.hyperGlow+=(((G.hyper>0)?1:0)-G.hyperGlow)*Math.min(1,dt*3);
+  if(G.mag>0)G.mag=Math.max(0,G.mag-dt);
+  G.magGlow+=(((G.mag>0)?1:0)-G.magGlow)*Math.min(1,dt*4);
   /* the layer ladder: a score crossing names the layer that just joined */
   let lyn=0;for(let li=0;li<LAYER_AT.length;li++)if(G.score>=LAYER_AT[li])lyn++;
   if(lyn>G.layerN){
@@ -4654,6 +4685,21 @@ function update(dt){
   for(let i=G.stars.length-1;i>=0;i--){
     const s=G.stars[i];s.t+=sdt;
     if(s.t>s.life){G.stars.splice(i,1);continue;}
+    if(G.mag>0){
+      /* THE PULL. Stars live in (angle, ring) space and collection is "on my
+         ring, swept by my angle" — so attraction is an ease on both, and every
+         ember arrives through the ORDINARY collection path, firing its
+         ordinary note and its ordinary combo. s.pr carries the drawn radius
+         across the ring change so nothing teleports between tracks. */
+      const tr=curR();
+      if(s.pr===undefined)s.pr=radiusOf(s.ring);
+      let d=G.angle-s.a;
+      while(d>Math.PI)d-=TAU; while(d<-Math.PI)d+=TAU;
+      const k=Math.min(1,sdt*3.4);
+      s.a+=d*k; s.pr+=(tr-s.pr)*k;
+      s.life=Math.max(s.life,s.t+1.2);      /* never expire mid-flight */
+      if(Math.abs(s.pr-tr)<7*u){s.ring=effRing();s.pr=undefined;}
+    }else if(s.pr!==undefined)s.pr=undefined;
     if(s.ring===er&&sweptHit(s.a,(22*u)/radiusOf(er))){
       G.stars.splice(i,1);
       G.combo=Math.min(G.combo+1,6);G.comboT=CW;
@@ -4738,26 +4784,27 @@ function update(dt){
       if(s.type==='bass'&&!G.seen.bass)G.bassPlaced=false;
       else if(s.type==='spot'&&!G.seen.spot)G.spotPlaced=false;
       else if(s.type==='hyper'&&!G.seen.hyper)G.hyperPlaced=false;
+      else if(s.type==='mag'&&!G.seen.mag)G.magPlaced=false;
       G.pows.splice(i,1);continue;
     }
     /* a musical orb's lesson keeps knocking while the orb exists: the one
        call at placement could hit a busy moment, defer, and the orb —
        guaranteed once per level-2 run — leave unexplained. firstMeet's own
        guards (seen, calm, spacing) make the retry free. */
-    if(!G.seen[s.type]&&(s.type==='bass'||s.type==='spot'||s.type==='hyper'))firstMeet(s.type);
+    if(!G.seen[s.type]&&(s.type==='bass'||s.type==='spot'||s.type==='hyper'||s.type==='mag'))firstMeet(s.type);
     if(s.ring===er&&sweptHit(s.a,(22*u)/radiusOf(er))){
       const p=posAt(s.a,radiusOf(s.ring));
       G.pows.splice(i,1);
       /* using an orb IS the introduction — better than any sentence about
          it, and it stops a redundant lesson firing after the experience */
-      if((s.type==='bass'||s.type==='spot'||s.type==='hyper')&&!G.seen[s.type]){
+      if((s.type==='bass'||s.type==='spot'||s.type==='hyper'||s.type==='mag')&&!G.seen[s.type]){
         G.seen[s.type]=1;savePref('cometloop:seen',Object.keys(G.seen).join(','));
       }
       arcFlash(s.a,s.ring,
         s.type==='shield'?COL.shield:
         s.type==='warp'||s.type==='spot'?COL.warp:
         s.type==='bass'?COL.comet:
-        s.type==='hyper'?COL.hyper:COL.nova);
+        s.type==='hyper'?COL.hyper:s.type==='mag'?COL.mag:COL.nova);
       if(s.type==='shield'){
         const span=panAt(p[0]);
         G.gotShield=true;   /* the naming hint retires on first pickup */
@@ -4826,6 +4873,21 @@ function update(dt){
           note(PENT[11],AC.currentTime+w+S16,0.24,'sawtooth',0.026,3600,-0.2,A.perf);
         });
         try{if(navigator.vibrate)navigator.vibrate(14);}catch(e){}
+      }else if(s.type==='mag'){
+        /* MAGNETAR. Eight beats in which every ember on the board curves in.
+           The cascade IS the reward: stars are the band's own instrument, so a
+           dozen arriving in sequence is a phrase the player caused, which is
+           the whole thesis of the game pointed at a single pickup. */
+        G.magD=SPB*8;G.mag=G.magD;G.gotMag=true;
+        popup(p[0],p[1]-24*u,'MAGNETAR!',COL.mag,1.5);
+        if(!RM){
+          G.rings.push({x:p[0],y:p[1],r:8*u,life:1,col:COL.mag,sp:520,dec:1.2,fat:1});
+          for(let k=0;k<3;k++)
+            G.rings.push({x:p[0],y:p[1],r:(26+k*16)*u,life:0.7,col:COL.mag,sp:-180,dec:1.5});
+        }
+        burst(p[0],p[1],COL.mag,22,240);
+        beep(196,0.20,'sawtooth',0.055,392);
+        cueTone(function(w){beep(392,0.26,'triangle',0.05,784,w);});
       }else if(s.type==='hyper'){
         /* HYPERNOVA (Hunter: "temporary invincibility... speed cranks up
            significantly... making beautiful music in the zone at hyper
@@ -4938,6 +5000,8 @@ function drawPow(x,y,s,al){
     ctx.fillStyle=COL.warp;
     ctx.beginPath();ctx.arc(x,y,1.6*u,0,TAU);ctx.fill();
     ctx.restore();
+  }else if(s.type==='mag'){
+    blit(SPR.powMag,x,y,pulse,s.t*0.9,al);   /* it spins: a field, turning */
   }else if(s.type==='hyper'){
     /* upright with a wobble — a star that spins reads as a shard of light,
        a star that stands reads as THE star */
@@ -5793,7 +5857,7 @@ function draw(){
   /* embers */
   ctx.globalCompositeOperation='lighter';
   for(const s of G.stars){
-    const p=posAt(s.a,radiusOf(s.ring));
+    const p=posAt(s.a,s.pr!==undefined?s.pr:radiusOf(s.ring));
     let al=1;
     if(s.born&&s.t<0.25){
       /* a nova ember condenses from a white-hot point — the transmutation is
