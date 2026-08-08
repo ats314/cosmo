@@ -37,6 +37,21 @@ for (const dead of ['echo', 'meteor']) {
     fail.push(`teaching data references cut orb '${dead}'`);
   }
 }
+/* EVERY TILE THE PLAYER CHOOSES MUST DO SOMETHING. All nine upgrades shipped
+   with `upgOn` having ZERO call sites in 7,000+ lines: each id appeared exactly
+   once, in its own UPG row. The game stopped the player, printed CHOOSE ONE,
+   spent their attention on three tiles, recorded the pick in telemetry, and
+   then ran identically either way — and `G.picks` rides on every event, so the
+   analytics were being filled with a choice that could not correlate with
+   anything. A dead tile is a worse lie than a badly worded sentence, because
+   the player pays a decision for it. */
+const upgIds = [...src.matchAll(/\{id:'(\w+)',n:'/g)].map(m => m[1]);
+if (upgIds.length < 2) fail.push('UPG table not found — the draft-wiring guard cannot run');
+for (const id of upgIds) {
+  if (!new RegExp(`upgOn\\('${id}'\\)`).test(src)) {
+    fail.push(`upgrade '${id}' is offered to the player but never read — upgOn('${id}') has no call site`);
+  }
+}
 /* AN EMBER'S RADIUS HAS ONE OWNER. Every other object in the arena sits at
    radiusOf(ring), but the magnetar pull gives an ember a free radius in s.pr so
    it can curve between rings. Two passes draw an ember — the sprite and the

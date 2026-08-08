@@ -340,6 +340,54 @@ lesson never showed for exactly the person who needed them. The orb-naming
 hints now outrank it while an orb is on the board, and after ten unanswered
 seconds it alternates with the survival lessons on a slow cycle.
 
+**Nine tiles the player chose between, and not one of them did anything.** The
+same audit found `upgOn` — the accessor every upgrade effect was supposed to go
+through — with **zero call sites in 7,257 lines**. Each of the nine ids
+appeared exactly once in the file: in its own row of the `UPG` table. `G.upg`
+was written by the pick handler and read only by the no-repeat filter and the
+telemetry payload.
+
+So the game stopped the player at every level boundary, printed CHOOSE ONE,
+spent their attention on three tiles, wrote the pick to analytics, and then ran
+identically whichever they took. It was also quietly poisoning the data:
+`G.picks` rides on every event, so any future read of "which upgrade correlates
+with survival" would have been measuring noise.
+
+All nine are wired now, each verified to change the value it claims to:
+
+| tile | off | on |
+|---|---|---|
+| LONGER STAR | 9.2s | 13.8s |
+| DEEP BANK | 2 shields | 3 |
+| SLOW WORLD | 4s | 6s |
+| RICH NOVA | 1 ember/shard | 2 |
+| WIDE PULL | orbs ignored | orbs pulled |
+| HAIR TRIGGER | meter 1.0 | 0.85 |
+| LONG FUSE | 1.05 rad | 1.5 |
+| STAGE LIGHT | 9.2s | 13.8s |
+| STEADY HAND | 0.032s | 0.045s |
+
+Three of the descriptions were wrong even once wired, and changed with them.
+*"slow-mo slows spawns"* sold the base game back to the player — slow-mo
+already slows every spawn for everyone, through `tsT` into `sdt` into all three
+spawn clocks — so it is *"slow-mo runs longer"* now. *"magnetar takes orbs"*
+named an object class the magnetar had never touched; the word that makes it an
+upgrade rather than a restatement is *"too"*.
+
+**DEEP BANK gives a third starting shield rather than raising the cap.** The
+obvious wiring — `shieldMax()+1` — would have made overcharge *harder* to
+reach, since overcharge requires a FULL bank, so a tile reading as pure upside
+would quietly have cost score; and `SHIELDS FULL` would have printed with a
+visibly empty pip. "One more shield" should mean one more shield.
+
+`WIDE PULL` gives a power-up orb a free radius the same way the magnetar gives
+one to an ember, so the orb draw had to be routed through `starR()` in the same
+change — otherwise it would have reproduced the detached-glow bug above on the
+more valuable object.
+
+`check.mjs` now fails the build if any offered upgrade id has no `upgOn` call
+site. Verified by deleting one wiring and watching it fail.
+
 **And the magnetar was only collecting a third of the board.** The glow bug
 above was the visible half of "the mechanic is broken". Underneath it was a
 control-theory mistake in the pull itself, found by an audit that checked every

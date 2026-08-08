@@ -1299,7 +1299,7 @@ function build(amount,src){
   G.build=Math.min(busy?0.96:1.5,G.build+amount);
   if(amount>=0.01)G.buildFx=1;   /* real contributions blink the arc */
   G.buildSrc[src]=(G.buildSrc[src]||0)+amount;
-  if(!busy&&G.build>=1){
+  if(!busy&&G.build>=(upgOn('hairtrig')?0.85:1)){
     G.build=0;
     let best='ember',bv=-1;
     for(const k in G.buildSrc)if(G.buildSrc[k]>bv){bv=G.buildSrc[k];best=k;}
@@ -2098,7 +2098,7 @@ function judgeTiming(x,y){
   if(off>8)return 0;
   const dev=Math.abs(off-PLAY.bias);
   PLAY.bias+=(off-PLAY.bias)*0.18;  /* learns the device, and the player */
-  if(dev<TIGHT){
+  if(dev<(upgOn('steadyhand')?0.045:TIGHT)){
     /* RIDING THE SECTION IS THE SCORE. During the payoff every tight hit
        pays — not just climbs — multiplied by a perfect landing. Playing
        through the drop is the skill; nothing asks you to stop. */
@@ -3042,7 +3042,7 @@ function shieldMax(){const d=dl();return d<160?3:d<320?4:5;}
    Drawn without replacement, so no run ever offers the same card twice.
    `ic` draws the icon at the origin, sized for a 78u tile. */
 const UPG=[
- {id:'longstar',n:'LONGER STAR',d:'the star runs longer',c:'#ff4fd8',
+ {id:'longstar',n:'LONGER STAR',d:'the pink star lasts longer',c:'#ff4fd8',
   ic:function(g,c){g.fillStyle=c;starPath(g,15,6.4);g.fill();
     g.strokeStyle='#fff';g.lineWidth=2.6;g.lineCap='round';
     g.beginPath();g.arc(0,0,23,-Math.PI/2,Math.PI*0.95);g.stroke();}},
@@ -3051,7 +3051,7 @@ const UPG=[
     for(let k=0;k<4;k++){g.globalAlpha=k===3?1:0.5;
       g.beginPath();g.arc(0,5,9+k*5.5,-Math.PI*0.86,-Math.PI*0.14);g.stroke();}
     g.globalAlpha=1;}},
- {id:'slowworld',n:'SLOW WORLD',d:'slow-mo slows spawns',c:'#b48bff',
+ {id:'slowworld',n:'SLOW WORLD',d:'slow-mo runs longer',c:'#b48bff',
   ic:function(g,c){g.strokeStyle=c;g.lineWidth=2.4;
     g.beginPath();g.arc(0,0,17,0,TAU);g.stroke();
     g.strokeStyle='#fff';g.lineWidth=2.6;g.lineCap='round';
@@ -3062,7 +3062,7 @@ const UPG=[
       g.beginPath();g.moveTo(Math.cos(a)*7,Math.sin(a)*7);
       g.lineTo(Math.cos(a)*19,Math.sin(a)*19);g.stroke();}
     g.fillStyle=c;g.beginPath();g.arc(0,0,5,0,TAU);g.fill();}},
- {id:'widepull',n:'WIDE PULL',d:'magnetar takes orbs',c:'#b8ff4d',
+ {id:'widepull',n:'WIDE PULL',d:'magnetar pulls orbs too',c:'#b8ff4d',
   ic:function(g,c){g.strokeStyle=c;g.lineWidth=2.2;g.lineCap='round';
     for(let k=0;k<5;k++){const a0=k*TAU/5;
       g.beginPath();
@@ -3133,7 +3133,7 @@ const G={
   embers:0,blocks:0,phases:0,lastHit:'none', /* telemetry counters */
   angle:-Math.PI/2,prevAngle:-Math.PI/2,sweep:0,dir:1,speed:1.7,
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
-  shields:0,invuln:0,slow:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
+  shields:0,invuln:0,slow:0,slowD:4,tsCur:1,sinceShield:0,revPend:0,didShield:false,
   didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,gotShield:false,
   gotBass:false,gotSpot:false,hyperPlaced:false,
   dropsEarned:0,loopN:0,nearN:0,bestCombo:0,holdTimeout:false, /* play-style aggregates for run_ended */
@@ -3254,13 +3254,20 @@ function novaConvert(s){
      player's ring, so their embers used to coincide exactly. Each ember now
      steps along the lane in the direction of travel until it has room, so a
      converted wall reads as a string of notes you sweep through in order. */
+  /* RICH NOVA doubles the yield, and the second ember walks the same spacing
+     search as the first — so a doubled wall is a longer necklace, never two
+     embers stacked on one another (which is the exact complaint the spacing
+     walk was written for). */
   let ea=s.a;
-  for(let f=0;f<8&&G.stars.some(function(st){
-      return st.ring===ring&&angDist(st.a,ea)<0.30;});f++)
-    ea+=0.36*(G.dir||1);
-  /* born marks a nova ember: it condenses from a white-hot point instead of
-     the generic fade-in, so the transmutation is watched rather than implied */
-  G.stars.push({a:ea,ring:ring,t:0,life:rand(6.0,8.0),born:1});
+  const yield2=upgOn('richnova')?2:1;
+  for(let c=0;c<yield2;c++){
+    for(let f=0;f<8&&G.stars.some(function(st){
+        return st.ring===ring&&angDist(st.a,ea)<0.30;});f++)
+      ea+=0.36*(G.dir||1);
+    /* born marks a nova ember: it condenses from a white-hot point instead of
+       the generic fade-in, so the transmutation is watched rather than implied */
+    G.stars.push({a:ea,ring:ring,t:0,life:rand(6.0,8.0),born:1});
+  }
   burst(q[0],q[1],COL.nova,9,200);
   burst(q[0],q[1],COL.ember,7,130);
   arcFlash(s.a,s.ring,COL.nova);
@@ -3655,7 +3662,7 @@ function startGame(){
   /* Two to start, always. One was a single mistake between a new player and
      the retry screen, and shields are now purely "you live" — see the block
      path in updateSpikes. */
-  G.shields=2;
+  G.shields=2+(upgOn('deepbank')?1:0);   /* DEEP BANK: literally 'one more shield' */
   G.invuln=0;G.slow=0;G.tsCur=1;G.sinceShield=0;G.revPend=0;G.didShield=false;
   /* Reset EVERY run, so the ladder replays from the top every time. These were
      lifetime flags, permanently true after run one — which meant a returning
@@ -4956,6 +4963,20 @@ function update(dt){
   /* power-ups */
   for(let i=G.pows.length-1;i>=0;i--){
     const s=G.pows[i];s.t+=sdt;
+    /* WIDE PULL: the magnetar takes ORBS as well as embers. Same ease as the
+       star pull, including the feed-forward that makes it actually arrive —
+       an orb left trailing behind the comet would be the old magnetar bug
+       reintroduced on the more valuable object. */
+    if(G.mag>0&&upgOn('widepull')){
+      const tr=curR();
+      if(s.pr===undefined)s.pr=radiusOf(s.ring);
+      let d=G.angle-s.a;
+      while(d>Math.PI)d-=TAU; while(d<-Math.PI)d+=TAU;
+      const k=Math.min(1,sdt*3.4);
+      s.a+=G.dir*G.speed*sdt+d*k; s.pr+=(tr-s.pr)*k;
+      s.life=Math.max(s.life,s.t+1.2);
+      if(Math.abs(s.pr-tr)<7*u){s.ring=effRing();s.pr=undefined;}
+    }else if(s.pr!==undefined)s.pr=undefined;
     if(s.t>s.life){
       /* an unseen musical orb that expires unlessoned comes back: the
          level-2 guarantee is of the INTRODUCTION, not of one spawn roll —
@@ -5010,7 +5031,7 @@ function update(dt){
         ripple(p[0],p[1],COL.shield);
         cueTone(function(w){beep(520,0.12,'triangle',0.06,780,w);});
       }else if(s.type==='warp'){
-        G.slow=4;G.gotWarp=true;
+        G.slow=upgOn('slowworld')?6:4;G.slowD=G.slow;G.gotWarp=true;
         popup(p[0],p[1]-20*u,'SLOW-MO',COL.warp);
         burst(p[0],p[1],COL.warp,14,150);
         ripple(p[0],p[1],COL.warp);
@@ -5021,7 +5042,7 @@ function update(dt){
            end drops — a pitch-fall boom into a one-bar heavy kick figure.
            The clear reuses novaConvert, so the shards pay like a nova's. */
         for(let j=G.spikes.length-1;j>=0;j--)
-          if(angDist(G.spikes[j].a,G.angle)<1.05)novaConvert(G.spikes.splice(j,1)[0]);
+          if(angDist(G.spikes[j].a,G.angle)<(upgOn('longfuse')?1.5:1.05))novaConvert(G.spikes.splice(j,1)[0]);
         popup(p[0],p[1]-24*u,'BASS BOMB!',COL.comet,1.5);
         burst(p[0],p[1],COL.comet,24,260);
         ripple(p[0],p[1],COL.comet);
@@ -5041,7 +5062,7 @@ function update(dt){
         /* SPOTLIGHT: four bars where YOU are the lead — your instrument
            doubles and brightens, the band steps back a notch, and every
            tight tap pays double. A performance, not a transaction. */
-        G.spot=16*SPB;G.gotSpot=true;
+        G.spot=(upgOn('stagelight')?24:16)*SPB;G.gotSpot=true;
         cueState(true);
         popup(p[0],p[1]-24*u,'SPOTLIGHT!',COL.warp,1.5);
         burst(p[0],p[1],'#eaf1ff',20,220);
@@ -5074,7 +5095,7 @@ function update(dt){
            nothing can touch you, the comet runs at nearly double speed,
            the kit rides sixteenths, and every red you plow through turns
            into a paying ember right on your lane. */
-        G.hyperD=SPB*16;G.hyper=G.hyperD;G.gotHyper=true;
+        G.hyperD=SPB*(upgOn('longstar')?24:16);G.hyper=G.hyperD;G.gotHyper=true;
         popup(p[0],p[1]-24*u,'HYPERNOVA!',COL.hyper,1.7);
         say('HYPERNOVA \u2014 nothing can touch you',3,5);
         burst(p[0],p[1],'#ffffff',22,280);
@@ -6030,7 +6051,7 @@ function draw(){
   /* slow-mo timer arc */
   if(G.slow>0){
     ctx.strokeStyle=COL.warp;ctx.lineWidth=3;
-    ctx.beginPath();ctx.arc(cx,cy,14*u,-Math.PI/2,-Math.PI/2+TAU*(G.slow/4));ctx.stroke();
+    ctx.beginPath();ctx.arc(cx,cy,14*u,-Math.PI/2,-Math.PI/2+TAU*(G.slow/(G.slowD||4)));ctx.stroke();
   }
 
   /* embers */
@@ -6057,7 +6078,7 @@ function draw(){
   ctx.globalCompositeOperation='source-over';
   /* power-ups */
   for(const s of G.pows){
-    const p=posAt(s.a,radiusOf(s.ring));
+    const p=posAt(s.a,starR(s));   /* pows carry .pr under WIDE PULL too */
     let al=1;
     if(s.t<0.3)al=s.t/0.3;
     else if(s.life-s.t<0.8)al=(s.life-s.t)/0.8;
