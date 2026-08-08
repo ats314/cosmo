@@ -78,7 +78,15 @@ const safeEl=document.getElementById('safe');
 const TAU=Math.PI*2;
 const rand=(a,b)=>a+Math.random()*(b-a);
 const RM=(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)||false;
-const COL={comet:'#5df0ff',ember:'#ffc857',shard:'#ff5d73',shield:'#7bffc8',warp:'#b48bff',nova:'#ffffff'};
+/* HYPERNOVA GETS ITS OWN COLOUR. It was COL.ember — the exact gold of the
+   collectible stars — so "am I invincible right now" was being signalled in
+   the one colour already meaning "points". Every playtester reported not being
+   able to read the state. Magenta is the furthest usable hue from the rest of
+   this palette: ember gold sits at ~42deg, shard red at ~352deg, and the
+   hypernova now at ~318deg, far enough from the shard that the two never trade
+   places at speed, and nowhere near anything that means "collect me". */
+const COL={comet:'#5df0ff',ember:'#ffc857',shard:'#ff5d73',shield:'#7bffc8',
+  warp:'#b48bff',nova:'#ffffff',hyper:'#ff4fd8'};
 const LAP_EMB_MAX=4; /* embers per orbit that still raise the payout */
 
 /* THE ARENA IS AN ELLIPSE (playtest, near-verbatim: "I wonder if the orbits
@@ -639,8 +647,8 @@ function buildSprites(bandOnly){
   SPR.powHyper=makeSprite(12*u+22,function(g){
     /* the friends asked for exactly this: "like a star in Mario" — so it IS
        a five-point star, gold with a white edge, recognisable at a glance */
-    g.shadowColor='#ffd77a';g.shadowBlur=14;
-    g.fillStyle=COL.ember;g.strokeStyle='#ffffff';g.lineWidth=1.6;
+    g.shadowColor='#ff8fe4';g.shadowBlur=14;
+    g.fillStyle=COL.hyper;g.strokeStyle='#ffffff';g.lineWidth=1.6;
     g.beginPath();
     for(let i=0;i<10;i++){
       const sr=(i%2===0)?11*u:4.6*u,aa=-Math.PI/2+i*Math.PI/5;
@@ -4715,7 +4723,7 @@ function update(dt){
         s.type==='shield'?COL.shield:
         s.type==='warp'||s.type==='spot'?COL.warp:
         s.type==='bass'?COL.comet:
-        s.type==='hyper'?COL.ember:COL.nova);
+        s.type==='hyper'?COL.hyper:COL.nova);
       if(s.type==='shield'){
         const span=panAt(p[0]);
         G.gotShield=true;   /* the naming hint retires on first pickup */
@@ -4792,7 +4800,7 @@ function update(dt){
            the kit rides sixteenths, and every red you plow through turns
            into a paying ember right on your lane. */
         G.hyperD=SPB*16;G.hyper=G.hyperD;G.gotHyper=true;
-        popup(p[0],p[1]-24*u,'HYPERNOVA!',COL.ember,1.7);
+        popup(p[0],p[1]-24*u,'HYPERNOVA!',COL.hyper,1.7);
         say('HYPERNOVA \u2014 nothing can touch you',3,5);
         burst(p[0],p[1],'#ffffff',22,280);
         burst(p[0],p[1],COL.ember,16,200);
@@ -5569,11 +5577,11 @@ function draw(){
     ctx.fillRect(0,0,W,H);
     ctx.restore();
   }
-  /* hypernova floods the room gold-white — the biggest wash in the game,
+  /* hypernova floods the room magenta-white — the biggest wash in the game,
      because nothing bigger ever happens to you */
   if(G.hyperGlow>0.01){
     ctx.save();ctx.globalCompositeOperation='lighter';
-    ctx.fillStyle='rgba(255,214,122,'+
+    ctx.fillStyle='rgba(255,120,224,'+
       (RM?0.06*G.hyperGlow:(0.05+0.07*G.beat)*G.hyperGlow).toFixed(3)+')';
     ctx.fillRect(0,0,W,H);
     ctx.restore();
@@ -5943,14 +5951,45 @@ function draw(){
       for(let k=G.shields;k<shieldMax();k++)
         blit(SPR.shieldRing,p[0],p[1],1.18+k*0.34,0,pal*0.10);
     if(G.hyperGlow>0.01){
-      /* the comet burns white in a gold corona while the star lasts */
+      /* the comet burns white in a magenta corona while the star lasts */
       ctx.save();ctx.globalCompositeOperation='lighter';
       ctx.globalAlpha=0.65*G.hyperGlow;
-      ctx.strokeStyle=COL.ember;ctx.lineWidth=2.4*u;
+      ctx.strokeStyle=COL.hyper;ctx.lineWidth=2.4*u;
       ctx.beginPath();ctx.arc(p[0],p[1],(15+(RM?0:4*G.beat))*u,0,TAU);ctx.stroke();
       ctx.globalAlpha=(RM?0.5:0.35+0.4*FLK[(G.t*24|0)&15])*G.hyperGlow;
       ctx.fillStyle='#ffffff';
       ctx.beginPath();ctx.arc(p[0],p[1],4.5*u,0,TAU);ctx.fill();
+      ctx.restore();ctx.globalAlpha=1;
+    }
+    /* HOW MUCH STAR IS LEFT. The speed already eased out over the final 1.4s,
+       but nothing SAID so: the run just quietly stopped being invincible, and
+       every playtester reported the same thing — you cannot tell when it is
+       ending. A ring that empties clockwise reads at a glance without asking
+       for a number, and it BLINKS through the last 1.5s, which is exactly the
+       window where the speed is bleeding off and a lane that was safe to plow
+       through stops being one. */
+    if(G.hyper>0&&G.hyperD>0){
+      const frac=Math.max(0,Math.min(1,G.hyper/G.hyperD)),ending=G.hyper<1.5;
+      /* Sits at 30u, outside the corona (15u) and the empty shield rings, or
+         it just disappears into the furniture already orbiting the comet.
+         Drawn WHITE with a magenta shadow rather than in the hypernova colour:
+         the room is flooded magenta while this is on screen, so a magenta ring
+         has nothing to contrast against. */
+      ctx.save();
+      ctx.lineCap='round';
+      ctx.shadowColor=COL.hyper;ctx.shadowBlur=10;
+      ctx.strokeStyle='rgba(255,120,224,0.55)';
+      ctx.lineWidth=(ending?5.2:4.2)*u;
+      ctx.beginPath();
+      ctx.arc(p[0],p[1],30*u,-Math.PI/2,-Math.PI/2+TAU*frac);
+      ctx.stroke();
+      ctx.shadowBlur=0;
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=(ending?3.2:2.2)*u;
+      ctx.globalAlpha=ending?(RM?0.95:0.35+0.65*FLK[(G.t*26|0)&15]):0.95;
+      ctx.beginPath();
+      ctx.arc(p[0],p[1],30*u,-Math.PI/2,-Math.PI/2+TAU*frac);
+      ctx.stroke();
       ctx.restore();ctx.globalAlpha=1;
     }
     if(G.t<G.invuln){
