@@ -8,7 +8,16 @@ Level 3 opens with everything known and everything active.**
 Difficulty-level (`dl`) values are difficulty-seconds — see `dl()` in
 `index.html`. Level windows: level 1 spans dl 0–90, level 2 spans 90–215,
 level 3 spans 215–340, and level 4 is 340 onward. A tier marked *(moved)* was
-pulled forward by the curriculum pass so nothing new is ever met past level 2.
+pulled forward by the curriculum pass so nothing new is ever met past level 3.
+
+**Teaching runs through level 3 now.** The two compound shapes — a gate that
+also drifts, a twin that also blinks — used to arrive 22 dl-seconds apart at
+the end of level 2, immediately after their two ingredients, which was the
+densest stretch in the game and exactly where a playtester reported losing
+track of the rules. Adding level 4 had made that worse rather than better:
+every tier still unlocked inside dl 0–215 while an entire level taught nothing.
+Level 2 now carries three shapes ~35 apart instead of five ~22 apart, level 3
+carries the two compounds 55 apart, and level 4 is the exam.
 
 **Level 3 used to be endless and therefore last.** It has a finish line and a
 star dive of its own now, and level 4 (EVENT HORIZON) took over as the level
@@ -33,6 +42,7 @@ there were exactly three levels.
 | Shield (green orb) | Banked up to 3 (cap grows late — empty slots draw as faint rings, so the max is visible). A hit spends one automatically, knocks you off your orbit, and grants 0.9s of invulnerability. Every run starts with two. | 1st power-up (~10s) | menu key row, L1 card, orb-naming hint, visible cap, and the save itself: "SHIELD USED · N LEFT", or "LAST SHIELD — RED KILLS NOW" with a darker cue when the bank empties *(new)* |
 | Slow-mo (violet orb) | 4 seconds at 55% speed. | 2nd power-up | menu key row, orb-naming hint while on the board |
 | Nova (white orb) | Converts every shard in the wave to paying embers. | 3rd power-up | menu key row, orb-naming hint while on the board |
+| Magnetar (lime orb) | Eight beats in which every ember on the board curves to you. They arrive through the ordinary collection path, so each one fires its ordinary note and its ordinary combo — the cascade is a phrase the player caused. | guaranteed on level 2, then in the rotation *(new)* | MEET lesson: "magnetar — every ember comes to you" |
 | Overcharge | While the shield bank is full, embers and on-beat taps pay DOUBLE; an overflow shield pays +50. | first full bank | "SHIELDS FULL" line + shimmer-up on every bank-fill, shimmer-down when it breaks, OVERCHARGED popup, visible cap rings *(new)* |
 | On-beat chain | Inputs judged against the sixteenth grid (consistency, not absolute timing). Tight play climbs ON BEAT ×8: each rung a scale-step tone, ×8 pays a build bonus and opens the band. | first tight taps | per-rung tones, popups from ×2, "on the beat" lesson at first ×2 *(new)*, ×8 payoff line *(new)*, hint ladder |
 | Music answers you | Every tap and hop places a note on the grid; input builds heat that opens the arrangement. The game's meta-rule. | first seconds | "your moves play the music" lesson in level 1's calm — now the only channel, the L1 card row having been cut to keep first contact to three rules |
@@ -49,15 +59,20 @@ there were exactly three levels.
 | Gates | One angle blocked on EVERY ring — hopping cannot save you; reverse. Checked for solvability before spawning. | dl 100 | banner, MEET lesson, death coach |
 | Drifters | Shards that slide along their ring; the chevron's point leads their motion. | dl 122 *(moved from 205)* | banner, MEET lesson, longer first telegraphs, death coach *(new)* |
 | Blinkers | Phase on a two-beat cycle: harmless while dim, lethal while lit; the core fills as re-arm approaches. | dl 144 *(moved from 250)* | banner, MEET lesson, longer first telegraphs, death coach |
-| Sliding gates | A gate whose wall drifts — reverse early, the exit is crowding shut. | dl 166 *(moved from 295)* | banner, MEET lesson, death coach |
-| Flicker pairs | A twin whose halves alternate: exactly one is ever solid, one gap at a time. | dl 188 *(moved from 340)* | banner, MEET lesson, death coach *(new)* |
 | Hypernova (gold star) | Sixteen beats of invincibility at nearly double speed: reds convert to paying embers on contact, everything pays double, the kit doubles to sixteenths. | guaranteed first post-curriculum placement on level 2 | MEET lesson naming the speed *(reworded)*, no slow-mo *(fixed)* |
 | Bass bomb (cyan orb) | Clears every shard in the neighbourhood and drops the low end. | guaranteed on level 2 *(new — was a dice roll)* | MEET lesson |
 | Spotlight (white/violet orb) | Four bars where you are the lead: your instrument doubles, tight taps pay double. | guaranteed on level 2 *(new — was a dice roll)* | MEET lesson, no slow-mo *(fixed)* |
 | Overdrive | Hold the heat near max for a full bar: eight bars of double-time with embers and on-beat taps paying double. | heat-driven, reachable late L1, named on L2 card | "OVERDRIVE ×2" readout, gold band meter |
 | Drum break | The band steps out for a bar and your inputs ARE the fill — taps land as snares, hops as kicks. | heat-driven, named on L2 card | caption *(per-run again, new)*, input flashes — snare white, kick gold *(new)* |
 
-## Levels 3 and 4 — THE STORM, then EVENT HORIZON (the exam)
+## Level 3 — THE STORM (the last teaching level)
+
+| Mechanic | How it works | Introduced | Explained by |
+|---|---|---|---|
+| Sliding gates | A gate whose wall drifts — reverse early, the exit is crowding shut. | dl 240 *(moved into level 3)* | banner, MEET lesson, death coach |
+| Flicker pairs | A twin whose halves alternate: exactly one is ever solid, one gap at a time. | dl 295 *(moved into level 3)* | banner, MEET lesson, death coach |
+
+## Level 4 — EVENT HORIZON (the exam)
 
 | Mechanic | How it works | Introduced | Explained by |
 |---|---|---|---|

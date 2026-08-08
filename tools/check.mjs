@@ -46,15 +46,16 @@ if (!tiers || !lv) fail.push('TIERS or LV table not found');
 else {
   const ats = [...tiers[1].matchAll(/at:\s*(\d+)/g)].map(m => +m[1]);
   const ends = [...lv[1].matchAll(/end:\s*(\d+)/g)].map(m => +m[1]);
-  /* LEVEL 2's finish line, read positionally — NOT max(ends). While there were
-     exactly three levels those were the same number, because level 3's end is
-     Infinity and so never matched the numeric regex. Adding a fourth level
-     made max(ends) level 3's finish line instead, which would have quietly
-     started permitting a tier to unlock inside level 3 — the one thing this
-     guard exists to prevent, failing open rather than closed. */
-  const l2end = ends[1];
-  if (!ats.length || ends.length < 2 || Math.max(...ats) > l2end) {
-    fail.push(`a tier unlocks after dl ${l2end} — nothing may be introduced past level 2 (ats: ${ats})`);
+  /* THE LAST TEACHING LEVEL's finish line, read positionally — NOT max(ends).
+     Teaching now runs through level 3 and level 4 is the exam, so the boundary
+     is ends[2]. It is read by index rather than as max() because the final
+     level's end is Infinity and never matches the numeric regex: with three
+     levels max(ends) happened to equal the right answer, and with four it
+     silently became the wrong one. Index it, and adding a fifth level cannot
+     quietly move the line. */
+  const teachEnd = ends[2];
+  if (!ats.length || ends.length < 3 || Math.max(...ats) > teachEnd) {
+    fail.push(`a tier unlocks after dl ${teachEnd} — nothing may be introduced past level 3 (ats: ${ats})`);
   }
 }
 

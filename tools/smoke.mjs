@@ -171,10 +171,11 @@ try {
   console.log('death->skip->retry ok; struggle =', st('G.struggle'), 'rookie first shard at', st('firstShardAt()').toFixed(1) + 's');
 
   // ---- teaching invariants (the mechanic-explanations pass) ----
-  // the curriculum rule: every tier is introduced by level 2's finish line,
-  // and STORM sits exactly on level 3's floor — level 3 teaches nothing
-  if (!st('TIERS.every(t=>t.at<=LV[1].end)')) throw new Error('a tier unlocks after level 2');
-  if (st('TIERS[TIERS.length-1].at') !== st('LV[1].end')) throw new Error('STORM is not aligned to level 3\'s floor');
+  // the curriculum rule: every tier is introduced by level 3's finish line,
+  // and STORM sits exactly on level 4's floor — the exam teaches nothing.
+  // Read by index off LV so moving a level moves the assertion with it.
+  if (!st('TIERS.every(t=>t.at<=LV[2].end)')) throw new Error('a tier unlocks after level 3');
+  if (st('TIERS[TIERS.length-1].at') !== st('LV[2].end')) throw new Error('STORM is not aligned to the exam level\'s floor');
   // every spawnable formation and every reward orb carries a lesson
   if (!st("TIERS.every(t=>!t.type||!!MEET[t.type])")) throw new Error('a tier type has no MEET lesson');
   if (!st("['bass','spot','hyper','lapcost'].every(k=>MEET[k]&&MEET[k].soft)")) throw new Error('a reward lesson lost its no-slow-mo flag');
