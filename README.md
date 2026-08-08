@@ -195,7 +195,7 @@ one sentence, and `smoke.mjs` fails the build if they drift apart:
 | dl | Level | Unlock and its one sentence |
 |---|---|---|
 | 12 | 1 | second ring — *swipe up or down to change ring* |
-| 18 | 1 | twin shards — *no room between them — swipe to another ring* |
+| 18 | 1 | twin shards — *two at once — swipe to another ring* |
 | 40 | 1 | third ring — *inside is tighter — the music runs hotter* |
 | 100 | 2 | gates — *every ring is blocked — tap to turn around* |
 | 128 | 2 | drifters — *it slides — the gap moves with it* |
@@ -339,6 +339,33 @@ drowning at 30 seconds was the entire run, so the red lesson and the shield
 lesson never showed for exactly the person who needed them. The orb-naming
 hints now outrank it while an orb is on the board, and after ten unanswered
 seconds it alternates with the survival lessons on a slow cycle.
+
+**The twin lesson took three attempts, and the first two failed for the same
+reason.** Owner, on the shipped build: *"it makes no sense and I'm not getting
+the feeling you actually understand why."* Correct on both counts.
+
+I had diagnosed the two failures as separate bugs. The first invoked
+*outrunning*; I fixed it by noting the comet has one fixed speed. The second
+invoked *fitting through the gap between them*; I fixed it by measuring the gap
+and finding 38 visible pixels on the outer ring. Both diagnoses were about
+whether the claim was **accurate**.
+
+That was the wrong frame, and it is why the second attempt was no better than
+the first. **This game has no aimed movement.** The comet travels a fixed
+circle at a fixed speed, and there are exactly two verbs: turn around, change
+ring. There is no positioning, no threading, no stopping, no aiming. A sentence
+about the space between two objects describes a manoeuvre that does not exist
+here — the player was never trying to go between them and has no way to. It
+reads as a non-sequitur because it is one. Accuracy was never the problem;
+both wordings imported a manoeuvre from a genre this game is not.
+
+What survives is what the game actually has: a count, and a verb.
+*"two at once — swipe to another ring."*
+
+The rule in `CLAUDE.md` is generalised to match: a lesson may only reference
+actions and objects the game actually has. Checking against the code cannot
+catch this — the code will happily support a true statement about something the
+player can never attempt.
 
 **Ten more sentences that did not match the game.** The audit's remaining
 confirmed findings, cleared in one pass. Four needed the code to move, not the
@@ -562,7 +589,7 @@ ones chase you* — a drifter is given one fixed random heading well under playe
 speed and never steers, which the spawn code's own comment says in as many
 words. Both drifter channels then said *keep moving*, an instruction naming an
 action the game does not have: there is no input that stops you. TWIN SHARDS
-said *too wide to outrun*, in a game with one fixed speed where nothing is ever
+invoked *outrunning*, in a game with one fixed speed where nothing is ever
 outrun. THIRD RING promised *faster and higher* — angular speed is identical on
 every ring (one `G.speed`, no radius term) and an ember pays the same wherever
 it is taken; the only real reward for diving is the filter lift, which is what

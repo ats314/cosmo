@@ -93,6 +93,17 @@ Breaking one of these is a product regression, not a style question.
   WebAudio at all. Every audio path is guarded; keep it that way.
 - **No aimed input.** There is no target to hit anywhere in this game. Landing
   the beat drop is *any* move in the window, wherever the thumb is.
+- **A lesson may only reference actions and objects the game actually has.**
+  Cosmo has two verbs (turn around, change ring), rings, red, stars, shields
+  and the beat. It has no aimed movement: no positioning, no threading a gap,
+  no outrunning, no stopping. Two twin wordings shipped that each invoked a
+  manoeuvre from some other game, and both read to players as nonsense — not
+  because they were inaccurate, but because they answered a question the player
+  had no way to be asking. Checking a sentence against the *code* does not
+  catch this; the code will happily support a true statement about something
+  the player can never do. Ask instead: is this sentence about something the
+  player could attempt? When in doubt, claim only what is countable and name a
+  verb the game has.
 - **`MECHANICS.md` and the code move together.** Change a mechanic, update the
   ledger row and the level card text in the same commit.
 
