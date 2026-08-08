@@ -87,6 +87,24 @@ function frame(ms) {
   for (const fn of fns) fn(nowMs);
 }
 function fire(name, ev) { for (const fn of (listeners[name] || [])) fn(ev); }
+
+/* A FRESH DEVICE IS ASKED WHICH SWIPE RULE IT WANTS. Two rules exist now —
+   screen-absolute (up is the outer ring) and radial (away from the middle is
+   the outer ring) — and they disagree only at the top and bottom of the loop,
+   so the choice is made on a live arena rather than described. It sits between
+   the menu tap and the level-1 card, once per device. Every harness has to
+   press its PLAY control or it simply waits on the screen forever. */
+function passSwipeChooser(st, frame, fire, pev, pid) {
+  if (st('G.state') !== 'swipesel') return pid;
+  for (let i = 0; i < 30; i++) frame(16.7);      // a draw pass fills selRects
+  const r = JSON.parse(st('JSON.stringify(G.selRects.find(x=>x.id==="play")||null)') || 'null');
+  if (!r) throw new Error('the swipe chooser drew no PLAY control');
+  const x = r.x + r.w / 2, y = r.y + r.h / 2;
+  fire('pointerdown', { ...pev(pid, x, y, 'pointerdown'), type: 'pointerdown' });
+  fire('pointerup', { ...pev(pid, x, y, 'pointerup'), type: 'pointerup' });
+  if (st('G.state') === 'swipesel') throw new Error('PLAY did not leave the swipe chooser');
+  return pid + 1;
+}
 const pev = (id, x, y, type) => ({
   pointerId: id, clientX: x, clientY: y, type: type || 'pointerup', preventDefault() {},
 });
@@ -100,6 +118,7 @@ try {
   // card first (the calm pre-teaching screen), one tap, once per device
   fire('pointerdown', pev(1, 200, 400, 'pointerdown'));
   fire('pointerup', pev(1, 200, 400, 'pointerup'));
+  passSwipeChooser(st, frame, fire, pev, 900);
   if (st('G.state') !== 'lvend') throw new Error('fresh device did not get the level-1 card, state=' + st('G.state'));
   for (let i = 0; i < 60; i++) frame(16.7);
   fire('pointerdown', pev(1, 200, 400, 'pointerdown'));
@@ -169,6 +188,28 @@ try {
   if (st('pd') !== null) throw new Error('pd leaked into new run');
   for (let i = 0; i < 300; i++) frame(16.7);
   console.log('death->skip->retry ok; struggle =', st('G.struggle'), 'rookie first shard at', st('firstShardAt()').toFixed(1) + 's');
+
+  // ---- the two swipe rules ----
+  // They must AGREE at the sides of the loop and INVERT at the bottom; that is
+  // the entire content of the choice, and a swipeOut() that stopped inverting
+  // would leave two identically-behaving options on a screen built to
+  // distinguish them.
+  const rule = (mode, ang, dx, dy) =>
+    st(`(function(){var m=SWIPE_MODE;SWIPE_MODE='${mode}';` +
+       `var r=swipeOut(${dx},${dy},${ang});SWIPE_MODE=m;return r;})()`);
+  const TOPA = -Math.PI / 2, BOTA = Math.PI / 2;
+  if (rule('screen', TOPA, 0, -1) !== true) throw new Error('screen rule: up is not out at the top');
+  if (rule('screen', BOTA, 0, -1) !== true) throw new Error('screen rule: up must be out EVERYWHERE');
+  if (rule('radial', TOPA, 0, -1) !== true) throw new Error('radial rule: up is not out at the top');
+  if (rule('radial', BOTA, 0, -1) !== false) throw new Error('radial rule: up must be IN at the bottom');
+  if (rule('screen', BOTA, 0, -1) === rule('radial', BOTA, 0, -1))
+    throw new Error('the two swipe rules do not differ at the bottom of the loop — the chooser is meaningless');
+  // and the sentence must follow the rule, or the menu describes the other game
+  const wS = st("(function(){var m=SWIPE_MODE;SWIPE_MODE='screen';var w=swipeWords();SWIPE_MODE=m;return w;})()");
+  const wR = st("(function(){var m=SWIPE_MODE;SWIPE_MODE='radial';var w=swipeWords();SWIPE_MODE=m;return w;})()");
+  if (wS === wR) throw new Error('swipeWords() says the same thing for both rules');
+  if (!/up or down/.test(wS)) throw new Error('the screen rule is not described as up/down: ' + wS);
+  console.log('swipe rules ok: agree up top, invert at the bottom; wording follows');
 
   // ---- teaching invariants (the mechanic-explanations pass) ----
   // the curriculum rule: every tier is introduced by level 3's finish line,

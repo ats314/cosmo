@@ -340,6 +340,44 @@ lesson never showed for exactly the person who needed them. The orb-naming
 hints now outrank it while an orb is on the board, and after ten unanswered
 seconds it alternates with the survival lessons on a slow cycle.
 
+**Which way is out is now the player's call.** Playtester, verbatim: *"can you
+make it so slide up always changes to outer ring and down to inner? i think
+that's what my brain wants, so that would make it easier (for me,
+definitely)."*
+
+There are two coherent rules and neither is correct. **Away is out** (radial)
+reads the swipe against the line from the centre through the comet, so at the
+bottom of the loop you swipe *down* to go out. **Up is out** (screen) ignores
+where the comet is: up is the outer ring, always. They agree at the sides of
+the loop and invert at the bottom, and which one a person's hand expects is not
+something the game gets to decide for them.
+
+So it is asked once, on the first tap of a fresh device, on a screen that runs
+the real rings and the real `hop()` — because a written description of the
+difference does not land. An arrow at the comet shows where *this* rule says
+out is right now: under the radial rule it visibly rotates as the comet
+travels, under the screen rule it stays pinned upward. The chooser opens with
+the comet at the bottom of the loop, which is the one place the two rules are
+opposites; opening at the top would have presented a screen on which both
+choices look identical. The controls sit inside the hollow of the ring system
+so the comet orbits *around* them rather than behind them.
+
+**The wording had been describing the wrong game.** Five channels said "swipe
+up or down to change ring" — the menu key, the level 1 card, the SECOND RING
+banner, the hint ladder and the death coach. That is the *screen* rule, and the
+build has been shipping the *radial* one. Every one of them now resolves
+through `swipeWords()` at draw time, so the sentence always describes the rule
+in force.
+
+`swipeOut()` is the single place either rule is expressed and both gesture
+paths — mid-drag resolution and resolution at lift — call it, so they cannot
+drift apart. `smoke.mjs` asserts the two rules agree at the top of the loop and
+invert at the bottom; collapsing them to the same expression fails the build.
+
+Every telemetry event carries `swipe_mode`. Two control schemes means every
+completion and death rate would otherwise silently average two different games
+together and stop being readable.
+
 **Nine tiles the player chose between, and not one of them did anything.** The
 same audit found `upgOn` — the accessor every upgrade effect was supposed to go
 through — with **zero call sites in 7,257 lines**. Each of the nine ids

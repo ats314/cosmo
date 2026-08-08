@@ -2496,7 +2496,7 @@ const LV=[
     something. He had not; the card had. */
  {dl0:0,  end:90,  name:'LIFT OFF', key:1,
   mech:[['tap','tap anywhere to turn around'],
-        ['swipe','swipe up or down to change ring'],   /* singular, as everywhere else */
+        ['swipe',null],   /* null = resolved at draw time by swipeWords() */
         ['shard','red costs a shield \u2014 you start with two']]},
  /* THE LATER CARDS STOPPED PREVIEWING THE SYLLABUS. The note above explains
     why level 1's card came down to three lines; levels 2-4 then went on making
@@ -2658,6 +2658,9 @@ function loadPrefs(){
   if(!isNaN(gl))G.lvlMax=Math.max(1,Math.min(LEVEL_MAX,gl));
   const m=readLocal('cometloop:muted');
   if(m!==null)muted=(m==='1');
+  /* absent means this device has never been asked — the chooser is shown once */
+  const sw=readLocal('cometloop:swipe');
+  if(sw==='screen'||sw==='radial'){SWIPE_MODE=sw;G.swipeAsked=true;}
   /* Deliberately never reset by startGame: it records whether this human has
      ever found the mechanic, not whether this run has. */
   if(readLocal('cometloop:groove')==='1')G.didGroove=true;
@@ -2732,6 +2735,10 @@ function track(name,props){
   try{
     const pr=props||{};
     pr.$process_person_profile=false;    /* anonymous events, by declaration */
+    /* TWO CONTROL SCHEMES MEANS EVERY NUMBER NEEDS TO SAY WHICH ONE. Without
+       this, level-completion and death rates silently average two different
+       games together and stop being readable. */
+    pr.swipe_mode=SWIPE_MODE;
     pr.$current_url=location.href;
     const body=JSON.stringify({api_key:POSTHOG_KEY,event:name,
       distinct_id:TELE_ID,properties:pr});
@@ -2748,6 +2755,47 @@ track('$pageview',{});
    NOT counted inside bump(), which also fires when a swipe hits the outermost
    or innermost ring — that is the game answering correctly, not a misread. */
 const GEST={tap:0,swipe:0,lateSwipe:0,unresolved:0};
+
+/* ---------- which way is out ----------
+   Two rules, and they only disagree at the top and bottom of the loop.
+   RADIAL reads the swipe against the line from the centre through the comet,
+   so "away from the middle" is always outward — at the bottom of the loop that
+   means swiping DOWN to go out. SCREEN ignores where the comet is: up is the
+   outer ring, down is the inner one, always.
+   Radial is what the game has been playtested on. Screen was the original, and
+   a playtester asked for it back: "can you make it so slide up always changes
+   to outer ring and down to inner? i think that's what my brain wants."
+   Neither is correct — they are different mental models of the same loop, and
+   which one a person holds is not something the game gets to decide for them.
+   So it is a choice, made once on a screen where both can actually be felt.
+   swipeOut() is the ONLY place either rule is expressed; both gesture
+   resolution paths call it, so they can never drift apart. */
+let SWIPE_MODE='radial';
+/* THE SENTENCE HAS TO FOLLOW THE RULE. Five channels described the hop as
+   "swipe up or down", which is the SCREEN rule — and the game has been
+   shipping the RADIAL one, where at the bottom of the loop you swipe DOWN to
+   go out. So the instruction has been describing a mechanic the build does not
+   have, for every player, in the menu key, the level 1 card, the SECOND RING
+   banner, the hint ladder and the death coach. Now there are two rules, one of
+   them is the player's own choice, and exactly one sentence describes each. */
+function swipeWords(){
+  return SWIPE_MODE==='screen'?'swipe up or down to change ring'
+                              :'swipe out or in to change ring';
+}
+function swipeOut(dx,dy,ang){
+  if(SWIPE_MODE==='screen')return dy<0;          /* up is out, wherever you are */
+  /* The outward normal at parametric angle a is (cos a, AY sin a), not
+     (cos a, sin a): on a stretched arena the pure basis reads a vertical flick
+     near the top of the loop as barely radial at all. */
+  return dx*Math.cos(ang)+dy*Math.sin(ang)*AY>0;
+}
+/* how far the gesture leans along whichever axis the mode cares about — the
+   commit threshold needs a magnitude, not just a sign */
+function swipeLean(dx,dy,ang){
+  if(SWIPE_MODE==='screen')return Math.abs(dy);
+  const rnx=Math.cos(ang),rny=Math.sin(ang)*AY;
+  return Math.abs((dx*rnx+dy*rny)/(Math.hypot(rnx,rny)||1));
+}
 
 /* ---------- state ---------- */
 const CW=2.5;   /* combo window seconds */
@@ -2925,7 +2973,7 @@ const TIERS=[
      the ring tiers, which have no formation and so no lesson, use the same
      vocabulary as the menu key and the hint ladder. "switch track" named a
      thing called a track that appears nowhere else in the game. */
-  {at:12, type:null,    name:'SECOND RING', sub:'swipe up or down to change ring',rings:2},
+  {at:12, type:null,    name:'SECOND RING', subFn:swipeWords,rings:2},
   {at:18, type:'twin',  name:'TWIN SHARDS', sub:'no room between them \u2014 swipe to another ring'},
   /* "faster and higher" was two claims and neither was true: angular speed is
      the same on every ring (one G.speed, no radius term) and an ember pays the
@@ -3120,6 +3168,7 @@ const G={
   state:'menu',t:0,started:0,deadT:0,
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
   newLevel:false, /* did this run reach deeper than any before it */
+  swipeAsked:false,selRects:[],selPt:null,selFx:0,selFrom:null,swipeRect:null,
   level:1,lvlMax:1,lvT:0,lvCard:null,carryScore:0, /* the three-level structure,
     and the deepest level ever reached — the only level record there is */
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
@@ -3717,7 +3766,7 @@ function die(){
      already measured. One line, phrased as an invitation — a struggling
      player does not need another demand. */
   const secs=G.deadT-G.started;
-  if(!G.didHop&&G.nRings>1)G.coach={t:'you never changed rings — swipe up or down',g:'swipe'};
+  if(!G.didHop&&G.nRings>1)G.coach={t:'you never changed rings — '+(SWIPE_MODE==='screen'?'swipe up or down':'swipe out or in'),g:'swipe'};
   /* EVERY NAMED KILLER COACHES WITH ITS OWN LESSON, WORD FOR WORD. Four of
      these were hand-written paraphrases sitting above the fallback that
      already read MEET — so a gate death said "gates want you to turn back",
@@ -4099,6 +4148,25 @@ cv.addEventListener('pointerdown',function(e){
        inheriting a device's unlock, and friends thought the game had skipped
        level 1. Dying mid-run still retries the level you died on. */
     G.level=1;G.upg={};G.offered={};G.offer=[];G.picks=[];
+    /* WHICH WAY IS OUT, ASKED ONCE. Two rules exist and they disagree only at
+       the top and bottom of the loop; which one a person's hand expects is not
+       something the game can decide for them. Asked on the first tap of a
+       fresh device, before the level-1 card, and never again — the menu keeps
+       a control for changing it later. */
+    /* the menu's swipe row is a control: a hand can want one rule on day one
+       and the other on day three, and nothing else on this screen is tappable
+       so a mis-tap only ever costs a look at the chooser */
+    if(G.swipeRect&&e.clientX>=G.swipeRect.x&&e.clientX<=G.swipeRect.x+G.swipeRect.w&&
+       e.clientY>=G.swipeRect.y&&e.clientY<=G.swipeRect.y+G.swipeRect.h){
+      G.selFrom='menu';G.swipeAsked=false;
+    }
+    if(!G.swipeAsked){
+      G.state='swipesel';G.lvT=G.t;G.nRings=3;G.ringI=1;G.hopFromI=1;G.hopP=1;
+      G.angle=Math.PI/2;   /* bottom of the loop: the one place the rules disagree */
+      G.trail.length=0;    /* or the angle jump draws a chord across the arena */
+      G.stars=[];G.spikes=[];G.pows=[];
+      return;
+    }
     /* A GENUINE FIRST RUN GETS LEVEL 1'S CARD. The LIFT OFF card was dead
        data — lvCard was only ever built by levelComplete, so the one calm
        screen that pre-teaches the verbs, the orbit economy and the finale
@@ -4109,6 +4177,14 @@ cv.addEventListener('pointerdown',function(e){
     return;
   }
   if(G.state==='lvend'){G.lvPt={x:e.clientX,y:e.clientY};return;}  /* decided at lift */
+  if(G.state==='swipesel'){
+    /* a press anywhere may become a swipe; whether it was a TAP on a control
+       is decided at lift, exactly as the level card does it */
+    G.selPt={x:e.clientX,y:e.clientY};
+    if(pd)return;
+    pd={id:e.pointerId,x:e.clientX,y:e.clientY,saved:null,ang:G.angle,far:0,lean:0,out:false,swiped:false};
+    return;
+  }
   if(G.state==='dead'){
     /* the first tap after the lockout fast-forwards the reveal; the next
        one retries — a fast retrier is never made to sit through it */
@@ -4119,7 +4195,7 @@ cv.addEventListener('pointerdown',function(e){
   tryLand();     /* any input in the window lands the drop — and still plays */
   const saved={lap:G.lapAcc,streak:G.lapStreak,dr:G.didReverse};
   reverse(true); /* direction flips instantly; sound and sparks wait */
-  pd={id:e.pointerId,x:e.clientX,y:e.clientY,saved:saved,ang:G.angle,far:0,radial:0,swiped:false};
+  pd={id:e.pointerId,x:e.clientX,y:e.clientY,saved:saved,ang:G.angle,far:0,lean:0,out:false,swiped:false};
 });
 /* RADIAL SWIPE. Direction is read against the line from the centre through
    the comet, so "away from the middle" always means out and "toward the
@@ -4128,7 +4204,7 @@ cv.addEventListener('pointerdown',function(e){
    is what the player was actually looking at when they committed. */
 const RADIAL_MIN=0.34; /* ~20 degrees off tangential before we call it */
 cv.addEventListener('pointermove',function(e){
-  if(!pd||pd.id!==e.pointerId||G.state!=='playing')return;
+  if(!pd||pd.id!==e.pointerId||(G.state!=='playing'&&G.state!=='swipesel'))return;
   const dx=e.clientX-pd.x,dy=e.clientY-pd.y;
   const len=Math.sqrt(dx*dx+dy*dy);
   pd.far=len;
@@ -4138,23 +4214,24 @@ cv.addEventListener('pointermove',function(e){
        didReverse comes back too — a run whose only "reverse" was speculative
        must not report the tap lesson as learned. */
     pd.swiped=true;
-    G.revPend=0;
-    G.dir*=-1;
-    G.lapAcc=pd.saved.lap;
-    G.lapStreak=pd.saved.streak;
-    G.didReverse=pd.saved.dr;
-    G.lapCut=0;   /* the lap is restored, so there is no cost to teach */
+    if(pd.saved){
+      G.revPend=0;
+      G.dir*=-1;
+      G.lapAcc=pd.saved.lap;
+      G.lapStreak=pd.saved.streak;
+      G.didReverse=pd.saved.dr;
+      G.lapCut=0;   /* the lap is restored, so there is no cost to teach */
+    }
   }
-  /* The outward normal at parametric angle a is (cos a, AY sin a), not
-     (cos a, sin a): on a stretched arena the pure-cos/sin basis would read a
-     vertical flick near the top of the loop as barely radial at all. */
-  const rnx=Math.cos(pd.ang),rny=Math.sin(pd.ang)*AY;
-  const rnl=Math.hypot(rnx,rny)||1;
-  pd.radial=(dx*rnx+dy*rny)/rnl;
+  /* Both the lean and its sign come from the mode (see swipeOut). Under the
+     screen rule the reference angle is irrelevant, which is exactly the point
+     of that rule. */
+  pd.lean=swipeLean(dx,dy,pd.ang);
+  pd.out=swipeOut(dx,dy,pd.ang);
   /* A flick almost exactly along the ring is genuinely ambiguous — keep
      watching rather than guessing; it resolves as the finger travels. */
-  if(Math.abs(pd.radial)>=len*RADIAL_MIN){
-    const out=pd.radial>0;
+  if(pd.lean>=len*RADIAL_MIN){
+    const out=pd.out;
     pd=null;
     GEST.swipe++;          /* resolved mid-drag: the clean case */
     hop(out?-1:1);
@@ -4185,6 +4262,28 @@ function pdEnd(e){
     }
     return;
   }
+  if(G.state==='swipesel'&&G.selPt){
+    const pt=G.selPt;G.selPt=null;
+    const swiped=pd&&pd.swiped;
+    if(!swiped){
+      const hit=G.selRects.find(r=>pt.x>=r.x&&pt.x<=r.x+r.w&&pt.y>=r.y&&pt.y<=r.y+r.h);
+      if(hit&&hit.id==='play'){
+        savePref('cometloop:swipe',SWIPE_MODE);
+        G.swipeAsked=true;
+        track('swipe_mode_chosen',{mode:SWIPE_MODE,hops:GEST.swipe+GEST.lateSwipe});
+        pd=null;
+        if(G.selFrom==='menu'){G.selFrom=null;G.state='menu';}
+        else{G.state='lvend';G.lvT=G.t;G.lvCard={done:false,next:1};}
+        beep(523,0.14,'triangle',0.06,784);
+        return;
+      }
+      if(hit&&hit.id!==SWIPE_MODE){
+        SWIPE_MODE=hit.id;G.selFx=1;
+        beep(392,0.10,'triangle',0.05,588);
+      }
+      pd=null;return;
+    }
+  }
   if(pd&&e&&pd.id!==e.pointerId)return;
   if(pd){
     if(pd.swiped){
@@ -4193,21 +4292,21 @@ function pdEnd(e){
          dragged back to its start used to read as a committed hop in the
          abandoned direction. pointercancel keeps the stored values; its
          coordinates are not trustworthy. */
-      let rad=pd.radial,far=pd.far;
+      let lean=pd.lean||0,out=pd.out,far=pd.far;
       if(e&&e.type==='pointerup'){
         const dx=e.clientX-pd.x,dy=e.clientY-pd.y;
         far=Math.sqrt(dx*dx+dy*dy);
-        rad=dx*Math.cos(pd.ang)+dy*Math.sin(pd.ang);
+        lean=swipeLean(dx,dy,pd.ang);out=swipeOut(dx,dy,pd.ang);
       }
       /* A clear lean commits; a flick essentially along the ring has no
-         radial answer, so bump rather than coin-flip. */
-      if(far>=18&&Math.abs(rad)>far*0.12){GEST.lateSwipe++;hop(rad>0?-1:1);}
+         answer under either rule, so bump rather than coin-flip. */
+      if(far>=18&&lean>far*0.12){GEST.lateSwipe++;hop(out?-1:1);}
       /* Swiped and got nothing. This is the misread rate worth watching.
          During the hop rehearsal a failed swipe extends the lesson instead
          of just thudding. */
       else{GEST.unresolved++;bump();
         if(G.teach>0&&G.teachKind==='hop')G.teach=Math.min(8,G.teach+2.5);}
-    }else{
+    }else if(G.state==='playing'){
       GEST.tap++;
       commitReverseFX();
     }
@@ -4408,7 +4507,7 @@ function update(dt){
   const tsT=G.slow>0?0.55:1;
   G.tsCur+=(tsT-G.tsCur)*Math.min(1,dt*8);
   /* the menu demo hops at a third speed, so the gesture reads as a gesture */
-  if(G.hopP<1)G.hopP=Math.min(1,G.hopP+dt/(G.state==='menu'?HOP*3.5:HOP));
+  if(G.hopP<1)G.hopP=Math.min(1,G.hopP+dt/((G.state==='menu'||G.state==='swipesel')?HOP*3.5:HOP));
   /* The grace holds while the finger is still down: a slow deliberate swipe
      used to outlive the 70ms window, fire the reverse beep and sparks, and
      then roll back anyway — sound for a reverse that never happened. A held
@@ -4465,6 +4564,10 @@ function update(dt){
   /* dir matters on the menu now: the demo reverses the comet for real */
   if(G.state==='menu'){G.sweep=0;G.angle+=0.8*dt*G.dir;pushTrail();menuDemo(dt);return;}
   if(G.state==='lvend'){G.sweep=0;G.angle+=0.8*dt*G.dir;pushTrail();return;}
+  /* THE CHOOSER IS A SANDBOX, not a diagram. It runs the real rings, the real
+     comet and the real hop() — the only way to know which rule your thumb
+     wants is to use it. Slow enough to read, and nothing here can hurt you. */
+  if(G.state==='swipesel'){G.sweep=0;G.angle+=0.62*dt*G.dir;pushTrail();return;}
   if(G.state==='dead'){G.sweep=0;updateSpikes(dt,false);return;}
 
   /* playing */
@@ -4731,7 +4834,7 @@ function update(dt){
       }
     }
     if(T.name){
-      G.banner={str:T.name,sub:T.sub,t:0};
+      G.banner={str:T.name,sub:T.subFn?T.subFn():T.sub,t:0};
       fireLift();      /* ceremony, not a chorus — see fireLift */
       ripple(cx,cy,COL.ember);   /* earned, so gold — see the banner draw */
       /* the unlock call, reserved for banners alone — the generic triangle
@@ -6609,7 +6712,7 @@ function hintText(){
   if(!G.didHop&&G.nRings>1){
     if(!G.hopHintT)G.hopHintT=a;
     if(a-G.hopHintT<10||Math.floor(a/6)%2===0)
-      return {t:'swipe up or down to change ring',g:'swipe'};
+      return {t:swipeWords(),g:'swipe'};
   }
   if(!G.didLap&&a<22)return {t:'collect stars, then finish a lap',g:'star'};
   /* the same sentence MEET.single uses, because it is the same rule */
@@ -7031,9 +7134,10 @@ function drawHUD(){
     textFx(L.name,cx,y2+26*u,22*u,'800','#ffffff','#9fd8ff','rgba(125,228,255,0.45)',4);
     let my=y2+62*u;
     for(const m of L.mech){
+      const mt=m[1]||swipeWords();
       hintGlyph(m[0],cx-112*u,my-5*u,16*u);
       ctx.textAlign='left';
-      text(m[1],cx-94*u,my,fitSz(m[1],11.5*u,'600',W/2+82*u),'600','rgba(214,228,255,0.85)',0);
+      text(mt,cx-94*u,my,fitSz(mt,11.5*u,'600',W/2+82*u),'600','rgba(214,228,255,0.85)',0);
       ctx.textAlign='center';
       my+=26*u;
     }
@@ -7122,6 +7226,103 @@ function drawHUD(){
       :(c2.done?'TAP FOR LEVEL '+Math.min(LEVEL_MAX,c2.next):'TAP TO START'),
       cx,bottomY,17*u,'800','#eaffff',COL.comet,'rgba(93,240,255,0.5)',4);
     ctx.globalAlpha=1;
+  }else if(G.state==='swipesel'){
+    /* WHICH WAY IS OUT. Two rules, and they only disagree at the top and
+       bottom of the loop — at the sides they are the same gesture, which is
+       precisely why a written description of the difference does not land.
+       So the screen is the real arena with the real hop(): the arrow at the
+       comet shows where THIS rule says "out" is, right now, and under the
+       radial rule it visibly rotates as the comet travels while under the
+       screen rule it stays pinned upward. Swipe, watch, switch, swipe again. */
+    const selA=Math.min(1,(G.t-G.lvT)/0.35);
+    ctx.globalAlpha=selA;
+    const sTop=top+46*u;
+    textFx('WHICH WAY IS OUT?',cx,sTop,fitSz('WHICH WAY IS OUT?',24*u,'800',W-30*u),'800',
+      '#ffffff','#9fd8ff','rgba(125,228,255,0.45)',4);
+    text('swipe the rings to try it \u2014 both work',cx,sTop+22*u,
+      fitSz('swipe the rings to try it \u2014 both work',11.5*u,'600',W-30*u),'600',
+      'rgba(210,225,255,0.72)',0);
+
+    /* the arrow, drawn AT the comet, pointing wherever this rule says out is */
+    const pp=posPlayer();
+    let ax,ay;
+    if(SWIPE_MODE==='screen'){ax=0;ay=-1;}
+    else{const nx=Math.cos(G.angle),ny=Math.sin(G.angle)*AY,nl=Math.hypot(nx,ny)||1;ax=nx/nl;ay=ny/nl;}
+    ctx.save();
+    ctx.globalAlpha=selA*(RM?0.9:0.62+0.3*Math.sin(G.t*3));
+    ctx.strokeStyle=COL.comet;ctx.fillStyle=COL.comet;
+    ctx.lineWidth=2.6*u;ctx.lineCap='round';ctx.lineJoin='round';
+    const a0=22*u,a1=46*u;
+    ctx.beginPath();
+    ctx.moveTo(pp[0]+ax*a0,pp[1]+ay*a0);
+    ctx.lineTo(pp[0]+ax*a1,pp[1]+ay*a1);ctx.stroke();
+    const px=-ay,py=ax;   /* perpendicular, for the head */
+    ctx.beginPath();
+    ctx.moveTo(pp[0]+ax*a1,pp[1]+ay*a1);
+    ctx.lineTo(pp[0]+ax*(a1-9*u)+px*6.5*u,pp[1]+ay*(a1-9*u)+py*6.5*u);
+    ctx.lineTo(pp[0]+ax*(a1-9*u)-px*6.5*u,pp[1]+ay*(a1-9*u)-py*6.5*u);
+    ctx.closePath();ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha=selA;
+
+    /* the two rules, as tappable rows */
+    G.selRects=[];
+    const rows=[['screen','UP IS OUT','up = outer ring, always'],
+                ['radial','AWAY IS OUT','away from the middle = outer']];
+    const rw=Math.min(W-40*u,236*u),rh=50*u,rgap=8*u;
+    const pBtnH=42*u;
+    /* centred in the hollow of the ring system, so the comet orbits AROUND
+       the controls rather than behind them */
+    let ry=cy-(rows.length*rh+(rows.length-1)*rgap+pBtnH+14*u)/2;
+    for(const rw2 of rows){
+      const on=SWIPE_MODE===rw2[0];
+      const rx=cx-rw/2;
+      G.selRects.push({x:rx,y:ry,w:rw,h:rh,id:rw2[0]});
+      ctx.save();ctx.globalAlpha=selA;
+      ctx.fillStyle=on?'rgba(30,54,84,0.96)':'rgba(16,22,38,0.92)';
+      ctx.beginPath();ctx.roundRect(rx,ry,rw,rh,12*u);ctx.fill();
+      ctx.strokeStyle=on?COL.comet:'rgba(140,170,220,0.30)';
+      ctx.lineWidth=on?2:1.2;
+      ctx.beginPath();ctx.roundRect(rx+1,ry+1,rw-2,rh-2,12*u);ctx.stroke();
+      /* the selected row carries the same arrow idiom as the comet, so the
+         row and the thing it controls are visibly the same statement */
+      const gx=rx+22*u,gy=ry+rh/2;
+      ctx.strokeStyle=on?COL.comet:'rgba(170,196,235,0.55)';
+      ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=2.4*u;
+      if(rw2[0]==='screen'){
+        ctx.beginPath();ctx.moveTo(gx,gy+10*u);ctx.lineTo(gx,gy-9*u);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(gx,gy-13*u);ctx.lineTo(gx-5.5*u,gy-5*u);
+        ctx.lineTo(gx+5.5*u,gy-5*u);ctx.closePath();ctx.fill();
+      }else{
+        ctx.beginPath();ctx.arc(gx,gy,5*u,0,TAU);ctx.stroke();
+        for(const aa of [-0.9,0.9]){
+          const ux=Math.cos(aa),uy=Math.sin(aa);
+          ctx.beginPath();ctx.moveTo(gx+ux*8*u,gy+uy*8*u);
+          ctx.lineTo(gx+ux*15*u,gy+uy*15*u);ctx.stroke();
+        }
+      }
+      ctx.textAlign='left';
+      text(rw2[1],rx+42*u,gy-3*u,fitSz(rw2[1],13.5*u,'800',rw-50*u),'800',
+        on?'#eaf1ff':'rgba(214,228,255,0.75)',0);
+      text(rw2[2],rx+42*u,gy+14*u,fitSz(rw2[2],10*u,'600',rw-50*u),'600',
+        on?'rgba(200,220,255,0.85)':'rgba(190,206,235,0.5)',0);
+      ctx.textAlign='center';
+      ctx.restore();
+      ry+=rh+rgap;
+    }
+    /* PLAY */
+    const pw=Math.min(150*u,W-60*u),pxb=cx-pw/2,pyb=ry+14*u;
+    G.selRects.push({x:pxb,y:pyb,w:pw,h:pBtnH,id:'play'});
+    ctx.save();
+    ctx.globalAlpha=selA*(RM?1:0.78+0.22*Math.sin(G.t*3));
+    ctx.strokeStyle=COL.comet;ctx.lineWidth=1.8;
+    ctx.beginPath();ctx.roundRect(pxb,pyb,pw,pBtnH,pBtnH/2);ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha=selA;
+    ctx.textBaseline='middle';
+    textFx('PLAY',cx,pyb+pBtnH/2,17*u,'800','#eaffff',COL.comet,'rgba(93,240,255,0.5)',4);
+    ctx.textBaseline='alphabetic';
+    ctx.globalAlpha=1;
   }else if(G.state==='menu'){
     const ty=Math.max(top+40*u,cy-R-46*u);
     textFx('COSMO',cx,ty,40*u,'800','#ffffff','#7de4ff','rgba(93,240,255,0.55)',12);
@@ -7153,13 +7354,14 @@ function drawHUD(){
        draws its own diagram, which is what made the colour-word line
        ("green saves you \u00b7 violet slows \u00b7 white clears") unnecessary. */
     const rows=[['tap','tap anywhere to turn around'],
-                ['swipe','swipe up or down to change ring'],
+                ['swipe',swipeWords()],
                 ['star','collect stars \u2014 a full orbit pays big'],
                 ['shard','red costs a shield \u2014 then it kills']];
     /* LAID OUT FROM THE ROOM AVAILABLE, not from a constant. The key was eight
        rows at a hardcoded y0 away from running off the bottom of a short
        phone; it now takes the gap between the title and TAP TO START and
        divides it, so adding a row shrinks the leading instead of overflowing. */
+    G.swipeRect=null;
     const kTop=ty+(G.best>0?34*u:22*u), kBot=bottomY-24*u;
     const rh=Math.min(24*u,Math.max(15*u,(kBot-kTop)/rows.length));
     const fs=Math.min(13*u,rh*0.56), gs=Math.min(20*u,rh*0.84);
@@ -7167,11 +7369,27 @@ function drawHUD(){
        the rows shrink to 24u and leave the rest as one dead band, and a block
        floating above a void reads as a layout accident. */
     const y0=(kTop+kBot)/2-(rows.length-1)*rh/2, gx=cx-118*u;
+    /* The swipe row is the one tappable line on this screen — it reopens the
+       chooser, so the rule stays changeable after the once-per-device question.
+       Its label is measured at the size it will DRAW at (an earlier version
+       measured under the row font and then drew smaller, so the reserve was
+       wrong and 'change' printed straight through the sentence), and the
+       sentence is fitted into what is left rather than the full width. */
+    const chSz=fs*0.82;
+    ctx.font='700 '+Math.round(chSz)+'px '+F;
+    const chW=ctx.measureText('change').width+10*u;
     for(let i=0;i<rows.length;i++){
-      const ry=y0+i*rh;
+      const ry=y0+i*rh, isSw=rows[i][0]==='swipe';
+      const avail=W-gx-28*u-(isSw?chW:0);
       hintGlyph(rows[i][0],gx,ry-fs*0.35,gs);
       ctx.textAlign='left';
-      text(rows[i][1],gx+20*u,ry,fitSz(rows[i][1],fs,'600',W-gx-28*u),'600','rgba(214,228,255,0.88)',0);
+      text(rows[i][1],gx+20*u,ry,fitSz(rows[i][1],fs,'600',avail),'600','rgba(214,228,255,0.88)',0);
+      if(isSw){
+        G.swipeRect={x:gx-14*u,y:ry-rh*0.62,w:W-gx-4*u,h:rh};
+        ctx.globalAlpha=0.55;
+        text('change',W-16*u-chW+10*u,ry,chSz,'700','rgba(93,240,255,0.9)',0);
+        ctx.globalAlpha=1;
+      }
     }
     ctx.textAlign='center';
     /* Opened from a chat app, iOS presents the page as a modal sheet, and that
