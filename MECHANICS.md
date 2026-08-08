@@ -19,14 +19,14 @@ curriculum pass so nothing new is ever met inside level 3.
 | Rings | Inner rings are tighter (shards block twice the angle), faster, and run a hotter kit — the music assembles as you dive. | ring 2 at dl 12, ring 3 at dl 40 | banners, camp hint ("dive in — the music runs hotter inside") |
 | Stars (embers) | Collectibles worth a rising combo up to ×6 while you keep collecting. They play the band's own instrument. | ~0.5s | menu key row, hint ladder |
 | Orbit scoring | A full 360° without reversing pays out by the embers gathered *during* that orbit; consecutive fed orbits stack a streak. Reversing forfeits the orbit, never the banked embers. | first lap | hint ladder, first mid-orbit reversal lesson *(new)*, lap pips + payout popups |
-| Plain shard | Red kills you. Pulses as a warning, then arms. | dl ~4.5–11s | menu key row, MEET lesson, hint ladder, death coach |
+| Plain shard | Costs a shield; kills you when the bank is empty. Pulses as a warning, then arms. | dl ~4.5–11s | menu key row, L1 card ("red costs a shield — you start with two") *(reworded — it used to say "red kills you", which is false for the first two hits of every run)*, MEET lesson, hint ladder, death coach |
 | Twin shards | Two shards side by side — too wide to outrun; the hop is the answer. Held until your first hop lands (max 30 dl-seconds). | dl 18 | banner, MEET lesson, death coach *(new)* |
-| Shield (green orb) | Banked up to 3 (cap grows late — empty slots draw as faint rings, so the max is visible). A hit spends one automatically and knocks you off your orbit. Every run starts with two. | 1st power-up (~10s) | menu key row, orb-naming hint, visible cap *(new)* |
+| Shield (green orb) | Banked up to 3 (cap grows late — empty slots draw as faint rings, so the max is visible). A hit spends one automatically, knocks you off your orbit, and grants 0.9s of invulnerability. Every run starts with two. | 1st power-up (~10s) | menu key row, L1 card, orb-naming hint, visible cap, and the save itself: "SHIELD USED · N LEFT", or "LAST SHIELD — RED KILLS NOW" with a darker cue when the bank empties *(new)* |
 | Slow-mo (violet orb) | 4 seconds at 55% speed. | 2nd power-up | menu key row, orb-naming hint while on the board |
 | Nova (white orb) | Converts every shard in the wave to paying embers. | 3rd power-up | menu key row, orb-naming hint while on the board |
 | Overcharge | While the shield bank is full, embers and on-beat taps pay DOUBLE; an overflow shield pays +50. | first full bank | "SHIELDS FULL" line + shimmer-up on every bank-fill, shimmer-down when it breaks, OVERCHARGED popup, visible cap rings *(new)* |
 | On-beat chain | Inputs judged against the sixteenth grid (consistency, not absolute timing). Tight play climbs ON BEAT ×8: each rung a scale-step tone, ×8 pays a build bonus and opens the band. | first tight taps | per-rung tones, popups from ×2, "on the beat" lesson at first ×2 *(new)*, ×8 payoff line *(new)*, hint ladder |
-| Music answers you | Every tap and hop places a note on the grid; input builds heat that opens the arrangement. The game's meta-rule. | first seconds | "your moves play the music" lesson in level 1's calm *(new)*, L1 card row *(new)* |
+| Music answers you | Every tap and hop places a note on the grid; input builds heat that opens the arrangement. The game's meta-rule. | first seconds | "your moves play the music" lesson in level 1's calm — now the only channel, the L1 card row having been cut to keep first contact to three rules |
 | Combo | Each consecutively collected star pays more, up to ×6. | first stars | ×N popups, combo lesson at first ×3 *(new)* |
 | Beat drop | Playing well fills an invisible meter; the music rises, counts 3…2…1…NOW! — any move on NOW lands it for a big bonus and a payoff section where everything pays more. | first drop (~50s worst case) | countdown numerals, "BEAT DROP COMING…", hint ladder |
 | Near miss | Stopping just short of a shard, or sweeping past one mid-hop, pays +3 with a white spark. | first dodge | the spark itself |
@@ -76,6 +76,11 @@ curriculum pass so nothing new is ever met inside level 3.
 - **Hint ladder** — bottom-of-screen glyph+sentence rungs, first match wins,
   every rung clears the instant the player does the thing.
 - **Level cards** — the calm between levels: what the next level introduces.
+  Level 1's card carries **three** rows, not six: the two verbs and the thing
+  that hurts. A playtester counted "like eight rules" on first contact and
+  asked for three or four — the tier ladder already introduces one mechanic at
+  a time, and a card previewing the whole syllabus was working against it.
+  Orbit scoring, the musical rule and the star dive keep their own channels.
   The level 1 card shows on first-ever run; a death on level 2+ retries
   through that level's card (level 1 keeps the instant retry) *(new)*.
 - **Death coach** — one line naming what killed you, with its counter-move.
