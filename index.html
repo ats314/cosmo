@@ -2416,13 +2416,24 @@ const PENT_BASE=PENT.slice();
    it is the exam. The card lines below are checked against MECHANICS.md \u2014
    update both together. */
 const LV=[
+ /* THREE LINES, NOT SIX. Playtest, near-verbatim: "initially I felt like
+    there were like eight rules so it was sort of hard to keep track of all of
+    them — you could consider starting out with just three or four." He was
+    counting this card. The game already introduces one mechanic at a time —
+    that is the whole tier ladder — and then this screen undercut it by
+    previewing the entire syllabus before he had touched anything.
+    The three that survive are the two verbs and the thing that hurts. Orbit
+    scoring, the musical rule and the star dive all keep their own channels:
+    the hint ladder, the level 1 calm lesson and the finale banner. Nothing is
+    left untaught, which curriculum.mjs verifies.
+    And the red line no longer lies. "red kills you" is false for the first two
+    hits of every run, because every run starts with two shields — the same
+    playtester hit "a ton of reds" before dying and concluded he had misread
+    something. He had not; the card had. */
  {dl0:0,  end:90,  name:'LIFT OFF', key:1,
   mech:[['tap','tap anywhere to turn around'],
         ['swipe','swipe up or down to change rings'],
-        ['shard','red kills you \u2014 twins are hopped, not outrun'],
-        ['star','feed your orbit \u2014 a full lap pays big'],
-        ['beat','your moves play the music \u2014 ride the beat'],
-        ['star','finish: follow the star trail to the core']]},
+        ['shard','red costs a shield \u2014 you start with two']]},
  {dl0:90, end:215, name:'INTO THE RINGS', key:0.8909,
   mech:[['shard','gates block every ring \u2014 turn back'],
         ['shard','drifters slide \u2014 blinkers wink in and out'],
@@ -4041,13 +4052,23 @@ function updateSpikes(sdt,lethal){
         const p=posPlayer();
         burst(p[0],p[1],COL.shield,18,180);
         ripple(p[0],p[1],COL.shield);
-        popup(p[0],p[1]-24*u,'SHIELD USED',COL.shield);
+        /* SAY WHAT IT COST. 'SHIELD USED' alone left the bank a number you
+           had to go and read off the pips mid-dodge, so a saved hit felt like
+           a free one — and with 0.9s of invulnerability behind it, the next
+           red or two pass through harmlessly as well. Naming the remainder,
+           and shouting when the bank empties, is what makes the last one
+           land as the moment red starts killing again. */
+        popup(p[0],p[1]-24*u,
+          G.shields>0?'SHIELD USED \u00b7 '+G.shields+' LEFT'
+                     :'LAST SHIELD \u2014 RED KILLS NOW',COL.shield);
         G.didShield=true;G.didDodge=true;
         /* a save that sounded like a punishment: square falling to 90Hz sat
            in the death register and below what a phone reproduces */
         /* the rescue is felt NOW; its confirming chime lands in time */
         beep(392,0.16,'triangle',0.075,588);
-        cueTone(function(w){beep(784,0.20,'sine',0.055,1046,w);});
+        /* the bright confirming chime would be a lie on an empty bank */
+        if(G.shields>0)cueTone(function(w){beep(784,0.20,'sine',0.055,1046,w);});
+        else cueTone(function(w){beep(330,0.34,'sawtooth',0.055,196,w);});
       }else{
         /* the tw stamp carries the pairing a lone shard cannot infer, so a
            twin death coaches the hop instead of reporting 'single' */
