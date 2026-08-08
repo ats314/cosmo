@@ -21,8 +21,24 @@ if (scripts.length !== 1) {
 }
 
 /* IDs the script looks up by hand — a rename in the markup alone would
-   otherwise fail silently at runtime, on load, on every visitor. */
-for (const id of ['c', 'safe']) {
+   otherwise fail silently at runtime, on load, on every visitor.
+
+   THE LIST IS DERIVED, NOT WRITTEN DOWN. It used to be the literal
+   ['c', 'safe'], and the game had grown a third: #bg, the canvas the WebGL
+   backdrop renders into. Renaming or dropping it took the starfield away from
+   every visitor with no build failure and no runtime error either — glInit
+   swallows its own failure ("if(!cv||typeof cv.getContext!=='function')return
+   false" inside a try/catch) and falls back to the 2D sky, which is a
+   deliberate and silent degradation. Exactly the failure this guard's own
+   comment says it exists to prevent, and it was blind to it for as long as the
+   list was maintained by hand.
+   Scanning for the lookups means the guard cannot fall behind the code again. */
+const idsUsed = [...(scripts.length === 1 ? scripts[0][1] : '')
+  .matchAll(/getElementById\(\s*['"]([\w-]+)['"]\s*\)/g)].map(m => m[1]);
+if (idsUsed.length < 2) {
+  fail.push('could not find the getElementById lookups — the missing-element guard cannot run');
+}
+for (const id of [...new Set(idsUsed)]) {
   if (!new RegExp(`id=["']${id}["']`).test(html)) fail.push(`missing element #${id}`);
 }
 if (!/<title>[^<]+<\/title>/.test(html)) fail.push('missing <title>');
@@ -45,10 +61,31 @@ for (const dead of ['echo', 'meteor']) {
    analytics were being filled with a choice that could not correlate with
    anything. A dead tile is a worse lie than a badly worded sentence, because
    the player pays a decision for it. */
-const upgIds = [...src.matchAll(/\{id:'(\w+)',n:'/g)].map(m => m[1]);
-if (upgIds.length < 2) fail.push('UPG table not found — the draft-wiring guard cannot run');
+/* TWO WAYS THIS GUARD WAS BLIND, both found by mutation testing.
+
+   It collected ids with /\{id:'(\w+)',n:'/ — which requires `id` to be written
+   before `n`. A row added as {n:'…',id:'…'} is invisible to the collector, so
+   the dead tile it is meant to catch walks straight past it, and the
+   `length < 2` floor is cleared by the rows that do match. The collector is
+   anchored to the UPG literal now and reads ids in any position.
+
+   And the call-site test ran against the raw script, so the literal characters
+   upgOn('deepbank') surviving inside a block comment satisfied it. Deleting
+   the wiring while mentioning it in the comment that explains the deletion —
+   the most natural edit in the world — left DEEP BANK offered, picked, and
+   recorded in telemetry while doing nothing. The free-radius guard below hit
+   this same failure mode and was hardened to match on an operator; that
+   reasoning is applied here by stripping comments instead, because a call site
+   is a call site wherever it sits on the line. */
+const CODE = src
+  .replace(/\/\*[\s\S]*?\*\//g, ' ')          /* block comments */
+  .replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');    /* line comments, sparing https:// */
+const upgBlock = src.match(/const UPG\s*=\s*\[([\s\S]*?)\n\];/);
+if (!upgBlock) fail.push('UPG table not found — the draft-wiring guard cannot run');
+const upgIds = upgBlock ? [...new Set([...upgBlock[1].matchAll(/\bid:\s*'(\w+)'/g)].map(m => m[1]))] : [];
+if (upgBlock && upgIds.length < 2) fail.push('UPG table parsed but yielded no ids — the draft-wiring guard cannot run');
 for (const id of upgIds) {
-  if (!new RegExp(`upgOn\\('${id}'\\)`).test(src)) {
+  if (!new RegExp(`upgOn\\(\\s*'${id}'\\s*\\)`).test(CODE)) {
     fail.push(`upgrade '${id}' is offered to the player but never read — upgOn('${id}') has no call site`);
   }
 }
