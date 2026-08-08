@@ -243,7 +243,11 @@ try {
   // the shared bar counts the same ladder the shared headline names
   st("G.level=2;G.tier=5;G.score=1234;G.deadT=G.t");
   const share = st('runSummary()');
-  if (!/LEVEL 2\/3/.test(share) || (share.match(/[◆◇]/g) || []).length !== st('LEVEL_MAX')) {
+  // read the denominator from the table, not from a literal — this assertion
+  // hardcoded /3 and failed the moment a fourth level was added, which is the
+  // guard working, but the guard should be checking agreement rather than count
+  if (!new RegExp('LEVEL 2\\/' + st('LEVEL_MAX')).test(share)
+      || (share.match(/[◆◇]/g) || []).length !== st('LEVEL_MAX')) {
     throw new Error('share text and its bar disagree on the ladder: ' + share.split('\n').slice(0, 2).join(' / '));
   }
   console.log('level ladder + FURTHEST YET ok');

@@ -7,8 +7,17 @@ Level 3 opens with everything known and everything active.**
 
 Difficulty-level (`dl`) values are difficulty-seconds — see `dl()` in
 `index.html`. Level windows: level 1 spans dl 0–90, level 2 spans 90–215,
-level 3 is 215 onward (lengthened from 75/190 so the introductions breathe). A tier marked *(moved)* was pulled forward by the
-curriculum pass so nothing new is ever met inside level 3.
+level 3 spans 215–340, and level 4 is 340 onward. A tier marked *(moved)* was
+pulled forward by the curriculum pass so nothing new is ever met past level 2.
+
+**Level 3 used to be endless and therefore last.** It has a finish line and a
+star dive of its own now, and level 4 (EVENT HORIZON) took over as the level
+you do not finish — which keeps "the last level is the exam" true instead of
+making level 3 both the exam and the middle of the game. Neither introduces
+anything: every tier still unlocks by dl 215, so the extra level costs the
+curriculum rule nothing. `check.mjs` reads level 2's finish line positionally
+(`ends[1]`) rather than as `max(ends)`, which was the same number only while
+there were exactly three levels.
 
 ## Level 1 — LIFT OFF (the verbs, the economy, the core orbs)
 
@@ -48,11 +57,12 @@ curriculum pass so nothing new is ever met inside level 3.
 | Overdrive | Hold the heat near max for a full bar: eight bars of double-time with embers and on-beat taps paying double. | heat-driven, reachable late L1, named on L2 card | "OVERDRIVE ×2" readout, gold band meter |
 | Drum break | The band steps out for a bar and your inputs ARE the fill — taps land as snares, hops as kicks. | heat-driven, named on L2 card | caption *(per-run again, new)*, input flashes — snare white, kick gold *(new)* |
 
-## Level 3 — THE STORM (the exam)
+## Levels 3 and 4 — THE STORM, then EVENT HORIZON (the exam)
 
 | Mechanic | How it works | Introduced | Explained by |
 |---|---|---|---|
-| The storm | No new tricks. Every threat and orb from levels 1–2 active at once, spawn pool full from the first second, speed climbing toward the 4.2 rad/s ceiling. Endless. | dl 215 *(aligned to the level 3 start — was 380)* | L3 intro card: "no new tricks — everything at once" |
+| The storm | No new tricks. Every threat and orb from levels 1–2 active at once, spawn pool full from the first second, speed climbing toward the 4.2 rad/s ceiling. **Finite now** — it has a finish line at dl 340 and a star dive of its own. | dl 215 *(aligned to the level 3 start — was 380)* | L3 intro card: "no new tricks — everything at once" |
+| Event horizon | The same storm with no exit: level 4 is endless, at the speed ceiling, in the fourth key (A → G → F → E♭). Introduces nothing. | dl 340 *(new)* | L4 intro card: "past the point of return" |
 
 ## Cross-level systems (never gate progression)
 

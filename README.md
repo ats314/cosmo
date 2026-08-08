@@ -61,14 +61,20 @@ all of it converging on the same late game, none of it touching the ceiling.
 
 ## Levels
 
-The run is **three levels** now, each with a clear finish line, an intro
-card, and its own song:
+The run is **four levels**, each with an intro card and its own song. The
+first three have finish lines; the fourth does not:
 
 | Level | Name | Introduces | Song |
 |---|---|---|---|
 | 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor, the original groove |
 | 2 | INTO THE RINGS | gates, drifters, blinkers, sliding gates, flicker pairs, bass bomb, spotlight, the gold star | G minor, swung sixteenths |
-| 3 | THE STORM | **nothing** — everything known, everything active, endless | F minor, rolling four-on-the-floor |
+| 3 | THE STORM | **nothing** — everything known, everything active, with a finish line | F minor, rolling four-on-the-floor |
+| 4 | EVENT HORIZON | **nothing** — the same storm with no exit, at the speed ceiling. Endless. | E♭ minor |
+
+Level 3 used to be the endless one. Giving it a finish line and handing
+"endless" to level 4 keeps *the last level is the exam* true, rather than
+making level 3 both the exam and the middle of the game. Neither introduces
+anything, so the curriculum rule below is untouched by the extra level.
 
 **The curriculum rule** (this is the load-bearing design decision): every
 mechanic is introduced and explained by the end of level 2. By the start of
