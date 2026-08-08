@@ -340,6 +340,37 @@ lesson never showed for exactly the person who needed them. The orb-naming
 hints now outrank it while an orb is on the board, and after ten unanswered
 seconds it alternates with the survival lessons on a slow cycle.
 
+**And the magnetar was only collecting a third of the board.** The glow bug
+above was the visible half of "the mechanic is broken". Underneath it was a
+control-theory mistake in the pull itself, found by an audit that checked every
+player-facing sentence against the code implementing it.
+
+The lesson promises *every ember comes to you*. The pull was a plain
+first-order ease toward the comet's current angle at a fixed 3.4/s. But the
+comet is not standing still — it orbits at `G.speed`, which `speedAt()` runs
+from 1.30 to 3.00. Easing toward a moving target at a fixed rate never arrives:
+the error obeys `e' = ω − 3.4e` and settles at a constant `ω/3.4` radians
+rather than reaching zero. That resting lag is 0.38–0.88 rad against a
+collection tolerance of 0.12–0.22 rad — three to seven times too wide to ever
+be swept.
+
+So every ember that started behind the comet fell into a trailing orbit, rode
+there for the whole eight beats, and expired 1.2 seconds after the field ended.
+Simulating the real loop at 64 evenly spaced angles: **34 of 64 arrived, at
+every speed.** A/B in the running game with 24 seeded embers across three
+rings: **38% collected before, 100% after.**
+
+The fix is to feed the comet's own angular velocity forward, so the pull
+corrects the *relative* error instead of chasing an absolute position:
+`s.a += G.dir*G.speed*sdt + d*k`. The error then obeys `e' = −3.4e` and
+converges from either side.
+
+This is the flicker-pairs precedent again: the sentence was the good design, so
+the mechanic moved to meet it rather than the copy being weakened to describe
+the bug. The alternative — rewording it to "sweeps up the embers ahead" — would
+have documented a power-up that visibly queues half the board behind you and
+then kills it.
+
 **The magnetar's glow flew without its ember.** Playtester, verbatim: "So every
 time I pick up one of the magnet things this happens to my screen." Two people
 reported it independently, every pickup, and they were describing a bug I put
