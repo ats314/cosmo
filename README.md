@@ -68,8 +68,8 @@ first three have finish lines; the fourth does not:
 |---|---|---|---|---|---|
 | 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor | i–♭VI–♭III–♭VII | the original groove |
 | 2 | INTO THE RINGS | gates, drifters, blinkers, bass bomb, spotlight, the gold star | G minor | i–♭VII–♭VI–iv | swung sixteenths, bass off the beat |
-| 3 | THE STORM | the two compounds — sliding gates, flicker pairs — then a finish line | F minor | i–♭III–v–♭VI | rolling four-on-the-floor |
-| 4 | EVENT HORIZON | **nothing** — the same storm with no exit, at the speed ceiling. Endless. | E♭ minor | i–♭VI–♭VII–i, over a tonic pedal | octave bass, open offbeat hat |
+| 3 | THE STORM | the two compounds — sliding gates, flicker pairs — plus THE SAUCER, then a finish line | F minor | i–♭III–v–♭VI | rolling four-on-the-floor |
+| 4 | EVENT HORIZON | **nothing** — the same storm with no exit, speed climbing toward the 4.2 rad/s ceiling. Endless. | E♭ minor | i–♭VI–♭VII–i, over a tonic pedal | octave bass, open offbeat hat |
 
 Level 3 used to be the endless one. Giving it a finish line and handing
 "endless" to level 4 keeps *the last level is the exam* true, rather than
@@ -77,15 +77,24 @@ making level 3 both the exam and the middle of the game. Neither introduces
 anything, so the curriculum rule below is untouched by the extra level.
 
 **The curriculum rule** (this is the load-bearing design decision): every
-mechanic is introduced and explained by the end of level 2. By the start of
-level 3 the player knows how everything works and all of it is in play —
-level 3 is the exam, not a syllabus. The four storm shapes used to unlock
-at dl 205–340, which is level-3 territory: a level whose banner promises
+mechanic is introduced and explained **by the end of level 3**. By the start of
+level 4 the player knows how everything works and all of it is in play —
+level 4 is the exam, not a syllabus. The four storm shapes used to unlock
+at dl 205–340 with no level 4 to hold them: a level whose banner promised
 "no new tricks" still owed four brand-new tricks, delivered at the game's
-most hostile density. They now land inside level 2, one at a time, each
-with its banner and first-encounter lesson, and the STORM tier sits exactly
-on level 3's floor. Difficulty is untouched — every pressure term still
-keys off the same clock — this changes *what* arrives, never *how much*.
+most hostile density. Adding level 4 moved the exam rather than the syllabus,
+so teaching now runs to dl 340 — three shapes in level 2 and three in level 3,
+each ~35 dl apart, each with its banner and first-encounter lesson, and THE EYE
+sits exactly on level 4's floor. Difficulty is untouched — every pressure term
+still keys off the same clock — this changes *what* arrives, never *how much*.
+
+This paragraph said "the end of level 2" for as long as level 4 has existed,
+while the table sixteen lines above it listed two tiers under level 3 and all
+three harnesses tested `dl <= LV[2].end`. Three documents and one code comment
+said level 2; the code, the ladder and `check.mjs`/`smoke.mjs`/`curriculum.mjs`
+said level 3. The stale half is corrected rather than re-argued — a rule that
+disagrees with its own enforcement is worse than no rule, because the next
+reader budgets their design against the wrong boundary.
 `MECHANICS.md` is the ledger: one row per mechanic, how it works, where it
 is introduced, and every channel that explains it. Change one, update both.
 
@@ -254,8 +263,9 @@ one sentence, and `smoke.mjs` fails the build if they drift apart:
 | 128 | 2 | drifters — *it slides — the gap moves with it* |
 | 165 | 2 | blinkers — *harmless while dim — cross it then* |
 | 240 | 3 | sliding gates — *the wall slides — turn around early* |
-| 295 | 3 | flicker pairs — *only one is solid — cross the dim one* |
-| 340 | 4 | storm — *no new tricks — just more of everything* |
+| 275 | 3 | the saucer — *turn back and it blocks your ring — swipe off* |
+| 310 | 3 | flicker pairs — *only one is solid — cross the dim one* |
+| 340 | 4 | the eye — *no new tricks — just more of everything* |
 
 Because the ladder is keyed to `dl` rather than the clock, a player earning no
 nudge at all sees the slowest the schedule ever runs; scoring well pulls

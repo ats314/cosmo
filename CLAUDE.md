@@ -87,9 +87,26 @@ harness on the unmodified file — several times.
 Breaking one of these is a product regression, not a style question.
 
 - **The curriculum rule.** Every mechanic is introduced *and explained* by the
-  end of level 2. Level 3 introduces nothing — it is the exam. Enforced by
-  `curriculum.mjs` and by a static guard in `check.mjs`. If you move a tier,
-  both must still pass.
+  end of level 3 — dl 340, which is `LV[2].end` and level 4's floor. **Level 4
+  introduces nothing; it is the exam.** Enforced by `curriculum.mjs` (which
+  fails if any tier banner fires inside level 4, and requires every type in its
+  `TAUGHT` list to have been lessoned by then) and by a static guard in
+  `check.mjs` (`max(TIERS[].at) <= ends[2]`). `smoke.mjs` additionally pins the
+  LAST tier to exactly `LV[2].end`, so a new tier can be inserted anywhere below
+  THE EYE but never appended after it. If you move a tier, all three must pass.
+  This entry said "the end of level 2 · level 3 introduces nothing" until a
+  session went looking for room to add a shape and found the code, the ladder
+  table and all three harnesses saying level 3 while this file, `README.md` and
+  one comment in `check.mjs` said level 2. Level 4 moved the exam when it was
+  added; the rule was never updated to follow it. A constraint that disagrees
+  with its own enforcement costs more than a missing one — it makes the careful
+  reader wrong.
+- **Adding a tier is wider than it looks.** `curriculum.mjs` used to hardcode
+  the last tier's index (`G.tier !== 9`), so inserting a row anywhere failed the
+  build with a message about the wrong thing; it now derives it from
+  `TIERS.length`. Twelve places in `index.html` still hardcode tier ordinals for
+  the sky band, the NEW SOUND ladder and the star instrument — inserting below
+  the highest of them shifts every one.
 - **Two ladders, two names.** `G.tier` is the ten-rung *unlock* ladder (what has
   been introduced); `G.level` is the 1–3 structure the player is told about.
   Everything player-facing — the HUD, the death headline, the pips, the share
