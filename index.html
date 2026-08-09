@@ -3159,7 +3159,31 @@ const TIERS=[
      apart, level 3 carries the two compounds 55 apart with room for their
      lessons to find calm, and level 4 is the exam. */
   {at:240,type:'driftgate',name:'SLIDING GATES',sub:'the wall slides \u2014 turn around early'},
-  {at:295,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is solid \u2014 cross the dim one'},
+  /* THE SAUCER \u2014 the one shape that answers a PLAYER, not a board. Playtest,
+     verbatim: "I just feel like I end up just banging back and forth [on] the
+     final level to stay alive and it's not as much fun as when I'm weaving in
+     and out. And sort of feels like I'm cheating." He was right, and it is
+     structural: farFromAll rejects any spawn within 1.1 rad of the player's
+     instantaneous angle, so an oscillation arc narrower than that is a
+     sanctuary no static shard can ever be placed inside \u2014 every point of the
+     arc is always within 1.1 rad of every position the player can occupy in
+     it. Simulated, a camper that adds one hop rule survives fifteen minutes
+     on level 4 without a scratch, covering 1.3 radians of the circle.
+     Every other formation is placed against the BOARD and then ignores you.
+     This one holds station off your tail and is therefore the only red in the
+     game whose position is a function of where you have chosen to be \u2014 which
+     is what makes turning around cost something at last. It is deliberately
+     not a chaser: it never closes under its own power and never outruns you
+     (see the note in spawnSpike). It simply occupies the ground behind you,
+     and the ground behind you is exactly where a player who refuses to
+     travel is about to go.
+     Level 3 now carries three shapes ~35 dl apart instead of two ~55 apart,
+     which is the spacing level 2 already uses and the same pass that set it;
+     FLICKER PAIRS moves 295 -> 310 to keep that rhythm. It cannot go later:
+     tier banners may not fire inside level 4 (curriculum.mjs) and dl 340 is
+     THE EYE's, so 275 is the last slot with room for its lesson to land. */
+  {at:275,type:'saucer',name:'THE SAUCER',sub:'turn back and it blocks your ring \u2014 swipe off'},
+  {at:310,type:'blinktwin',name:'FLICKER PAIRS',sub:'only one is solid \u2014 cross the dim one'},
   /* THE EYE, not STORM. This sub can never render — a dl 340 crossing on
      level 3 always falls inside the suppressed endgame window, and on level 4
      startGame pre-climbs G.tier before the first frame — but the NAME is the
@@ -3233,6 +3257,14 @@ function pickType(){
     if(k===feat&&G.t-G.featT<4)break;   /* the newest gets its banner first */
     if((ty==='twin'||ty==='blinktwin')&&G.nRings<2)continue;
     if((ty==='gate'||ty==='driftgate')&&G.spikes.some(function(s){return s.gate;}))continue;
+    if(ty==='saucer'&&!saucerOK())continue;
+    /* A GATE AND A SAUCER MAY NEVER SHARE A BOARD. The gate exists to force
+       a reversal and the saucer exists to make one cost something, so the
+       pair is the only combination in the game that can demand a move and
+       punish it in the same breath. Held apart here rather than solved with
+       a placement check, because there is no placement that makes them
+       compatible — the conflict is in what they mean, not in where they are. */
+    if((ty==='gate'||ty==='driftgate')&&G.spikes.some(function(s){return s.saucer;}))continue;
     return ty;
   }
   const pool=[];
@@ -3243,6 +3275,12 @@ function pickType(){
     if((ty==='twin'||ty==='blinktwin')&&G.nRings<2)continue;
     /* one wall at a time, whether it slides or not */
     if((ty==='gate'||ty==='driftgate')&&G.spikes.some(function(s){return s.gate;}))continue;
+    /* both halves of the gate/saucer exclusion — see the note in the insist
+       loop. The two filters are duplicated across these loops by an existing
+       convention; a precondition added to one and not the other lets the
+       insist path spawn what the pool path refuses. */
+    if(ty==='saucer'&&!saucerOK())continue;
+    if((ty==='gate'||ty==='driftgate')&&G.spikes.some(function(s){return s.saucer;}))continue;
     pool.push(ty);
     /* the newest formation is featured — but only once it has been on the
        ladder ~18s. You meet ONE drifter before you meet three. */
@@ -3355,6 +3393,7 @@ const G={
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
   stop:0, /* hitstop: freezes the comet while the celebration plays */
   starT:0.6,spikeT:1.2,powT:6,powN:0,shake:0,flash:0,tier:0,banner:null,featT:0,
+  sauT:0,   /* earliest G.t another saucer may arrive — see saucerOK */
   runs:0,didReverse:false,didHop:false,didLap:false,
   teach:0,teachKind:null,teachHint:null,teachType:null,seen:{},seen2:{},campT:0, /* lessons + outer-ring camp clock */
   bassPlaced:false,spotPlaced:false,   /* the level-2 orb guarantees */
@@ -3572,6 +3611,44 @@ function mkSpike(a,ring,extra){
    being worth retrying — so we check first and downgrade the formation
    rather than ship the trap. */
 const GATE_ESCAPE=1.1; /* radians of clear run the reversal must open onto */
+/* ---------- THE SAUCER ----------
+   THE BODY IS NEVER SOLID. Only the shot is. That is the whole answer to the
+   playtester's own objection to his own idea — "I know that's getting tricky
+   and could lead to some 'there's no way to escape getting hit' moments" — and
+   it is not a compromise, it is what makes the mechanic legible. A solid
+   object pinned behind the comet would be lethal on the same frame as the tap,
+   and the tap is the game's primary survival verb: it would turn every
+   reflexive reversal into a death with no move against it, which is the one
+   thing this game treats as unforgivable.
+   So the saucer threatens on a CLOCK instead of on contact. It rides your tail
+   while you travel, harmless. Turn back and it is suddenly in front of you: it
+   holds there and charges for one full beat, then blocks the ring it is on for
+   a moment. One beat of warning, one verb to answer with, and the answer
+   always exists — it is still on the ring you LEFT, so a hop during the charge
+   is a clean escape, and it takes SAUCER_HOP to follow you.
+   The lag is angular and small (0.55 rad), so it reads as a tail rather than
+   as another red across the board. It could not have been a contact threat at
+   that distance anyway: a head-on closing rate of twice player speed gives
+   0.1s at level-4 speeds, and the game's own reaction floor is a full second
+   of telegraph (warnTime). The charge IS that telegraph. */
+const SAUCER_LAG=0.55;   /* radians it holds off the tail — a tail, not a wall */
+const SAUCER_CHG=SPB;    /* one beat of wind-up, so the shot lands in the bar */
+const SAUCER_BEAM=0.42;  /* how long the ring stays blocked */
+const SAUCER_HOP=0.42;   /* it follows a ring change, but not instantly */
+/* One at a time, never beside a wall, and never without somewhere to hop.
+   The gate exclusion is the load-bearing one — see the note in pickType. */
+/* THE COOLDOWN IS WHAT KEEPS IT A VISITOR. Without it the saucer is simply
+   PRESENT: it is one type in a pool of eight drawn every ~0.85s, so a 7-10s
+   life meant the next one arrived before the last had gone and measured
+   uptime was 45-57% of level 4. A shape that is on screen half the time is
+   not an event, it is the weather — and this one is loud, it holds station in
+   the player's eyeline and it fires. Held to roughly a quarter of the run. */
+const SAUCER_COOL=[9,15];
+function saucerOK(){
+  if(G.nRings<2||G.t<G.sauT)return false;
+  for(const s of G.spikes)if(s.saucer||s.gate)return false;
+  return true;
+}
 function reverseEscape(minArc){
   for(let k=0;k<G.nRings;k++){
     let clearRing=true;
@@ -3632,6 +3709,14 @@ const MEET={
   drift:   {t:'it slides — the gap moves with it',g:'shard'},
   blink:   {t:'harmless while dim — cross it then',g:'shard'},
   driftgate:{t:'the wall slides — turn around early',g:'tap'},
+  /* NAMES A VERB THE GAME HAS AND CLAIMS ONLY WHAT IS TRUE. Not "shake it"
+     (you cannot — it follows the hop), not "outrun it" and not "get past it"
+     (there is no aimed movement here to do either with). Trigger, effect,
+     counter-move, in the game's own nouns: turn back is the tap, blocks the
+     ring is what a gate already means, swipe off is the hop. The player can
+     check every clause of it against the screen inside one charge, which is
+     the test the two twin wordings failed. */
+  saucer:  {t:'turn back and it blocks your ring — swipe off',g:'swipe'},
   blinktwin:{t:'only one is solid — cross the dim one',g:'shard'},
   bass:  {t:'bass bomb — clears the lane, drops the low end',g:'nova',soft:1},
   spot:  {t:'spotlight — you take the lead, taps pay double',g:'beat',soft:1},
@@ -3706,6 +3791,27 @@ function firstMeet(type){
 function spawnSpike(){
   let type=pickType();
   if((type==='gate'||type==='driftgate')&&!reverseEscape(GATE_ESCAPE))type='single';
+  /* THE SAUCER IS PLACED AGAINST THE PLAYER, NOT AGAINST THE BOARD, so it
+     skips the placement loop entirely — there is exactly one position it can
+     take and no reason to roll for it. The star dive is the existing
+     precedent for a system that legitimately puts an object inside the
+     player's no-spawn bubble (FIN.trail starts at G.angle+dir*0.9 and never
+     calls farFromAll); this is the second, and for the same reason — the
+     object's whole meaning is its relationship to where the comet is.
+     Downgraded rather than skipped if the board has turned against it between
+     pickType and here, which matches how gates fail. */
+  if(type==='saucer'){
+    if(!saucerOK())type='single';
+    else{
+      const sw=G.seen[type]?{}:{warn:warnTime()*1.6};
+      firstMeet(type);
+      G.sauT=G.t+rand(SAUCER_COOL[0],SAUCER_COOL[1]);
+      G.spikes.push(mkSpike((G.angle-G.dir*SAUCER_LAG+TAU)%TAU,G.ringI,
+        Object.assign({saucer:true,side:1,chg:0,fire:0,hopT:0,sdir:G.dir,
+          life:rand(5,7.5),spot:(G.teach>0&&G.teachType===type)?1:0},sw)));
+      return;
+    }
+  }
   /* firstMeet is called at each SUCCESS site below, never up here: the
      placement loop can fail outright on a dense board, and calling it
      first spent the once-ever lesson (dilation, sentence, seen bit) on a
@@ -3919,6 +4025,7 @@ function startGame(){
      shield on the board around 10s instead of 17s, which leaves room for all
      three of the intro power-ups inside a short run. */
   G.starT=0.5;G.spikeT=1.2;G.powT=4;G.powN=0;G.started=G.t;G.tier=0;G.banner=null;G.featT=G.t;
+  G.sauT=0;
   if(G.level>=2){
     /* didHop is NOT forged here any more — tierIndex exempts level 2+ from
        the twin hold directly, so the hop hint, rehearsal and death coach
@@ -3928,14 +4035,14 @@ function startGame(){
   }
   /* the sky band matches the pre-climbed ladder, same formula as the
      crossing ratchet — level 3 opens in the storm's own ember light */
-  skyI=Math.max(G.level-1,G.tier>=9?3:G.tier>=7?2:G.tier>=4?1:0);
+  skyI=Math.max(G.level-1,G.tier>=10?3:G.tier>=7?2:G.tier>=4?1:0);
   /* a pre-climbed start owns its voice announcement: the crossing that used
      to announce it can no longer happen in-run (STORM sits on level 3's
      floor and endgame crossings hold), so without this the death screen
      kept promising an electric guitar no path could ever announce. Once
      per visit per voice — a retry of the same level stays quiet. */
   if(G.level>=2){
-    const vt=G.tier>=9?9:G.tier>=6?6:G.tier>=3?3:0;
+    const vt=G.tier>=10?10:G.tier>=6?6:G.tier>=3?3:0;
     if(vt&&!SND_SEEN[vt]){
       SND_SEEN[vt]=1;G.sndAt=G.t+4.5;
       G.sndStr=vt>=9?'NEW SOUND: ELECTRIC GUITAR':
@@ -4585,9 +4692,73 @@ function updateSpikes(sdt,lethal){
        and it used to clear the prompt for exactly the player who had not
        yet engaged with a threat at all. */
     else if(s.phase===2&&s.t>=FADE){G.spikes.splice(i,1);if(s.ring===er)G.didDodge=true;continue;}
+    /* THE SAUCER'S STATE MACHINE. Three states and no easing: it is glued to
+       the tail, or it is frozen and charging, or it is firing. Nothing here
+       eases toward a moving target — the magnetar died twice proving that a
+       first-order chase never arrives (5d752e6: the error settles at omega/k
+       instead of reaching zero), so this thing's position is either an exact
+       function of the player's or it is not moving at all.
+       THE CHARGE CANNOT BE CANCELLED, and that is the point. An earlier shape
+       of this let a second reversal flip the saucer back behind the comet and
+       call the shot off, which handed the tap-tap-tap player a free cancel on
+       the exact input the mechanic exists to answer. Once it is committed it
+       fires, and it fires at the ring it is standing on — which is the ring
+       you were on when you turned, not necessarily the one you are on now. */
+    if(s.saucer){
+      const sp=posAt(s.a,radiusOf(s.ring));
+      if(s.phase!==1){
+        /* still arriving: just take station, so the telegraph reads as a
+           thing pulling in behind you rather than a red appearing there */
+        s.a=(G.angle-G.dir*SAUCER_LAG+TAU)%TAU;s.side=1;s.sdir=G.dir;s.ring=G.ringI;
+      }else if(s.fire>0){
+        s.fire-=sdt;
+        if(s.fire<=0){s.side=1;s.sdir=G.dir;}   /* shot spent — it slips back behind */
+      }else if(s.chg>0){
+        s.chg-=sdt;                              /* frozen in the world: s.a untouched */
+        if(s.chg<=0){
+          s.fire=SAUCER_BEAM;
+          if(!RM)G.rings.push({x:cx,y:cy,r:radiusOf(s.ring),life:1,col:COL.shard,sp:120,dec:2.2});
+          arcFlash(s.a,s.ring,COL.shard);
+          if(!RM)G.shake=Math.max(G.shake,3);
+          /* EVERY PITCH HERE IS A DEGREE OF PENT, which applyLevelMusic
+             rescales by LV[].key — so the saucer speaks in each level's own
+             key like everything else that answers the band. A bare Hz would
+             have been an A-minor object sitting a whole tone out under
+             EVENT HORIZON, which is the exact fault the beat drop, the snare
+             body and the tom fill each shipped with. The shot is the root an
+             octave down sliding up into the root: the floor of the song. */
+          beep(PENT[0]*0.5,0.20,'sawtooth',0.05,PENT[0],0,panAt(sp[0]),0.35);
+        }
+      }else if(G.dir!==s.sdir){
+        /* you turned into it. It stays exactly where it is — the flip of
+           `side` is what keeps its WORLD angle unchanged while the heading
+           it is measured against reverses — and starts counting. */
+        s.sdir=G.dir;s.side=-s.side;s.chg=SAUCER_CHG;
+        ripple(sp[0],sp[1],COL.shard);
+        beep(PENT[0],0.10,'square',0.030,PENT[2],0,panAt(sp[0]),0.25);
+      }else{
+        s.a=(G.angle-G.dir*SAUCER_LAG*s.side+TAU)%TAU;
+        /* "even if you switch orbits" — but not instantly, and never while it
+           is charging. The hop IS the escape from a shot already committed. */
+        if(s.ring!==G.ringI){
+          s.hopT+=sdt;
+          if(s.hopT>=SAUCER_HOP){
+            s.ring=G.ringI;s.hopT=0;
+            arcFlash(s.a,s.ring,COL.shard);
+            /* the transfer — "it fires in your orbit", the playtester's own
+               second sentence, spent on the FOLLOW rather than on a second
+               way to die: it re-takes your tail on the ring you fled to */
+            beep(PENT[4],0.07,'sine',0.022,PENT[2],0,panAt(sp[0]),0.3);
+          }
+        }else s.hopT=0;
+      }
+    }
     /* a moving shard's hitbox is widened by however far it travelled this frame */
     const tol=(18.5*u)/pr+Math.abs(s.va)*sdt;
-    if(lethal&&s.phase===1&&armed(s)&&s.ring===er&&G.t>=G.invuln&&sweptHit(s.a,tol)){
+    /* the saucer's BODY is not a hitbox at all — only its shot is, and the
+       shot takes the whole ring, so there is no angle to test */
+    const reach=s.saucer?s.fire>0:sweptHit(s.a,tol);
+    if(lethal&&s.phase===1&&armed(s)&&s.ring===er&&G.t>=G.invuln&&reach){
       if(G.hyper>0){
         /* HYPERNOVA: the shard is a note, not a threat — it converts into a
            paying ember on your lane and the run does not even slow down.
@@ -4632,7 +4803,8 @@ function updateSpikes(sdt,lethal){
       }else{
         /* the tw stamp carries the pairing a lone shard cannot infer, so a
            twin death coaches the hop instead of reporting 'single' */
-        G.lastHit=s.gate?(s.va?'driftgate':'gate'):
+        G.lastHit=s.saucer?'saucer':
+                  s.gate?(s.va?'driftgate':'gate'):
                   (s.tw?s.tw:(s.blink?'blink':(s.va?'drift':'single')));
         die();
       }
@@ -4642,7 +4814,9 @@ function updateSpikes(sdt,lethal){
        shard on the ring you just left mid-hop (the hop that saved you).
        Passing shards on other rings in ordinary travel earns nothing — a
        graze has to be a dodge, or the spark means nothing. Never red. */
-    else if(lethal&&s.phase===1&&armed(s)&&!s.grz&&G.t>=G.invuln&&(
+    /* the saucer is excluded: a near miss has to be a dodge, and there is
+       nothing to graze on a body that was never going to touch you */
+    else if(lethal&&s.phase===1&&armed(s)&&!s.grz&&!s.saucer&&G.t>=G.invuln&&(
         (s.ring===er&&sweptHit(s.a,tol+(10*u)/pr))||
         (G.hopP<1&&s.ring===G.hopFromI&&s.ring!==er&&sweptHit(s.a,tol))
       )){
@@ -5015,7 +5189,7 @@ function update(dt){
        STORM over its own graduation. The next level's silent pre-climb
        owns any crossing the window swallows. */
     G.tier++;G.featT=G.t;      /* the featuring grace clock — see pickType */
-    skyI=Math.max(G.level-1,G.tier>=9?3:G.tier>=7?2:G.tier>=4?1:0);  /* the sky deepens; each level floors it */
+    skyI=Math.max(G.level-1,G.tier>=10?3:G.tier>=7?2:G.tier>=4?1:0);  /* the sky deepens; each level floors it */
     const T=TIERS[G.tier];
     if(T.rings&&T.rings>G.nRings){
       G.nRings=T.rings;
@@ -5047,10 +5221,10 @@ function update(dt){
     }
     /* the star voice steps up at levels 4, 7 and 10 — announced after the
        level banner has had the screen (see update), as its own moment */
-    if(G.tier===3||G.tier===6||G.tier===9){
+    if(G.tier===3||G.tier===6||G.tier===10){
       SND_SEEN[G.tier]=1;   /* a later level start must not repeat it */
       G.sndAt=G.t+3.8;
-      G.sndStr=G.tier>=9?'NEW SOUND: ELECTRIC GUITAR':
+      G.sndStr=G.tier>=10?'NEW SOUND: ELECTRIC GUITAR':
                G.tier>=6?'NEW SOUND: SYNTH LEAD':'NEW SOUND: TWIN SYNTHS';
     }
   }
@@ -5232,7 +5406,7 @@ function update(dt){
           note(PENT[d0],tt,0.14,'square',0.030,2200,cpan,A.perf);
           note(PENT[Math.min(9,d0+2)],tt+S16,0.13,'square',0.026,2400,cpan*0.5,A.perf);
           note(PENT[Math.min(9,d0+4)],tt+2*S16,0.16,'square',0.030,2600,-cpan,A.perf);
-        }else if(G.tier>=9){
+        }else if(G.tier>=10){
           /* level ten: the stars are an electric guitar */
           gtr(f,tt,0.20,0.040+0.004*cb,cpan);
           note(f*0.5,tt,0.18,'sine',0.032+0.004*cb,520,cpan);
@@ -6405,6 +6579,57 @@ function draw(){
   /* shards */
   for(const s of G.spikes){
     const p=posAt(s.a,radiusOf(s.ring));
+    /* THE SAUCER. Drawn rather than baked: it is one object on the board at
+       most, it changes shape across three states, and buildSprites runs on
+       every resize — a sprite sheet entry for a singleton that spends half
+       its life animating would cost more than it saves.
+       The read has to survive a phone at speed, so the three states are
+       separated by SHAPE and not by colour: riding = a flat hull sitting off
+       the tail, charging = the hull haloed and swelling on the beat, firing =
+       the entire ring drawn hot. Red throughout, because it costs a shield
+       like every other red, and "red costs a shield" is one lesson. */
+    if(s.saucer){
+      const rr=radiusOf(s.ring),chg=s.chg>0?1-s.chg/SAUCER_CHG:0;
+      if(s.fire>0){
+        const k=s.fire/SAUCER_BEAM;
+        ctx.save();
+        ctx.globalAlpha=0.25+0.5*k;
+        ctx.strokeStyle=COL.shard;ctx.lineWidth=(RM?3:5.5)*u;
+        ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,0,TAU);ctx.stroke();
+        if(!RM){
+          ctx.globalAlpha=0.16*k;ctx.lineWidth=14*u;
+          ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,0,TAU);ctx.stroke();
+        }
+        ctx.restore();
+      }
+      ctx.save();
+      ctx.translate(p[0],p[1]);
+      ctx.rotate(Math.atan2(p[1]-cy,p[0]-cx)+Math.PI/2);
+      /* arriving: fade in over the warn, so it pulls into station */
+      const arr=s.phase===0?Math.min(1,s.t/(s.warn||WARN)):(s.phase===2?Math.max(0,1-s.t/FADE):1);
+      ctx.globalAlpha=0.35+0.65*arr;
+      if(chg>0&&!RM){
+        ctx.globalAlpha=(0.30+0.45*chg)*arr;
+        ctx.fillStyle=COL.shard;
+        ctx.beginPath();ctx.arc(0,0,(10+9*chg)*u,0,TAU);ctx.fill();
+        ctx.globalAlpha=0.35+0.65*arr;
+      }
+      const sw=(1+0.22*chg)*u;
+      ctx.fillStyle=COL.shard;
+      ctx.beginPath();ctx.ellipse(0,0,9.5*sw,3.2*sw,0,0,TAU);ctx.fill();
+      ctx.beginPath();ctx.ellipse(0,-2.2*sw,4.4*sw,3.4*sw,0,Math.PI,TAU);ctx.fill();
+      /* the three underlights are the charge readout with the sound off */
+      if(!RM){
+        ctx.globalAlpha=(0.30+0.70*chg)*arr;
+        ctx.fillStyle='#ffffff';
+        for(let q=-1;q<=1;q++){
+          ctx.beginPath();ctx.arc(q*4.6*sw,2.4*sw,(0.9+0.8*chg)*sw,0,TAU);ctx.fill();
+        }
+      }
+      ctx.restore();
+      ctx.globalAlpha=1;
+      continue;
+    }
     /* drifters trail a short arc showing which way they are sliding */
     if(s.va&&s.phase===1){
       const rr=radiusOf(s.ring),back=-Math.sign(s.va)*0.30;
@@ -7669,7 +7894,7 @@ function drawHUD(){
        the collision returns. This is the most droppable row on the screen —
        the score, the level, the coach and RETRY are all load-bearing — so on a
        viewport with no room for both, it is the one that goes. */
-    if(G.tier<9&&cy+94*u<shareRect().y-9*u){
+    if(G.tier<10&&cy+94*u<shareRect().y-9*u){
       /* 4, 7 and 10 were one-based TIER rungs printed with the word "level",
          two lines below "LEVEL n" on a four-level ladder — the last surviving
          breach of the two-ladders invariant, and the exact failure the retired

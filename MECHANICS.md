@@ -17,7 +17,26 @@ densest stretch in the game and exactly where a playtester reported losing
 track of the rules. Adding level 4 had made that worse rather than better:
 every tier still unlocked inside dl 0–215 while an entire level taught nothing.
 Level 2 now carries three shapes ~35 apart instead of five ~22 apart, level 3
-carries the two compounds 55 apart, and level 4 is the exam.
+carries three shapes at that same ~35 spacing — the two compounds and THE
+SAUCER — and level 4 is the exam.
+
+**Level 3 gained a third shape and it is the one that answers a player rather
+than a board.** A playtester, verbatim: *"I just feel like I end up just
+banging back and forth [on] the final level to stay alive and it's not as much
+fun as when I'm weaving in and out. And sort of feels like I'm cheating."* He
+was right, and it is structural: `farFromAll` rejects any spawn within 1.1 rad
+of the player's instantaneous angle, so an oscillation arc narrower than that
+is a sanctuary no static shard can ever be placed inside — every point of the
+arc is always within 1.1 rad of every position the player can occupy in it.
+Simulated against the shipped build, a camper that adds one hop rule survived
+five fifteen-minute level-4 runs without a scratch, covering 1.3 radians of the
+circle. THE SAUCER is the first object in the game whose position is a function
+of where the player has chosen to be, which is what makes turning around cost
+something. It is a tax on the strategy, not a cure: against a bot with
+frame-perfect hop reactions it forces 600–900 ring changes per five minutes and
+fires 51–88 times but does not reliably kill. The structural half — giving the
+no-spawn bubble a direction so the arc behind the comet fills in — is a
+separate change to `farFromAll` and is not in this ledger yet.
 
 **Level 3 used to be endless and therefore last.** It has a finish line and a
 star dive of its own now, and level 4 (EVENT HORIZON) took over as the level
@@ -70,7 +89,8 @@ there were exactly three levels.
 | Mechanic | How it works | Introduced | Explained by |
 |---|---|---|---|
 | Sliding gates | A gate whose wall drifts — reverse early, the exit is crowding shut. | dl 240 | banner + MEET lesson, one sentence: "the wall slides — turn around early", death coach |
-| Flicker pairs | A twin whose halves strictly alternate at duty 0.5, offset half a cycle: at every instant exactly one side is solid and the other is the gap. | dl 295 | banner + MEET lesson, one sentence: "only one is solid — cross the dim one" *(the pair ran at 0.55 duty, so both sides were armed for 10% of every cycle and the lesson was false exactly when a player acted on it; smoke.mjs now walks a full period and requires strict alternation)*, death coach |
+| The saucer | The only shape placed against the **player** rather than the board. It takes station 0.55 rad off your tail and rides there, harmless, for 5–7.5s. Turn back and it does not move: the reversal leaves it in front of you, where it holds and charges for one beat, then blocks the whole ring it is standing on for 0.42s. Its body is never solid — only the shot is — so there is no contact death and the counter always exists: it is still on the ring you *left*, and it takes 0.42s to follow a hop. The charge cannot be cancelled by turning back again. One at a time, on a 9–15s cooldown, and **never on a board with a gate** — the gate exists to force a reversal and the saucer exists to price one, so the pair could demand a move and punish it in the same breath. | dl 275 *(new)* | banner + MEET lesson, one sentence: "turn back and it blocks your ring — swipe off", death coach |
+| Flicker pairs | A twin whose halves strictly alternate at duty 0.5, offset half a cycle: at every instant exactly one side is solid and the other is the gap. | dl 310 *(moved from 295 to keep level 3's three shapes ~35 dl apart)* | banner + MEET lesson, one sentence: "only one is solid — cross the dim one" *(the pair ran at 0.55 duty, so both sides were armed for 10% of every cycle and the lesson was false exactly when a player acted on it; smoke.mjs now walks a full period and requires strict alternation)*, death coach |
 
 ## Level 4 — EVENT HORIZON (the exam)
 

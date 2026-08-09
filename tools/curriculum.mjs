@@ -166,8 +166,8 @@ while (st('G.level') < 4 || st('age()') < 30) {
 
 /* the acceptance criterion: level 4 opens with nothing left to teach —
    every formation AND every musical orb has had its lesson */
-const TAUGHT = ['single', 'twin', 'gate', 'drift', 'blink', 'driftgate', 'blinktwin',
-  'bass', 'spot', 'hyper'];
+const TAUGHT = ['single', 'twin', 'gate', 'drift', 'blink', 'driftgate', 'saucer',
+  'blinktwin', 'bass', 'spot', 'hyper'];
 const seenAtExam = st('Object.keys(G.seen).join(",")');
 for (const f of TAUGHT) {
   if (!st(`G.seen['${f}']||G.seen2['${f}']`)) fail.push(`level 4 started without the ${f} lesson (seen: ${seenAtExam})`);
@@ -177,13 +177,18 @@ else for (const [flag, name] of [['hyper', 'hypernova'], ['bass', 'bass bomb'],
   ['spot', 'spotlight']]) {
   if (!placedByEndL2[flag]) fail.push(`level 2 ended without the ${name} ever placed`);
 }
-if (st('G.tier') !== 9) fail.push('level 4 did not open on the STORM tier, tier=' + st('G.tier'));
+/* Read off TIERS rather than written down: this line was a hardcoded 9, which
+   meant ADDING A TIER ANYWHERE failed the build with a message about the wrong
+   thing. The assertion that matters is that level 4 opens on the LAST rung —
+   that every unlock has already happened — not that the ladder is ten long. */
+const lastTier = st('TIERS.length') - 1;
+if (st('G.tier') !== lastTier) fail.push(`level 4 did not open on the last tier (${lastTier}), tier=` + st('G.tier'));
 if (st('G.level') !== 4) fail.push('run is not on level 4, level=' + st('G.level'));
 
 /* banners arrive in ladder order, none of them during level 4 */
 const order = banners.filter(([, b]) => b !== 'THE FINALE').map(([, b]) => b);
 const ladder = ['SECOND RING', 'TWIN SHARDS', 'THIRD RING', 'GATES', 'DRIFTERS',
-  'BLINKERS', 'SLIDING GATES', 'FLICKER PAIRS'];
+  'BLINKERS', 'SLIDING GATES', 'THE SAUCER', 'FLICKER PAIRS'];
 const posOf = n => order.indexOf(n);
 for (let i = 1; i < ladder.length; i++) {
   if (posOf(ladder[i]) >= 0 && posOf(ladder[i - 1]) >= 0 && posOf(ladder[i]) < posOf(ladder[i - 1])) {
