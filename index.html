@@ -4612,6 +4612,23 @@ cv.addEventListener('pointerup',pdEnd);
 cv.addEventListener('pointercancel',pdEnd);
 cv.addEventListener('contextmenu',function(e){e.preventDefault();});
 window.addEventListener('keydown',function(e){
+  /* AUTO-REPEAT IS NOT AN INPUT. Hold a key and the OS fires keydown 15-30
+     times a second, and every branch below is a discrete action — so a held
+     Space called reverse() about twenty times a second, flipping direction
+     every frame or two and pinning the comet inside 0.23 rad of the circle
+     for an entire run. Measured on the shipped build: three runs, total
+     angular territory 0.23 rad each, roughly thirteen degrees.
+     The pointer path has always guarded this ("one gesture at a time: a
+     second finger can't double-reverse"); the keyboard path never did. The
+     file already knew, too — gridNear's comment records that held Space
+     auto-repeat was stacking three or four notes into a single sixteenth,
+     and that pass fixed the sound the repeats made without asking why the
+     repeats were arriving as moves at all.
+     Every branch here wants the keypress, not the key being down: a held
+     Enter should not skip a level card, a held arrow should not machine-gun
+     hops, and a held M should not fight the mute toggle. One guard covers
+     all of them. */
+  if(e.repeat)return;
   if(e.code==='Space'||e.code==='Enter'){
     e.preventDefault();ensureAudio();
     if(G.state==='menu'){

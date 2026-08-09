@@ -152,6 +152,46 @@ try {
     for (let i = 0; i < 8; i++) frame(16.7);
   }
   console.log('keyboard ok');
+  // AUTO-REPEAT IS NOT AN INPUT. Hold a key and the OS fires keydown 15-30x a
+  // second; every branch of the handler is a discrete action, so a held Space
+  // used to call reverse() about twenty times a second and pin the comet
+  // inside 0.23 rad for a whole run. Guarded here rather than trusted: this is
+  // invisible to every other assertion, because a synthetic keydown carries no
+  // `repeat` flag unless the harness sets one -- which is exactly how it
+  // survived a keyboard test that has existed the whole time.
+  // The burst is an ODD number of presses on purpose. The first version of this
+  // test fired twenty and asserted on G.dir, which passed with the guard
+  // REMOVED: twenty flips is an even number, so the direction landed exactly
+  // where it started and the assertion proved nothing. Both checks below now
+  // fail on an unguarded handler -- verified by removing the guard and watching
+  // this block go red, which is the only thing that makes a regression test a
+  // test rather than a comment.
+  {
+    const dir0 = st('G.dir'), N = 21;
+    let a = st('G.angle'), net = 0;
+    for (let i = 0; i < N; i++) {
+      fire('win:keydown', { code: 'Space', repeat: true, preventDefault() {} });
+      frame(16.7);
+      const b = st('G.angle');
+      let d = b - a;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      net += d; a = b;
+    }
+    if (st('G.dir') !== dir0) throw new Error('a repeated Space reversed the comet');
+    // the symptom itself: the comet keeps covering ground instead of vibrating
+    // in place. Unguarded, the flips cancel and |net| collapses toward zero.
+    const expect = st('G.speed') * N * 0.0167;
+    if (Math.abs(net) < expect * 0.5) {
+      throw new Error(`a held key pinned the comet: ${net.toFixed(3)} rad travelled, ~${expect.toFixed(3)} expected`);
+    }
+    // and the first press of a real hold still reverses
+    fire('win:keydown', { code: 'Space', repeat: false, preventDefault() {} });
+    frame(16.7);
+    if (st('G.dir') === dir0) throw new Error('a non-repeat Space did not reverse the comet');
+    st(`G.dir=${dir0}`);
+  }
+  console.log('key auto-repeat ignored ok');
   // run 240s of play at 60fps to cross many tiers (hold releases, sky bands, storm)
   for (let i = 0; i < 14400; i++) frame(16.7);
   console.log('long run ok (4 min simulated)');

@@ -25,6 +25,15 @@ embers, dodge shards, and complete orbits.
 | Land the drop | any move on the downbeat | any move |
 | Mute | tap the speaker | `M` |
 
+Every keyboard row is a keyPRESS, not a key being down: `keydown` returns early
+on `e.repeat`, so holding a key does nothing after the first frame. Without that
+guard the OS auto-repeat rate *was* the input rate — a held `Space` called
+`reverse()` around twenty times a second and pinned the comet inside 0.23 rad of
+the circle, about thirteen degrees, for an entire run. The pointer path had
+always guarded the equivalent ("one gesture at a time: a second finger can't
+double-reverse"); the keyboard path never had. `smoke.mjs` now fires a burst of
+repeats and fails if the comet stops covering ground.
+
 There is no aimed input anywhere in this game. Landing the drop is any move —
 the tap or hop you were making anyway, wherever your thumb is — inside the
 window around the downbeat, and the move still does its normal job: if
