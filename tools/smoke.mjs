@@ -423,6 +423,10 @@ try {
     if (st('G.nRings') !== 4) throw new Error('black hole mode did not open the fourth ring, nRings=' + st('G.nRings'));
     if (st('radiusOf(3)') <= 0) throw new Error('the fourth ring has no radius');
     // it must be REACHABLE, not merely drawn: a ring you cannot hop to is scenery
+    /* the score is sampled BEFORE the hop: the horizon bonus fires the frame
+       the comet lands on the fourth ring, so a sample taken afterwards is
+       already post-payment and the assertion reads as a silent zero */
+    const scoreH = st('G.score');
     st('G.ringI=2;G.hopP=1'); st('hop(1)');
     /* 40 frames, not 20: the hop DILATES inside the black hole now, so a 0.14s
        HOP takes 0.14/0.42 = 0.333s of real time against a 20-frame window of
@@ -430,6 +434,21 @@ try {
        already documents as non-deterministic is a flake waiting to happen. */
     for (let i = 0; i < 40; i++) frame(16.7);
     if (st('G.ringI') !== 3) throw new Error('could not hop onto the fourth ring, ringI=' + st('G.ringI'));
+    /* THE HORIZON BONUS. The fourth ring is the mode's one structural
+       novelty and arriving on it used to be worth exactly what arriving
+       anywhere else was worth. Reaching it pays once per black hole and
+       ignites the display; assert both the payment and the flag, because a
+       silent zero here is indistinguishable from the feature being absent. */
+    if (!st('BH.lit')) throw new Error('reaching the fourth ring did not claim the horizon bonus');
+    if (!(st('G.score') >= scoreH + st('BH_HORIZON'))) {
+      throw new Error('the horizon bonus paid nothing, score ' + scoreH + ' -> ' + st('G.score'));
+    }
+    if (!(st('BH.igT') > 0)) throw new Error('the horizon display never ignited');
+    // and it is once per mode, not once per arrival — no farming by hopping
+    const scoreH2 = st('G.score');
+    st('G.ringI=2;G.hopP=1'); st('hop(1)');
+    for (let i = 0; i < 40; i++) frame(16.7);
+    if (st('G.score') !== scoreH2) throw new Error('the horizon bonus paid twice in one black hole');
     if (!(st('shardCap()') > cap0)) throw new Error('black hole mode did not raise the shard cap');
     if (!(st('spawnGap()') < gap0)) throw new Error('black hole mode did not shorten the spawn gap');
     if (!(st('G.tsCur') < 0.98)) throw new Error('black hole mode is not in slow motion, tsCur=' + st('G.tsCur'));

@@ -2190,6 +2190,8 @@ const BH_WARP=0.85;      /* the orbits re-space over this, in and out */
 const BH_TS=0.42;
 const BH_DENSITY=2.5;    /* baseline — the actual multiplier now ramps */
 const BH_PULL=4;         /* seconds between gravity pulls, one ring inward each */
+const BH_IGNITE=1.9;     /* how long the horizon display burns, real seconds */
+const BH_HORIZON=200;    /* the bonus for reaching the innermost orbit */
 /* PROGRESSIVE DENSITY: starts at 1.5× and climbs to 3.5× over 17 seconds,
    so the opening is survivable while you orient and the closing seconds
    are the real gauntlet. Pairs with the audio crescendo. */
@@ -2200,7 +2202,8 @@ function bhDensity(){
 }
 /* pullT was written by startBlackHole and read by bhTick without ever being
    declared here; n, ends and seed were declared, written and never read once. */
-const BH={on:false,phase:0,t:0,warp:0,score:0,hits0:0,step:0,pullT:0,rings0:3};
+const BH={on:false,phase:0,t:0,warp:0,score:0,hits0:0,step:0,pullT:0,rings0:3,
+  lit:false,igT:0};   /* lit = the horizon bonus is claimed; igT = its display */
 /* phase 0 = off, 1 = the orbits opening, 2 = full mode, 3 = closing */
 function bhActive(){return BH.phase>0;}
 /* THE ORBITS MOVE UNDER THE PLAYER, which is the one genuinely novel thing in
@@ -2250,6 +2253,40 @@ function bhTick(dt){
        force pushed the player to the widest, safest, emptiest orbit and
        then let go of them. It pulls toward nRings-1 now, and it keeps
        pulling for the whole mode. */
+    /* ---- THE HORIZON BONUS: reaching the fourth ring is an EVENT ----
+       The innermost orbit only exists inside the black hole, it is the
+       tightest ring in the game, gravity is dragging you toward it and the
+       stars on it pay double — and until now arriving there was worth exactly
+       the same as arriving anywhere else, with no acknowledgement at all. The
+       one orbit the mode invents had no moment of its own. Reaching it now
+       pays, once per black hole, and ignites the display: the disc blazes, the
+       jets fire along the axis and the warped grid comes up under everything.
+       Once per mode rather than per arrival, so it cannot be farmed by hopping
+       in and out, and claimed rather than granted — the gravity pull will
+       deliver you here eventually if you ignore it, which is the point. */
+    if(!BH.lit&&G.ringI>=G.nRings-1&&G.hopP>=1&&G.state==='playing'){
+      BH.lit=true;BH.igT=BH_IGNITE;
+      G.score+=BH_HORIZON;G.scorePop=1;
+      const hp=posPlayer();
+      /* 'HORIZON', not 'EVENT HORIZON', and 1.25 rather than 1.7: measured on a
+         390px screen the longer string at that scale ran off both edges. The
+         banner above it already says EVENT HORIZON in full. */
+      popup(hp[0],hp[1]-34*u,'HORIZON +'+BH_HORIZON,'#e6d4ff',1.25);
+      if(!RM){
+        G.shake=Math.max(G.shake,9);
+        burst(hp[0],hp[1],'#e6d4ff',22,300);
+        /* two shockwaves running the other way — matter falling in, not out */
+        G.rings.push({x:cx,y:cy,r:radiusOf(0)*1.25,life:1,col:COL.bh,sp:-300,dec:1.0});
+        G.rings.push({x:cx,y:cy,r:radiusOf(0)*0.85,life:1,col:'#e6d4ff',sp:-220,dec:1.3});
+      }
+      /* the ignition: the tonic two octaves up over its own fifth, both
+         intervals over the level's tonic like every other pitch in the file */
+      beep(CH[0][0]*4,0.5,'sawtooth',0.060,CH[0][0]*6,undefined,0);
+      beep(CH[0][0]*6,0.45,'sine',0.035,CH[0][0]*8,undefined,0.25);
+      beep(CH[0][0],0.7,'sine',0.055,CH[0][0]*2,undefined,-0.25);
+      try{if(navigator.vibrate)navigator.vibrate([24,30,46]);}catch(e){}
+    }
+    if(BH.igT>0)BH.igT=Math.max(0,BH.igT-dt);
     BH.pullT+=dt;
     if(BH.pullT>=BH_PULL&&G.ringI>=G.nRings-1){
       /* ALREADY AT THE BOTTOM OF THE WELL: the interval is CONSUMED, not
@@ -2329,7 +2366,7 @@ function bhTick(dt){
 }
 function startBlackHole(){
   if(BH.phase>0)return;
-  BH.phase=1;BH.t=0;BH.warp=0;BH.score=0;BH.step=0;BH.pullT=0;
+  BH.phase=1;BH.t=0;BH.warp=0;BH.score=0;BH.step=0;BH.pullT=0;BH.lit=false;BH.igT=0;
   BH.hits0=G.blocks;BH.rings0=G.nRings;BH.on=true;G.bhN++;
   G.bhT=G.t;
   /* the band does not fade out, it STOPS. The pitch is explicit that the music
@@ -6154,7 +6191,13 @@ function update(dt){
      case (the hop-hold releasing TWIN + THIRD RING together) is by
      construction the player reading slowest. */
   const ti=tierIndex();
-  if(ti>G.tier&&!FIN.on&&!FIN.pend&&!G.banner&&
+  /* ...and never inside a black hole, for the same reason it is never during
+     the finale: the mode owns the screen, it has its own banner, and a tier
+     announcement lands on top of it. Screenshotted — "UNLOCKED / THE SAUCER"
+     printed across the singularity, replacing the black hole's own banner and
+     introducing a formation the player could not look at. The increment defers
+     with the banner, exactly as the finale guard above defers it. */
+  if(ti>G.tier&&!FIN.on&&!FIN.pend&&!G.banner&&!bhActive()&&
      !(lvEnd<1e9&&dl()>=lvEnd-10)){
     /* ...and never in a level's ENDGAME window either: a beat-drop payoff
        defers the finale latch while dl keeps running, so without this a
@@ -7607,23 +7650,110 @@ function draw(){
     ctx.fillStyle=wg;
     ctx.beginPath();ctx.ellipse(cx,cy,rr*1.15,rr*1.15*AY,0,0,TAU);ctx.fill();
     if(!RM){
+      /* ig runs 1 -> 0 across the horizon display; lit stays up for the rest
+         of the mode once the fourth ring has been claimed, so the hole is
+         visibly FEEDING afterwards rather than snapping back to idle */
+      const ig=BH.igT>0?BH.igT/BH_IGNITE:0,ig2=ig*ig,lit=BH.lit?1:0;
+      ctx.globalCompositeOperation='lighter';
+      /* ---- THE WARPED GRID: spacetime as a funnel ----
+         Only during the display, and underneath everything else. Concentric
+         ellipses whose centres sag toward the hole as they shrink, plus
+         spokes — the standard picture of a gravity well, which is the one
+         image that says "this is what the fourth ring is INSIDE of". */
+      if(ig>0.004){
+        ctx.globalAlpha=k*ig2*0.42;
+        ctx.strokeStyle='rgba(150,190,255,0.85)';
+        ctx.lineWidth=1*u;
+        for(let i=0;i<9;i++){
+          const R=rr*(0.30+0.19*i),dip=rr*0.46*Math.exp(-R/(rr*0.62));
+          ctx.beginPath();
+          ctx.ellipse(cx,cy+dip,R,R*0.34*AY,0,0,TAU);
+          ctx.stroke();
+        }
+        ctx.globalAlpha=k*ig2*0.26;
+        for(let s=0;s<16;s++){
+          const a2=s/16*TAU;
+          ctx.beginPath();
+          ctx.moveTo(cx+Math.cos(a2)*rr*0.30,cy+Math.sin(a2)*rr*0.30*0.34*AY+rr*0.30);
+          ctx.lineTo(cx+Math.cos(a2)*rr*2.0,cy+Math.sin(a2)*rr*2.0*0.34*AY);
+          ctx.stroke();
+        }
+      }
+      /* ---- RELATIVISTIC JETS: the axis fires ----
+         Two tapering beams out of the poles, brightest at ignition and held at
+         a third of that once the horizon is claimed. Drawn before the disc so
+         the disc's near edge crosses in front of them, which is what sells the
+         jet as coming OUT of something rather than sitting on top of it. */
+      /* the grid loop above leaves globalAlpha at its own faint value; the jet
+         gradients carry their own alpha, so the context has to be handed back
+         at full first or the beams inherit ~0.23 and vanish (they did) */
+      ctx.globalAlpha=Math.min(1,k);
+      const jet=Math.min(1,0.34*lit+0.9*ig);
+      if(jet>0.01){
+        /* A JET IS A CONE, NOT A LINE. The first pass drew a 0.045R base with a
+           1.6px core and it read on screen as a hairline scratch through the
+           middle of the arena — the one element of the reference images that
+           carries the whole silhouette, rendered as a scratch. Three times the
+           base width, a wider flare at the tip, a soft outer sheath under a
+           tighter inner beam, and the core is now a gradient-filled wedge
+           rather than a stroked line. */
+        const L=rr*2.2;
+        const flick=0.88+0.12*Math.sin(G.vt*9+BH.t*3);
+        for(let d=-1;d<=1;d+=2){
+          /* outer sheath, then the hot inner beam inside it */
+          for(let s=0;s<2;s++){
+            const w0=s?rr*0.055:rr*0.15,w1=s?rr*0.16:rr*0.42;
+            const g2=ctx.createLinearGradient(cx,cy,cx,cy+d*L);
+            const a0=(s?0.62:0.24)*jet*flick,a1=(s?0.34:0.12)*jet*flick;
+            g2.addColorStop(0,'rgba(240,234,255,'+a0.toFixed(3)+')');
+            g2.addColorStop(0.30,'rgba(168,132,255,'+a1.toFixed(3)+')');
+            g2.addColorStop(0.72,'rgba(120,170,255,'+(a1*0.35).toFixed(3)+')');
+            g2.addColorStop(1,'rgba(110,180,255,0)');
+            ctx.fillStyle=g2;
+            ctx.beginPath();
+            ctx.moveTo(cx-w0,cy);ctx.lineTo(cx+w0,cy);
+            ctx.lineTo(cx+w1,cy+d*L);ctx.lineTo(cx-w1,cy+d*L);
+            ctx.closePath();ctx.fill();
+          }
+        }
+      }
       /* the disc: two leaning ellipses turning at different rates, bright on
          the side rotating toward the viewer, which is the one detail that
-         makes a black hole read as spinning rather than as a dark circle */
-      ctx.globalCompositeOperation='lighter';
+         makes a black hole read as spinning rather than as a dark circle.
+         It blazes through the ignition and settles back. */
+      const blaze=1+2.1*ig+0.35*lit;
       for(let d=0;d<2;d++){
-        const sp2=G.t*(0.22+d*0.13),ry=0.20+d*0.07;
-        ctx.globalAlpha=k*(0.30-d*0.10);
+        const sp2=G.vt*(0.22+d*0.13),ry=0.20+d*0.07;
+        ctx.globalAlpha=Math.min(1,k*(0.30-d*0.10)*blaze);
         ctx.strokeStyle=d?'#c9a4ff':COL.bh;
         ctx.lineWidth=(9-d*4)*u;
         ctx.beginPath();
         ctx.ellipse(cx,cy,rr*(0.62+d*0.16),rr*ry*AY,Math.sin(sp2)*0.30,0,TAU);
         ctx.stroke();
       }
+      /* ---- THE LENSED HALO: the far side of the disc, bent up over the top.
+         This is the Interstellar silhouette and the thing that makes the shape
+         read as a black hole and not as a ringed planet — light from BEHIND
+         the hole arriving over its poles. Top arc only, and a matching one
+         under the bottom, both wrapping a circle rather than the flat disc. */
+      const halo=Math.min(1,k*(0.34+0.5*ig+0.14*lit));
+      ctx.globalAlpha=halo;
+      ctx.strokeStyle='#f0e4ff';ctx.lineWidth=(3.4+3*ig)*u;
+      ctx.beginPath();ctx.ellipse(cx,cy,rr*0.40,rr*0.40*AY,0,Math.PI*1.06,Math.PI*1.94);ctx.stroke();
+      ctx.beginPath();ctx.ellipse(cx,cy,rr*0.40,rr*0.40*AY,0,Math.PI*0.06,Math.PI*0.94);ctx.stroke();
       /* the photon ring — thin, bright, and exactly circular */
-      ctx.globalAlpha=k*0.5;
-      ctx.strokeStyle='#e6d4ff';ctx.lineWidth=1.6*u;
+      ctx.globalAlpha=Math.min(1,k*0.5*(1+2*ig));
+      ctx.strokeStyle='#e6d4ff';ctx.lineWidth=(1.6+2.4*ig)*u;
       ctx.beginPath();ctx.ellipse(cx,cy,rr*0.30,rr*0.30*AY,0,0,TAU);ctx.stroke();
+      /* the ignition flash, over everything, brief */
+      if(ig>0.02){
+        const fg=ctx.createRadialGradient(cx,cy,0,cx,cy,rr*1.5);
+        fg.addColorStop(0,'rgba(240,232,255,'+(0.50*ig2).toFixed(3)+')');
+        fg.addColorStop(0.5,'rgba(160,120,255,'+(0.22*ig2).toFixed(3)+')');
+        fg.addColorStop(1,'rgba(160,120,255,0)');
+        ctx.globalAlpha=1;ctx.fillStyle=fg;
+        ctx.beginPath();ctx.ellipse(cx,cy,rr*1.5,rr*1.5*AY,0,0,TAU);ctx.fill();
+      }
     }
     ctx.restore();
     ctx.globalCompositeOperation='source-over';
@@ -8395,6 +8525,12 @@ function hintGlyph(kind,x,y,s){
 }
 function hintText(){
   if(G.state!=='playing')return null;
+  /* THE SET PIECE OWNS THE MIDDLE OF THE SCREEN. Inside a black hole the
+     centre already carries the banner, the countdown label, the horizon
+     popup and the display itself; a hint ladder sentence printed over the
+     top of all of it (screenshotted: "tap anywhere to turn around" across
+     the singularity). The star dive takes the screen the same way. */
+  if(bhActive())return null;
   const a=age();
   /* First match wins, so this list IS the curriculum and its order is the
      lesson plan. Two escape valves keep it honest: the orb-naming loop sits
