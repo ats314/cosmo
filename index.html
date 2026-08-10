@@ -3233,7 +3233,26 @@ function speedAt(){
 }
 /* Early warns run 2.35s (was 1.90) so a new player has a full extra beat to
    read the pulse before it becomes a crystal; the late floor is unchanged. */
-function warnTime(){return Math.max(1.0,2.35-dl()*0.0042);}
+/* THE EXAM KEEPS ASKING. Every pressure term in this file used to be at its
+   floor or its ceiling by dl 420 — eighty seconds into a level that never
+   ends — so a player who survived five minutes on EVENT HORIZON was playing
+   the board they met at eighty seconds, only faster. Speed and one shard-cap
+   step were the whole of it. Measured across dl 340 to 1050 before this
+   change: warn 1.00 flat, gap 0.80 flat, embers flat, shields flat, tier flat,
+   sky flat.
+   The second floor is deliberately shallower than the first ramp and arrives
+   over minutes rather than seconds. This is not a difficulty increase for
+   anyone who dies where most runs die — telemetry's longest level-4 run is
+   dl ~560 and the median is nowhere near it. It is a curve for the tail that
+   had none. A run ending at dl 420 sees none of it. */
+function warnTime(){
+  const d=dl();
+  /* 1.00s held to dl 460, then eased to 0.86 by dl 640. At level-4 speeds that
+     is still about three radians of travel between arming and lethal, so the
+     telegraph stays a telegraph. It never goes below 0.86: the whole game
+     rests on being able to READ a shard before it bites. */
+  return Math.max(0.86,Math.min(Math.max(1.0,2.35-d*0.0042),1.0-(d-460)*0.00078));
+}
 function shardCap(){
   const d=dl();
   /* A single ring can carry more shards than the same count spread over two,
@@ -3244,7 +3263,8 @@ function shardCap(){
      has had something real to answer. */
   /* the 5->6->7 steps used to land at dl 70/110/160 — all three inside the
      window where every run was already dying. Spaced out. */
-  const n=d<8?1:d<20?2:d<32?3:d<55?4:d<120?5:d<200?6:d<270?7:d<340?8:d<420?9:10;
+  const n=d<8?1:d<20?2:d<32?3:d<55?4:d<120?5:d<200?6:d<270?7:d<340?8:d<420?9:
+          d<540?10:d<680?11:12;
   /* "Suddenly, there are double/triple amount of red obstacles." Applied to
      the CAP and to the rate together, because raising one without the other
      just changes how long the board takes to fill. */
@@ -3252,7 +3272,18 @@ function shardCap(){
 }
 /* was 2.1-d*0.0035: the same late floor arrives via a gentler opening */
 function spawnGap(){
-  const g=Math.max(0.80,2.6-dl()*0.005);
+  const d=dl();
+  /* the old floor was 0.80 from dl 360 onward, forever. It now keeps easing to
+     0.64 by dl 700 — arrival RATE is the lever the board actually feels, far
+     more than the cap, because placement failure limits density long before
+     shardCap does (measured: mean 6.2 shards on a board whose cap was 8). */
+  /* the floor DECAYS; the opening ramp is untouched. Written as max(floor,ramp)
+     rather than min(ramp,floor): the first draft used a min, which let the
+     decaying term undercut the ramp before dl 420 was even reached and pulled
+     level 4's opening gap from 0.90 to 0.85 — a difficulty change smuggled
+     into the exact window this change promised not to touch. */
+  const floor=Math.max(0.64,0.80-Math.max(0,d-420)*0.00057);
+  const g=Math.max(floor,2.6-d*0.005);
   return BH.phase===2?g/BH_DENSITY:g;
 }
 /* EVERY RUN OPENS QUIETLY. This used to fade out by the fourth run, so a
@@ -3599,7 +3630,7 @@ const G={
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,slowD:4,shMax:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
   didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,gotShield:false,
-  gotBass:false,gotSpot:false,gotBH:false,hyperPlaced:false,
+  gotBass:false,gotSpot:false,gotBH:false,hyperPlaced:false,bhPlaced:false,
   bhCool:0,bhT:0,bhN:0,   /* black hole: rarity gate, entry stamp, count this run */
   dropsEarned:0,loopN:0,nearN:0,bestCombo:0,holdTimeout:false, /* play-style aggregates for run_ended */
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
@@ -4141,8 +4172,24 @@ function spawnPow(){
        end with two of the game's orbs still unmet. Placed after the pity
        shield so the never-three-without-a-shield promise holds. */
     type='bass';
-  }else if(G.level>=2&&!G.spotPlaced){
+  }else if(G.level>=3&&!G.spotPlaced){
+    /* SPOTLIGHT MOVED TO LEVEL 3. Six of the seven orbs used to be met by the
+       end of level 2 and levels 3 and 4 introduced nothing at all, which is
+       what the owner's rebalance is about: "balance power up introduction,
+       mechanics, and difficulty all the way the level 4." Spotlight is the one
+       that moves best — it is the least load-bearing of the three guarantees
+       (hypernova is the marquee item and the bass bomb is the panic button),
+       and it is a pure reward, so meeting it later costs a player nothing they
+       needed earlier. */
     type='spot';
+  }else if(G.level>=4&&!G.bhPlaced){
+    /* AND LEVEL 4 FINALLY INTRODUCES SOMETHING. The exam still teaches no new
+       FORMATION — that half of the curriculum rule is untouched and
+       curriculum.mjs still enforces it — but the black hole is guaranteed to
+       arrive once on EVENT HORIZON rather than left entirely to a 10% roll.
+       A player who reaches the endless level meets the game's biggest set
+       piece there; it stays rare everywhere else. */
+    type='blackhole';
   }else if(G.level>=3&&G.t>=G.bhCool&&!bhActive()&&Math.random()<0.10){
     /* THE BLACK HOLE. Rare by design and gated behind its own cooldown as
        well as its roll, because the pitch's whole premise is that it is "a
@@ -4169,7 +4216,7 @@ function spawnPow(){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
     if(farFromAll(a,ring,0.6,sep(ring,3.2),sep(ring,3.0))){
       G.pows.push({a,ring,t:0,life:7,type});
-      if(type==='blackhole')G.bhCool=G.t+55;   /* rare stays rare */
+      if(type==='blackhole'){G.bhCool=G.t+55;G.bhPlaced=true;}   /* rare stays rare */
       if(type==='hyper')G.hyperPlaced=true;
       if(type==='bass')G.bassPlaced=true;
       if(type==='spot')G.spotPlaced=true;
@@ -4250,7 +4297,7 @@ function startGame(){
      well under a second. */
   G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;G.gotShield=false;
   G.gotBass=false;G.gotSpot=false;G.gotBH=false;
-  G.bhCool=0;G.bhT=0;G.bhN=0;
+  G.bhCool=0;G.bhT=0;G.bhN=0;G.bhPlaced=false;
   BH.phase=0;BH.on=false;BH.warp=0;BH.t=0;BH.rings0=3;
   for(let i=0;i<4;i++)RADII[i]=RAD_OFF[i];
   G.dropsEarned=0;G.loopN=0;G.nearN=0;G.bestCombo=0;G.holdTimeout=false;
@@ -5706,7 +5753,8 @@ function update(dt){
       /* an unseen musical orb that expires unlessoned comes back: the
          level-2 guarantee is of the INTRODUCTION, not of one spawn roll —
          a 7s life can fall entirely inside another lesson's spacing */
-      if(s.type==='bass'&&!G.seen.bass)G.bassPlaced=false;
+      if(s.type==='blackhole'&&!G.seen.blackhole)G.bhPlaced=false;
+      else if(s.type==='bass'&&!G.seen.bass)G.bassPlaced=false;
       else if(s.type==='spot'&&!G.seen.spot)G.spotPlaced=false;
       else if(s.type==='hyper'&&!G.seen.hyper)G.hyperPlaced=false;
       G.pows.splice(i,1);continue;
