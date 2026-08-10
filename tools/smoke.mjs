@@ -404,6 +404,49 @@ try {
     if (!(st('G.score') > 0)) throw new Error('surviving a black hole paid nothing');
   }
   console.log('black hole: four rings, warped and restored ok');
+
+  // THE CLEARANCE FOLLOWS TRAVEL, NOT POSITION. This is a placement rule, so
+  // nothing that plays the game can assert it directly — a run either meets a
+  // shard or does not, and the reason is invisible. Tested at the function.
+  // The property is asymmetry: a full reaction-time gap AHEAD along the heading,
+  // a short pad behind, and the pad measured in TIME so it cannot quietly shrink
+  // as the game speeds up. Symmetric clearance is what let an oscillating player
+  // sit in a sanctuary no static shard could ever be placed inside.
+  {
+    st("G.state='playing';G.level=1");
+    st('startGame()');
+    for (let i = 0; i < 4; i++) frame(16.7);
+    st('G.spikes.length=0;G.stars.length=0;G.pows.length=0');
+    st('G.angle=1.0;G.dir=1;G.speed=2.0');
+    const at = (off, ring) => st(`farFromAll(1.0+(${off}),${ring === undefined ? 0 : ring},1.1,0.5,0.5,behindPad())`);
+    if (at(0.5)) throw new Error('a shard was placed 0.5 rad AHEAD, inside the reaction gap');
+    if (at(1.05)) throw new Error('a shard was placed 1.05 rad ahead, inside the reaction gap');
+    if (!at(1.6)) throw new Error('a shard could not be placed 1.6 rad ahead, outside the gap');
+    // behind: rejected right on top of the comet, allowed a little further back
+    if (at(-0.2)) throw new Error('a shard was placed on top of the comet from behind');
+    if (!at(-1.0)) throw new Error('the arc behind the comet never fills in — the sanctuary is back');
+    // reversing swaps which side is which, because the rule reads the heading
+    st('G.dir=-1');
+    if (!at(1.0)) throw new Error('after a reversal the abandoned arc did not open up');
+    if (at(-1.05)) throw new Error('after a reversal the new forward gap was not protected');
+    st('G.dir=1');
+    // the pad is a time: faster comet, wider pad
+    const padSlow = st('G.speed=1.4,behindPad()'), padFast = st('G.speed=4.2,behindPad()');
+    if (!(padFast > padSlow)) throw new Error(`the behind pad did not widen with speed: ${padSlow} -> ${padFast}`);
+    // A GATE ON THE BOARD SUSPENDS ALL OF IT. A gate exists to force a reversal
+    // and reverseEscape vets that reversal at spawn time; a later spawn behind
+    // the player could invalidate it, so the bubble goes symmetric while a wall
+    // is live. Without this the one formation that demands a turn becomes the
+    // one that punishes it.
+    st('G.speed=2.0');
+    st("G.spikes.push({a:4.0,ring:0,t:0,phase:0,gate:true,warn:2,life:3,va:0,blink:false,bo:0,bt:0})");
+    if (st('behindPad()') !== 0) throw new Error('the behind pad stayed open while a gate was live');
+    // 1.0 rad behind was placeable a moment ago; with a wall up it must not be,
+    // because that is the arc the forced reversal has to open onto
+    if (at(-1.0)) throw new Error('a live gate did not restore symmetric clearance');
+    st('G.spikes.length=0');
+  }
+  console.log('clearance follows travel, not position ok');
 } catch (e) {
   console.error('RUNTIME FAILED:', e.stack.split('\n').slice(0, 6).join('\n'));
   process.exit(1);
