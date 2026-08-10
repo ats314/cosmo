@@ -2250,6 +2250,15 @@ function endBlackHole(){
   const p=posPlayer();
   popup(p[0],p[1]-30*u,'ESCAPED +'+bonus,COL.warp,1.35);
   if(!RM)G.rings.push({x:cx,y:cy,r:radiusOf(0),life:1,col:COL.warp,sp:260,dec:1.2});
+  /* THE ESCAPE: decompression — a rising tone that answers the swallow's fall,
+     plus a bright shimmer that says "daylight". Both diatonic intervals over
+     the tonic. The sub was dragging down for seventeen seconds; the exit sound
+     lifts it back. */
+  beep(CH[0][0]*0.5,0.6,'sawtooth',0.065,CH[0][0]*2);
+  /* bright fifth, swept up one octave — the first clean note after the murk */
+  beep(CH[0][0]*1.4983,0.5,'sine',0.04,CH[0][0]*1.4983*2,undefined,0.3);
+  /* high octave shimmer, panned left */
+  beep(CH[0][0]*2,0.4,'sine',0.025,CH[0][0]*4,undefined,-0.3);
   track('blackhole_survived',{game_level:G.level,seconds:BH_DUR,shields_spent:clean,
     bonus:bonus,stars:BH.score,run_index:G.runs});
 }
@@ -2311,6 +2320,27 @@ function bhStep(t){
   /* one heartbeat a bar. Not a kit — the pitch says you are not playing the
      music, so a groove would invite you to. */
   if(beat===0)kick(t,0.045);
+  /* ---- BUILDING TENSION: grows with fq (time fraction through the mode) ----
+     The original piece is deliberately sparse, so these additions stay at the
+     edge of hearing and swell rather than stack. Each is louder in the second
+     half than the first, so the last few seconds feel heavier than the opening
+     without changing the harmonic content. */
+  /* rising noise bed: wider bandwidth as time advances, building pressure */
+  if(beat===2){
+    const noiseGain=0.06+0.22*fq;
+    const noiseHP=200+300*fq;
+    hat(t,noiseGain,noiseHP,SPB*0.22,0,0,noiseHP+600);
+  }
+  /* metallic resonance on every other bar, beat 6 — a pitched hat on the
+     minor third (+3st = 1.1892), wet with delay so it smears. Quiet early,
+     present late. */
+  if(beat===6&&bar%2===1){
+    const metalG=0.008+0.018*fq;
+    hat(t,metalG,root*1.1892,0.060,0,0.35,root*1.1892*3);
+  }
+  /* sub pulse doubles at the midpoint — a second heartbeat enters on bar 8+,
+     offset by 4 beats, felt more than heard. */
+  if(beat===4&&bar>=8)kick(t,0.025+0.020*fq);
 }
 function finStep(t){
   const fs=FIN.step++;
@@ -5831,10 +5861,17 @@ function update(dt){
           for(let q=0;q<3;q++)
             G.rings.push({x:cx,y:cy,r:radiusOf(0)*(1+q*0.15),life:1,col:COL.bh,sp:-260,dec:0.9});
         }
-        /* the swallow: the tonic dragged down two octaves. Written as an
-           interval over CH[0][0] like every other pitch in the file, so it
-           lands in whatever key the level is in. */
+        /* the swallow: the tonic dragged down two octaves, a sub boom one
+           octave under to shake the floor, and a high shimmer on the flat-six
+           — the tritone hint of what is coming. Written as intervals over
+           CH[0][0] like every other pitch in the file. */
         beep(CH[0][0],0.9,'sawtooth',0.085,CH[0][0]*0.25);
+        /* sub boom: octave below tonic, fast decay, felt more than heard */
+        beep(CH[0][0]*0.5,0.28,'sine',0.10,CH[0][0]*0.15);
+        /* shimmer: flat-six two octaves up, thin, panned right, longer ring */
+        beep(CH[0][0]*1.5874*2,0.55,'sine',0.025,CH[0][0]*1.5874*4,undefined,0.4);
+        /* second shimmer: +2st one octave up, panned left, offsets the first */
+        beep(CH[0][0]*1.1225*2,0.45,'sine',0.018,CH[0][0]*1.1225*4,undefined,-0.4);
         try{if(navigator.vibrate)navigator.vibrate([18,40,60]);}catch(e){}
       }else if(s.type==='warp'){
         G.slow=upgOn('slowworld')?6:4;G.slowD=G.slow;G.gotWarp=true;
@@ -6324,7 +6361,7 @@ const GL={on:false,g:null,pr:null,u:{},cv:null,vw:0,vh:0,
   scale:GL_SCALE,acc:0,n:0,slow:0};
 const GL_FS=`
 precision highp float;
-uniform vec2 uRes; uniform float uTime,uEnergy,uPal,uCov,uExp,uCombo,uBeat,uShr,uMotion;
+uniform vec2 uRes; uniform float uTime,uEnergy,uPal,uCov,uExp,uCombo,uBeat,uShr,uMotion,uBH;
 uniform vec3 uR1,uR2;
 float hash21(vec2 p){ p=fract(p*vec2(123.34,345.45)); p+=dot(p,p+34.345); return fract(p.x*p.y); }
 float vnoise(vec2 p){ vec2 i=floor(p),f=fract(p); vec2 u=f*f*(3.0-2.0*f);
@@ -6364,6 +6401,13 @@ void main(){
     disp += (dv/d)*sin(d*26.0-R.z*9.0)*exp(-d*2.4)*exp(-R.z*1.6)*0.030;
   }
   uv+=disp; float rd=length(uv);
+  /* ---- BLACK HOLE: gravitational lensing — pull UVs toward centre ---- */
+  if(uBH>0.0){
+    float brd=length(uv)+1e-5;
+    float lens=uBH*0.18/(brd+0.15);       /* strongest near centre, falls off */
+    uv-=uv/brd*lens;
+    rd=length(uv);                         /* re-measure after distortion */
+  }
   vec2 p=uv*1.35; vec2 dr=vec2(t*0.013,t*0.009);
   vec2 q=vec2(fbm(p+dr),fbm(p+vec2(5.2,1.3)-dr));
   vec2 r=vec2(fbm(p+3.2*q+vec2(1.7,9.2)+dr*1.7),fbm(p+3.2*q+vec2(8.3,2.8)-dr*1.3));
@@ -6393,6 +6437,39 @@ void main(){
   col+=starLayer(frag,38.0,0.930,t,5200.0,0.0);
   col*=clamp(1.0-0.62*pow(length(uv*vec2(0.88,0.66)),1.9),0.0,1.0);
   col+=vec3(0.010,0.013,0.032);
+  /* ---- BLACK HOLE: gravity well, accretion disc, photon ring, palette shift ---- */
+  if(uBH>0.0){
+    float brd2=length(uv)+1e-5;
+    /* gravity well: darken centre */
+    float well=1.0-uBH*smoothstep(0.52,0.0,brd2);
+    col*=well;
+    /* accretion disc: a bright tilted spinning ring, brighter on the approaching
+       side (the one facing "toward the camera"). Two layers at different speeds
+       give the sense of depth the 2D fallback has. */
+    float ang=atan(uv.y,uv.x);
+    for(int d=0;d<2;d++){
+      float dR=0.22+float(d)*0.08;           /* ring radius */
+      float dW=0.035+float(d)*0.015;          /* ring width */
+      float sp=t*(0.38+float(d)*0.22);        /* spin speed */
+      /* distance from the tilted ring: y is compressed to fake perspective */
+      vec2 ruv=vec2(uv.x,uv.y*(3.5-float(d)*0.6));
+      float rr=length(ruv);
+      float ring=exp(-pow((rr-dR)/dW,2.0));   /* gaussian ring */
+      /* Doppler brightening: approaching limb is brighter */
+      float doppler=0.6+0.4*sin(ang+sp);
+      float glow=ring*uBH*doppler*(0.35-float(d)*0.12);
+      vec3 dCol=(d==0)?vec3(0.56,0.33,1.0):vec3(0.78,0.62,1.0);
+      col+=glow*dCol;
+    }
+    /* photon ring: thin bright circle at the innermost stable orbit */
+    float photon=exp(-pow((brd2-0.11)/0.008,2.0))*uBH*0.55;
+    col+=photon*vec3(0.90,0.82,1.0);
+    /* cross-fade the whole result toward the Event Horizon palette */
+    vec3 ehCol=palette(ph-ca);               /* re-sample in palette 3 colours */
+    float phShift=dot(vec2(0.9,0.7),uv)*0.5+t*0.01;
+    vec3 evh=pcos(phShift,vec3(.34,.12,.30),vec3(.46,.20,.40),vec3(1.,.88,1.),vec3(.34,.08,.62));
+    col=mix(col,col*evh*2.2,uBH*0.35);
+  }
   col+=(hash21(frag)-0.5)*0.016;   /* static: kills banding without crawling */
   gl_FragColor=vec4(max(col,0.0),1.0);
 }`;
@@ -6421,7 +6498,7 @@ function glInit(){
     g.bufferData(g.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),g.STATIC_DRAW);
     const loc=g.getAttribLocation(pr,'p');
     g.enableVertexAttribArray(loc);g.vertexAttribPointer(loc,2,g.FLOAT,false,0,0);
-    for(const n of ['uRes','uTime','uEnergy','uPal','uCov','uExp','uCombo','uBeat','uShr','uMotion','uR1','uR2'])
+    for(const n of ['uRes','uTime','uEnergy','uPal','uCov','uExp','uCombo','uBeat','uShr','uMotion','uBH','uR1','uR2'])
       GL.u[n]=g.getUniformLocation(pr,n);
     GL.g=g;GL.cv=cv;GL.pr=pr;GL.on=true;
     return true;
@@ -6489,6 +6566,7 @@ function glRender(dt){
     g.uniform1f(GL.u.uExp,GL_EXP);
     g.uniform1f(GL.u.uShr,RM?0:GL.shear);
     g.uniform1f(GL.u.uMotion,RM?0:GL_MOTION);
+    g.uniform1f(GL.u.uBH,RM?0:BH.warp);
     g.uniform3f(GL.u.uR1,GL.r[0][0],GL.r[0][1],GL.r[0][2]);
     g.uniform3f(GL.u.uR2,GL.r[1][0],GL.r[1][1],GL.r[1][2]);
     g.drawArrays(g.TRIANGLES,0,3);
