@@ -6519,12 +6519,17 @@ try{
   }
 }catch(e){}
 function draw(){
-  /* ALWAYS start from the DPR identity. A thrown frame leaves the canvas
-     transform stack dirty (save without restore, translate still applied),
-     and the catch in frame() resets after the fact — but any code that runs
-     between draw()'s entry and the first save() also needs a clean slate.
-     One setTransform per frame is negligible. */
+  /* ALWAYS start from a known-good canvas state. A thrown frame leaves the
+     transform stack dirty (save without restore, translate still applied)
+     and can leak globalAlpha, compositing mode, or line dashes into every
+     subsequent frame. setTransform resets the matrix; the two attribute
+     resets below cover the rendering state that draw() changes most often.
+     The save stack still grows by one per thrown frame, but since we never
+     read from it without our own matching save, the orphaned entries are
+     inert — they cost a few bytes of browser memory and nothing else. */
   ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.globalAlpha=1;
+  ctx.globalCompositeOperation='source-over';
   const amb=RM?0:G.t;
   /* The GPU paints the backdrop; the 2D canvas is cleared to transparent and
      carries only the arena. BG stays true when WebGL is unavailable, and then
@@ -8374,6 +8379,8 @@ function frame(now){
   try{draw();}catch(e){
     if(!window.__drawErr)window.__drawErr=e;
     ctx.setTransform(DPR,0,0,DPR,0,0);
+    ctx.globalAlpha=1;
+    ctx.globalCompositeOperation='source-over';
   }
   requestAnimationFrame(frame);
 }
