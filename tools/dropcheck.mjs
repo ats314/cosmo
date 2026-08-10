@@ -117,12 +117,40 @@ function passSwipeChooser(st, frame, fire, pev, pid) {
 }
 const pev = (id, x, y, type) => ({ pointerId: id, clientX: x, clientY: y, type, preventDefault() {} });
 
-/* boot: menu frame, then tap to start (unlocks audio, builds MU) */
+/* THE TITLE SCREEN AND THE LEVEL PICKER, crossed by their real controls. The
+   menu's mode cards SELECT rather than start and the level picker starts
+   nothing from its background, so a fixed tap now lands on a screen that
+   politely does nothing — exactly the way the swipe chooser stalled every
+   harness when it arrived. Press the button that is actually drawn. */
+function pressRect(st, frame, fire, pev, pid, expr, what) {
+  for (let i = 0; i < 30; i++) frame(16.7);
+  const r = JSON.parse(st(expr) || 'null');
+  if (!r) throw new Error(`no ${what} control was drawn`);
+  const x = r.x + r.w / 2, y = r.y + r.h / 2;
+  fire('pointerdown', { ...pev(pid, x, y, 'pointerdown'), type: 'pointerdown' });
+  fire('pointerup', { ...pev(pid, x, y, 'pointerup'), type: 'pointerup' });
+  return pid + 1;
+}
+function passMenu(st, frame, fire, pev, pid) {
+  if (st('G.state') !== 'menu') return pid;
+  pid = pressRect(st, frame, fire, pev, pid,
+    'JSON.stringify(G.menuRects.find(x=>x.id==="start")||null)', 'menu START');
+  if (st('G.state') === 'menu') throw new Error('START did not leave the title screen');
+  return pid;
+}
+function passLevelSelect(st, frame, fire, pev, pid) {
+  if (st('G.state') !== 'levelsel') return pid;
+  pid = pressRect(st, frame, fire, pev, pid,
+    'JSON.stringify(G.lvSelRects.find(x=>x.id==="start")||null)', 'level-picker START');
+  if (st('G.state') === 'levelsel') throw new Error('START did not leave the level picker');
+  return pid;
+}
+
+/* boot: menu frame, then cross the front of the game (unlocks audio, builds MU) */
 frame(16.7);
-fire('pointerdown', pev(1, 200, 420, 'pointerdown'));
-fire('pointerup', pev(1, 200, 420, 'pointerup'));
-frame(16.7);
-passSwipeChooser(st, frame, fire, pev, 800);
+let bpid = passMenu(st, frame, fire, pev, 800);
+bpid = passSwipeChooser(st, frame, fire, pev, bpid);
+bpid = passLevelSelect(st, frame, fire, pev, bpid);
 console.log('MU exists:', !!st('MU'), '| state:', st('G.state'));
 
 /* Deathless drop-cadence regression: feed the meter, hold invulnerability,

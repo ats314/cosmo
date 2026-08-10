@@ -109,16 +109,60 @@ const pev = (id, x, y, type) => ({
   pointerId: id, clientX: x, clientY: y, type: type || 'pointerup', preventDefault() {},
 });
 
+/* THE FRONT OF THE GAME IS THREE SCREENS, AND EVERY HARNESS HAS TO CROSS ALL
+   OF THEM. A fixed tap at (200,400) used to be enough because the menu did
+   exactly one thing; it now carries two mode cards that SELECT rather than
+   start, and the level picker after it deliberately starts nothing from its
+   background. So each screen is crossed by pressing its real control, read
+   out of the rects the draw pass publishes — the same technique the swipe
+   chooser needed, for the same reason. */
+function pressRect(st, frame, fire, pev, pid, expr, what) {
+  for (let i = 0; i < 30; i++) frame(16.7);      // a draw pass fills the rects
+  const r = JSON.parse(st(expr) || 'null');
+  if (!r) throw new Error(`no ${what} control was drawn`);
+  const x = r.x + r.w / 2, y = r.y + r.h / 2;
+  fire('pointerdown', { ...pev(pid, x, y, 'pointerdown'), type: 'pointerdown' });
+  fire('pointerup', { ...pev(pid, x, y, 'pointerup'), type: 'pointerup' });
+  return pid + 1;
+}
+const startRect = 'JSON.stringify(G.menuRects.find(x=>x.id==="start")||null)';
+const lvStartRect = 'JSON.stringify(G.lvSelRects.find(x=>x.id==="start")||null)';
+function passMenu(st, frame, fire, pev, pid) {
+  if (st('G.state') !== 'menu') return pid;
+  pid = pressRect(st, frame, fire, pev, pid, startRect, 'menu START');
+  if (st('G.state') === 'menu') throw new Error('START did not leave the title screen');
+  return pid;
+}
+/* Picks a level and presses START. `level` undefined leaves the selection
+   alone, which is what an ordinary pass through the screen does. */
+function passLevelSelect(st, frame, fire, pev, pid, level) {
+  if (st('G.state') !== 'levelsel') return pid;
+  for (let i = 0; i < 30; i++) frame(16.7);
+  if (level !== undefined) {
+    const r = JSON.parse(st(`JSON.stringify(G.lvSelRects.find(x=>x.lv===${level})||null)`) || 'null');
+    if (!r) throw new Error(`the level picker drew no row for level ${level}`);
+    const x = r.x + r.w / 2, y = r.y + r.h / 2;
+    fire('pointerdown', { ...pev(pid, x, y, 'pointerdown'), type: 'pointerdown' });
+    fire('pointerup', { ...pev(pid++, x, y, 'pointerup'), type: 'pointerup' });
+    if (st('G.lvSel') !== level) throw new Error(`tapping level ${level} did not select it`);
+  }
+  pid = pressRect(st, frame, fire, pev, pid, lvStartRect, 'level-picker START');
+  if (st('G.state') === 'levelsel') throw new Error('START did not leave the level picker');
+  return pid;
+}
+
 try {
   const st = expr => vm.runInContext(expr, sandbox);
   // menu: run 15s of frames so the demo loop cycles (spawn, reverse, hops)
   for (let i = 0; i < 900; i++) frame(16.7);
   console.log('menu+demo ok');
-  // start the game with a tap — a FRESH device passes through the LIFT OFF
-  // card first (the calm pre-teaching screen), one tap, once per device
-  fire('pointerdown', pev(1, 200, 400, 'pointerdown'));
-  fire('pointerup', pev(1, 200, 400, 'pointerup'));
-  passSwipeChooser(st, frame, fire, pev, 900);
+  // start the game from the title screen's START — a FRESH device passes
+  // through the swipe chooser, then the level picker, then the LIFT OFF card
+  // (the calm pre-teaching screen), one tap each, once per device
+  let mpid = passMenu(st, frame, fire, pev, 900);
+  mpid = passSwipeChooser(st, frame, fire, pev, mpid);
+  if (st('G.state') !== 'levelsel') throw new Error('the swipe chooser did not hand off to the level picker, state=' + st('G.state'));
+  mpid = passLevelSelect(st, frame, fire, pev, mpid);
   if (st('G.state') !== 'lvend') throw new Error('fresh device did not get the level-1 card, state=' + st('G.state'));
   for (let i = 0; i < 60; i++) frame(16.7);
   fire('pointerdown', pev(1, 200, 400, 'pointerdown'));
@@ -472,6 +516,179 @@ try {
     st('G.spikes.length=0');
   }
   console.log('clearance follows travel, not position ok');
+
+  // ---- CHILL IS SKILL, SLOWED ----
+  // The static half of this lives in check.mjs (skill is the identity mode,
+  // one knob set, no dead knobs). What that cannot see is whether the knobs
+  // reach the curves: a table of multipliers wired to nothing parses, has no
+  // dead entries by its own lights, and ships a "chill" mode that plays
+  // identically to skill. So every term is measured in both modes, at the
+  // same difficulty second, through the real functions.
+  {
+    const inMode = (m, expr) =>
+      st(`(function(){var p=MODE;MODE='${m}';var v=(${expr});MODE=p;return v;})()`);
+    // pin the clock: age() feeds dl(), so hold G.t/G.started and compare the
+    // curves rather than two runs that have been going for different lengths
+    st("G.state='playing';G.level=1;G.started=0;G.t=200;G.diff=0");
+    const skill = {
+      dl: inMode('skill', 'dl()'), speed: inMode('skill', 'speedAt()'),
+      warn: inMode('skill', 'warnTime()'), cap: inMode('skill', 'shardCap()'),
+      gap: inMode('skill', 'spawnGap()'),
+    };
+    const chill = {
+      dl: inMode('chill', 'dl()'), speed: inMode('chill', 'speedAt()'),
+      warn: inMode('chill', 'warnTime()'), cap: inMode('chill', 'shardCap()'),
+      gap: inMode('chill', 'spawnGap()'),
+    };
+    if (!(chill.dl < skill.dl)) throw new Error(`chill's clock does not run slower: dl ${chill.dl} vs ${skill.dl}`);
+    if (!(chill.speed < skill.speed)) throw new Error(`chill is not slower: ${chill.speed} vs ${skill.speed}`);
+    if (!(chill.warn > skill.warn)) throw new Error(`chill does not warn for longer: ${chill.warn} vs ${skill.warn}`);
+    if (!(chill.cap <= skill.cap)) throw new Error(`chill allows more shards: ${chill.cap} vs ${skill.cap}`);
+    if (!(chill.gap > skill.gap)) throw new Error(`chill's shards arrive no less often: ${chill.gap} vs ${skill.gap}`);
+    // and at the SAME dl — the trims have to hold independently of the clock,
+    // or "chill is easier" would be true only because it is earlier
+    const atDl = (m, expr) => st(
+      `(function(){var p=MODE,c=MODES[MODE].clock;MODE='${m}';` +
+      `var f=c/MODES['${m}'].clock,t=G.t,s=G.started;G.started=G.t-(G.t-G.started)*f;` +
+      `var v=(${expr});G.started=s;G.t=t;MODE=p;return v;})()`);
+    const dS = atDl('skill', 'dl()'), dC = atDl('chill', 'dl()');
+    if (Math.abs(dS - dC) > 1e-6) throw new Error(`the same-dl comparison is not at the same dl: ${dS} vs ${dC}`);
+    if (!(atDl('chill', 'speedAt()') < atDl('skill', 'speedAt()')))
+      throw new Error('at equal dl chill is not slower — the speed trim is not wired');
+    if (!(atDl('chill', 'warnTime()') > atDl('skill', 'warnTime()')))
+      throw new Error('at equal dl chill does not warn longer — the warn trim is not wired');
+    if (!(atDl('chill', 'spawnGap()') > atDl('skill', 'spawnGap()')))
+      throw new Error('at equal dl chill is no sparser — the gap trim is not wired');
+    // the extra shield is a real shield, counted where a run actually starts
+    st("useMode('skill');G.level=1;G.upg={}"); st('startGame()');
+    const shS = st('G.shields');
+    st("useMode('chill');G.level=1"); st('startGame()');
+    const shC = st('G.shields');
+    if (shC !== shS + 1) throw new Error(`chill's extra shield is missing: ${shC} vs ${shS}`);
+    // AND CHILL MUST NOT MOVE THE CURRICULUM. Everything taught is keyed off
+    // dl or off G.level, never off wall-clock, so a chill run meets every
+    // formation and every orb in the same order at the same points. A trim
+    // that reached the tier ladder or a level's finish line would make chill a
+    // different game rather than a slower one, and curriculum.mjs — which runs
+    // in skill — would never see it.
+    for (const d of [0, 90, 215, 340, 600]) {
+      const ti = m => st(`(function(){var p=MODE;MODE='${m}';var v=TIERS.filter(t=>t.at<=${d}).length;MODE=p;return v;})()`);
+      if (ti('chill') !== ti('skill')) throw new Error(`chill moved the tier ladder at dl ${d}`);
+    }
+    if (inMode('chill', 'JSON.stringify(LV.map(l=>l.end))') !== inMode('skill', 'JSON.stringify(LV.map(l=>l.end))'))
+      throw new Error('chill moved a level finish line — it must take longer to reach it, not a shorter one');
+    st("useMode('skill')");
+    console.log('chill derives from skill ok: slower clock, slower comet, longer warn, sparser board, +1 shield;',
+      'curriculum untouched');
+  }
+
+  // ---- the mode picker, and per-mode records ----
+  // The two records are the reason the storage keys were suffixed rather than
+  // shared: an easier mode writing `cometloop:best` would silently redefine
+  // every value already on every device, which is the exact failure the
+  // retired `cometloop:level` key is remembered for.
+  {
+    st("G.state='menu';G.t+=1");
+    for (let i = 0; i < 30; i++) frame(16.7);
+    const ids = JSON.parse(st('JSON.stringify(G.menuRects.map(r=>r.id))'));
+    for (const need of ['chill', 'skill', 'start']) {
+      if (!ids.includes(need)) throw new Error(`the title screen drew no ${need} control: ${ids.join(',')}`);
+    }
+    const card = JSON.parse(st('JSON.stringify(G.menuRects.find(r=>r.id==="chill"))'));
+    fire('pointerdown', pev(600, card.x + card.w / 2, card.y + card.h / 2, 'pointerdown'));
+    fire('pointerup', pev(600, card.x + card.w / 2, card.y + card.h / 2, 'pointerup'));
+    if (st('MODE') !== 'chill') throw new Error('tapping the CHILL card did not select it');
+    if (st('G.state') !== 'menu') throw new Error('a mode card started a run — cards select, START starts');
+    if (store['cometloop:mode'] !== 'chill') throw new Error('the mode was not remembered');
+    // a chill record goes to chill's keys and leaves skill's alone
+    const skillBest0 = store['cometloop:best'], skillGl0 = store['cometloop:gl'];
+    st("G.state='playing';G.level=1;G.startLevel=1;G.score=999999;G.lvlMax=1;G.lastHit=null");
+    st('die()');
+    if (store['cometloop:best:chill'] !== '999999') throw new Error('a chill best did not reach chill\'s key');
+    if (store['cometloop:best'] !== skillBest0) throw new Error('a chill best overwrote the skill record');
+    if (store['cometloop:gl'] !== skillGl0) throw new Error('a chill level record overwrote the skill one');
+    // and switching back restores skill's numbers rather than carrying chill's
+    st("useMode('skill')");
+    if (st('G.best') === 999999) throw new Error('switching back to skill kept chill\'s best');
+    if (st('G.best') !== st('REC.skill.best')) throw new Error('G.best is not the selected mode\'s record');
+    console.log('mode picker + per-mode records ok');
+  }
+
+  // ---- the level picker, and the record it must not forge ----
+  {
+    st("G.state='menu';G.swipeAsked=true;G.runs=5;G.lvSel=1;G.t+=1");
+    for (let i = 0; i < 30; i++) frame(16.7);
+    let lpid = passMenu(st, frame, fire, pev, 700);
+    if (st('G.state') !== 'levelsel') throw new Error('START did not reach the level picker, state=' + st('G.state'));
+    // every level is selectable, including ones this device has never reached
+    st('G.lvlMax=1');
+    for (let i = 0; i < 30; i++) frame(16.7);
+    const lvs = JSON.parse(st('JSON.stringify(G.lvSelRects.filter(r=>r.lv).map(r=>r.lv))'));
+    if (lvs.length !== st('LEVEL_MAX')) throw new Error(`the picker drew ${lvs.length} levels, want ${st('LEVEL_MAX')}`);
+    // BACK MUST HAND THE DEMO ITS RINGS BACK. The picker runs on one ring and
+    // menuDemo's hop is gated on having more than one, so a menu returned to
+    // this way would show the swipe caption over a comet that never changes
+    // ring — the one thing the title screen exists to demonstrate, silently
+    // gone, and nothing else here would have noticed.
+    const back = JSON.parse(st('JSON.stringify(G.lvSelRects.find(r=>r.id==="back"))'));
+    if (!back) throw new Error('the level picker drew no back control');
+    fire('pointerdown', pev(lpid, back.x + back.w / 2, back.y + back.h / 2, 'pointerdown'));
+    fire('pointerup', pev(lpid++, back.x + back.w / 2, back.y + back.h / 2, 'pointerup'));
+    if (st('G.state') !== 'menu') throw new Error('back did not return to the title screen');
+    if (!(st('G.nRings') > 1)) throw new Error('back left the menu on one ring — the demo can no longer hop');
+    // watched across a full 12s demo loop rather than sampled at the end of
+    // one: DEMO.hop1 is cleared every cycle, so a single read after the fact
+    // says nothing about whether the hop happened
+    let hopped = false;
+    for (let i = 0; i < 800; i++) { frame(16.7); if (st('G.ringI') !== 0) hopped = true; }
+    if (!hopped) throw new Error('the menu demo never hopped after a return from the picker');
+    lpid = passMenu(st, frame, fire, pev, lpid);
+    // THE PICK IS NOT PERSISTED, ON PURPOSE. The menu used to force level 1 on
+    // every tap because borrowed phones inherited a device's unlock and friends
+    // thought the game had skipped level 1. A remembered selection would bring
+    // that back with the picker as its hiding place, so nothing may write it.
+    lpid = passLevelSelect(st, frame, fire, pev, lpid, 3);
+    if (st('G.startLevel') !== 3) throw new Error('the picked level was not recorded as the start level');
+    for (const k of Object.keys(store)) {
+      if (/lvsel|startlevel|:lv$/i.test(k)) throw new Error(`the level pick was persisted as '${k}' — a borrowed phone would inherit it`);
+    }
+    // level 3 goes through its own card, and the card starts level 3
+    if (st('G.state') !== 'lvend') throw new Error('a picked level skipped its card, state=' + st('G.state'));
+    for (let i = 0; i < 60; i++) frame(16.7);
+    fire('pointerdown', pev(lpid, 200, 400, 'pointerdown'));
+    fire('pointerup', pev(lpid++, 200, 400, 'pointerup'));
+    if (st('G.state') !== 'playing' || st('G.level') !== 3) throw new Error('the card did not start level 3, level=' + st('G.level'));
+    if (st('G.carryScore') !== 0 || st('G.score') !== 0) throw new Error('a picked start carried a previous run\'s score');
+    // A PICKED START IS NOT A CLIMB. This is the whole cost of letting any
+    // level be chosen, and it is paid here: dying on a level you jumped to
+    // must not print FURTHEST YET or write the level record.
+    const gl0 = store['cometloop:gl'];
+    st("G.lvlMax=1;G.score=10;G.lastHit=null");
+    st('die()');
+    if (st('G.newLevel')) throw new Error('a picked level-3 start announced FURTHEST YET');
+    if (st('G.lvlMax') !== 1) throw new Error('a picked start moved the level record');
+    if (store['cometloop:gl'] !== gl0) throw new Error('a picked start wrote the level record to storage');
+    // ...while a run that BEGAN at level 1 and climbed still counts, including
+    // across the retries that put it on a later level
+    st("G.state='playing';G.startLevel=1;G.level=3;G.lvlMax=1;G.score=10;G.lastHit=null");
+    st('die()');
+    if (!st('G.newLevel')) throw new Error('a run that started at level 1 and reached 3 was denied FURTHEST YET');
+    // THE SHARE TEXT CARRIES THE QUALIFIERS OR IT IS A CLAIM THE RUN DID NOT
+    // EARN. Two things changed what "LEVEL 4/4" means — the mode, and whether
+    // the run was picked into — and a text that travels further than the link
+    // does cannot leave either unsaid. The default run still shares the
+    // sentence that shipped, which is the other half of the guard.
+    st("G.level=2;G.tier=5;G.score=1234;G.deadT=G.t;G.startLevel=1;useMode('skill')");
+    const plain = st('runSummary()').split('\n')[0];
+    if (/CHILL|from L/.test(plain)) throw new Error('a default run qualified its share text: ' + plain);
+    st("G.startLevel=3");
+    if (!/from L3/.test(st('runSummary()'))) throw new Error('a picked start is not named in the share text');
+    st("useMode('chill');G.startLevel=1");
+    if (!/CHILL/.test(st('runSummary()'))) throw new Error('a chill run is not named in the share text');
+    st("useMode('skill')");
+    console.log('level picker ok: any level selectable, none of them forges a record;',
+      'share text names mode and picked start');
+  }
 } catch (e) {
   console.error('RUNTIME FAILED:', e.stack.split('\n').slice(0, 6).join('\n'));
   process.exit(1);
