@@ -2391,7 +2391,22 @@ function startBlackHole(){
   /* the band does not fade out, it STOPS. The pitch is explicit that the music
      "immediately cuts out", and a crossfade would read as a transition between
      two songs rather than as the floor dropping away. */
-  if(MU){MU.brk=0;MU.armed=false;MU.rise=false;MU.pend=null;}
+  /* EARNED STAYS EARNED — the rule endSection states in as many words, and
+     the one line this function got wrong. Silencing the band is an audio
+     concern; `MU.pend=null` reached past it and confiscated the player's
+     ECONOMY. A drop that was armed or rising when the black hole opened was
+     destroyed outright, and build() has already zeroed G.build by then, so
+     the meter's whole charge went with it — silently, and only ever to a
+     player good enough to have earned one. It is banked here exactly the way
+     endSection banks it, and bedTick re-fires a pending drop the moment
+     !bhActive(), so it lands on the other side instead of vanishing. */
+  if(MU){
+    MU.brk=0;
+    const bank=MU.pend||((MU.armed||MU.rise)?(MU.why||'DROP EARNED'):null);
+    const bankSrc=MU.pend?MU.pendSrc:MU.flavor;
+    MU.armed=false;MU.rise=false;MU.flavor=null;
+    MU.pend=bank;MU.pendSrc=bank?bankSrc:null;
+  }
   duckBed(0.06,0.12);
   /* THE ENTRY WAS AN ABSENCE, NOT AN EVENT. startBlackHole scheduled zero
      voices: the band stopped and the next thing the player heard was a kick,
@@ -2458,7 +2473,12 @@ function endBlackHole(){
   beep(CH[0][0]*1.4983,0.5,'sine',0.04,CH[0][0]*1.4983*2,undefined,0.3);
   /* high octave shimmer, panned left */
   beep(CH[0][0]*2,0.4,'sine',0.025,CH[0][0]*4,undefined,-0.3);
-  track('blackhole_survived',{game_level:G.level,seconds:BH_DUR,shields_spent:clean,
+  /* seconds was BH_DUR — a CONSTANT reported as a measurement, so every row
+     that will ever exist reads 17.0 and the column answers nothing. G.bhT is
+     stamped at entry; the elapsed time is the thing worth having, and it is
+     not the same number when a mode is cut short. */
+  track('blackhole_survived',{game_level:G.level,seconds:+(G.t-G.bhT).toFixed(1),
+    shields_spent:clean,
     bonus:bonus,stars:BH.score,run_index:G.runs});
 }
 /* THE PRESET PIECE. Diatonic to the level's own natural minor and written as
@@ -4720,6 +4740,17 @@ function spawnPow(){
        satisfied, so delaying them by one placement costs nothing, while a
        per-placement die that is never rolled is simply gone. */
     type='blackhole';
+  }else if(G.sinceShield>=3){
+    /* PITY SITS ABOVE THE GUARANTEES, not between them. The promise in this
+       comment is "never more than 3 power-ups without a shield", and it held
+       only because the guarantee it used to sit below could fire once. Moving
+       the black hole up the ladder broke it by one: on level 4 the order
+       became shield -> warp -> nova -> blackhole (guaranteed) -> hyper, four
+       consecutive non-shield placements with G.sinceShield already at 4 before
+       pity could fire. A promise written in a comment and enforced by nothing
+       but branch order is one reorder away from being false, so the branch
+       that keeps it now outranks every branch that could spend it. */
+    type='shield'; /* pity: never more than 3 power-ups without a shield */
   }else if(G.level>=2&&!G.hyperPlaced){
     /* THE MARQUEE ITEM IS NOT OPTIONAL CONTENT (the lesson the intro
        curriculum was invented for): at a 10% roll a long run could
@@ -4727,8 +4758,6 @@ function spawnPow(){
        without seeing one. On level 2+ the first placement after the
        curriculum is the star, guaranteed, once per run. */
     type='hyper';
-  }else if(G.sinceShield>=3){
-    type='shield'; /* pity: never more than 3 power-ups without a shield */
   }else if(G.level>=2&&!G.bassPlaced){
     /* THE CURRICULUM RULE extends to the musical orbs: everything is
        introduced by the end of level 2, so bass bomb and spotlight stop
@@ -4899,7 +4928,20 @@ function die(){
      survive, and — if the death came during phase 1 — the fourth ring would
      open post-mortem. Skip straight to the closing warp, starting from the
      current warp position so the orbits unwind smoothly instead of snapping. */
-  if(bhActive()){BH.phase=3;BH.t=BH_WARP*(1-BH.warp);}
+  if(bhActive()){
+    /* AND THE DEATH IS RECORDED. There was no event for dying in here at all:
+       blackhole_survived fires only on the way out, so the failure case — the
+       one number that says whether the mode is too hard — existed nowhere and
+       had to be reconstructed by hand-joining an entry to a later run_ended.
+       Names follow the one-name-per-ordinal rule: game_level for the 1-4
+       level, tier for the unlock ladder. play_mode is not passed — track()
+       stamps it on every event already, and a second copy here is a second
+       place for it to drift. */
+    track('blackhole_died',{game_level:G.level,tier:G.tier,
+      seconds:+(G.t-G.bhT).toFixed(1),phase:BH.phase,reached_inner:BH.lit,
+      stars:BH.score,score:G.score,run_index:G.runs});
+    BH.phase=3;BH.t=BH_WARP*(1-BH.warp);
+  }
   pd=null;   /* the gesture died with the run */
   G.newBest=G.score>G.best&&G.score>0;
   if(G.score>G.best){G.best=G.score;REC[MODE].best=G.best;savePref(recKey('best'),G.best);}
