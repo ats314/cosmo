@@ -104,6 +104,32 @@ function passSwipeChooser(st, frame, fire, pev, pid) {
 }
 const pev = (id, x, y) => ({ pointerId: id, clientX: x ?? 200, clientY: y ?? 400,
   type: 'pointerup', preventDefault() {} });
+/* THE TITLE SCREEN AND THE LEVEL PICKER. Both publish their controls as rects
+   from the draw pass and neither answers a tap on its background — the mode
+   cards select rather than start, and the level picker is a decision. Same
+   reason the swipe chooser needs pressing: a harness that taps a fixed point
+   simply waits there forever. */
+function pressRect(pid, expr, what) {
+  for (let i = 0; i < 30; i++) frame(16.7);
+  const r = JSON.parse(st(expr) || 'null');
+  if (!r) throw new Error(`no ${what} control was drawn`);
+  const x = r.x + r.w / 2, y = r.y + r.h / 2;
+  fire('pointerdown', { ...pev(pid, x, y), type: 'pointerdown' });
+  fire('pointerup', pev(pid, x, y));
+  return pid + 1;
+}
+function passMenu(pid) {
+  if (st('G.state') !== 'menu') return pid;
+  pid = pressRect(pid, 'JSON.stringify(G.menuRects.find(x=>x.id==="start")||null)', 'menu START');
+  if (st('G.state') === 'menu') throw new Error('START did not leave the title screen');
+  return pid;
+}
+function passLevelSelect(pid) {
+  if (st('G.state') !== 'levelsel') return pid;
+  pid = pressRect(pid, 'JSON.stringify(G.lvSelRects.find(x=>x.id==="start")||null)', 'level-picker START');
+  if (st('G.state') === 'levelsel') throw new Error('START did not leave the level picker');
+  return pid;
+}
 /* Taps the centre of the first upgrade tile whenever the card is offering a
    draft, and the ordinary spot otherwise. The draft deliberately makes a tile
    the ONLY thing that starts the next level, so a harness tapping a fixed
@@ -125,9 +151,15 @@ const banners = [];
 let lastBanner = null, pid = 100, hopFlip = false;
 
 for (let i = 0; i < 300; i++) frame(16.7);       // menu settles
-tap(pid++);                                       // fresh device -> swipe chooser
+pid = passMenu(pid);                              // title screen -> swipe chooser
 pid = passSwipeChooser(st, frame, fire, pev, pid);
+pid = passLevelSelect(pid);                       // ...-> level picker -> level 1
 if (st('G.state') !== 'lvend') fail.push('fresh device skipped the level-1 card');
+/* THE CURRICULUM IS RUN IN SKILL, DELIBERATELY. Chill scales the difficulty
+   clock and nothing else, so every tier and every orb arrives at the same dl
+   and in the same order — the run below would prove the identical thing 40%
+   slower. What actually needs guarding is that claim itself, and it is
+   asserted directly at the bottom of this file rather than by re-driving. */
 for (let i = 0; i < 60; i++) frame(16.7);
 tap(pid++);                                       // card -> level 1
 
@@ -211,6 +243,37 @@ for (let i = 1; i < ladder.length; i++) {
 }
 for (const [lv, b] of banners) {
   if (lv >= 4 && ladder.includes(b)) fail.push(`tier banner "${b}" fired inside level 4 — the exam introduced something`);
+}
+
+/* THE CURRICULUM IS THE SAME CURRICULUM IN CHILL, and the run above only
+   proves it for skill. It is not re-driven in chill, because that would spend
+   twenty simulated minutes re-deriving a property that is structural: every
+   unlock is keyed off dl() and every orb guarantee off G.level, and chill
+   changes how many real seconds a difficulty-second costs — not which
+   difficulty-second anything happens on.
+   Structural is not the same as true, so the two things that would break it
+   are asserted directly. If a future mode knob ever reached the tier ladder or
+   a finish line, chill would become a different game with a different
+   syllabus and no other check in this repo would see it: check.mjs reads the
+   table statically, smoke.mjs and dropcheck.mjs run in skill, and this file's
+   own driven run does too. */
+{
+  const inMode = (m, expr) =>
+    st(`(function(){var p=MODE;MODE='${m}';var v=(${expr});MODE=p;return v;})()`);
+  const tiersOf = m => inMode(m, 'JSON.stringify(TIERS.map(t=>t.at))');
+  const endsOf = m => inMode(m, 'JSON.stringify(LV.map(l=>String(l.end)))');
+  if (tiersOf('chill') !== tiersOf('skill')) {
+    fail.push('chill moves the tier ladder — the two modes would teach different syllabuses');
+  }
+  if (endsOf('chill') !== endsOf('skill')) {
+    fail.push('chill moves a level finish line — a mode may change how long a level TAKES, never where it ends');
+  }
+  /* and the level a given dl belongs to is the same in both, which is what
+     makes "the same lesson at the same point" mean anything */
+  for (const d of [0, 89, 90, 214, 215, 339, 340, 900]) {
+    const lvOf = m => inMode(m, `LV.filter(l=>l.dl0<=${d}).length`);
+    if (lvOf('chill') !== lvOf('skill')) fail.push(`chill puts dl ${d} on a different level`);
+  }
 }
 
 if (fail.length) {

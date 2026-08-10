@@ -167,6 +167,59 @@ effect does. Measured with audio running: 802 scheduled notes in 19s normally,
 | The storm | No new tricks. Every threat and orb from levels 1–2 active at once, spawn pool full from the first second, speed climbing toward the 4.2 rad/s ceiling. **Finite now** — it has a finish line at dl 340 and a star dive of its own. | dl 215 *(aligned to the level 3 start — was 380)* | L3 intro card: "no new tricks — everything at once" |
 | Event horizon | The same storm with no exit: level 4 is endless, at the speed ceiling, in the fourth key (A → G → F → E♭). Its song is the one that never leaves home — i–♭VI–♭VII–i over a sub drone pinned to the tonic — with an octave-jumping bass and an open offbeat hat of its own. Introduces nothing. | dl 340 *(new)* | L4 intro card: "past the point of return" |
 
+## Before the run — the three front screens
+
+None of these gates progression, and none of them changes what is taught.
+
+| Screen | How it works | Explained by |
+|---|---|---|
+| Mode picker (title screen) | Two cards, CHILL and SKILL, on the title screen. SKILL is the default and the game as balanced. Tapping a card **selects**; START (or a tap anywhere that is not a card) begins. Each card animates its own mode — orbit speed, shard count and trail length are drawn from that mode's own knobs — and carries that mode's best score. Arrow keys pick left/right. The demo comet behind the cards runs at the selected mode's pace, so the title screen visibly calms down when CHILL is armed. | the cards themselves: each one is a moving picture of what it sells |
+| Swipe rule chooser | Unchanged. Still once per device, still between the title screen and the run — it now hands off to the level picker rather than straight to level 1's card. | live arena with both rules tryable |
+| Level picker | Four rows, one per level, plus START and back. **Every level is selectable on any device**, including ones never reached — the screen exists so a level can be tested without playing to it. Rows the device has actually reached are marked *reached*, so picked and earned stay visibly different. Level 1 for a returning player starts instantly; every other pick goes through that level's own intro card first. Arrow keys move the selection, Enter starts. | the rows name the level and its title; *reached* marks the honest ones |
+
+## CHILL and SKILL (one game, two clocks)
+
+CHILL is a **derivative of SKILL, not a second implementation**. `MODES` holds
+one set of multipliers per mode and every difficulty curve reads them, so a
+balance change made once lands in both. SKILL is the identity — all its knobs
+are 1 (0 for the additive shield) — which is what makes "with SKILL selected
+the game is byte-for-byte the balance that shipped" a checkable fact.
+`check.mjs` fails the build if SKILL stops being the identity, if a mode grows
+a knob the others lack, or if any knob is never read.
+
+| Knob | SKILL | CHILL | What it reaches |
+|---|---|---|---|
+| `clock` | 1 | 0.72 | `dl()` — difficulty-seconds per real second. The main lever: speed, cap, gap, warn, the tier ladder and the finish line are all keyed off `dl`, so one number eases all six in the proportions they were tuned in. Level 1's finish line lands near 2:55 instead of 2:06. |
+| `speed` | 1 | 0.86 | `speedAt()`, ceiling included — CHILL's fastest board is genuinely slower, not merely later. |
+| `warn` | 1 | 1.3 | `warnTime()` — the telegraph. CHILL's floor is 1.12s rather than 0.86s. |
+| `cap` | 1 | 0.78 | `shardCap()`, floored at one. |
+| `gap` | 1 | 1.3 | `spawnGap()` — arrival rate. Cap and rate move together, for the same reason the black hole scales both. |
+| `shields` | 0 | +1 | Starting bank, additive: DEEP BANK still means one more shield in either mode. |
+| `demo` | 1 | 0.62 | The title screen's demo comet, so the choice is legible before it is committed to. |
+
+**What CHILL deliberately does not touch: the curriculum, the music, the
+scoring.** Orbs and lessons are gated on `G.level` and tiers on `dl`, so a
+chill run meets every formation and orb in the same order at the same points —
+it just takes more seconds to get there. The arrangement is untouched: a mode
+is not a key change. Nothing multiplies the score; chill is worth less per
+minute only because a minute contains less game. `curriculum.mjs` asserts that
+chill moves no tier, no finish line and no level boundary.
+
+**The records are per mode, and the existing keys stay SKILL's.** A chill best
+written to `cometloop:best` would silently redefine every value already on
+every device — the failure the retired `cometloop:level` key is remembered for
+— so chill writes `cometloop:best:chill` and `cometloop:gl:chill`. The death
+screen names the mode when it is reporting chill's record, and the share text
+appends `· CHILL` and `· from Ln` so a shared claim is the claim that was
+earned. A default skill run started at level 1 shares exactly the text that
+shipped.
+
+**A picked start cannot forge a climb.** `G.startLevel` records the level a run
+opened on, and the level record only moves for a run that began at level 1 —
+so choosing EVENT HORIZON and dying on the first shard prints no FURTHEST YET
+and writes no record. A run that started at level 1 and climbed keeps counting,
+including across the retries that put it on a later level.
+
 ## Cross-level systems (never gate progression)
 
 | System | How it works | Explained by |
@@ -175,11 +228,13 @@ effect does. Measured with audio running: 802 scheduled notes in 19s normally,
 | Band meter | Dot row under the level readout — one dot per layer currently in the record; the newest pulses; the loop shows as a cyan member. | gold "NEW LAYER" lines, one-time "THE BAND — score adds layers" caption *(new)* |
 | New sounds | The star's instrument steps up at tiers 4, 7 and 10. | "NEW SOUND" announcement, death-screen "next sound" hook |
 | Difficulty clock | Difficulty is a clock; good play nudges it forward a little (capped). Speed, caps and spawn rate never change *what* a level teaches. **The clock now has a second ramp.** Every pressure term used to reach its floor or ceiling by dl 420 — eighty seconds into a level that never ends — so a player surviving five minutes on EVENT HORIZON was playing the board they met at eighty seconds, only faster: warn 1.00 flat, gap 0.80 flat, embers flat, shields flat, tier flat, sky flat, with speed and one cap step the whole of it. Warn now eases 1.00 → 0.86 between dl 460 and 640, the spawn gap's floor decays 0.80 → 0.64 between dl 420 and 700, and the cap steps 10 → 11 → 12 at dl 540 and 680. Measured at dl 560–650: spawns per 90s 125 → 139, mean shards on the board 9.9 → 10.8. Nothing before dl 420 moves, so a run ending where most runs end sees none of it. | (internal — documented here) |
-| Level record | The deepest level a device has ever reached (`cometloop:gl`). It moves at death, beside the high score, so the announcement fires exactly once and a retry of the same level stays quiet. | death screen: **FURTHEST YET** in place of NEW BEST, otherwise "BEST · LEVEL n · score"; the death-screen pip row, one pip per level *(new)* |
+| Level record | The deepest level a device has ever reached, **per mode** (`cometloop:gl`, `cometloop:gl:chill`). It moves at death, beside the high score, so the announcement fires exactly once and a retry of the same level stays quiet — and only for a run that began at level 1, so a level picked from the front screen can never move it *(new)*. | death screen: **FURTHEST YET** in place of NEW BEST, otherwise "BEST · LEVEL n · score" (prefixed CHILL in chill); the death-screen pip row, one pip per level |
 
 ## The teaching channels
 
 - **Menu key + 12s demo** — the verbs and core objects, before first touch.
+  The key sits under the mode cards now; the demo runs at the selected mode's
+  pace *(new)*.
 - **Tier banners** — gold, 3.2s, one at a time, each with a one-line sub.
 - **MEET lessons** — first encounter of each formation/orb: threats hold
   the world near-frozen under a dim veil with the specimen spotlit in a

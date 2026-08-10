@@ -2600,7 +2600,9 @@ function bedTick(dt){
   if(MU&&MU.pend&&!MU.armed&&!MU.rise&&MU.pay<=0&&t>=MU.cool&&playing&&!bhActive()){
     const w=MU.pend,ws=MU.pendSrc;MU.pend=null;MU.pendSrc=null;armDrop(w,ws);
   }
-  const lvl=playing?0.17+0.26*k:(G.state==='menu'?0.06:0.02);
+  /* the two title screens keep the bed's low idle — the level picker is part
+     of the front of the game, not a pause */
+  const lvl=playing?0.17+0.26*k:((G.state==='menu'||G.state==='levelsel')?0.06:0.02);
   /* The pad recedes for the payoff and comes back for its second half. This
      IS the loudness of the section: contrast costs no headroom. bedTick stays
      the ONLY writer of BED.g, which is why there is no stuck-pad case. */
@@ -2852,6 +2854,69 @@ const LV=[
    clamp against it — it used to sit 1,300 lines further down, which put it in
    its own temporal dead zone for everything that boots first. */
 const LEVEL_MAX=LV.length;
+/* ---------- two modes, one game ----------
+   SKILL is the game. CHILL is not a second game and there is no second
+   implementation of anything below: it is the same code with the difficulty
+   CLOCK turned down and four forgiveness terms scaled. Every field here is a
+   MULTIPLIER over a curve that already exists — dl(), speedAt(), warnTime(),
+   shardCap(), spawnGap() — so a balance change made once lands in both modes
+   and cannot land in only one.
+
+   SKILL IS THE IDENTITY. Every one of its knobs is 1 (or 0 for the additive
+   shield), which is what makes the claim above checkable rather than a
+   promise: with skill selected, every expression the knobs appear in reduces
+   to exactly the expression that shipped, so this table cannot quietly become
+   a place where the real game is tuned. check.mjs fails the build if a skill
+   knob stops being the neutral element, and if any knob here is never read.
+
+   WHY THE CLOCK IS THE MAIN LEVER. Everything that presses on the player —
+   speed, shard cap, arrival rate, warning length, the tier ladder, the finish
+   line — is already keyed off dl(), the difficulty clock. Slowing that one
+   number eases all six together and in the proportions they were tuned in,
+   which is the only way "easier" stays recognisably the same game. The other
+   knobs are trims on top of it, not a second difficulty curve.
+
+   WHAT CHILL DELIBERATELY DOES NOT TOUCH: the curriculum, the music and the
+   scoring. Orbs and lessons are gated on G.level, tiers on dl, so a chill run
+   meets every formation and every orb in the same order at the same points —
+   it just gets there in more seconds. The arrangement is untouched, because a
+   mode is not a key change. And nothing multiplies the score: chill is worth
+   less per minute only because a minute contains less game.
+
+   The tags are read on the menu and have to obey the same rule the lessons
+   do — claim nothing the player cannot check. "slower" and "more room to
+   read" are both literally what the numbers below say. */
+let MODE='skill';
+const MODES={
+  skill:{id:'skill',name:'SKILL',tag:'the game at full pace',
+    c:COL.comet,
+    clock:1,speed:1,warn:1,cap:1,gap:1,shields:0,demo:1},
+  /* 0.72 puts level 1's finish line around 2:55 instead of 2:06 — the calm
+     opening is the part of the game chill exists to lengthen, so the extra
+     time lands where the ramp is shallowest rather than being spread evenly.
+     The speed trim is separate and small: the clock alone eases how fast the
+     board FILLS, and a hand that wants a slower game can feel the comet. */
+  /* `c` is the mode's identity colour and the ONLY thing the two cards recolour.
+     Red belongs to the one thing that hurts you and is never borrowed — a chill
+     card drawing its shards in green would teach, on the first screen anybody
+     sees, that the colour of danger is negotiable. */
+  chill:{id:'chill',name:'CHILL',tag:'slower, and room to read it',
+    c:'#a887ff',
+    clock:0.72,speed:0.86,warn:1.3,cap:0.78,gap:1.3,shields:1,demo:0.62}
+};
+function MD(){return MODES[MODE]||MODES.skill;}
+/* THE RECORDS ARE PER MODE, and the existing keys stay SKILL's. A chill best
+   written to `cometloop:best` would silently redefine every historical value
+   under it — the same failure the retired `cometloop:level` key exists to
+   remember — so chill gets its own suffixed keys and nothing already on a
+   device changes meaning. G.best and G.lvlMax stay "the selected mode's
+   record" so every reader of them is unchanged; useMode swaps them. */
+const REC={skill:{best:0,lvlMax:1},chill:{best:0,lvlMax:1}};
+function recKey(k,m){return 'cometloop:'+k+((m||MODE)==='chill'?':chill':'');}
+function useMode(m){
+  MODE=(m==='chill')?'chill':'skill';
+  G.best=REC[MODE].best;G.lvlMax=REC[MODE].lvlMax;
+}
 /* FOUR KEYS WAS NOT FOUR SONGS. Every level walked the identical
    i-VI-III-VII and differed only by transposition, so the harmony under
    EVENT HORIZON was the harmony under LIFT OFF played lower — and the chord
@@ -3015,15 +3080,25 @@ function readLocal(k){
   try{return window.localStorage?localStorage.getItem(k):null;}catch(e){return null;}
 }
 function loadPrefs(){
-  const b=parseInt(readLocal('cometloop:best'),10);
-  if(!isNaN(b))G.best=Math.max(G.best,b);
+  /* Both modes' records are read, and the selected mode's are copied into
+     G.best / G.lvlMax by useMode below. The unsuffixed keys are SKILL's and
+     always were, so a device that has only ever played the one game reads
+     back exactly what it wrote. */
+  for(const mk of ['skill','chill']){
+    const b=parseInt(readLocal(recKey('best',mk)),10);
+    if(!isNaN(b))REC[mk].best=Math.max(REC[mk].best,b);
+    /* `cometloop:level` is retired and deliberately NOT read: it held the
+       ten-rung tier ordinal, so a device that stored a 7 under it would read
+       back as level 7 of 3. `cometloop:gl` is the one level record. */
+    const gl=parseInt(readLocal(recKey('gl',mk)),10);
+    if(!isNaN(gl))REC[mk].lvlMax=Math.max(1,Math.min(LEVEL_MAX,gl));
+  }
   const r=parseInt(readLocal('cometloop:runs'),10);
   if(!isNaN(r))G.runs=Math.max(G.runs,r);
-  /* `cometloop:level` is retired and deliberately NOT read: it held the
-     ten-rung tier ordinal, so a device that stored a 7 under it would read
-     back as level 7 of 3. `cometloop:gl` is the one level record. */
-  const gl=parseInt(readLocal('cometloop:gl'),10);
-  if(!isNaN(gl))G.lvlMax=Math.max(1,Math.min(LEVEL_MAX,gl));
+  /* absent means this device has never chosen — SKILL is the default, and
+     the menu is where it changes */
+  const pm=readLocal('cometloop:mode');
+  useMode(pm==='chill'?'chill':'skill');
   const m=readLocal('cometloop:muted');
   if(m!==null)muted=(m==='1');
   /* absent means this device has never been asked — the chooser is shown once */
@@ -3046,17 +3121,27 @@ function loadPrefs(){
   if(sn2)for(const k of sn2.split(','))if(k)G.seen2[k]=1;
   try{
     if(!window.storage||!window.storage.get)return;
-    window.storage.get('cometloop:best').then(function(r){
-      const v=r&&parseInt(r.value,10);
-      if(v&&!isNaN(v))G.best=Math.max(G.best,v);
-    }).catch(function(){});
+    /* The host store is read per mode too, and into REC rather than straight
+       into G: these land asynchronously, possibly after the player has already
+       switched modes on the menu, and writing a chill arrival into G.best
+       while skill is selected would put the wrong record on the screen. */
+    for(const mk of ['skill','chill']){
+      (function(m){
+        window.storage.get(recKey('best',m)).then(function(r){
+          const v=r&&parseInt(r.value,10);
+          if(v&&!isNaN(v)){REC[m].best=Math.max(REC[m].best,v);
+            if(MODE===m)G.best=REC[m].best;}
+        }).catch(function(){});
+        window.storage.get(recKey('gl',m)).then(function(r){
+          const v=r&&parseInt(r.value,10);
+          if(v&&!isNaN(v)){REC[m].lvlMax=Math.max(REC[m].lvlMax,Math.min(LEVEL_MAX,v));
+            if(MODE===m)G.lvlMax=REC[m].lvlMax;}
+        }).catch(function(){});
+      })(mk);
+    }
     window.storage.get('cometloop:runs').then(function(r){
       const v=r&&parseInt(r.value,10);
       if(v&&!isNaN(v))G.runs=Math.max(G.runs,v);
-    }).catch(function(){});
-    window.storage.get('cometloop:gl').then(function(r){
-      const v=r&&parseInt(r.value,10);
-      if(v&&!isNaN(v))G.lvlMax=Math.max(G.lvlMax,Math.min(LEVEL_MAX,v));
     }).catch(function(){});
     window.storage.get('cometloop:muted').then(function(r){
       if(r)muted=(r.value==='1');
@@ -3107,6 +3192,13 @@ function track(name,props){
        this, level-completion and death rates silently average two different
        games together and stop being readable. */
     pr.swipe_mode=SWIPE_MODE;
+    /* TWO DIFFICULTY MODES MEANS THE SAME THING AGAIN: without this, chill and
+       skill deaths average into one unreadable completion rate. Named
+       `play_mode` and NOT `mode`, because `mode` is already spent — the
+       swipe_mode_chosen event has always carried the swipe rule under it, and
+       redefining a shipped property silently changes what every historical row
+       says. One name per thing; retire, never reuse. */
+    pr.play_mode=MODE;
     pr.$current_url=location.href;
     const body=JSON.stringify({api_key:POSTHOG_KEY,event:name,
       distinct_id:TELE_ID,properties:pr});
@@ -3210,8 +3302,14 @@ function age(){return G.t-G.started;}
 /* DIFFICULTY IS A CLOCK. Scoring well nudges it forward a little, but the
    nudge is capped, so playing well can never accelerate you into the wall.
    Everything below is keyed off dl() — "difficulty seconds". */
+/* THE MODE IS A CLOCK RATE, and this is the only line that knows it. Chill
+   spends more real seconds per difficulty-second, so every term keyed off
+   dl() — speed, cap, gap, warn, the tier ladder, the finish line — eases
+   together and in the proportions they were tuned in. Applied to the age
+   rather than to the result, so a level's FLOOR (dl0) is untouched: chill
+   takes longer to cross a level, it does not start it somewhere easier. */
 function dl(){
-  const a=age()+Math.min(G.diff*0.22,40);
+  const a=(age()+Math.min(G.diff*0.22,40))*MD().clock;
   const base=LV[(G.level||1)-1].dl0;
   /* each level re-runs the gentle opening ramp from its own floor */
   return base+(a<80?a*0.55:44+(a-80));
@@ -3229,7 +3327,10 @@ function speedAt(){
   const d=dl();
   /* opens at 1.30 rather than 1.40 — the first orbits should feel like a
      glide, not a chase; the ceiling and the tail of the curve are untouched */
-  return Math.min(SPEED_MAX,1.30+1.70*(1-Math.exp(-d/190))+Math.max(0,d-250)*0.0015);
+  /* the mode's trim scales the whole curve INCLUDING the ceiling, so chill's
+     fastest board is genuinely slower than skill's rather than merely taking
+     longer to arrive at the same wall */
+  return MD().speed*Math.min(SPEED_MAX,1.30+1.70*(1-Math.exp(-d/190))+Math.max(0,d-250)*0.0015);
 }
 /* Early warns run 2.35s (was 1.90) so a new player has a full extra beat to
    read the pulse before it becomes a crystal; the late floor is unchanged. */
@@ -3251,7 +3352,10 @@ function warnTime(){
      is still about three radians of travel between arming and lethal, so the
      telegraph stays a telegraph. It never goes below 0.86: the whole game
      rests on being able to READ a shard before it bites. */
-  return Math.max(0.86,Math.min(Math.max(1.0,2.35-d*0.0042),1.0-(d-460)*0.00078));
+  /* the mode's trim multiplies the finished value, so chill's floor is 1.12s
+     rather than 0.86 — the telegraph is the thing a relaxed player is most
+     short of, and it is the one term where more is unambiguously easier */
+  return MD().warn*Math.max(0.86,Math.min(Math.max(1.0,2.35-d*0.0042),1.0-(d-460)*0.00078));
 }
 function shardCap(){
   const d=dl();
@@ -3263,8 +3367,11 @@ function shardCap(){
      has had something real to answer. */
   /* the 5->6->7 steps used to land at dl 70/110/160 — all three inside the
      window where every run was already dying. Spaced out. */
-  const n=d<8?1:d<20?2:d<32?3:d<55?4:d<120?5:d<200?6:d<270?7:d<340?8:d<420?9:
+  const n0=d<8?1:d<20?2:d<32?3:d<55?4:d<120?5:d<200?6:d<270?7:d<340?8:d<420?9:
           d<540?10:d<680?11:12;
+  /* the mode's density trim, floored at one: a board that can hold no threat
+     at all is not an easier game, it is a screensaver */
+  const n=Math.max(1,Math.round(n0*MD().cap));
   /* "Suddenly, there are double/triple amount of red obstacles." Applied to
      the CAP and to the rate together, because raising one without the other
      just changes how long the board takes to fill. */
@@ -3283,7 +3390,9 @@ function spawnGap(){
      level 4's opening gap from 0.90 to 0.85 — a difficulty change smuggled
      into the exact window this change promised not to touch. */
   const floor=Math.max(0.64,0.80-Math.max(0,d-420)*0.00057);
-  const g=Math.max(floor,2.6-d*0.005);
+  /* the mode's trim scales the finished gap — cap and rate move together, for
+     the same reason the black hole scales both */
+  const g=Math.max(floor,2.6-d*0.005)*MD().gap;
   return BH.phase===2?g/BH_DENSITY:g;
 }
 /* EVERY RUN OPENS QUIETLY. This used to fade out by the fourth run, so a
@@ -3614,6 +3723,9 @@ const G={
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
   newLevel:false, /* did this run reach deeper than any before it */
   swipeAsked:false,selRects:[],selPt:null,selFx:0,selFrom:null,swipeRect:null,
+  menuRects:[],menuPt:null,modeFx:0,          /* the mode picker on the title screen */
+  lvSel:1,lvSelRects:[],lvSelPt:null,lvSelFx:0,  /* the starting-level picker */
+  startLevel:1,   /* which level this run BEGAN on — see the record guard in die() */
   level:1,lvlMax:1,lvT:0,lvCard:null,carryScore:0,
   carryOrbits:0,carryStreak:0,carryTime:0,carryLands:0,carryGroove:0, /* the three-level structure,
     and the deepest level ever reached — the only level record there is */
@@ -4344,7 +4456,9 @@ function startGame(){
   /* Two to start, always. One was a single mistake between a new player and
      the retry screen, and shields are now purely "you live" — see the block
      path in updateSpikes. */
-  G.shields=2+(upgOn('deepbank')?1:0);   /* DEEP BANK: literally 'one more shield' */
+  /* the mode's bank is additive, not a replacement: DEEP BANK still means
+     'one more shield' in either mode, and chill simply starts one deeper */
+  G.shields=2+(upgOn('deepbank')?1:0)+MD().shields;   /* DEEP BANK: literally 'one more shield' */
   G.invuln=0;G.slow=0;G.tsCur=1;G.sinceShield=0;G.revPend=0;G.didShield=false;
   /* Reset EVERY run, so the ladder replays from the top every time. These were
      lifetime flags, permanently true after run one — which meant a returning
@@ -4397,7 +4511,7 @@ function die(){
   G.state='dead';G.deadT=G.t;G.revPend=0;
   pd=null;   /* the gesture died with the run */
   G.newBest=G.score>G.best&&G.score>0;
-  if(G.score>G.best){G.best=G.score;savePref('cometloop:best',G.best);}
+  if(G.score>G.best){G.best=G.score;REC[MODE].best=G.best;savePref(recKey('best'),G.best);}
   /* THE SCREEN THE PLAYER IS GUARANTEED TO READ finally uses what the game
      already measured. One line, phrased as an invitation — a struggling
      player does not need another demand. */
@@ -4446,8 +4560,16 @@ function die(){
      the finish line, so the line fires exactly once and every retry of the
      same level after it stays quiet. G.lvlMax never drops below 1, so level 1
      — where every run starts — can never be news. */
-  G.newLevel=G.level>G.lvlMax;
-  if(G.newLevel){G.lvlMax=G.level;savePref('cometloop:gl',G.lvlMax);}
+  /* A PICKED START IS NOT A CLIMB. The level select exists so a level can be
+     tested without playing to it, and the level record is the one thing that
+     cannot survive that: choosing EVENT HORIZON and dying on the first shard
+     would otherwise print FURTHEST YET and write a level-4 record on a device
+     that has never cleared level 1. The record moves only for a run that
+     began where every run used to begin — a run that STARTED at level 1 and
+     climbed keeps counting, including after a retry, because startLevel is
+     the level the run opened on and not the level it is on now. */
+  G.newLevel=G.startLevel===1&&G.level>G.lvlMax;
+  if(G.newLevel){G.lvlMax=G.level;REC[MODE].lvlMax=G.lvlMax;savePref(recKey('gl'),G.lvlMax);}
   if(!RM){G.shake=16;G.flash=0.9;}
   const p=posPlayer();
   burst(p[0],p[1],COL.shard,26,240);
@@ -4505,6 +4627,10 @@ function die(){
        the same number all along. */
     tier:G.tier,tier_name:tierLabel(),rings:G.nRings,
     game_level:G.level,best_game_level:G.lvlMax,
+    /* which level this run OPENED on. Every run used to open on 1, so without
+       it a level-4 run picked from the select is indistinguishable from one
+       played to — and the completion funnel would count a jump as a climb. */
+    start_level:G.startLevel,
     /* did the curriculum land: three placements is the whole intro set */
     pows_placed:G.powN,saw_warp:G.gotWarp,saw_nova:G.gotNova,saw_hyper:G.gotHyper,
     picks:G.picks.join(','),pick_n:G.picks.length,
@@ -4580,6 +4706,90 @@ function commitReverseFX(){
    instant retry: its card belongs to the first run, not to every death. */
 function retry(){
   if(G.level>=2){G.state='lvend';G.lvT=G.t;G.lvCard={done:false,next:G.level};}
+  else startGame();
+}
+/* ---------- the front of the game ----------
+   Three screens before a run, and each one only exists because the choice on
+   it cannot be made for the player: which game they want (mode), which way
+   their hand thinks "out" is (swipe rule, once per device), and where they
+   want to start. They are separate states rather than one settings sheet
+   because each is drawn on the live arena and answered there. */
+function pickMode(m){
+  if(MODE===m)return;
+  useMode(m);
+  savePref('cometloop:mode',MODE);
+  G.modeFx=1;
+  track('mode_chosen',{run_index:G.runs});   /* play_mode rides on every event */
+  /* the two modes answer in their own register: skill's confirmation is the
+     brighter fifth above chill's, in the pentatonic every other sound in the
+     game speaks through — never a bare frequency */
+  beep(PENT[MODE==='chill'?0:2],0.12,'triangle',0.05,PENT[MODE==='chill'?2:4]);
+}
+function enterSwipeSel(from){
+  G.selFrom=from||null;
+  G.state='swipesel';G.lvT=G.t;G.nRings=3;G.ringI=1;G.hopFromI=1;G.hopP=1;
+  G.angle=Math.PI/2;   /* bottom of the loop: the one place the rules disagree */
+  G.trail.length=0;    /* or the angle jump draws a chord across the arena */
+  G.stars=[];G.spikes=[];G.pows=[];
+}
+/* THE DEMO NEEDS RINGS TO HOP BETWEEN, so returning to the title screen puts
+   them back. menuDemo's hop is gated on G.nRings>1 and the level picker
+   deliberately leaves ONE ring behind it — so without this, a player who
+   opened the picker and backed out watched the swipe caption appear over a
+   comet that never changed ring, which is the single thing that screen exists
+   to demonstrate. Every path back to the menu goes through here. */
+function enterMenu(){
+  G.state='menu';G.lvT=G.t;
+  G.nRings=3;G.ringI=0;G.hopFromI=0;G.hopP=1;
+}
+function enterLevelSel(){
+  G.state='levelsel';G.lvT=G.t;
+  G.lvSel=Math.min(LEVEL_MAX,Math.max(1,G.lvSel||1));
+  G.lvSelRects=[];G.lvSelPt=null;G.lvSelFx=0;
+  /* one ring and nothing on it: the picker owns the middle of the screen, so
+     the arena behind it is a single quiet orbit rather than a live board */
+  G.nRings=1;G.ringI=0;G.hopFromI=0;G.hopP=1;
+  G.trail.length=0;G.stars=[];G.spikes=[];G.pows=[];
+}
+/* THE ARROWS THAT HOP ALSO CHOOSE. Every pre-run screen is a list, and the
+   two hop keys are already the game's "previous/next" — so a keyboard reaches
+   both pickers with the keys it is already holding, and nothing new has to be
+   learned or drawn. Nowhere else changes: on any other state this is a no-op,
+   which is what the arrow keys already did outside a run. */
+function menuStep(d){
+  if(G.state==='menu'){
+    /* CHILL is drawn left of SKILL, so -1 is left is chill */
+    pickMode(d<0?'chill':'skill');
+  }else if(G.state==='levelsel'){
+    const n=Math.min(LEVEL_MAX,Math.max(1,(G.lvSel||1)+d));
+    if(n!==G.lvSel){
+      G.lvSel=n;G.lvSelFx=1;
+      beep(PENT[Math.min(13,2+n)],0.10,'triangle',0.05,PENT[Math.min(13,4+n)]);
+    }
+  }
+}
+/* the title screen's exit: the swipe rule is asked once per device and comes
+   first, because it is a question about the controls and the level picker is
+   a question about the game */
+function leaveMenu(){
+  if(!G.swipeAsked){enterSwipeSel('start');return;}
+  enterLevelSel();
+}
+function startFromSelect(){
+  const n=Math.min(LEVEL_MAX,Math.max(1,G.lvSel||1));
+  G.level=n;G.startLevel=n;
+  G.upg={};G.offered={};G.offer=[];G.picks=[];
+  /* a picked start is a fresh run: nothing carries in from whatever the last
+     one banked, or level 3 would open holding level 2's score and counters */
+  G.carryScore=0;G.carryOrbits=0;G.carryStreak=0;G.carryTime=0;
+  G.carryLands=0;G.carryGroove=0;
+  track('start_level_chosen',{game_level:n,run_index:G.runs});
+  /* THE CARD IS THE LEVEL'S OWN INTRODUCTION, so a picked level always gets
+     one — it names the level and the two things it is about, which is exactly
+     what someone who has never been there needs. Level 1 keeps the instant
+     start for a player who has run before: the same rule retry() uses, and
+     the reason its card belongs to the first run rather than to every start. */
+  if(!G.runs||n>=2){G.state='lvend';G.lvT=G.t;G.lvCard={done:false,next:n};}
   else startGame();
 }
 /* one dismissal path for every card: sets the level and reports the read —
@@ -4711,7 +4921,16 @@ function runSummary(){
   /* The level leads and the score moves down a line. A shared score is a
      number nobody can place; a shared level is a claim that invites one back
      — "level 2 of 3" is answerable in a way "4300" is not. */
-  return 'Cosmo · LEVEL '+G.level+'/'+LEVEL_MAX+'\n'+
+  /* THE SHARED CLAIM HAS TO BE THE CLAIM THAT WAS EARNED. Two things now make
+     a score mean something different: the mode it was played in, and whether
+     the run started at level 1 or was picked into. Both are named, and only
+     when they are not the default — a skill run that began at LIFT OFF shares
+     exactly the text that shipped, because that is still what "Cosmo · LEVEL
+     2/4" has always meant. A chill run announcing itself as an unqualified
+     level 4 would be the share text lying on the player's behalf. */
+  const tag=(MODE==='chill'?' · CHILL':'')+
+    (G.startLevel>1?' · from L'+G.startLevel:'');
+  return 'Cosmo · LEVEL '+G.level+'/'+LEVEL_MAX+tag+'\n'+
     bar+' '+tierLabel()+'\n'+
     G.score+' points · '+G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
     (G.bestGroove>=2?'on beat ×'+G.bestGroove+'\n':'')+
@@ -4779,36 +4998,44 @@ cv.addEventListener('pointerdown',function(e){
   if(inMute(e.clientX,e.clientY)){toggleMute();return;}
   if(inShare(e.clientX,e.clientY)){doShare();return;} /* must precede the retry tap */
   if(G.state==='menu'){
-    /* every visit begins at LIFT OFF — shared and borrowed phones kept
-       inheriting a device's unlock, and friends thought the game had skipped
-       level 1. Dying mid-run still retries the level you died on. */
-    G.level=1;G.upg={};G.offered={};G.offer=[];G.picks=[];
     /* WHICH WAY IS OUT, ASKED ONCE. Two rules exist and they disagree only at
        the top and bottom of the loop; which one a person's hand expects is not
        something the game can decide for them. Asked on the first tap of a
        fresh device, before the level-1 card, and never again — the menu keeps
        a control for changing it later. */
     /* the menu's swipe row is a control: a hand can want one rule on day one
-       and the other on day three, and nothing else on this screen is tappable
-       so a mis-tap only ever costs a look at the chooser */
+       and the other on day three, so a mis-tap only ever costs a look at the
+       chooser */
     if(G.swipeRect&&e.clientX>=G.swipeRect.x&&e.clientX<=G.swipeRect.x+G.swipeRect.w&&
        e.clientY>=G.swipeRect.y&&e.clientY<=G.swipeRect.y+G.swipeRect.h){
-      G.selFrom='menu';G.swipeAsked=false;
+      G.swipeAsked=false;enterSwipeSel('menu');return;
     }
-    if(!G.swipeAsked){
-      G.state='swipesel';G.lvT=G.t;G.nRings=3;G.ringI=1;G.hopFromI=1;G.hopP=1;
-      G.angle=Math.PI/2;   /* bottom of the loop: the one place the rules disagree */
-      G.trail.length=0;    /* or the angle jump draws a chord across the arena */
-      G.stars=[];G.spikes=[];G.pows=[];
-      return;
+    /* THE MODE CARDS SELECT, THEY DO NOT START. Two controls on the screen a
+       player taps without reading means one of them will be hit by accident,
+       and the expensive mistake is starting a run in the wrong game rather
+       than looking at a card you did not mean to look at. So a card only ever
+       changes the selection, and the run begins from START — or from anywhere
+       else on the screen, which is the tap this game has always answered. */
+    const mh=G.menuRects.find(function(r){
+      return e.clientX>=r.x&&e.clientX<=r.x+r.w&&e.clientY>=r.y&&e.clientY<=r.y+r.h;});
+    if(mh&&mh.id!=='start'){pickMode(mh.id);return;}
+    leaveMenu();
+    return;
+  }
+  if(G.state==='levelsel'){
+    /* Resolved at press, not at lift: there is no gesture on this screen, so
+       nothing here can turn into a swipe the way the arena's controls can. */
+    const lh=G.lvSelRects.find(function(r){
+      return e.clientX>=r.x&&e.clientX<=r.x+r.w&&e.clientY>=r.y&&e.clientY<=r.y+r.h;});
+    if(!lh)return;   /* the picker is a decision: the background starts nothing */
+    if(lh.id==='start'){startFromSelect();beep(523,0.14,'triangle',0.06,784);return;}
+    if(lh.id==='back'){enterMenu();beep(392,0.09,'triangle',0.04,294);return;}
+    if(lh.lv&&lh.lv!==G.lvSel){
+      G.lvSel=lh.lv;G.lvSelFx=1;
+      /* the ladder reveal's interval, walked upward as you pick deeper — the
+         same pentatonic the death screen's pips use */
+      beep(PENT[Math.min(13,2+lh.lv)],0.10,'triangle',0.05,PENT[Math.min(13,4+lh.lv)]);
     }
-    /* A GENUINE FIRST RUN GETS LEVEL 1'S CARD. The LIFT OFF card was dead
-       data — lvCard was only ever built by levelComplete, so the one calm
-       screen that pre-teaches the verbs, the orbit economy and the finale
-       never rendered for the exact player it was written for. One tap,
-       once per device, and a veteran never meets it. */
-    if(!G.runs){G.state='lvend';G.lvT=G.t;G.lvCard={done:false,next:1};}
-    else startGame();
     return;
   }
   if(G.state==='lvend'){G.lvPt={x:e.clientX,y:e.clientY};return;}  /* decided at lift */
@@ -4907,8 +5134,12 @@ function pdEnd(e){
         G.swipeAsked=true;
         track('swipe_mode_chosen',{mode:SWIPE_MODE,hops:GEST.swipe+GEST.lateSwipe});
         pd=null;
-        if(G.selFrom==='menu'){G.selFrom=null;G.state='menu';}
-        else{G.state='lvend';G.lvT=G.t;G.lvCard={done:false,next:1};}
+        /* opened from the menu's swipe row, it goes back to the menu; reached
+           on the way into a run, it hands off to the level picker — which is
+           now the screen that decides where the run starts, so the chooser no
+           longer builds the level-1 card itself */
+        if(G.selFrom==='menu'){G.selFrom=null;enterMenu();}
+        else{G.selFrom=null;enterLevelSel();}
         beep(523,0.14,'triangle',0.06,784);
         return;
       }
@@ -4972,9 +5203,9 @@ window.addEventListener('keydown',function(e){
   if(e.code==='Space'||e.code==='Enter'){
     e.preventDefault();ensureAudio();
     if(G.state==='menu'){
-      G.level=1;G.upg={};G.offered={};G.offer=[];G.picks=[];
-      if(!G.runs){G.state='lvend';G.lvT=G.t;G.lvCard={done:false,next:1};}
-      else startGame();
+      leaveMenu();
+    }else if(G.state==='levelsel'){
+      startFromSelect();
     }else if(G.state==='lvend'){
       if(G.t-G.lvT>0.6){cardDone();startGame();braam(0.05);}
     }else if(G.state==='dead'){
@@ -4984,9 +5215,11 @@ window.addEventListener('keydown',function(e){
   }else if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='ArrowLeft'||e.code==='KeyA'){
     e.preventDefault();
     if(G.state==='playing'){tryLand();hop(-1);}
+    else menuStep(-1);
   }else if(e.code==='ArrowDown'||e.code==='KeyS'||e.code==='ArrowRight'||e.code==='KeyD'){
     e.preventDefault();
     if(G.state==='playing'){tryLand();hop(1);}
+    else menuStep(1);
   }else if(e.code==='KeyM'){
     toggleMute();
   }
@@ -5231,7 +5464,7 @@ function update(dt){
   const tsT=(G.slow>0||bhActive())?BH_TS:1;
   G.tsCur+=(tsT-G.tsCur)*Math.min(1,dt*8);
   /* the menu demo hops at a third speed, so the gesture reads as a gesture */
-  if(G.hopP<1)G.hopP=Math.min(1,G.hopP+dt/((G.state==='menu'||G.state==='swipesel')?HOP*3.5:HOP));
+  if(G.hopP<1)G.hopP=Math.min(1,G.hopP+dt/((G.state==='menu'||G.state==='swipesel'||G.state==='levelsel')?HOP*3.5:HOP));
   /* The grace holds while the finger is still down: a slow deliberate swipe
      used to outlive the 70ms window, fire the reverse beep and sparks, and
      then roll back anyway — sound for a reverse that never happened. A held
@@ -5286,7 +5519,21 @@ function update(dt){
   }
 
   /* dir matters on the menu now: the demo reverses the comet for real */
-  if(G.state==='menu'){G.sweep=0;G.angle+=0.8*dt*G.dir;pushTrail();menuDemo(dt);return;}
+  /* THE TITLE SCREEN RUNS AT THE MODE'S PACE. The demo comet is the only
+     moving thing on the menu, so pointing the mode's own speed trim at it
+     makes the choice legible before the player has committed to it: pick
+     CHILL and the screen you are looking at visibly calms down. It is the
+     same multiplier the run uses — not a decoration with its own number. */
+  if(G.state==='menu'){
+    G.sweep=0;G.angle+=0.8*MD().demo*dt*G.dir;pushTrail();
+    if(G.modeFx>0)G.modeFx=Math.max(0,G.modeFx-dt*2.2);
+    menuDemo(dt);return;
+  }
+  if(G.state==='levelsel'){
+    G.sweep=0;G.angle+=0.62*MD().demo*dt*G.dir;pushTrail();
+    if(G.lvSelFx>0)G.lvSelFx=Math.max(0,G.lvSelFx-dt*2.4);
+    return;
+  }
   if(G.state==='lvend'){G.sweep=0;G.angle+=0.8*dt*G.dir;pushTrail();return;}
   /* THE CHOOSER IS A SANDBOX, not a diagram. It runs the real rings, the real
      comet and the real hop() — the only way to know which rule your thumb
@@ -7633,6 +7880,118 @@ function drawLadder(x,y,level,shown){
   }
   ctx.globalAlpha=1;
 }
+/* ---------- the mode cards ----------
+   TWO WORDS DO NOT DESCRIBE TWO GAMES. "chill" and "skill" are the same four
+   letters of promise, and a sentence under each one is read by nobody who is
+   about to tap START — so each card ANIMATES the difference it is selling
+   instead of claiming it. Both draw the same picture with the same code: a
+   comet on an orbit with reds on it. Skill's orbit is fast, tight and carries
+   four shards; chill's is slow, wide and carries one. Whatever the numbers do
+   later, this is what the numbers mean, and it is legible in a second with
+   the sound off.
+
+   The art is driven off the SAME knobs the run is: the dot's angular rate is
+   the mode's speed trim, the shard count its density trim, the trail length
+   its warning trim. A card cannot flatter a mode the game does not deliver,
+   because there is no separate number here to flatter it with.
+
+   Everything is a fraction of the panel, so the card lays out at whatever
+   size the screen left for it — the lesson the upgrade tiles learned when a
+   hardcoded 76u tile came out at 8 physical pixels of description text. */
+function modeArt(m,x,y,w,h,on){
+  const rx=w*0.36,ry=Math.min(h*0.36,rx*0.62);
+  const spd=RM?0:m.speed*1.5;
+  const a0=G.t*spd*(m.id==='chill'?0.8:1.35);
+  ctx.save();
+  ctx.translate(x+w/2,y+h/2);
+  /* the orbit itself: a soft ellipse, brighter on the selected card */
+  ctx.globalAlpha=on?0.55:0.30;
+  ctx.strokeStyle=m.c;ctx.lineWidth=1.2*u;
+  ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,TAU);ctx.stroke();
+  /* the reds: the density trim, counted. cap/gap IS how full a board gets —
+     how many may sit on it over how often one arrives — so the picture counts
+     four on skill and two on chill because that is the ratio, not a number
+     picked to look like a difference. */
+  const nsh=Math.max(1,Math.round(4*m.cap/m.gap));
+  ctx.globalAlpha=on?0.9:0.45;
+  ctx.fillStyle=COL.shard;
+  for(let i=0;i<nsh;i++){
+    const sa=i*TAU/nsh+(m.id==='chill'?a0*0.15:0.4);
+    const sx=Math.cos(sa)*rx,sy=Math.sin(sa)*ry;
+    const sr=2.6*u;
+    ctx.save();ctx.translate(sx,sy);ctx.rotate(Math.PI/4);
+    ctx.fillRect(-sr,-sr,sr*2,sr*2);
+    ctx.restore();
+  }
+  /* the trail: the warning trim, drawn. More reading time is a longer look at
+     where the comet has been, so chill's tail is visibly the generous one. */
+  const tn=Math.round(9*m.warn);
+  for(let i=tn;i>=0;i--){
+    const ta=a0-i*0.052/Math.max(0.2,m.speed);
+    const f=1-i/(tn+1);
+    ctx.globalAlpha=(on?0.85:0.42)*f*f;
+    ctx.fillStyle=m.c;
+    const rr=(1.1+2.6*f)*u;
+    ctx.beginPath();ctx.arc(Math.cos(ta)*rx,Math.sin(ta)*ry,rr,0,TAU);ctx.fill();
+  }
+  /* the head, with a halo built from a gradient rather than shadowBlur —
+     this runs every frame and the file's bloom pass is banned from per-frame
+     shadow work for exactly that reason */
+  const hx=Math.cos(a0)*rx,hy=Math.sin(a0)*ry;
+  const gr=ctx.createRadialGradient(hx,hy,0,hx,hy,11*u);
+  gr.addColorStop(0,m.c);
+  gr.addColorStop(0.35,'rgba(255,255,255,0.55)');
+  gr.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.globalAlpha=on?0.85:0.45;
+  ctx.fillStyle=gr;
+  ctx.beginPath();ctx.arc(hx,hy,11*u,0,TAU);ctx.fill();
+  ctx.globalAlpha=on?1:0.5;
+  ctx.fillStyle='#ffffff';
+  ctx.beginPath();ctx.arc(hx,hy,2.4*u,0,TAU);ctx.fill();
+  ctx.restore();
+  ctx.globalAlpha=1;
+}
+/* One card. Returns nothing — the caller owns the rect it registered. */
+function drawModeCard(m,x,y,w,h,on,pop){
+  const rr=Math.min(14*u,w*0.13);
+  ctx.save();
+  /* the plate. The selected card is lifted out of the backdrop and tinted
+     toward its own colour; the other stays a dark tile, so which one is armed
+     is readable at a glance and without reading a word. */
+  const bg=ctx.createLinearGradient(0,y,0,y+h);
+  if(on){bg.addColorStop(0,'rgba(30,44,74,0.96)');bg.addColorStop(1,'rgba(12,18,34,0.96)');}
+  else{bg.addColorStop(0,'rgba(16,22,38,0.80)');bg.addColorStop(1,'rgba(9,13,25,0.80)');}
+  ctx.fillStyle=bg;
+  ctx.beginPath();ctx.roundRect(x,y,w,h,rr);ctx.fill();
+  /* the selected border breathes; the pop is the confirmation of the tap that
+     just selected it, so switching cards has a moment rather than a jump */
+  ctx.strokeStyle=on?m.c:'rgba(140,170,220,0.28)';
+  ctx.lineWidth=on?2:1.2;
+  ctx.globalAlpha=on?(RM?0.95:0.6+0.4*Math.sin(G.t*(m.id==='chill'?1.8:3.4)))+(pop||0)*0.4:1;
+  ctx.globalAlpha=Math.min(1,ctx.globalAlpha);
+  ctx.beginPath();ctx.roundRect(x+1,y+1,w-2,h-2,rr);ctx.stroke();
+  ctx.globalAlpha=1;
+  ctx.restore();
+  /* art on the top half, type on the bottom — the same split as the draft
+     tiles, so the two card screens in this game read as one idiom */
+  modeArt(m,x,y+h*0.06,w,h*0.44,on);
+  ctx.textAlign='center';
+  const nsz=Math.max(13*u,Math.min(20*u,w*0.19));
+  textFx(m.name,x+w/2,y+h*0.68,fitSz(m.name,nsz,'800',w-14*u,3),'800',
+    on?'#ffffff':'rgba(220,232,255,0.62)',on?m.c:'rgba(150,175,215,0.6)',
+    on?'rgba(255,255,255,0.25)':null,3);
+  const tsz=Math.max(8.5*u,Math.min(10.5*u,w*0.093));
+  text(m.tag,x+w/2,y+h*0.80,fitSz(m.tag,tsz,'600',w-12*u),'600',
+    on?'rgba(206,220,255,0.85)':'rgba(180,198,230,0.45)',0);
+  /* EACH CARD CARRIES ITS OWN RECORD, which is the whole reason the records
+     are stored per mode: one number under the title could only ever belong to
+     one of these two games, and the player would have no way to know which. */
+  const r=REC[m.id]||{best:0,lvlMax:1};
+  const bl=r.best>0?'best · '+r.best:'no runs yet';
+  text(bl,x+w/2,y+h*0.925,fitSz(bl,Math.max(8*u,tsz*0.95),'700',w-12*u,1),'700',
+    r.best>0?(on?'rgba(255,200,87,0.85)':'rgba(255,200,87,0.4)')
+            :(on?'rgba(200,215,255,0.45)':'rgba(200,215,255,0.25)'),1);
+}
 function drawHUD(){
   /* THE LESSON VEIL. While a hard first-encounter lesson holds the world
      near-frozen, the whole board dims and the specimen being explained
@@ -8213,14 +8572,30 @@ function drawHUD(){
        old copy still told players to "tap it to phase through" — a control
        that was removed two releases ago, which is the worst thing an
        instruction can do. */
-    /* Only once there is a climb to report. A first-time player has no level
-       to beat and does not need a scoreboard before they have played. It rides
-       directly under the title because it is identity, not a control \u2014 the key
-       below is one uninterrupted list of things you can do. */
-    if(G.best>0){
-      text('best \u00b7 '+G.best,cx,ty+20*u,12*u,'700',
-        'rgba(255,200,87,0.7)',2);
+    /* THE BEST LINE MOVED ONTO THE CARDS. It used to ride under the title as
+       identity, and it still is identity \u2014 but there are two records now, and
+       one number under one title cannot say which of the two games it belongs
+       to. Each mode card carries its own, which is also what makes an empty
+       one honest: "no runs yet" on the mode you have not tried. */
+    /* THE MODE PICKER. Laid out first and from the room between the title and
+       the key, because it is the only decision on this screen and the key
+       below it is reference material. Two cards, side by side, CHILL on the
+       left so the arrow keys read left-to-right as easier-to-harder. */
+    G.menuRects=[];
+    const cardTop=ty+16*u;
+    const cardW=Math.min((Math.min(W-28*u,430*u)-12*u)/2,168*u);
+    /* height comes from what is left after the key needs its four rows, and
+       is clamped either side: too short and the art has no room to move in,
+       too tall and it eats the sentences under it */
+    const cardH=Math.max(96*u,Math.min(cardW*0.98,(bottomY-30*u-cardTop)*0.46));
+    const cardGap=12*u,cardX=cx-(cardW*2+cardGap)/2;
+    const MLIST=[MODES.chill,MODES.skill];
+    for(let i=0;i<MLIST.length;i++){
+      const m=MLIST[i],bx=cardX+i*(cardW+cardGap);
+      G.menuRects.push({x:bx,y:cardTop,w:cardW,h:cardH,id:m.id});
+      drawModeCard(m,bx,cardTop,cardW,cardH,MODE===m.id,MODE===m.id?G.modeFx:0);
     }
+    ctx.textAlign='center';
     /* FOUR ROWS, NOT NINE. This is the densest block of text in the game and
        the first thing anybody reads \u2014 the playtester who counted "like eight
        rules" was counting this screen and the level 1 card together. Five rows
@@ -8244,7 +8619,9 @@ function drawHUD(){
        phone; it now takes the gap between the title and TAP TO START and
        divides it, so adding a row shrinks the leading instead of overflowing. */
     G.swipeRect=null;
-    const kTop=ty+(G.best>0?34*u:22*u), kBot=bottomY-24*u;
+    /* the key now starts under the cards rather than under the title — same
+       divide-the-gap rule, one more thing above it */
+    const kTop=cardTop+cardH+10*u, kBot=bottomY-24*u;
     const rh=Math.min(24*u,Math.max(15*u,(kBot-kTop)/rows.length));
     const fs=Math.min(13*u,rh*0.56), gs=Math.min(20*u,rh*0.84);
     /* centred in the gap rather than pinned to the top of it: on a tall phone
@@ -8274,12 +8651,32 @@ function drawHUD(){
       }
     }
     ctx.textAlign='center';
+    /* START IS A CONTROL NOW, not just an instruction. "TAP TO START" was true
+       when the whole screen did exactly one thing; with two cards on it that
+       sentence would be telling a player their card tap starts a run, which it
+       deliberately does not. So the words become a button — and tapping
+       anywhere that is not a card still starts, because that is the gesture
+       this screen has always answered.
+       Measured here rather than where it draws, because the two lines below
+       clamp themselves against its top edge. */
+    /* THE PILL HAS TO MAKE ROOM FOR BOTH LINES. "TAP TO START" was one text
+       baseline, so the sound note above it and the collection notice below it
+       could both be placed relative to bottomY and neither could touch it. A
+       BUTTON has height, and it landed straight through both: the disclosure
+       line printed inside the pill's lower edge on every viewport tested.
+       So the pill is measured first, sits a little higher than the old
+       baseline, and both lines clamp to its actual edges instead of to
+       bottomY. 30u rather than 34 buys the clearance a 375-tall landscape
+       phone needs — where the notice would otherwise be pushed off-screen,
+       which is the one outcome worse than overlapping it. */
+    const sbH=30*u,sbW=Math.min(168*u,W-60*u);
+    const sbY=bottomY-sbH/2-8*u;
     /* Opened from a chat app, iOS presents the page as a modal sheet, and that
        sheet eats downward swipes to dismiss itself — the game's own inward hop.
        Nothing in here can prevent it, so point at the thing that does. */
     if(IN_APP_BROWSER){
       text('add to home screen \u2014 swipes close this window',cx,
-        Math.min(bottomY-11*u,y0+rows.length*rh+4*u),
+        Math.min(sbY-22*u,y0+rows.length*rh+4*u),
         11*u,'600','rgba(255,190,120,0.75)',0);
     }
     /* THE DEMO'S CAPTIONS. The comet behind the key is playing a 12-second
@@ -8291,20 +8688,137 @@ function drawHUD(){
       if(dc>=1.6&&dc<4.2)hintGlyph('tap',dp[0],dp[1]-30*u,26*u);
       else if(dc>=5.2&&dc<10.6)hintGlyph('swipe',dp[0],dp[1]-30*u,26*u);
     }
+    G.menuRects.push({x:cx-sbW/2,y:sbY,w:sbW,h:sbH,id:'start'});
     ctx.globalAlpha=0.5;
-    text('best with sound on \u2014 never required',cx,bottomY-24*u,10*u,'600',
+    text('best with sound on \u2014 never required',cx,sbY-10*u,10*u,'600',
       'rgba(200,215,255,0.8)',1);
     ctx.globalAlpha=1;
     const pulse=RM?1:0.72+0.28*Math.sin(G.t*3);
+    ctx.save();
     ctx.globalAlpha=pulse;
-    textFx('TAP TO START',cx,bottomY,17*u,'800','#eaffff',COL.comet,'rgba(93,240,255,0.5)',4);
+    ctx.strokeStyle=MD().c;ctx.lineWidth=1.8;
+    ctx.beginPath();ctx.roundRect(cx-sbW/2,sbY,sbW,sbH,sbH/2);ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha=pulse;
+    ctx.textBaseline='middle';
+    textFx('START',cx,sbY+sbH/2,17*u,'800','#eaffff',MD().c,'rgba(93,240,255,0.5)',4);
+    ctx.textBaseline='alphabetic';
     ctx.globalAlpha=1;
     /* Shown only when collection is actually switched on. Delete this block
        if you would rather disclose somewhere else — but disclose somewhere. */
     if(POSTHOG_KEY){
+      /* under the pill's real bottom edge, not under bottomY — see the note on
+         sbH. bottomY is at most H-24u-safeBot and the pill ends 7u past it, so
+         this always clears the button AND stays on the screen; the min is a
+         belt for a future layout that moves bottomY down. */
       text('anonymous play stats collected',cx,
-        Math.min(H-8*u-safeBot,bottomY+20*u),10*u,'600','rgba(200,215,255,0.32)',0);
+        Math.min(H-6*u-safeBot,sbY+sbH+14*u),10*u,'600','rgba(200,215,255,0.32)',0);
     }
+  }else if(G.state==='levelsel'){
+    /* WHERE DO YOU WANT TO START. Four rows and a button, drawn in the hollow
+       of the ring system the way the swipe chooser is — a picker in this game
+       is a list on the live arena, not a settings sheet over a frozen one.
+       EVERY LEVEL IS SELECTABLE, INCLUDING ONES THIS DEVICE HAS NEVER SEEN,
+       and that is the point: the screen exists so a level can be reached
+       without playing to it. What that costs is bounded and paid for in die()
+       — a run that did not begin at level 1 cannot move the level record —
+       so the freedom here cannot forge a climb. A row the device has actually
+       reached is marked, so "picked" and "earned" stay visibly different
+       things on the one screen where they could be confused.
+
+       THIS REVERSES A DELIBERATE DECISION, and the reason it is safe to is
+       narrower than it looks. The menu used to force G.level=1 on every tap,
+       with this note: "every visit begins at LIFT OFF — shared and borrowed
+       phones kept inheriting a device's unlock, and friends thought the game
+       had skipped level 1." That complaint was about a start nobody CHOSE.
+       The selection is not persisted for exactly this reason — G.lvSel is
+       memory-only and every page load opens on LEVEL 1 — so a borrowed phone
+       still begins at LIFT OFF unless the person holding it deliberately
+       picks otherwise, on a screen that names all four levels. Do not add
+       `cometloop:lvsel`: saving the pick is what would bring the original bug
+       back, with the level picker as its new hiding place. */
+    const lsA=Math.min(1,(G.t-G.lvT)/0.35);
+    ctx.globalAlpha=lsA;
+    const lsTop=Math.max(top+40*u,cy-R-44*u);
+    textFx('START WHERE?',cx,lsTop,fitSz('START WHERE?',24*u,'800',W-30*u,2),'800',
+      '#ffffff','#9fd8ff','rgba(125,228,255,0.45)',2);
+    const sub=MD().name+' · pick a level';
+    text(sub,cx,lsTop+21*u,fitSz(sub,11.5*u,'600',W-30*u),'600',
+      'rgba(210,225,255,0.72)',1);
+    G.lvSelRects=[];
+    /* sized from the box between the heading and the button, so four rows fit
+       a short landscape phone by shrinking rather than by overflowing it */
+    const lw=Math.min(W-36*u,300*u);
+    /* THE BUTTON AND THE BACK ROW ARE RESERVED OUT OF THE BOX FIRST, and the
+       list takes what is left. Sized the other way round, a 390-tall landscape
+       phone printed 'back' with its descenders off the bottom of the screen:
+       bottomY leaves 24u under itself, and the pill plus the back row want
+       more than that. The list shrinks; the controls do not move. */
+    const pH=40*u,bkH=26*u;
+    const py2=bottomY-pH-12*u;
+    const lsBot=py2-14*u;
+    const lgap=7*u;
+    const lh=Math.max(30*u,Math.min(46*u,(lsBot-(lsTop+34*u)-(LEVEL_MAX-1)*lgap)/LEVEL_MAX));
+    let ly=(lsTop+34*u+lsBot)/2-(LEVEL_MAX*lh+(LEVEL_MAX-1)*lgap)/2;
+    for(let i=0;i<LEVEL_MAX;i++){
+      const n=i+1,L=LV[i],on=G.lvSel===n,lx=cx-lw/2;
+      const reached=n<=G.lvlMax;
+      G.lvSelRects.push({x:lx,y:ly,w:lw,h:lh,id:'lv',lv:n});
+      ctx.save();
+      ctx.globalAlpha=lsA;
+      ctx.fillStyle=on?'rgba(30,54,84,0.96)':'rgba(16,22,38,0.90)';
+      ctx.beginPath();ctx.roundRect(lx,ly,lw,lh,11*u);ctx.fill();
+      ctx.strokeStyle=on?MD().c:'rgba(140,170,220,0.28)';
+      ctx.lineWidth=on?2:1.2;
+      ctx.globalAlpha=lsA*(on?(RM?1:0.62+0.38*Math.sin(G.t*3))+G.lvSelFx*0.35:1);
+      ctx.globalAlpha=Math.min(1,ctx.globalAlpha);
+      ctx.beginPath();ctx.roundRect(lx+1,ly+1,lw-2,lh-2,11*u);ctx.stroke();
+      ctx.globalAlpha=lsA;
+      /* the ordinal as the same diamond the death screen's ladder uses: one
+         pip per level with this one filled, so the row says WHERE in the run
+         it sits and not merely which number it is */
+      const dx=lx+20*u,dy=ly+lh/2;
+      ctx.save();ctx.translate(dx,dy);ctx.rotate(Math.PI/4);
+      if(on){ctx.fillStyle=COL.ember;ctx.fillRect(-4.4*u,-4.4*u,8.8*u,8.8*u);}
+      else{ctx.strokeStyle=reached?'rgba(255,200,87,0.7)':'rgba(200,215,255,0.5)';
+        ctx.lineWidth=1.3;ctx.strokeRect(-4.4*u,-4.4*u,8.8*u,8.8*u);}
+      ctx.restore();
+      ctx.textAlign='left';
+      const nm=L.name;
+      text('LEVEL '+n,lx+38*u,dy-3*u,fitSz('LEVEL '+n,10*u,'700',lw-60*u),'700',
+        on?'rgba(255,200,87,0.9)':'rgba(255,200,87,0.45)',2);
+      text(nm,lx+38*u,dy+13*u,fitSz(nm,14*u,'800',lw-58*u),'800',
+        on?'#eaf1ff':'rgba(214,228,255,0.66)',0);
+      /* the mark, right-aligned: what this device has actually reached */
+      if(reached&&n>1){
+        ctx.textAlign='right';
+        ctx.globalAlpha=lsA*(on?0.85:0.45);
+        text('reached',lx+lw-14*u,dy+5*u,9.5*u,'700','rgba(123,255,200,0.9)',1);
+        ctx.globalAlpha=lsA;
+      }
+      ctx.textAlign='center';
+      ctx.restore();
+      ly+=lh+lgap;
+    }
+    /* START, and a way back to the mode cards. The back control is a word
+       rather than a row: it is the one thing on this screen you reach for by
+       mistake, and it must not look like a fifth level. */
+    const pw2=Math.min(150*u,W-60*u),px2=cx-pw2/2;
+    G.lvSelRects.push({x:px2,y:py2,w:pw2,h:pH,id:'start'});
+    ctx.save();
+    ctx.globalAlpha=lsA*(RM?1:0.78+0.22*Math.sin(G.t*3));
+    ctx.strokeStyle=MD().c;ctx.lineWidth=1.8;
+    ctx.beginPath();ctx.roundRect(px2,py2,pw2,pH,pH/2);ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha=lsA;
+    ctx.textBaseline='middle';
+    textFx('START',cx,py2+pH/2,17*u,'800','#eaffff',MD().c,'rgba(93,240,255,0.5)',4);
+    ctx.textBaseline='alphabetic';
+    const bkW=64*u,bkY=py2+pH+7*u;
+    G.lvSelRects.push({x:cx-bkW/2,y:bkY,w:bkW,h:bkH,id:'back'});
+    ctx.globalAlpha=lsA*0.6;
+    text('back',cx,bkY+bkH*0.68,11*u,'700','rgba(200,215,255,0.85)',1);
+    ctx.globalAlpha=1;
   }else{
     /* THE LEVEL LEADS, AND THE SCREEN ASSEMBLES ITSELF. GAME OVER shrinks to
        a label — you already know you died — and instead of one static frame
@@ -8339,8 +8853,15 @@ function drawHUD(){
     ctx.globalAlpha=el(lvAt+0.35);
     if(G.newLevel)text('FURTHEST YET',cx,cy+42*u,13*u,'700',COL.ember,3);
     else if(G.newBest)text('NEW BEST',cx,cy+42*u,13*u,'700',COL.ember,3);
-    else text('BEST \u00b7 LEVEL '+G.lvlMax+' \u00b7 '+G.best,cx,cy+42*u,13*u,'600',
-      'rgba(200,215,255,0.5)',2);
+    else{
+      /* WHICH BEST. There are two records now and this line reports whichever
+         mode is selected, so in chill it has to say so \u2014 otherwise a player
+         who switches modes watches their best score appear to collapse. Named
+         only in chill: skill's line is the one that shipped, unchanged. */
+      const bl2=(MODE==='chill'?'CHILL BEST \u00b7 LEVEL ':'BEST \u00b7 LEVEL ')+G.lvlMax+' \u00b7 '+G.best;
+      text(bl2,cx,cy+42*u,fitSz(bl2,13*u,'600',W-24*u,2),'600',
+        'rgba(200,215,255,0.5)',2);
+    }
     ctx.globalAlpha=el(lvAt+0.5);
     text(G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime(),
       cx,cy+62*u,12*u,'600','rgba(200,215,255,0.45)',0);

@@ -68,6 +68,73 @@ threat arrives alone (the shard cap starts at one), early warning pulses run
 almost half a second longer, and spawns open at 2.6s apart instead of 2.1 —
 all of it converging on the same late game, none of it touching the ceiling.
 
+### CHILL and SKILL
+
+Two modes, and only one implementation of the game. SKILL is Cosmo as
+balanced. CHILL is the same code with **the clock turned down** and four
+forgiveness terms scaled: `MODES` is a table of multipliers, every difficulty
+curve reads it, and a balance change made once lands in both.
+
+The clock is the main lever on purpose. Everything that presses on the player
+— speed, shard cap, arrival rate, warning length, the tier ladder, the finish
+line — is already keyed off `dl()`, so slowing that one number eases all six
+together *and in the proportions they were tuned in*, which is the only way
+"easier" stays recognisably the same game rather than a differently-broken
+one. Chill runs it at 0.72, and trims the comet's speed (×0.86), the telegraph
+(×1.3), the shard cap (×0.78) and the spawn gap (×1.3) on top, and starts you
+one shield deeper.
+
+SKILL is the **identity mode**: every one of its knobs is 1, or 0 for the
+additive shield. That is not tidiness — it is what makes the claim checkable.
+With skill selected, every expression the knobs appear in reduces to exactly
+the expression that shipped, so this table can never quietly become the place
+the real game is tuned. `check.mjs` fails the build if a skill knob stops being
+the neutral element, if one mode grows a knob the others lack, or if any knob
+is declared and never read; `smoke.mjs` measures every term through the real
+functions in both modes, at the same difficulty second, so a table of
+multipliers wired to nothing cannot pass for a mode.
+
+Chill deliberately touches nothing else. The curriculum is gated on `dl` and
+on the level ordinal, so a chill run meets every formation and every orb in
+the same order at the same points — it takes more seconds to get there, which
+is the entire difference. The music is untouched: a mode is not a key change.
+And nothing multiplies the score, so a chill minute is worth less only because
+it contains less game.
+
+The records are kept per mode. An easier mode writing to `cometloop:best`
+would redefine every value already sitting on every device — the same failure
+the retired `cometloop:level` key exists to remember — so the unsuffixed keys
+stay SKILL's and chill gets its own. Each mode card on the title screen carries
+its own best, the death screen names the mode when it reports chill's record,
+and the share text appends `· CHILL` so a shared claim is the claim that was
+earned.
+
+### Where you start
+
+The title screen is the mode picker, and the screen after it picks the
+starting level. All four are selectable on any device, including levels never
+reached — the screen exists so a level can be reached without playing to it,
+which is what makes testing level 4 possible at all. Rows the device has
+actually got to are marked *reached*, so picked and earned stay visibly
+different things.
+
+This reverses a decision the menu used to enforce, and the reason it is safe
+to is narrower than it looks. Every menu tap used to force level 1, because
+shared and borrowed phones kept inheriting a device's unlock and friends
+thought the game had skipped level 1. That complaint was about a start nobody
+*chose*. So the selection is deliberately **not persisted** — it lives in
+memory and every page load opens on LEVEL 1 — and a borrowed phone still
+begins at LIFT OFF unless the person holding it picks otherwise on a screen
+that names all four levels. Saving the pick is what would bring the original
+bug back with the picker as its new hiding place.
+
+The cost of that freedom is bounded in exactly one place. `G.startLevel`
+records the level a run opened on, and the level record only moves for a run
+that began at level 1 — so choosing EVENT HORIZON and dying on the first shard
+prints no FURTHEST YET and writes nothing. A run that started at level 1 and
+climbed keeps counting, including across the retries that put it on a later
+level, because `startLevel` is where the run opened and not where it is now.
+
 ## Levels
 
 The run is **four levels**, each with an intro card and its own song. The
@@ -1339,7 +1406,16 @@ ten-rung unlock ladder is only ever `tier`. `run_ended` used to send `level`
 holding `tier + 1` while `level_cleared` sent `level` holding 1–3 — one
 property name, two scales, two events. The ambiguous name is retired rather
 than redefined, so no historical row silently changes meaning; `tier` carried
-the same number all along. The teaching pipeline reports on
+the same number all along. The two difficulty modes ride on every event as
+`play_mode` — without it, chill and skill deaths average into one unreadable
+completion rate, exactly as the two swipe rules would — and it is deliberately
+**not** called `mode`, because `swipe_mode_chosen` has always carried the swipe
+rule under that name and reusing it would rewrite what every historical row of
+that event says. `run_ended` also gained `start_level`, the level a run opened
+on: every run used to open on 1, so without it a level-4 run picked from the
+front screen is indistinguishable from one played to, and the completion funnel
+would count a jump as a climb. `mode_chosen` and `start_level_chosen` fire when
+those two screens are answered. The teaching pipeline reports on
 itself now too: `lesson_shown` fires when a first-encounter lesson actually
 completes its display (type, soft form or not, whether it was a death-
 triggered re-offer, seconds into the run), `card_shown` fires when a level
@@ -1553,12 +1629,15 @@ All five run on every pull request; only `main` goes on to publish.
 `check.mjs` confirms the inline script still parses, that the elements it
 looks up by ID are still in the document, and that the teaching tables have
 not gone stale — no lesson pointing at a cut orb, no tier unlocking after
-level 2's finish line. `smoke.mjs` goes further: it loads the game into a
-stubbed DOM and actually plays it — the menu demo, taps, committed and
-aborted swipes, the keyboard, several simulated minutes of a run, a landscape
-resize, a tab background/foreground, a death, the death screen's fast-forward
-tap and a retry, a level-2 start and its retry card, and the level ladder's
-agreement with the FURTHEST YET badge — asserting the state machine comes
+level 2's finish line, and no mode knob that is declared without being read or
+that lets SKILL stop being the identity. `smoke.mjs` goes further: it loads the
+game into a stubbed DOM and actually plays it — the three front screens, the
+menu demo, taps, committed and aborted swipes, the keyboard, several simulated
+minutes of a run, a landscape resize, a tab background/foreground, a death, the
+death screen's fast-forward tap and a retry, a level-2 start and its retry card,
+the level ladder's agreement with the FURTHEST YET badge, every difficulty term
+measured in both modes at the same difficulty second, and the guard that stops a
+picked starting level forging a level record — asserting the state machine comes
 through each transition intact. No browser, no dependencies; audio stays off,
 which also exercises every audio guard. `dropcheck.mjs` re-runs that harness
 with a stubbed AudioContext and fails if the build meter stops delivering beat

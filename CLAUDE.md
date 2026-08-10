@@ -56,7 +56,7 @@ All five run on every pull request and must pass. Run them locally before
 pushing — they are fast and need nothing installed.
 
 ```sh
-node tools/check.mjs       # parses; required elements; teaching-data drift
+node tools/check.mjs       # parses; required elements; teaching + mode-table drift
 node tools/smoke.mjs       # loads and plays the game in a stubbed DOM
 node tools/dropcheck.mjs   # the build meter still delivers beat drops
 node tools/curriculum.mjs  # nothing is left untaught by level 3
@@ -64,9 +64,20 @@ node tools/musiccheck.mjs  # four levels, four songs, each in its own key
 ```
 
 `smoke.mjs` is the one that catches real bugs: it loads the game into a stubbed
-DOM and actually plays it — menu demo, taps, swipes, keyboard, minutes of
-simulated play, resize, tab visibility, death, retry, level 2. Audio stays off,
-which exercises every audio guard.
+DOM and actually plays it — the three front screens, menu demo, taps, swipes,
+keyboard, minutes of simulated play, resize, tab visibility, death, retry,
+level 2. Audio stays off, which exercises every audio guard.
+
+**Three screens now stand between the menu and a run**, and each publishes its
+controls as rects from its draw pass: the mode cards on the title screen, the
+swipe chooser, then the level picker. None of them answers a tap on its
+background — the cards select rather than start, and the picker is a decision —
+so every harness crosses them by pressing the control it actually drew
+(`passMenu`, `passSwipeChooser`, `passLevelSelect`). A harness that taps a
+fixed point does not fail; it waits there forever, which is how the swipe
+chooser broke all four harnesses when it arrived. Add a front screen and you
+add a crossing helper to `smoke.mjs`, `dropcheck.mjs` and `curriculum.mjs` in
+the same commit.
 
 `musiccheck.mjs` is the only harness that runs the arrangement. `smoke.mjs`
 removes WebAudio deliberately and `dropcheck.mjs` never drives past level 2, so
@@ -127,6 +138,30 @@ Breaking one of these is a product regression, not a style question.
   `TIERS.length`. Twelve places in `index.html` still hardcode tier ordinals for
   the sky band, the NEW SOUND ladder and the star instrument — inserting below
   the highest of them shifts every one.
+- **CHILL is a derivative of SKILL, never a second implementation.** The two
+  modes are one game: `MODES` holds a table of multipliers, every difficulty
+  curve reads it, and a balance change made once has to land in both. Two
+  things keep that true and both are enforced by `check.mjs`. **SKILL is the
+  identity mode** — every knob 1, or 0 for the additive shield — so with skill
+  selected every expression reduces to exactly what shipped, and this table can
+  never quietly become the place the real game is tuned. **Every mode has the
+  same knob set**, so no mode can read a value only it has. A knob that is
+  declared and never read fails the build for the same reason a dead upgrade
+  tile does: it is a promise to the player that the game does not keep. If a
+  mode ever needs behaviour a multiplier cannot express, that is the
+  conversation to have first — not a branch on `MODE` in the game code.
+  Chill must not touch the curriculum, the music or the scoring: tiers are
+  keyed on `dl` and orbs on `G.level`, and `curriculum.mjs` fails if a mode
+  moves a tier, a finish line or a level boundary.
+- **A picked starting level cannot forge a climb.** The level select can start
+  any level on any device, including ones never reached — that is what it is
+  for. `G.startLevel` is the level the run *opened* on, and the level record
+  (`FURTHEST YET`, `cometloop:gl`) only moves when it is 1. Never widen this to
+  "the level the run is on": a run that starts at 1 and climbs must keep
+  counting across retries, and a run that jumped must never count at all.
+  Records are per mode and the unsuffixed storage keys are SKILL's — writing a
+  chill value under `cometloop:best` redefines every historical value on every
+  device, which is the retired-`cometloop:level` failure exactly.
 - **Two ladders, two names.** `G.tier` is the ten-rung *unlock* ladder (what has
   been introduced); `G.level` is the 1–3 structure the player is told about.
   Everything player-facing — the HUD, the death headline, the pips, the share
@@ -135,7 +170,9 @@ Breaking one of these is a product regression, not a style question.
 - **Telemetry: one name per ordinal.** `game_level` is the 1–3 level on every
   event; `tier` is the only name for the unlock ladder. Retire ambiguous
   property names rather than redefining them — a redefined property silently
-  corrupts historical rows.
+  corrupts historical rows. The difficulty mode is `play_mode` on every event
+  and deliberately not `mode`, which `swipe_mode_chosen` has always used for the
+  swipe rule; that is the rule being applied, not an inconsistency to tidy up.
 - **Audio is optional everywhere.** The game must be completable with no
   WebAudio at all. Every audio path is guarded; keep it that way.
 - **Every chord is diatonic to its level's natural minor, and every pitch is

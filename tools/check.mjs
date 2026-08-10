@@ -123,6 +123,61 @@ if (freeRadius.length) {
 if (/function starR\s*\(/.test(src)) {
   fail.push('starR() is back without the guard that has to come with it — see the note in check.mjs');
 }
+/* CHILL IS A DERIVATIVE, AND THIS IS WHAT KEEPS IT ONE. The whole claim of
+   the two modes is that there is no second implementation: MODES holds
+   multipliers, every difficulty curve reads them, and a balance change made
+   once lands in both games. Three ways that claim can rot, all guarded here.
+
+   1. SKILL STOPS BEING THE IDENTITY. Every skill knob is 1 (or 0 for the
+      additive shield), which is the only reason "with skill selected the
+      expressions reduce to what shipped" is a fact rather than a hope. The
+      moment someone tunes the real game by editing skill's row, the two modes
+      are two balances and this file is the last place that would notice.
+   2. A MODE GROWS ITS OWN KNOB. If chill carries a field skill does not, then
+      something reads a value that exists in one mode only — which is a second
+      code path wearing a table's clothes. Every row must have the same shape.
+   3. A KNOB IS NEVER READ. Exactly the dead-tile failure the upgOn guard
+      above exists for, and worse here: a number in this table is a PROMISE
+      about how the mode plays, and an unread one is a promise the game does
+      not keep. Read from the stripped source, because a knob named in the
+      comment that explains its removal is not a call site. */
+const modesBlock = src.match(/const MODES\s*=\s*\{([\s\S]*?)\n\};/);
+if (!modesBlock) fail.push('MODES table not found — the mode-derivation guards cannot run');
+else {
+  const rows = [...modesBlock[1].matchAll(/(\w+)\s*:\s*\{([\s\S]*?)\}\s*(?:,|$)/g)]
+    .map(m => [m[1], Object.fromEntries(
+      [...m[2].matchAll(/\b(\w+)\s*:\s*(-?[\d.]+)\b/g)].map(k => [k[1], +k[2]]))]);
+  const modes = Object.fromEntries(rows);
+  if (!modes.skill) fail.push('MODES has no `skill` row — skill is the identity mode, everything else derives from it');
+  if (rows.length < 2) fail.push('MODES parsed but yielded fewer than two modes — the guards cannot run');
+  const knobs = modes.skill ? Object.keys(modes.skill) : [];
+  if (modes.skill && knobs.length < 4) {
+    fail.push(`MODES.skill parsed only ${knobs.length} numeric knobs — the derivation guards cannot run`);
+  }
+  for (const k of knobs) {
+    /* shields is ADDITIVE (a count of extra shields); everything else is a
+       multiplier. Both neutral elements are checked, not assumed. */
+    const want = k === 'shields' ? 0 : 1;
+    if (modes.skill[k] !== want) {
+      fail.push(`MODES.skill.${k} is ${modes.skill[k]}, not ${want} — skill must be the identity mode, `
+        + 'or chill stops being a derivative of the shipped game');
+    }
+    if (!new RegExp(`(MD\\(\\)|\\bm)\\.${k}\\b`).test(CODE)) {
+      fail.push(`mode knob '${k}' is declared but never read — MD().${k} has no call site, `
+        + 'so it promises the player something the game does not do');
+    }
+  }
+  for (const [name, row] of rows) {
+    const missing = knobs.filter(k => !(k in row));
+    const extra = Object.keys(row).filter(k => !knobs.includes(k));
+    if (missing.length || extra.length) {
+      fail.push(`MODES.${name} does not have the same knobs as skill `
+        + `(missing: ${missing.join(',') || 'none'}; extra: ${extra.join(',') || 'none'}) — `
+        + 'one knob set, or a mode has a code path of its own');
+    }
+  }
+}
+
 /* the curriculum rule: every tier unlocks by level 2's finish line, so
    level 3 introduces nothing — see MECHANICS.md. The finish line is read
    from the LV table itself so lengthening a level cannot break the guard. */
