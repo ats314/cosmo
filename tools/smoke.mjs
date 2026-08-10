@@ -127,6 +127,21 @@ function pressRect(st, frame, fire, pev, pid, expr, what) {
 }
 const startRect = 'JSON.stringify(G.menuRects.find(x=>x.id==="start")||null)';
 const lvStartRect = 'JSON.stringify(G.lvSelRects.find(x=>x.id==="start")||null)';
+/* A FOURTH FRONT SCREEN, reachable only through the title screen's POWERUP
+   TESTING bar — so the ordinary route into a run never meets it and this
+   helper returns untouched on every existing path. It exists anyway, and in
+   all three harnesses, because the last screen added to the front of the game
+   broke all four of them by being a screen they did not know to press: a
+   harness that taps a fixed point does not fail on an unexpected picker, it
+   waits there forever. If the lab ever moves onto the ordinary path, the
+   crossing is already written. */
+const powStartRect = 'JSON.stringify(G.powSelRects.find(x=>x.id==="start")||null)';
+function passPowerSelect(st, frame, fire, pev, pid) {
+  if (st('G.state') !== 'powersel') return pid;
+  pid = pressRect(st, frame, fire, pev, pid, powStartRect, 'powerup-picker START');
+  if (st('G.state') === 'powersel') throw new Error('START did not leave the powerup picker');
+  return pid;
+}
 function passMenu(st, frame, fire, pev, pid) {
   if (st('G.state') !== 'menu') return pid;
   pid = pressRect(st, frame, fire, pev, pid, startRect, 'menu START');
@@ -162,6 +177,7 @@ try {
   let mpid = passMenu(st, frame, fire, pev, 900);
   mpid = passSwipeChooser(st, frame, fire, pev, mpid);
   if (st('G.state') !== 'levelsel') throw new Error('the swipe chooser did not hand off to the level picker, state=' + st('G.state'));
+  mpid = passPowerSelect(st, frame, fire, pev, mpid);
   mpid = passLevelSelect(st, frame, fire, pev, mpid);
   if (st('G.state') !== 'lvend') throw new Error('fresh device did not get the level-1 card, state=' + st('G.state'));
   for (let i = 0; i < 60; i++) frame(16.7);
@@ -758,6 +774,345 @@ try {
     st("useMode('skill')");
     console.log('level picker ok: any level selectable, none of them forges a record;',
       'share text names mode and picked start');
+  }
+
+  // ---- the powerup lab ----
+  // Two claims to prove and they fail in opposite directions. The lab must
+  // DO something — hand you the orb you picked, over and over, on a board that
+  // stays calm — and it must LEAVE NOTHING BEHIND. The second is the one worth
+  // a harness: every guard in it is a `!LAB.on` on a line whose normal job is
+  // to write to the device, and any one of them silently omitted looks exactly
+  // like the others in a diff.
+  {
+    st("G.state='menu';G.swipeAsked=true;G.runs=5;G.t+=1;useMode('skill')");
+    for (let i = 0; i < 30; i++) frame(16.7);
+    let bpid = 1200;
+    const bar = JSON.parse(st('JSON.stringify(G.menuRects.find(r=>r.id==="lab")||null)') || 'null');
+    if (!bar) throw new Error('the title screen drew no POWERUP TESTING bar');
+    // the bar must not overlap either mode card, or selecting a difficulty and
+    // opening the lab are the same tap on some viewport
+    const cards = JSON.parse(st('JSON.stringify(G.menuRects.filter(r=>r.id==="chill"||r.id==="skill"))'));
+    for (const c of cards) {
+      if (bar.y < c.y + c.h && bar.y + bar.h > c.y && bar.x < c.x + c.w && bar.x + bar.w > c.x) {
+        throw new Error('the lab bar overlaps the ' + c.id + ' card');
+      }
+    }
+    fire('pointerdown', pev(bpid, bar.x + bar.w / 2, bar.y + bar.h / 2, 'pointerdown'));
+    fire('pointerup', pev(bpid++, bar.x + bar.w / 2, bar.y + bar.h / 2, 'pointerup'));
+    if (st('G.state') !== 'powersel') throw new Error('the lab bar did not open the picker, state=' + st('G.state'));
+    if (!st('LAB.on')) throw new Error('the picker did not arm the lab flag');
+    for (let i = 0; i < 30; i++) frame(16.7);
+    // every orb in the table gets a row, and each row names an orb spawnPow
+    // can actually place — a picker offering a type the spawner does not know
+    // would start a run that never hands you anything
+    const rows = JSON.parse(st('JSON.stringify(G.powSelRects.filter(r=>r.id==="orb").map(r=>r.orb))'));
+    const want = JSON.parse(st('JSON.stringify(LAB_ORBS.map(o=>o.id))'));
+    if (rows.join(',') !== want.join(',')) throw new Error(`the picker drew rows ${rows} for orbs ${want}`);
+    if (rows.length !== 7) throw new Error(`the lab offers ${rows.length} orbs, want the game's seven`);
+    const bhRow = JSON.parse(st('JSON.stringify(G.powSelRects.find(r=>r.orb==="blackhole"))'));
+    fire('pointerdown', pev(bpid, bhRow.x + bhRow.w / 2, bhRow.y + bhRow.h / 2, 'pointerdown'));
+    fire('pointerup', pev(bpid++, bhRow.x + bhRow.w / 2, bhRow.y + bhRow.h / 2, 'pointerup'));
+    if (st('LAB_ORBS[LAB.sel].id') !== 'blackhole') throw new Error('tapping the black hole row did not select it');
+
+    // NOTHING BELOW THIS LINE MAY REACH THE DEVICE. Snapshotted as a whole map
+    // rather than key by key: the point is that a lab session is inert, and a
+    // named-key check only ever catches the writes somebody remembered.
+    //
+    // THE STORE IS EMPTIED FIRST, and the first version of this test did not do
+    // that — which is exactly how it missed three writes. Everything above has
+    // already played the game, so `cometloop:hopped`, `:groove` and `:landed`
+    // were all present and set to '1' before the snapshot was taken; the lab
+    // then wrote '1' over '1' and a before/after comparison saw nothing. A lab
+    // session must be unable to CREATE a key, not merely unable to change one,
+    // and only a cleared store can tell those apart. The in-memory lifetime
+    // flags are reset with it for the same reason — everHopped gates the
+    // once-ever first-hop rehearsal, so leaving it true would hide the write
+    // that matters most.
+    for (const k of Object.keys(store)) delete store[k];
+    st('G.everHopped=false;G.everLanded=false;G.didGroove=false');
+    const before = JSON.stringify(store);
+    const runs0 = st('G.runs');
+    const seen0 = st('JSON.stringify(Object.keys(G.seen).sort())');
+
+    bpid = passPowerSelect(st, frame, fire, pev, bpid);
+    if (st('G.state') !== 'playing') throw new Error('the picker did not start a run, state=' + st('G.state'));
+    if (st('G.runs') !== runs0) throw new Error('a lab run counted itself as a run');
+    // the calm board: the clock is pinned, so no level can finish and no tier
+    // can arrive mid-session
+    if (st('dl()') !== st('LAB_DL')) throw new Error('the lab did not pin the difficulty clock');
+    if (st('G.nRings') !== 3) throw new Error('the lab opened on ' + st('G.nRings') + ' rings — the black hole needs three to add a fourth to');
+    const tier0 = st('G.tier');
+
+    // ONE ORB, EVERY TIME. Watched across the placements themselves rather than
+    // read off the board at the end: G.pows holds at most one and it expires.
+    // Installed ONCE for the whole file — wrapping spawnPow per block chained a
+    // new closure over the last one every time and redeclared its binding, and
+    // the recorder is the same recorder either way. Reset the two counters to
+    // start a fresh window; the sweep below does exactly that.
+    st('G.__labSeen={};G.__labN=0');
+    st('var __sp=spawnPow;spawnPow=function(){const n=G.pows.length;const r=__sp();' +
+       'if(r&&G.pows.length>n){G.__labSeen[G.pows[G.pows.length-1].type]=1;G.__labN++;}return r;}');
+    // Two peaks, not one. The interesting number is the CALM peak — sampled
+    // only before the first black hole opens, so it is the board the lab
+    // actually promises — because after the mode has run once the density
+    // multiplier's shards are still decaying and every later sample is mixed.
+    // The mode peak is kept as the other half of the same claim: the black
+    // hole has to visibly crowd a quiet board or the sandbox is too quiet to
+    // be testing the thing it was opened to test.
+    // THE LAB IS PLAYED, not just watched. A snapshot only proves what the
+    // session actually did, and a session that never touched the screen would
+    // have exonerated all three of the writes this block exists to catch —
+    // they hang off gameplay verbs, not off menus. So: hops (the lab runs on
+    // three rings, which is what makes everHopped reachable at all) and taps
+    // through the real handler, which is what calls tryLand().
+    let sawBH = false, calmPeak = 0, modePeak = 0, hops = 0, gpid = 1300;
+    for (let i = 0; i < 7000; i++) {
+      frame(16.7);
+      if (i % 120 === 60) { st('hop(' + (hops % 2 ? -1 : 1) + ')'); hops++; }
+      if (i % 90 === 0) {
+        fire('pointerdown', pev(gpid, 200, 400, 'pointerdown'));
+        fire('pointerup', pev(gpid++, 200, 400, 'pointerup'));
+      }
+      const inMode = st('BH.phase') === 2;
+      if (inMode) sawBH = true;
+      const n = st('G.spikes.length');
+      if (inMode) { if (n > modePeak) modePeak = n; }
+      else if (st('G.bhN') === 0 && n > calmPeak) calmPeak = n;
+    }
+    if (!st('G.didHop')) throw new Error('the lab run never landed a hop — the everHopped guard went untested');
+    const seenTypes = Object.keys(JSON.parse(st('JSON.stringify(G.__labSeen)')));
+    const placed = st('G.__labN');
+    if (placed < 4) throw new Error(`the lab placed ${placed} orbs in two minutes — "frequently" is not happening`);
+    if (seenTypes.join(',') !== 'blackhole') throw new Error(`the lab placed ${seenTypes} when the black hole was picked`);
+    if (!sawBH) throw new Error('two minutes of a black hole lab never entered the mode');
+    if (st('G.tier') !== tier0) throw new Error('a pinned clock still advanced the tier ladder');
+    if (st('G.level') !== 1) throw new Error('the lab reached a level boundary — the clock is not pinned');
+    // calm, measured rather than asserted from the constant. dl 40 puts
+    // shardCap at 4, so anything past 5 means the clock is not where the lab
+    // says it is — the check reads the cap back out of the game rather than
+    // hardcoding it, so retuning LAB_DL retunes the guard with it.
+    // read with the mode neutralised: shardCap() multiplies itself by
+    // bhDensity() while phase 2 is live, and the loop above can easily end
+    // mid-horizon — sampling it there reported the crowded cap as the calm one
+    const calmCap = st('(function(){const p=BH.phase;BH.phase=0;const c=shardCap();BH.phase=p;return c;})()');
+    if (calmPeak > calmCap) throw new Error(`the calm board reached ${calmPeak} shards against a cap of ${calmCap}`);
+    if (calmCap > 5) throw new Error(`LAB_DL puts the lab's shard cap at ${calmCap} — that is not a quiet board`);
+    // Measured against the CAP rather than against the sampled calm peak: the
+    // first orb of a lab run arrives around ten seconds in, so the window
+    // before the first horizon is short and its peak is often 0 — a comparison
+    // against it would pass on nothing. The mode's density multiplier reaches
+    // 3.5x, so a board that never gets past twice the calm cap means the
+    // crowding half of the black hole is not reaching the player.
+    if (modePeak < calmCap * 2) throw new Error(`the black hole peaked at ${modePeak} against a calm cap of ${calmCap} — the mode is not crowding the board`);
+
+    // THE GHOST. Deterministic: a lethal shard placed on the player's own ring
+    // at the player's own angle, which the contact test cannot miss.
+    const hitOne = () => {
+      st('G.invuln=0;G.spikes.length=0;BH.phase=0;BH.on=false;G.hyper=0');
+      st('G.spikes.push({a:G.angle,ring:G.ringI,t:0,phase:1,bt:0,bo:0,va:0,' +
+         'gate:false,blink:false,saucer:false,warn:0,life:99})');
+      frame(16.7);
+    };
+    st("G.state='playing';G.shields=2;G.blocks=0;LAB.invuln=true");
+    hitOne();
+    if (st('G.shields') !== 2 || st('G.blocks') !== 0) throw new Error('the ghost let a shard spend a shield');
+    if (st('G.state') !== 'playing') throw new Error('the ghost let a shard end the run');
+    // ...and with it off the lab is the real game: the same shard is answered
+    // exactly the way it is answered everywhere else
+    st('LAB.invuln=false');
+    hitOne();
+    if (st('G.shields') !== 1 || st('G.blocks') !== 1) throw new Error('with the ghost off a shard did not spend a shield');
+    st('LAB.invuln=true');
+
+    // A LAB DEATH IS STILL NOT A RECORD. Forced rather than waited for, and
+    // with the numbers set so that every record line WOULD move if it could.
+    st("G.state='playing';G.score=999999;G.best=0;G.lvlMax=1;G.level=1;G.startLevel=1;G.lastHit='single';G.struggle=0");
+    st('die()');
+    if (st('G.newBest')) throw new Error('a lab run announced NEW BEST');
+    if (st('G.best') !== 0) throw new Error('a lab score became the best score');
+    if (st('G.newLevel')) throw new Error('a lab run announced FURTHEST YET');
+    if (st('G.lvlMax') !== 1) throw new Error('a lab run moved the level record');
+    if (st('G.struggle') !== 0) throw new Error('a lab death fed the struggle streak — it retunes the real game');
+    if (st('inShare(0,0)')) throw new Error('a lab run offered its score to be shared');
+    if (st('JSON.stringify(Object.keys(G.seen).sort())') !== seen0) {
+      throw new Error('a lab run spent or re-armed a first-encounter lesson: was ' + seen0
+        + ' now ' + st('JSON.stringify(Object.keys(G.seen).sort())'));
+    }
+    if (st('G.runs') !== runs0) throw new Error('a lab session moved the lifetime run count');
+    // The lifetime tutorial flags, in memory as well as on disk. everHopped is
+    // the one with teeth: it gates the once-ever first-hop rehearsal, so a
+    // fresh player who opened the lab and swiped would have met the real
+    // second ring with the rehearsal already spent.
+    for (const f of ['everHopped', 'everLanded', 'didGroove']) {
+      if (st('G.' + f)) throw new Error(`a lab session set the lifetime flag G.${f}`);
+    }
+    if (JSON.stringify(store) !== before) {
+      const now = JSON.parse(JSON.stringify(store)), was = JSON.parse(before);
+      const bad = Object.keys(now).filter(k => now[k] !== was[k])
+        .concat(Object.keys(was).filter(k => !(k in now)));
+      throw new Error(`a lab session wrote to the device: ${bad.join(', ')}`);
+    }
+
+    // THE DOOR. A lab run with the ghost on cannot end by itself, so the way
+    // back to the picker is the only exit there is — and it has to be live on
+    // the death screen too, or a lab death forces a retry to reach it.
+    let door = JSON.parse(st('JSON.stringify(G.labRect)') || 'null');
+    if (!door) throw new Error('the death screen drew no way out of the lab');
+    st("G.state='playing'");
+    for (let i = 0; i < 5; i++) frame(16.7);
+    door = JSON.parse(st('JSON.stringify(G.labRect)') || 'null');
+    if (!door) throw new Error('a lab run drew no way out');
+    fire('pointerdown', pev(bpid, door.x + door.w / 2, door.y + door.h / 2, 'pointerdown'));
+    fire('pointerup', pev(bpid++, door.x + door.w / 2, door.y + door.h / 2, 'pointerup'));
+    if (st('G.state') !== 'powersel') throw new Error('the lab door did not return to the picker, state=' + st('G.state'));
+    for (let i = 0; i < 30; i++) frame(16.7);
+    const pback = JSON.parse(st('JSON.stringify(G.powSelRects.find(r=>r.id==="back"))'));
+    fire('pointerdown', pev(bpid, pback.x + pback.w / 2, pback.y + pback.h / 2, 'pointerdown'));
+    fire('pointerup', pev(bpid++, pback.x + pback.w / 2, pback.y + pback.h / 2, 'pointerup'));
+    if (st('G.state') !== 'menu') throw new Error('back did not leave the lab picker');
+    // THE FLAG HAS ONE OWNER AND THE TITLE SCREEN IS IT. Left set, every guard
+    // above stays armed in the real game: no record would ever move again.
+    if (st('LAB.on')) throw new Error('leaving the lab left the flag set — the real game would stop recording');
+    if (!(st('G.nRings') > 1)) throw new Error('back from the lab left the menu on one ring — the demo can no longer hop');
+    for (let i = 0; i < 5; i++) frame(16.7);
+    if (st('G.labRect') !== null) throw new Error('the lab door outlived the lab — it would swallow a tap in the real game');
+    console.log('powerup lab ok:', placed, 'black holes placed in 2min, calm board peaked at',
+      calmPeak, 'shards and the mode at', modePeak + ',',
+      'ghost holds both ways, nothing written to the device');
+  }
+
+  // ---- all seven, not just the one the run above happened to pick ----
+  // The black hole is the interesting case and it is also the atypical one:
+  // it is the only orb with its own mode, its own ring count and its own
+  // spawn suppression. Six others sit behind curriculum branches that the lab
+  // now jumps, and a branch that is jumped wrongly for one type looks exactly
+  // like a branch that is jumped rightly for another. So each is run.
+  {
+    const ids = JSON.parse(st('JSON.stringify(LAB_ORBS.map(o=>o.id))'));
+    const counts = [];
+    for (let k = 0; k < ids.length; k++) {
+      st(`LAB.on=true;LAB.sel=${k};LAB.invuln=true;G.t+=1`);
+      st('startLab()');
+      if (st('G.state') !== 'playing') throw new Error(`the ${ids[k]} lab did not start`);
+      st('G.__labSeen={};G.__labN=0');   // the recorder installed above, rewound
+      // 45s: long enough for several placements of a plain orb, and long
+      // enough for one full black hole (17s) plus its refill
+      for (let i = 0; i < 2700; i++) frame(16.7);
+      const got = Object.keys(JSON.parse(st('JSON.stringify(G.__labSeen)')));
+      const n = st('G.__labN');
+      if (got.join(',') !== ids[k]) throw new Error(`the ${ids[k]} lab placed [${got}]`);
+      if (n < 2) throw new Error(`the ${ids[k]} lab placed only ${n} in 45s`);
+      if (st('G.state') !== 'playing') throw new Error(`the ${ids[k]} lab ended by itself — the ghost or the clock is not holding`);
+      counts.push(`${ids[k]}:${n}`);
+    }
+    // and the door still works after the last of them, from a live run
+    st("LAB.sel=0");
+    for (let i = 0; i < 5; i++) frame(16.7);
+    const d2 = JSON.parse(st('JSON.stringify(G.labRect)') || 'null');
+    fire('pointerdown', pev(1400, d2.x + d2.w / 2, d2.y + d2.h / 2, 'pointerdown'));
+    fire('pointerup', pev(1401, d2.x + d2.w / 2, d2.y + d2.h / 2, 'pointerup'));
+    if (st('G.state') !== 'powersel') throw new Error('the door failed after a full sweep of the orbs');
+    if (st('BH.phase') !== 0) throw new Error('leaving a lab run left the black hole ticking under the picker');
+    st('enterMenu()');
+    console.log('every lab orb ok in 45s each —', counts.join(' '));
+  }
+
+  // ---- a fresh device meets the swipe question on the way into the lab ----
+  // The lab is played with the same two gestures the run is, so it cannot skip
+  // the once-per-device control question. It also must not ask it twice, and
+  // the chooser has to know to hand back to the PICKER rather than to the
+  // level list — a third destination for a screen that had two.
+  {
+    st("G.state='menu';G.swipeAsked=false;G.selFrom=null;LAB.on=false;G.t+=1");
+    for (let i = 0; i < 30; i++) frame(16.7);
+    let fpid = 1500;
+    const bar2 = JSON.parse(st('JSON.stringify(G.menuRects.find(r=>r.id==="lab"))'));
+    fire('pointerdown', pev(fpid, bar2.x + bar2.w / 2, bar2.y + bar2.h / 2, 'pointerdown'));
+    fire('pointerup', pev(fpid++, bar2.x + bar2.w / 2, bar2.y + bar2.h / 2, 'pointerup'));
+    if (st('G.state') !== 'swipesel') throw new Error('a fresh device reached the lab without being asked the swipe rule');
+    if (st('G.selFrom') !== 'lab') throw new Error('the chooser was not told it was opened from the lab');
+    fpid = passSwipeChooser(st, frame, fire, pev, fpid);
+    if (st('G.state') !== 'powersel') throw new Error('the swipe chooser sent the lab to ' + st('G.state'));
+    // asked once: a second trip through the bar goes straight to the picker
+    st('enterMenu()');
+    for (let i = 0; i < 30; i++) frame(16.7);
+    fire('pointerdown', pev(fpid, bar2.x + bar2.w / 2, bar2.y + bar2.h / 2, 'pointerdown'));
+    fire('pointerup', pev(fpid++, bar2.x + bar2.w / 2, bar2.y + bar2.h / 2, 'pointerup'));
+    if (st('G.state') !== 'powersel') throw new Error('the lab asked the swipe question twice');
+    st('enterMenu()');
+    console.log('lab swipe-question route ok: asked once, handed back to the picker');
+  }
+
+  // ---- the two new screens, measured on eight viewports ----
+  // The canvas is stubbed, so nothing here can see a pixel — but every control
+  // on both screens publishes a rect from its own draw pass, and a rect is
+  // geometry the harness CAN check. Written because the first draft of the
+  // picker failed exactly this: seven rows plus a toggle plus a pill did not
+  // fit a landscape phone, the row height hit a floor the box could not honour,
+  // and the last orb was drawn straight through the ghost switch on 844x390 and
+  // 740x360. Nothing else here would have noticed — the picker still "worked",
+  // it just answered two controls with one tap.
+  {
+    const VPS = [[390, 844], [360, 640], [320, 568], [430, 932],
+                 [844, 390], [740, 360], [768, 1024], [1280, 800]];
+    const ov = (a, b) => a && b && a.x < b.x + b.w && a.x + a.w > b.x
+                              && a.y < b.y + b.h && a.y + a.h > b.y;
+    const folded = [];
+    for (const [w, h] of VPS) {
+      vw = w; vh = h;
+      st("G.state='menu';G.swipeAsked=true;G.t+=1");
+      for (let i = 0; i < 20; i++) frame(16.7);
+      const menu = JSON.parse(st('JSON.stringify(G.menuRects)'));
+      const swipeRow = JSON.parse(st('JSON.stringify(G.swipeRect)') || 'null');
+      const bar = menu.find(r => r.id === 'lab');
+      if (!bar) throw new Error(`${w}x${h}: the title screen drew no POWERUP TESTING bar`);
+      if (bar.y < 0 || bar.y + bar.h > h || bar.x < 0 || bar.x + bar.w > w) {
+        throw new Error(`${w}x${h}: the lab bar is off screen`);
+      }
+      for (const other of menu.concat([swipeRow]).filter(r => r && r !== bar)) {
+        if (ov(bar, other)) throw new Error(`${w}x${h}: the lab bar overlaps ${other.id || 'the swipe row'}`);
+      }
+      // The bar's band came out of the CARDS (0.46 -> 0.40 of the box) rather
+      // than out of the key, precisely so the four key rows would not be
+      // pushed onto their 15u floor and through the bottom of a short
+      // landscape phone. That is a claim about a number in another expression
+      // entirely, so it is checked here: the swipe row is key row 1, which
+      // gives up both the row height and the block origin.
+      const start = menu.find(r => r.id === 'start');
+      if (swipeRow && start) {
+        const rh = swipeRow.h, row4 = (swipeRow.y + rh * 0.62) - rh + 3 * rh;
+        if (row4 > start.y) throw new Error(`${w}x${h}: the menu key's last row (${row4.toFixed(0)}) runs into START (${start.y.toFixed(0)})`);
+        if (row4 > h) throw new Error(`${w}x${h}: the menu key's last row is off the bottom`);
+      }
+      st('enterPowerSel();G.t+=1');
+      for (let i = 0; i < 20; i++) frame(16.7);
+      const pr = JSON.parse(st('JSON.stringify(G.powSelRects)'));
+      const orbs = pr.filter(r => r.id === 'orb');
+      if (orbs.length !== 7) throw new Error(`${w}x${h}: the picker drew ${orbs.length} orbs`);
+      for (const r of pr) {
+        if (r.y < 0 || r.y + r.h > h) throw new Error(`${w}x${h}: the picker's ${r.id} runs off the screen vertically`);
+        if (r.x < 0 || r.x + r.w > w) throw new Error(`${w}x${h}: the picker's ${r.id} runs off the screen horizontally`);
+        // 18 rather than a round 24: the level picker's own back control is 26u,
+        // which is 19.8 on the narrowest phone tested. The lab may be as small
+        // as what already ships and no smaller.
+        if (r.h < 18) throw new Error(`${w}x${h}: the picker's ${r.id} is ${r.h.toFixed(1)}px tall — too small to press`);
+      }
+      for (let i = 0; i < pr.length; i++) for (let j = i + 1; j < pr.length; j++) {
+        if (ov(pr[i], pr[j])) {
+          throw new Error(`${w}x${h}: the picker's ${pr[i].id}${pr[i].i ?? ''} overlaps ${pr[j].id}${pr[j].i ?? ''}`);
+        }
+      }
+      if (orbs[1].y === orbs[0].y) folded.push(`${w}x${h}`);
+      st('enterMenu()');
+      for (let i = 0; i < 5; i++) frame(16.7);
+    }
+    vw = 390; vh = 844;
+    for (let i = 0; i < 20; i++) frame(16.7);
+    // the fold is the fix, so prove it still happens: a build where the
+    // two-column branch stopped firing would pass every check above by
+    // silently shrinking the rows instead
+    if (!folded.length) throw new Error('no viewport folded the picker to two columns — the short-screen path is dead');
+    console.log(`lab layout ok on ${VPS.length} viewports; folded to two columns on ${folded.join(', ')}`);
   }
 } catch (e) {
   console.error('RUNTIME FAILED:', e.stack.split('\n').slice(0, 6).join('\n'));

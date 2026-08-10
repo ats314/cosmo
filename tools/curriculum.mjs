@@ -130,6 +130,18 @@ function passLevelSelect(pid) {
   if (st('G.state') === 'levelsel') throw new Error('START did not leave the level picker');
   return pid;
 }
+/* THE POWERUP PICKER, off the ordinary route: it opens from the title screen's
+   POWERUP TESTING bar and nothing here presses that, so this returns untouched
+   on every path today. Written anyway — the same was true of the swipe chooser
+   right up until the day it stalled all four harnesses. The lab must never be
+   reachable from this run for another reason too: it pins the difficulty clock,
+   and a curriculum walked at a frozen dl would never unlock a single tier. */
+function passPowerSelect(pid) {
+  if (st('G.state') !== 'powersel') return pid;
+  pid = pressRect(pid, 'JSON.stringify(G.powSelRects.find(x=>x.id==="start")||null)', 'powerup-picker START');
+  if (st('G.state') === 'powersel') throw new Error('START did not leave the powerup picker');
+  return pid;
+}
 /* Taps the centre of the first upgrade tile whenever the card is offering a
    draft, and the ordinary spot otherwise. The draft deliberately makes a tile
    the ONLY thing that starts the next level, so a harness tapping a fixed
@@ -153,6 +165,7 @@ let lastBanner = null, pid = 100, hopFlip = false;
 for (let i = 0; i < 300; i++) frame(16.7);       // menu settles
 pid = passMenu(pid);                              // title screen -> swipe chooser
 pid = passSwipeChooser(st, frame, fire, pev, pid);
+pid = passPowerSelect(pid);                       // never on this route — see the note
 pid = passLevelSelect(pid);                       // ...-> level picker -> level 1
 if (st('G.state') !== 'lvend') fail.push('fresh device skipped the level-1 card');
 /* THE CURRICULUM IS RUN IN SKILL, DELIBERATELY. Chill scales the difficulty

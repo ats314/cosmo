@@ -77,7 +77,11 @@ so every harness crosses them by pressing the control it actually drew
 fixed point does not fail; it waits there forever, which is how the swipe
 chooser broke all four harnesses when it arrived. Add a front screen and you
 add a crossing helper to `smoke.mjs`, `dropcheck.mjs` and `curriculum.mjs` in
-the same commit.
+the same commit. A fourth screen, the powerup picker, sits off that route —
+it opens only from the title screen's POWERUP TESTING bar — and all three
+harnesses carry `passPowerSelect` anyway, returning untouched. That is not
+redundancy: it was exactly true of the swipe chooser the day before it stalled
+everything, and the helper costs one function.
 
 `musiccheck.mjs` is the only harness that runs the arrangement. `smoke.mjs`
 removes WebAudio deliberately and `dropcheck.mjs` never drives past level 2, so
@@ -162,6 +166,46 @@ Breaking one of these is a product regression, not a style question.
   Records are per mode and the unsuffixed storage keys are SKILL's — writing a
   chill value under `cometloop:best` redefines every historical value on every
   device, which is the retired-`cometloop:level` failure exactly.
+- **A LAB SESSION LEAVES NOTHING BEHIND, and that is the whole feature.**
+  POWERUP TESTING is a sandbox reached from the title screen: it forces one
+  orb, pins `dl()` to `LAB_DL`, and switches red off by default. Every one of
+  its guarantees is a `!LAB.on` sitting on a line whose ordinary job is to
+  write to the device — the best score, the level record, the run count, the
+  struggle streak, the `seen` bits, telemetry — so an omitted guard looks
+  exactly like the others in a diff and no amount of reading finds it. Do not
+  add another such line without its guard, and do not trust a review to catch
+  it: `smoke.mjs` CLEARS `localStorage`, plays a lab session including hops and
+  taps, and fails if any key reappears — which is the only enforcement that
+  scales. It has to clear rather than diff, and that distinction is the whole
+  lesson: the first version snapshotted a store the earlier tests had already
+  filled, so three leaked writes (`hopped`, `groove`, `landed`) wrote `'1'`
+  over `'1'` and the comparison saw nothing. A lab session must be unable to
+  CREATE a key, not merely unable to change one.
+  **The gameplay verbs write too, not just the menus.** `hop()` persists
+  `cometloop:hopped`, and `G.everHopped` gates the once-ever first-hop
+  rehearsal — so an unguarded lab could spend a fresh player's tutorial for the
+  hardest gesture in the game before they ever met the real second ring. Two
+  more sit in `tryLand()` and `judgeTiming()`, and **neither is reachable in
+  `smoke.mjs` at all**: both return immediately without `AC`/`MU`, and smoke
+  removes WebAudio by design. `check.mjs` covers that gap with a tripwire on
+  the set of persisted keys — it cannot tell whether a write is guarded, but a
+  new one cannot be added without someone being asked the question.
+  **Two writers spend a lesson, not one** — `firstMeet()` fires the sentence,
+  and the pickup path separately treats *taking* a musical orb as being taught
+  it. Guarding only the first was the shipped-looking bug the harness caught:
+  one black hole lab session would have permanently retired the black hole's
+  lesson on a device that had never met one in the real game.
+  **The lab is not a MODES row and must not become one.** `MODES` is the
+  difficulty table and `check.mjs` holds it to that shape; a sandbox that pins
+  the clock rather than scaling it has no knob set to offer. It is a flag with
+  its own front screen, and the two mode cards are untouched. Likewise the
+  title bar that opens it is a DOOR, not a card — it navigates, the way the
+  menu's `change` swipe control already does, so "cards select rather than
+  start" survives intact.
+  **A pinned clock has one trap and it is already sprung once.** Anything
+  written as "N difficulty-seconds from now" is a deadline that never arrives
+  in the lab, because the difference is always zero. `tierIndex`'s hop-hold
+  release valve was exactly that and is exempted; check any new one.
 - **Two ladders, two names.** `G.tier` is the ten-rung *unlock* ladder (what has
   been introduced); `G.level` is the 1–3 structure the player is told about.
   Everything player-facing — the HUD, the death headline, the pips, the share

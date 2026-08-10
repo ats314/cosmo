@@ -135,6 +135,51 @@ prints no FURTHEST YET and writes nothing. A run that started at level 1 and
 climbed keeps counting, including across the retries that put it on a later
 level, because `startLevel` is where the run opened and not where it is now.
 
+### POWERUP TESTING
+
+Under the two mode cards is a third option, and it is deliberately not a third
+mode. Six of the seven orbs sit behind a curriculum ladder, and the seventh —
+the black hole — is rare on purpose: three `blackhole_entered` events in the
+game's entire recorded history, every one of them on level 4. Finding out what
+an orb actually feels like meant playing until the game decided to hand you
+one. The bar opens a picker of all seven; choosing one starts a run where that
+orb, and only that orb, arrives every few seconds.
+
+The board it arrives on is quiet and stays quiet. `dl()` — the difficulty
+clock every pressure term in the game reads — returns a constant and never
+moves, which freezes speed, shard cap, arrival rate, telegraph length, the
+tier ladder and the finish line together and in the proportions they were
+tuned in. The constant is 40, chosen because it is exactly the clock value
+that opens the third ring: the black hole adds a *fourth* orbit on entry and
+restores what it found on the way out, so a lab with fewer rings would have
+demonstrated that against nothing. Level 1's finish line is 90, so a lab run
+is endless and no tier can arrive to interrupt what you came to look at.
+
+*red cannot touch you* is on by default and switchable on the picker. It is
+read at the one lethal-contact site, so nothing downstream fires: no shield is
+spent, no pip moves, no popup. The shard keeps travelling and passes through
+you, which is how you can tell it is on without a line of HUD claiming it.
+Switch it off and the lab is the real game with one orb in it — which is the
+only way to find out what taking that orb is worth. Because a ghosted run
+cannot end by itself, there is a door in the top-left of the arena (and
+Escape) back to the picker.
+
+**Nothing a lab session does reaches the device.** No score becomes a best, no
+level record moves, the run count does not advance, the struggle streak that
+lengthens future openings is not fed, and no first-encounter lesson is spent —
+that last one matters more than it sounds, because *taking* a musical orb
+normally counts as having been taught it, so one unguarded black hole session
+would have permanently retired the black hole's lesson on a device that had
+never met one. Nor does hopping in the lab count as having hopped: `hop()`
+persists a lifetime flag that gates the once-ever first-hop rehearsal, so a
+fresh player who opened the lab and swiped would otherwise have met the real
+second ring with the game's tutorial for its hardest gesture already spent. There is no share button on a lab death: the share text has no
+room to say any of the above, and a boast the game knows to be false should not
+be one tap away. Telemetry is suppressed rather than tagged — a lab run cannot
+reach the funnel at all, and one event records that the lab was opened and with
+which orb. `smoke.mjs` snapshots `localStorage` across a whole lab session and
+fails if one key changes.
+
 ## Levels
 
 The run is **four levels**, each with an intro card and its own song. The
@@ -921,6 +966,12 @@ motion keeps every layer static, as always.
 
 ## Power-ups
 
+Every one of these can be tried on demand from the title screen's POWERUP
+TESTING bar — see [POWERUP TESTING](#powerup-testing). It exists because the
+list below is gated: three are introduced on level 1, two on level 2, one on
+level 3, and the black hole is deliberately rare enough that it had been
+entered three times in the game's whole recorded history.
+
 - **Shield** (green) — banked, up to 3. Taking a hit spends one automatically
   but knocks you off your orbit. Never more than three power-ups pass without
   a shield.
@@ -1452,7 +1503,21 @@ reconstructed by hand-joining an entry to a later `run_ended`. It carries how
 many seconds were survived, which phase the death fell in, and whether the
 innermost orbit had been reached. `blackhole_survived` used to send
 `seconds: BH_DUR` — a constant reported as a measurement, so every row that
-would ever exist read 17.0; it sends the elapsed time. There is deliberately no
+would ever exist read 17.0; it sends the elapsed time.
+**A POWERUP TESTING session sends nothing**, and it is suppressed at the choke
+point inside `track()` rather than tagged with a property. Tagging would have
+been the smaller change and the worse one: it moves the burden onto every
+future query, and the first dashboard that forgets the filter is averaging
+sandbox deaths — pinned clock, one orb on repeat, red switched off — into the
+real completion rate. Suppressing means a lab run cannot reach the funnel and
+an event added by a later change inherits that for free. Note what that means
+for the three black hole events above: a lab session is the easiest way there
+has ever been to enter the mode, and none of those entries reach the data — so
+`blackhole_entered` keeps meaning "a player met one in a real run", which is
+the only reading its failure rate is worth anything under. Exactly one name is
+allowed through, `powerup_lab_started`, carrying which orb was picked and
+whether the ghost was on; which of the seven anybody actually wants to look at
+is the one thing about a lab session worth counting. There is deliberately no
 analytics SDK: events are plain POSTs to the capture API (sendBeacon
 first, so a death recorded as the tab closes still gets out; keepalive
 fetch as fallback), which means no third-party script to load and no
@@ -1691,7 +1756,7 @@ looks up by ID are still in the document, and that the teaching tables have
 not gone stale — no lesson pointing at a cut orb, no tier unlocking after
 level 2's finish line, and no mode knob that is declared without being read or
 that lets SKILL stop being the identity. `smoke.mjs` goes further: it loads the
-game into a stubbed DOM and actually plays it — the three front screens, the
+game into a stubbed DOM and actually plays it — the front screens, the
 menu demo, taps, committed and aborted swipes, the keyboard, several simulated
 minutes of a run, a landscape resize, a tab background/foreground, a death, the
 death screen's fast-forward tap and a retry, a level-2 start and its retry card,
@@ -1699,7 +1764,26 @@ the level ladder's agreement with the FURTHEST YET badge, every difficulty term
 measured in both modes at the same difficulty second, and the guard that stops a
 picked starting level forging a level record — asserting the state machine comes
 through each transition intact. No browser, no dependencies; audio stays off,
-which also exercises every audio guard. `dropcheck.mjs` re-runs that harness
+which also exercises every audio guard.
+
+It also runs the POWERUP TESTING lab, which needs proving in two opposite
+directions. That it *does* something: all seven orbs are run for 45 simulated
+seconds each and each lab must place its own orb and nothing else, at a
+measured cadence. And that it *leaves nothing behind*: `localStorage` is
+**cleared**, then a whole session is played — entry, hops, taps, orbs taken, a
+forced death with every record set so that it would move if it could — and any
+key that reappears fails the build. Clearing rather than diffing is the point,
+and it was learned the hard way: the first version snapshotted a store the
+earlier tests had already filled, so three leaked writes wrote `'1'` over `'1'`
+and the comparison saw nothing. A lab session must be unable to *create* a key,
+not merely unable to change one. `check.mjs` carries a tripwire on the set of
+persisted keys for the two write sites smoke cannot reach at all — both return
+immediately without WebAudio, which smoke removes by design. The lab's two screens are also measured on
+eight viewports for rects that run off the screen, overlap each other, or fall
+below a pressable height — the canvas is stubbed so no pixel can be checked,
+but every control publishes a rect from its own draw pass, and geometry can
+be. The first draft of the picker failed that on both landscape phones by
+drawing its last orb through the ghost switch. `dropcheck.mjs` re-runs that harness
 with a stubbed AudioContext and fails if the build meter stops delivering beat
 drops at a playable cadence. `curriculum.mjs` plays a whole run headlessly and
 fails if level 3 ever opens with a mechanic the player was never shown.

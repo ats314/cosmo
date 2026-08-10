@@ -178,6 +178,51 @@ else {
   }
 }
 
+/* EVERY PERSISTED KEY IS A THING THE POWERUP LAB PROMISES NOT TO WRITE, and
+   this is the tripwire that makes adding one a decision rather than an
+   oversight. The lab's whole claim is that a session leaves the device exactly
+   as it found it, and every guard behind that claim is a `!LAB.on` sitting on a
+   line whose ordinary job is to save something — so an omitted one is invisible
+   in a diff and looks identical to the fifteen that are there.
+
+   smoke.mjs proves the claim by clearing localStorage and failing on any key
+   that reappears, which is the real enforcement. But it can only catch writes
+   on paths it reaches, and two of these cannot be reached there by
+   construction: tryLand() and judgeTiming() both return immediately without
+   AC and MU, and smoke removes WebAudio on purpose to prove the audio guards.
+   Their guards were added by reading. A static list is what covers the gap —
+   it cannot tell whether a write is guarded, but it can insist that nobody
+   adds a new one without being asked the question.
+
+   Three of the four writes the lab originally leaked were found this way after
+   the fact: `hopped` (which gates the once-ever first-hop rehearsal, so the
+   lab could spend a fresh player's tutorial), `groove` and `landed`. If you are
+   here because this check failed: guard the new write with !LAB.on unless a lab
+   session genuinely should perform it, then add the key below. */
+const persisted = [...new Set([...CODE.matchAll(/savePref\(\s*'cometloop:(\w+)'/g)].map(m => m[1]))].sort();
+const persistedKnown = ['groove', 'hopped', 'landed', 'mode', 'muted', 'runs',
+                        'seen', 'seen2', 'struggle', 'swipe'].sort();
+if (persisted.length < persistedKnown.length) {
+  fail.push(`only ${persisted.length} persisted keys found, expected at least ${persistedKnown.length} `
+    + '— the savePref scan has stopped matching and the lab-write tripwire cannot run');
+}
+for (const k of persisted) {
+  if (!persistedKnown.includes(k)) {
+    fail.push(`a new persisted key 'cometloop:${k}' has appeared — the powerup lab promises a session `
+      + 'writes nothing to the device, so guard the write with !LAB.on (or decide it may run in the lab) '
+      + 'and add the key to persistedKnown in check.mjs');
+  }
+}
+/* The two record keys are built by recKey() rather than written literally, so
+   the scan above cannot see them. Both sit behind !LAB.on at their call sites
+   and smoke.mjs asserts neither record moves in a lab run; named here so the
+   list above is not mistaken for the complete set of what this game persists. */
+for (const k of ['best', 'gl']) {
+  if (!new RegExp(`recKey\\(\\s*'${k}'`).test(CODE)) {
+    fail.push(`recKey('${k}') has no call site — the per-mode record it names is no longer written`);
+  }
+}
+
 /* the curriculum rule: every tier unlocks by level 2's finish line, so
    level 3 introduces nothing — see MECHANICS.md. The finish line is read
    from the LV table itself so lengthening a level cannot break the guard. */

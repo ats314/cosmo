@@ -1416,7 +1416,9 @@ function tryLand(){
   const gain=perfect?300:good?100:0;
   G.landFx={t:0,perfect:perfect,good:good,gain:gain};
   if(gain){G.score+=gain;G.scorePop=1;G.lands++;
-    if(!G.everLanded){G.everLanded=true;savePref('cometloop:landed','1');}}
+    /* not from the lab — see the note in hop(). A record-only flag today, but
+       it is persisted, and "nothing reaches the device" is the whole promise */
+    if(!LAB.on&&!G.everLanded){G.everLanded=true;savePref('cometloop:landed','1');}}
   if(perfect)G.secMult=2;
   const p=posPlayer();
   if(perfect){
@@ -2749,7 +2751,7 @@ function judgeTiming(x,y){
        didGroove stays persisted as the lifetime record. */
     if(G.groove>=2&&!G.beatPop){
       G.beatPop=true;
-      if(!G.didGroove){G.didGroove=true;savePref('cometloop:groove','1');}
+      if(!LAB.on&&!G.didGroove){G.didGroove=true;savePref('cometloop:groove','1');}  /* not from the lab — see hop() */
       popup(x,y-34*u,'ON BEAT!',COL.warp,1.0);
     }
     /* the popup names the tap; the lesson names the SYSTEM — once per
@@ -2922,7 +2924,7 @@ function bedTick(dt){
      comment above DROPQ and never generalised: silencing the scheduler is not
      silencing the band. The floor drops out now. */
   const lvl=bhActive()?0.010:
-    (playing?0.17+0.26*k:((G.state==='menu'||G.state==='levelsel')?0.06:0.02));
+    (playing?0.17+0.26*k:((G.state==='menu'||G.state==='levelsel'||G.state==='powersel')?0.06:0.02));
   /* The pad recedes for the payoff and comes back for its second half. This
      IS the loudness of the section: contrast costs no headroom. bedTick stays
      the ONLY writer of BED.g, which is why there is no stuck-pad case. */
@@ -3256,6 +3258,62 @@ function useMode(m){
   MODE=(m==='chill')?'chill':'skill';
   G.best=REC[MODE].best;G.lvlMax=REC[MODE].lvlMax;
 }
+/* ---------- the powerup lab ----------
+   A third door on the title screen, beside the two mode cards and deliberately
+   NOT a third mode. MODES is the difficulty table and check.mjs holds it to
+   that: every row the same knobs, skill the identity element, no knob declared
+   without a call site. A sandbox that pins the difficulty clock and forces one
+   orb is not a difficulty, so it is a flag with its own front screen rather
+   than a row — MODES still parses to exactly two modes and every guard on it
+   is untouched. The lab bar is a DOOR, not a card: it navigates the way the
+   menu's `change` swipe control already does, so the rule that mode cards
+   select rather than start survives intact.
+
+   WHAT IT IS FOR. Six of the seven orbs sit behind a curriculum ladder and the
+   seventh is rare on purpose — three blackhole_entered events in the game's
+   entire recorded history, every one of them on level 4. Seeing what an orb
+   actually feels like meant playing until the game decided to hand you one.
+   The lab hands you the one you asked for, again and again, on a board quiet
+   enough to watch it work.
+
+   WHAT IT DELIBERATELY IS NOT. Not a way to practise and not a way to farm.
+   The clock is pinned at LAB_DL and never ramps, so no level can finish and no
+   tier can arrive; and nothing a lab run does reaches the device. No record
+   moves, no first-encounter lesson is spent, no preference is written, and no
+   telemetry leaves except the single event saying the lab was opened.
+   smoke.mjs snapshots localStorage across a whole lab run — entry, orbs taken,
+   a death — and fails if one key changes. A tool that quietly rewrites the
+   save file it was opened in order to avoid touching is worse than no tool.
+
+   THE WORDING IS THE GAME'S OWN. Every line below is lifted from the channel
+   that already explains that orb — hintText for the three intro orbs, MEET for
+   the four that carry lessons — so the picker cannot drift into being a second,
+   differently-worded description of the same seven things. */
+const LAB_ORBS=[
+ {id:'shield',   n:'SHIELD',    d:'a shield takes one hit for you'},
+ {id:'warp',     n:'SLOW-MO',   d:'this one slows everything down'},
+ {id:'nova',     n:'NOVA',      d:'this one turns every red into a star'},
+ {id:'bass',     n:'BASS BOMB', d:'clears the lane, drops the low end'},
+ {id:'spot',     n:'SPOTLIGHT', d:'you take the lead, taps pay double'},
+ {id:'hyper',    n:'PINK STAR', d:'untouchable and fast'},
+ {id:'blackhole',n:'BLACK HOLE',d:'everything slows, the reds pile up'}
+];
+/* THE CALM BOARD, CHOSEN RATHER THAN PICKED OUT OF THE AIR. dl 40 is exactly
+   TIERS[3].at — THIRD RING — which is the lowest clock value that gives the
+   arena all three orbits. Three matters: the black hole opens a FOURTH ring on
+   entry and restores what it found on exit, so a one-ring lab would have
+   demonstrated that reveal against nothing. What dl 40 buys everywhere else is
+   the quiet: shardCap 4 spread over three rings, a 2.4s arrival gap, speed
+   1.62 of a 4.2 ceiling, and a 2.35s telegraph on every shard. Level 1's
+   finish line is dl 90 and the clock never moves, so the lab is endless. */
+const LAB_DL=40;
+const LAB={on:false,type:'blackhole',invuln:true,sel:6};
+/* Red cannot touch you with the ghost on. Written as one predicate read at the
+   single lethal-contact site rather than as a shield top-up, because a bank
+   that refills is still a bank being spent — the pip row would count down and
+   the LAST SHIELD popup would fire, both of them lying about a run that cannot
+   end. Nothing is consumed and nothing is announced; red simply passes. */
+function labGhost(){return LAB.on&&LAB.invuln;}
 /* FOUR KEYS WAS NOT FOUR SONGS. Every level walked the identical
    i-VI-III-VII and differed only by transposition, so the harmony under
    EVENT HORIZON was the harmony under LIFT OFF played lower — and the chord
@@ -3527,6 +3585,16 @@ const TELE_ID=(function(){
 })();
 function track(name,props){
   if(!POSTHOG_KEY||!TELE_OK)return;
+  /* THE LAB IS SILENT, AND IT IS SILENT HERE RATHER THAN BY TAGGING. A
+     `lab_run` property on every event would have been the smaller change and
+     the worse one: it moves the burden onto every future query, and the day
+     one dashboard forgets the filter, sandbox deaths on a pinned dl-40 board
+     with red switched off are averaging into the completion rate. Suppressing
+     at the single choke point means a lab run cannot pollute the funnel and an
+     event added by a later session inherits that for free. One name is allowed
+     through — the event that says the lab was opened at all, which is the only
+     thing about a lab session worth counting. */
+  if(LAB.on&&name!=='powerup_lab_started')return;
   try{
     const pr=props||{};
     pr.$process_person_profile=false;    /* anonymous events, by declaration */
@@ -3651,6 +3719,15 @@ function age(){return G.t-G.started;}
    rather than to the result, so a level's FLOOR (dl0) is untouched: chill
    takes longer to cross a level, it does not start it somewhere easier. */
 function dl(){
+  /* THE LAB PINS THE CLOCK, and pinning dl() is the whole of how it stays
+     calm. Every pressure term in the file already reads this one number —
+     speed, shard cap, arrival gap, warning length, the tier ladder, the finish
+     line — so freezing it freezes all six together and in the proportions they
+     were tuned in, exactly the argument the mode table makes for using the
+     clock as its main lever. A lab that instead trimmed each term separately
+     would be a second difficulty curve, and the next balance change would
+     land in one of them and not the other. */
+  if(LAB.on)return LAB_DL;
   const a=(age()+Math.min(G.diff*0.22,40))*MD().clock;
   const base=LV[(G.level||1)-1].dl0;
   /* each level re-runs the gentle opening ramp from its own floor */
@@ -3908,7 +3985,13 @@ function tierIndex(){
      switched off the hop hint, the rehearsal and the death coach's best
      line for the whole run. The pacing exemption lives here now and the
      teaching surfaces stay honest per-run. */
-  if(!G.didHop&&G.level<2&&G.state==='playing'&&i>1){
+  /* THE HOLD HAS A RELEASE VALVE AND THE LAB WOULD JAM IT. The valve is
+     `d-G.holdD>=30` — thirty difficulty-seconds — and dl() is a constant in
+     the lab, so that difference is zero forever: a player who never hopped
+     would be held at SECOND RING for the whole session with no way out and no
+     timeout, which is the one shape of bug a frozen clock can introduce. The
+     hold is a pacing guard for a first run anyway, and the lab is not one. */
+  if(!G.didHop&&G.level<2&&!LAB.on&&G.state==='playing'&&i>1){
     if(!G.holdD)G.holdD=d;               /* set once, at first engagement */
     if(d-G.holdD<30)i=1;
     /* the release valve fired with the hop still unlanded — the purest
@@ -4078,6 +4161,8 @@ const G={
   swipeAsked:false,selRects:[],selPt:null,selFx:0,selFrom:null,swipeRect:null,
   menuRects:[],menuPt:null,modeFx:0,          /* the mode picker on the title screen */
   lvSel:1,lvSelRects:[],lvSelPt:null,lvSelFx:0,  /* the starting-level picker */
+  powSelRects:[],powSelFx:0,   /* the powerup lab's picker */
+  labRect:null,                /* the lab's way out, drawn only during a lab run */
   startLevel:1,   /* which level this run BEGAN on — see the record guard in die() */
   level:1,lvlMax:1,lvT:0,lvCard:null,carryScore:0,
   carryOrbits:0,carryStreak:0,carryTime:0,carryLands:0,carryGroove:0, /* the three-level structure,
@@ -4510,6 +4595,14 @@ const MEET={
   combo: {t:'combo — chain stars, up to +6 each',g:'star',soft:1}};
 function firstMeet(type){
   if(G.seen[type]||!MEET[type])return;
+  /* AND NEVER IN THE LAB, which is the difference between a testing rig and a
+     trap. The lab shows one orb dozens of times; the first of those would fire
+     that orb's first-encounter lesson, set its seen bit and persist it — so
+     opening the lab to look at the black hole would permanently spend the
+     lesson the real game gives you the first time you meet one, and the
+     player would never learn it was gone. Deferred rather than suppressed:
+     seen is not set, so the encounter that matters still gets its lesson. */
+  if(LAB.on)return;
   /* A LESSON WAITS FOR A CALM BEAT. Mid-game, first encounters used to fire
      their 0.35x time dilation in the middle of dense play — a slow-motion
      surprise at the moment attention was scarcest, and lessons could land
@@ -4698,7 +4791,14 @@ function spawnSpike(){
 const POW_INTRO=['shield','warp','nova'];
 function spawnPow(){
   let type;
-  if(G.powN<POW_INTRO.length){
+  if(LAB.on){
+    /* THE LAB IS THE LADDER. Every branch below is a rule about WHEN the game
+       is willing to show you something, and the lab exists precisely because
+       those rules are the obstacle: the intro trio, the level gates, the pity
+       shield, the three guarantees and the black hole's 10% die all answer
+       "not yet". One orb, chosen on the picker, placed every time. */
+    type=LAB.type;
+  }else if(G.powN<POW_INTRO.length){
     type=POW_INTRO[G.powN];
   }else if(G.level>=4&&!G.bhPlaced&&G.t>=G.bhCool&&!bhActive()){
     /* AND LEVEL 4 FINALLY INTRODUCES SOMETHING. The exam still teaches no new
@@ -4813,7 +4913,13 @@ function spawnPow(){
 }
 
 function startGame(){
-  G.runs++;savePref('cometloop:runs',G.runs);
+  /* A LAB RUN IS NOT A RUN. G.runs is the device's lifetime run count: it
+     decides whether a returning player still gets the level-1 card, it rides
+     on every telemetry event as run_index, and it is persisted. Ten minutes
+     spent looking at orbs would otherwise read, forever after, as ten more
+     games played — and would skip the opening card for someone who has in fact
+     never played one. */
+  if(!LAB.on){G.runs++;savePref('cometloop:runs',G.runs);}
   G.state='playing';G.score=0;G.diff=0;G.newBest=false;G.scorePop=0;G.mile=0;
   /* the level's song, and its head start: a level-2+ start opens with the
      ladder already climbed to the level's floor — silently, because the
@@ -4892,10 +4998,16 @@ function startGame(){
      three of the intro power-ups inside a short run. */
   G.starT=0.5;G.spikeT=1.2;G.powT=4;G.powN=0;G.started=G.t;G.tier=0;G.banner=null;G.featT=G.t;
   G.sauT=0;
-  if(G.level>=2){
+  if(G.level>=2||LAB.on){
     /* didHop is NOT forged here any more — tierIndex exempts level 2+ from
        the twin hold directly, so the hop hint, rehearsal and death coach
        stay honest about what this run's thumbs actually did */
+    /* THE LAB CLIMBS THE SAME LADDER, ONCE, AND THEN STOPS. It opens at
+       whatever tier LAB_DL names — three rings and two shapes — by the same
+       two lines a level-2+ start uses, rather than by assigning G.nRings a
+       number of its own. And because the clock never moves, the in-run ratchet
+       can never advance past it: no tier arrives mid-session and no banner
+       interrupts the thing you came to look at. */
     G.tier=tierIndex();
     for(let i=0;i<=G.tier;i++)if(TIERS[i].rings)G.nRings=Math.max(G.nRings,TIERS[i].rings);
   }
@@ -4943,8 +5055,15 @@ function die(){
     BH.phase=3;BH.t=BH_WARP*(1-BH.warp);
   }
   pd=null;   /* the gesture died with the run */
-  G.newBest=G.score>G.best&&G.score>0;
-  if(G.score>G.best){G.best=G.score;REC[MODE].best=G.best;savePref(recKey('best'),G.best);}
+  /* THE LAB SCORES NOTHING. Guarded here at the point the record is COMPUTED
+     and not merely at the savePref below it: G.best and REC[MODE].best are
+     what the two mode cards print, so a lab score that skipped only the write
+     would still have rewritten the menu's best for the rest of the visit and
+     then vanished on reload — a number the player watched appear and could
+     never reproduce. A board pinned at dl 40 with red switched off is not a
+     score anybody earned. */
+  G.newBest=!LAB.on&&G.score>G.best&&G.score>0;
+  if(!LAB.on&&G.score>G.best){G.best=G.score;REC[MODE].best=G.best;savePref(recKey('best'),G.best);}
   /* THE SCREEN THE PLAYER IS GUARANTEED TO READ finally uses what the game
      already measured. One line, phrased as an invitation — a struggling
      player does not need another demand. */
@@ -4969,7 +5088,12 @@ function die(){
   const klr=G.lastHit;
   G.killerTaught=!!(MEET[klr]&&G.seen[klr]);
   G.killerRetaught=!!G.seen2[klr];
-  if(MEET[klr]&&G.seen[klr]&&!G.seen2[klr]){
+  /* NOT FROM A LAB DEATH. This is the other half of firstMeet's lab guard and
+     it fails the same way round: dying to a shard in the sandbox would burn
+     that shape's one re-offer, so the real death that the re-offer exists for
+     would arrive with nothing left to say. The lab neither spends a lesson nor
+     re-arms one. */
+  if(!LAB.on&&MEET[klr]&&G.seen[klr]&&!G.seen2[klr]){
     delete G.seen[klr];G.seen2[klr]=1;
     savePref('cometloop:seen',Object.keys(G.seen).join(','));
     savePref('cometloop:seen2',Object.keys(G.seen2).join(','));
@@ -4977,8 +5101,15 @@ function die(){
   /* Consecutive sub-30s deaths quietly reopen the long calm opening — see
      rookie(). One survival past 30s clears it, so a lapsed good player never
      inherits training wheels. */
-  G.struggle=secs<30?(G.struggle||0)+1:0;
-  savePref('cometloop:struggle',G.struggle);
+  /* AND NOT FROM THE LAB, which would otherwise be the one lab write with a
+     visible effect on the real game: struggle feeds rookie(), which lengthens
+     every future run's calm opening and delays its first shard. Turning the
+     ghost off to watch what a red does to you would quietly retune the game
+     you go back to afterwards. */
+  if(!LAB.on){
+    G.struggle=secs<30?(G.struggle||0)+1:0;
+    savePref('cometloop:struggle',G.struggle);
+  }
   G.deadPips=0;G.deadSkip=false;
   /* the impact beat: two or three frames of flat white with the collision
      silhouetted in it, before the explosion plays */
@@ -5001,7 +5132,13 @@ function die(){
      began where every run used to begin — a run that STARTED at level 1 and
      climbed keeps counting, including after a retry, because startLevel is
      the level the run opened on and not the level it is on now. */
-  G.newLevel=G.startLevel===1&&G.level>G.lvlMax;
+  /* The lab clause is belt as well as braces and is meant to stay that way. A
+     lab run opens on level 1 and its clock never reaches level 1's finish
+     line, so `G.level>G.lvlMax` is already false on every path today — but the
+     thing that makes it false is a difficulty constant, and a later session
+     that let the lab pick its level would silently turn this back on. State
+     the rule where the rule lives. */
+  G.newLevel=!LAB.on&&G.startLevel===1&&G.level>G.lvlMax;
   if(G.newLevel){G.lvlMax=G.level;REC[MODE].lvlMax=G.lvlMax;savePref(recKey('gl'),G.lvlMax);}
   if(!RM){G.shake=16;G.flash=0.9;}
   const p=posPlayer();
@@ -5173,7 +5310,59 @@ function enterSwipeSel(from){
    to demonstrate. Every path back to the menu goes through here. */
 function enterMenu(){
   G.state='menu';G.lvT=G.t;
+  /* THE TITLE SCREEN IS WHERE THE LAB ENDS. Every route out of the lab —
+     `back` from the picker, `back` from a lab run — arrives here, so clearing
+     the flag once at the door means there is no path that leaves it set. It
+     matters that this is the ONLY clear: LAB.on gates the record writes, the
+     lesson writes and the telemetry, and a flag with two owners is a flag that
+     is eventually left on. */
+  LAB.on=false;
   G.nRings=3;G.ringI=0;G.hopFromI=0;G.hopP=1;
+}
+/* THE LAB'S OWN FRONT SCREEN. Same shape as the level picker, for the same
+   reason it is a separate state rather than a panel: a picker in this game is
+   a list drawn on the live arena, and the arena behind it is one quiet orbit
+   with nothing on it. LAB.on is set HERE rather than at the run, so the picker
+   itself is already inside the sandbox — which is what makes `back` from a lab
+   run land somewhere the flag is still true and the door still drawn. */
+function enterPowerSel(){
+  LAB.on=true;
+  G.state='powersel';G.lvT=G.t;
+  G.powSelRects=[];G.powSelFx=0;
+  /* THE BLACK HOLE OUTLIVES THE RUN IT WAS IN, and the lab is the first screen
+     that can be reached from inside one. bhTick is called on `G.state==='playing'
+     OR bhActive()`, precisely so the mode can finish across a death — so
+     walking out of a lab run mid-horizon leaves it ticking on the picker,
+     rewriting the global RADII every frame from a warp that is unwinding
+     against a one-ring arena. die() solves the same problem by skipping to the
+     closing warp; the picker is a fresh start rather than an ending, so it
+     resets outright, exactly as startGame does. The three timed reward states
+     go with it for the same reason: nothing from the abandoned run should
+     still be running underneath a menu. */
+  BH.phase=0;BH.on=false;BH.warp=0;BH.t=0;BH.rings0=3;
+  for(let i=0;i<4;i++)RADII[i]=RAD_OFF[i];
+  G.hyper=0;G.spot=0;G.slow=0;G.tsCur=1;
+  G.nRings=1;G.ringI=0;G.hopFromI=0;G.hopP=1;
+  G.trail.length=0;G.stars=[];G.spikes=[];G.pows=[];
+}
+/* The one event a lab session sends — see the choke point in track(). The orb
+   is the whole content: which of the seven anybody actually wants to look at
+   is the question the lab was built to answer, and the only one worth asking
+   of the analytics. */
+function startLab(){
+  LAB.sel=Math.min(LAB_ORBS.length-1,Math.max(0,LAB.sel|0));
+  LAB.type=LAB_ORBS[LAB.sel].id;
+  G.level=1;G.startLevel=1;
+  /* a lab run is a fresh run in every sense the carry counters care about, and
+     no upgrade is ever offered in it — the clock never reaches a finish line,
+     so the draft screen it hangs off cannot happen */
+  G.upg={};G.offered={};G.offer=[];G.picks=[];
+  G.carryScore=0;G.carryOrbits=0;G.carryStreak=0;G.carryTime=0;
+  G.carryLands=0;G.carryGroove=0;
+  track('powerup_lab_started',{orb:LAB.type,ghost:LAB.invuln?1:0,run_index:G.runs});
+  /* straight in, with no level card: the card names a level and the two things
+     it is about, and the lab is neither of those */
+  startGame();
 }
 function enterLevelSel(){
   G.state='levelsel';G.lvT=G.t;
@@ -5199,7 +5388,26 @@ function menuStep(d){
       G.lvSel=n;G.lvSelFx=1;
       beep(PENT[Math.min(13,2+n)],0.10,'triangle',0.05,PENT[Math.min(13,4+n)]);
     }
+  }else if(G.state==='powersel'){
+    pickOrb(LAB.sel+d);
   }
+}
+/* One writer for the lab's selection, so the tap path and the arrow keys
+   cannot disagree about the bounds or about which sound a change makes. The
+   walk up the pentatonic is the level picker's, for the same reason: this is
+   the same kind of screen answering the same keys. */
+function pickOrb(i){
+  const n=Math.min(LAB_ORBS.length-1,Math.max(0,i));
+  if(n===LAB.sel)return;
+  LAB.sel=n;G.powSelFx=1;
+  beep(PENT[Math.min(13,2+n)],0.10,'triangle',0.05,PENT[Math.min(13,4+n)]);
+}
+/* Answering in the pentatonic like every other control in the game: the fifth
+   above for on, the tonic below for off, so the two states are told apart by
+   ear as well as by the mark. */
+function toggleGhost(){
+  LAB.invuln=!LAB.invuln;G.powSelFx=1;
+  beep(PENT[LAB.invuln?4:0],0.10,'triangle',0.05,PENT[LAB.invuln?6:2]);
 }
 /* the title screen's exit: the swipe rule is asked once per device and comes
    first, because it is a question about the controls and the level picker is
@@ -5207,6 +5415,13 @@ function menuStep(d){
 function leaveMenu(){
   if(!G.swipeAsked){enterSwipeSel('start');return;}
   enterLevelSel();
+}
+/* The lab door obeys the same once-per-device rule the run does: the swipe
+   rule is a question about the controls, and the lab is played with them. A
+   fresh device that opens the lab first is asked it here and never again. */
+function openLab(){
+  if(!G.swipeAsked){enterSwipeSel('lab');return;}
+  enterPowerSel();
 }
 function startFromSelect(){
   const n=Math.min(LEVEL_MAX,Math.max(1,G.lvSel||1));
@@ -5279,7 +5494,17 @@ function hop(step){
      thing being explained (complying with 'swipe to another ring'!)
      destroyed the once-ever sentence mid-read */
   if(G.teachKind==='hop')G.teach=0;
-  if(!G.everHopped){G.everHopped=true;savePref('cometloop:hopped','1');}
+  /* NOT FROM THE LAB, and this is the one lifetime flag with teeth. everHopped
+     gates the FIRST-HOP REHEARSAL — the once-ever dilation, held spawns and
+     radial guide that fire when the second ring lands for someone who has
+     never hopped. The lab runs on three rings, so a fresh player who opened it
+     first and swiped once would have spent that rehearsal on a sandbox and met
+     the real second ring with nothing. Same shape as the lesson bug above:
+     a gameplay action, not a menu, quietly writing a lifetime record.
+     The in-memory flag is inside the guard as well as the write — setting it
+     without persisting would suppress the rehearsal for the rest of the visit,
+     which is the same bug with a shorter fuse. */
+  if(!LAB.on&&!G.everHopped){G.everHopped=true;savePref('cometloop:hopped','1');}
   G.hopFrom=radiusOf(G.ringI);
   G.hopFromI=G.ringI;
   G.ringI=t;
@@ -5421,6 +5646,11 @@ function shareRect(){
   return{x:cx-w/2,y:Math.min(cy+108*u,bY-h-18*u),w:w,h:h};
 }
 function inShare(x,y){
+  /* Nothing to share out of the lab, and the share text is the reason rather
+     than the taste: runSummary() writes "Cosmo · LEVEL 1/4" and a score, with
+     no room in it for the four things that make a lab number meaningless. A
+     boast the game knows to be false should not be one tap away. */
+  if(LAB.on)return false;
   if(G.state!=='dead'||G.t-G.deadT<=0.6||!deadSeqDone())return false;
   const r=shareRect(),pad=8*u;
   return x>=r.x-pad&&x<=r.x+r.w+pad&&y>=r.y-pad&&y<=r.y+r.h+pad;
@@ -5451,8 +5681,27 @@ cv.addEventListener('pointerdown',function(e){
        else on the screen, which is the tap this game has always answered. */
     const mh=G.menuRects.find(function(r){
       return e.clientX>=r.x&&e.clientX<=r.x+r.w&&e.clientY>=r.y&&e.clientY<=r.y+r.h;});
+    /* THE LAB BAR IS A DOOR, NOT A CARD, and that is why it is handled before
+       the cards rather than beside them. A card answers "which game"; the lab
+       answers "not a game at all, show me the orbs" — and it opens another
+       decision screen with a way back, so navigating from it costs a look
+       rather than a run. The menu's own `change` control has always worked
+       exactly this way, which is the precedent this follows. */
+    if(mh&&mh.id==='lab'){openLab();beep(523,0.12,'triangle',0.05,784);return;}
     if(mh&&mh.id!=='start'){pickMode(mh.id);return;}
     leaveMenu();
+    return;
+  }
+  if(G.state==='powersel'){
+    /* resolved at press for the level picker's reason: there is no gesture on
+       this screen, so nothing here can turn into a swipe */
+    const ph=G.powSelRects.find(function(r){
+      return e.clientX>=r.x&&e.clientX<=r.x+r.w&&e.clientY>=r.y&&e.clientY<=r.y+r.h;});
+    if(!ph)return;   /* a picker is a decision: the background starts nothing */
+    if(ph.id==='start'){startLab();beep(523,0.14,'triangle',0.06,784);return;}
+    if(ph.id==='back'){enterMenu();beep(392,0.09,'triangle',0.04,294);return;}
+    if(ph.id==='ghost'){toggleGhost();return;}
+    if(ph.id==='orb')pickOrb(ph.i);
     return;
   }
   if(G.state==='levelsel'){
@@ -5479,6 +5728,21 @@ cv.addEventListener('pointerdown',function(e){
     if(pd)return;
     pd={id:e.pointerId,x:e.clientX,y:e.clientY,saved:null,ang:G.angle,far:0,lean:0,out:false,swiped:false};
     return;
+  }
+  /* THE LAB NEEDS A DOOR, AND THE GHOST IS WHY IT NEEDS ONE BADLY. Every other
+     run in this game ends by itself; a lab run with red switched off cannot,
+     so without this the only way out of the sandbox is to reload the page —
+     and the way back in is four taps. Checked before the reverse because the
+     arena answers a tap ANYWHERE, so a control drawn during play has to be
+     read first or it can never be pressed at all. It costs the top-left corner
+     of a lab run, which is the part of the screen a one-thumb game does not
+     use, and it is drawn only while LAB.on: the real game's tap surface is
+     untouched. Live on the death screen too — a lab death should not force a
+     retry to get at the picker. */
+  if(LAB.on&&G.labRect&&(G.state==='playing'||G.state==='dead')&&
+     e.clientX>=G.labRect.x&&e.clientX<=G.labRect.x+G.labRect.w&&
+     e.clientY>=G.labRect.y&&e.clientY<=G.labRect.y+G.labRect.h){
+    enterPowerSel();beep(392,0.09,'triangle',0.04,294);return;
   }
   if(G.state==='dead'){
     /* the first tap after the lockout fast-forwards the reveal; the next
@@ -5572,6 +5836,7 @@ function pdEnd(e){
            now the screen that decides where the run starts, so the chooser no
            longer builds the level-1 card itself */
         if(G.selFrom==='menu'){G.selFrom=null;enterMenu();}
+        else if(G.selFrom==='lab'){G.selFrom=null;enterPowerSel();}
         else{G.selFrom=null;enterLevelSel();}
         beep(523,0.14,'triangle',0.06,784);
         return;
@@ -5644,10 +5909,13 @@ window.addEventListener('keydown',function(e){
       track('swipe_mode_chosen',{mode:SWIPE_MODE,hops:GEST.swipe+GEST.lateSwipe});
       pd=null;
       if(G.selFrom==='menu'){G.selFrom=null;enterMenu();}
+      else if(G.selFrom==='lab'){G.selFrom=null;enterPowerSel();}
       else{G.selFrom=null;enterLevelSel();}
       beep(523,0.14,'triangle',0.06,784);
     }else if(G.state==='levelsel'){
       startFromSelect();
+    }else if(G.state==='powersel'){
+      startLab();
     }else if(G.state==='lvend'){
       if(G.t-G.lvT>0.6){cardDone();startGame();braam(0.05);}
     }else if(G.state==='dead'){
@@ -5666,6 +5934,13 @@ window.addEventListener('keydown',function(e){
     else menuStep(1);
   }else if(e.code==='KeyM'){
     toggleMute();
+  }else if(e.code==='Escape'){
+    /* the keyboard's copy of the lab door, and of the picker's `back` — the
+       one key every desktop hand already reaches for to leave a thing */
+    if(LAB.on&&(G.state==='playing'||G.state==='dead')){enterPowerSel();beep(392,0.09,'triangle',0.04,294);}
+    else if(G.state==='powersel'){enterMenu();beep(392,0.09,'triangle',0.04,294);}
+  }else if(e.code==='KeyG'&&G.state==='powersel'){
+    toggleGhost();   /* the picker's one non-list control gets a key too */
   }
 });
 
@@ -5792,7 +6067,13 @@ function updateSpikes(sdt,lethal){
     /* the saucer's BODY is not a hitbox at all — only its shot is, and the
        shot takes the whole ring, so there is no angle to test */
     const reach=s.saucer?s.fire>0:sweptHit(s.a,tol);
-    if(lethal&&s.phase===1&&armed(s)&&s.ring===er&&G.t>=G.invuln&&reach){
+    /* labGhost() sits in the CONTACT test, ahead of the hypernova and shield
+       branches, so nothing downstream of it can fire: no shield is spent, no
+       pip moves, no popup, no i-frame, no death. The shard stays on the board
+       and keeps travelling — it is still a real shard doing everything a shard
+       does, and watching one pass through you is how you can tell the ghost is
+       on without a HUD line claiming it. */
+    if(lethal&&!labGhost()&&s.phase===1&&armed(s)&&s.ring===er&&G.t>=G.invuln&&reach){
       if(G.hyper>0){
         /* HYPERNOVA: the shard is a note, not a threat — it converts into a
            paying ember on your lane and the run does not even slow down.
@@ -5923,7 +6204,7 @@ function update(dt){
      it at full speed inside slow motion is the loudest possible statement that
      the world is not really slow — and it also handed the mode's only escape
      verb a 2.4x discount against everything it escapes. */
-  if(G.hopP<1)G.hopP=Math.min(1,G.hopP+(bhActive()?pdt:dt)/((G.state==='menu'||G.state==='swipesel'||G.state==='levelsel')?HOP*3.5:HOP));
+  if(G.hopP<1)G.hopP=Math.min(1,G.hopP+(bhActive()?pdt:dt)/((G.state==='menu'||G.state==='swipesel'||G.state==='levelsel'||G.state==='powersel')?HOP*3.5:HOP));
   /* The grace holds while the finger is still down: a slow deliberate swipe
      used to outlive the 70ms window, fire the reverse beep and sparks, and
      then roll back anyway — sound for a reverse that never happened. A held
@@ -6004,6 +6285,11 @@ function update(dt){
   if(G.state==='levelsel'){
     G.sweep=0;G.angle+=0.62*MD().demo*dt*G.dir;pushTrail();
     if(G.lvSelFx>0)G.lvSelFx=Math.max(0,G.lvSelFx-dt*2.4);
+    return;
+  }
+  if(G.state==='powersel'){
+    G.sweep=0;G.angle+=0.62*MD().demo*dt*G.dir;pushTrail();
+    if(G.powSelFx>0)G.powSelFx=Math.max(0,G.powSelFx-dt*2.4);
     return;
   }
   if(G.state==='lvend'){G.sweep=0;G.angle+=0.8*dt*G.dir;pushTrail();return;}
@@ -6435,7 +6721,16 @@ function update(dt){
      effect is on an arrangement that is halted. Stars stay — they are the
      scoring, and the pitch wants the mode to be worth something. */
   if(G.powT<=0&&!FIN.on&&!bhActive()&&G.pows.length===0&&dl()>=6){
-    G.powT=spawnPow()?Math.max(6,rand(10,15)-dl()*0.02):0.5;
+    /* THE LAB REFILLS IN SECONDS, NOT TENS OF THEM. The one-orb-at-a-time gate
+       above is kept — two on the board at once is not a thing the real game
+       ever does, and a rig that shows you an arrangement the game cannot
+       produce is testing the wrong object. So the frequency the lab promises
+       is bought entirely on the refill: ~3s after one is taken instead of
+       10-15. An orb declined still costs its 7s life first, which is also
+       real. The black hole's own !bhActive() gate is the same line and needs
+       no lab case: nothing spawns during the mode, and the next one is armed
+       about three seconds after the horizon closes. */
+    G.powT=spawnPow()?(LAB.on?rand(2.2,3.6):Math.max(6,rand(10,15)-dl()*0.02)):0.5;
   }
 
   const er=effRing();
@@ -6576,7 +6871,15 @@ function update(dt){
       G.pows.splice(i,1);
       /* using an orb IS the introduction — better than any sentence about
          it, and it stops a redundant lesson firing after the experience */
-      if((s.type==='bass'||s.type==='spot'||s.type==='hyper'||s.type==='blackhole')&&!G.seen[s.type]){
+      /* AND NOT IN THE LAB — the second and less obvious of the two places a
+         lesson gets spent. firstMeet's guard covers the sentence; this covers
+         the shortcut beside it, where TAKING an orb counts as having been
+         taught it. The lab hands you the same orb every few seconds, so the
+         very first pickup of a black hole session would permanently retire the
+         black hole's lesson, silently, on a device that has never met one in
+         the real game. Found by the harness rather than by reading: one guard
+         looked like the whole job and there were two. */
+      if(!LAB.on&&(s.type==='bass'||s.type==='spot'||s.type==='hyper'||s.type==='blackhole')&&!G.seen[s.type]){
         G.seen[s.type]=1;savePref('cometloop:seen',Object.keys(G.seen).join(','));
       }
       arcFlash(s.a,s.ring,
@@ -8501,6 +8804,7 @@ function drawShieldBtn(){
   ctx.globalAlpha=1;ctx.restore();
 }
 function drawShareBtn(){
+  if(LAB.on)return;   /* same rule as inShare: the button goes with the tap */
   if(G.state!=='dead'||G.t-G.deadT<=0.6||!deadSeqDone())return;
   const r=shareRect(),midY=r.y+r.h/2,rad=r.h/2;
   const copied=G.shareFx>G.t;
@@ -8869,6 +9173,30 @@ function drawHUD(){
   ctx.textAlign='center';ctx.textBaseline='alphabetic';
   const top=safeTop;
   const bottomY=Math.min(H-24*u-safeBot,cy+R+52*u);
+  /* THE LAB'S DOOR AND ITS LABEL, one control doing both jobs. It says which
+     orb is loaded — a run that hands you the same object every twenty seconds
+     should never leave you wondering which one you asked for — and pressing it
+     goes back to the picker. Cleared to null on every other path so a stale
+     rect from a finished lab run cannot swallow a tap in the real game; the
+     handler tests LAB.on as well, which is the belt to this brace.
+     Top-left, because the arena answers a tap anywhere and the bottom of the
+     screen is where the thumb lives. */
+  if(LAB.on&&(G.state==='playing'||G.state==='dead')){
+    const dw=Math.min(150*u,W*0.52),dh=26*u,dx2=14*u,dy2=top+12*u;
+    G.labRect={x:dx2,y:dy2,w:dw,h:dh};
+    ctx.save();
+    ctx.globalAlpha=0.9;
+    ctx.fillStyle='rgba(12,10,26,0.72)';
+    ctx.beginPath();ctx.roundRect(dx2,dy2,dw,dh,dh*0.34);ctx.fill();
+    ctx.strokeStyle='rgba(160,135,255,0.45)';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.roundRect(dx2+1,dy2+1,dw-2,dh-2,dh*0.34);ctx.stroke();
+    ctx.textAlign='left';
+    const dlab='‹ '+LAB_ORBS[LAB.sel].n;
+    text(dlab,dx2+10*u,dy2+dh*0.67,fitSz(dlab,10.5*u,'800',dw-20*u),'800',
+      'rgba(226,214,255,0.92)',1);
+    ctx.textAlign='center';
+    ctx.restore();
+  }else G.labRect=null;
   if(G.state==='playing'){
     const sz=46*u*(1+0.25*G.scorePop);
     textFx(G.score,cx,top+52*u,sz,'800','#ffffff','#c2d8ff',null,0);
@@ -9452,7 +9780,12 @@ function drawHUD(){
     /* height comes from what is left after the key needs its four rows, and
        is clamped either side: too short and the art has no room to move in,
        too tall and it eats the sentences under it */
-    const cardH=Math.max(96*u,Math.min(cardW*0.98,(bottomY-30*u-cardTop)*0.46));
+    /* 0.40 rather than 0.46: the lab bar below the cards takes its band out of
+       the same box, and taking it out of the KEY instead would have pushed the
+       four rows onto their 15u floor and then through the bottom of a short
+       landscape phone. The cards give the room up because they have it — the
+       clamp above them is what actually sets their height on a tall screen. */
+    const cardH=Math.max(96*u,Math.min(cardW*0.98,(bottomY-30*u-cardTop)*0.40));
     const cardGap=12*u,cardX=cx-(cardW*2+cardGap)/2;
     const MLIST=[MODES.chill,MODES.skill];
     for(let i=0;i<MLIST.length;i++){
@@ -9460,6 +9793,41 @@ function drawHUD(){
       G.menuRects.push({x:bx,y:cardTop,w:cardW,h:cardH,id:m.id});
       drawModeCard(m,bx,cardTop,cardW,cardH,MODE===m.id,MODE===m.id?G.modeFx:0);
     }
+    ctx.textAlign='center';
+    /* THE THIRD OPTION, AND IT IS DELIBERATELY NOT A THIRD CARD. Drawn as one
+       wide bar under the pair rather than as a card beside them, for two
+       reasons that point the same way. It is not the same KIND of thing: the
+       cards answer "which game", each carrying its own record and its own
+       identity colour, and a sandbox that keeps no record and pins the
+       difficulty would be claiming to be a difficulty by sitting in that row.
+       And three cards across a 390px phone is 113u each against the current
+       168u — the art, the name, the tag and the best line all shrink to buy
+       space for a screen nobody reaches for on their way into a run.
+       Violet, not either mode's colour and not red: COL.warp already means
+       "this bends the rules" everywhere else in the game. */
+    const labH=Math.max(28*u,Math.min(38*u,cardH*0.30));
+    const labW=cardW*2+cardGap,labX=cardX,labY=cardTop+cardH+9*u;
+    G.menuRects.push({x:labX,y:labY,w:labW,h:labH,id:'lab'});
+    ctx.save();
+    ctx.fillStyle='rgba(16,22,38,0.80)';
+    ctx.beginPath();ctx.roundRect(labX,labY,labW,labH,labH*0.34);ctx.fill();
+    ctx.strokeStyle='rgba(160,135,255,0.42)';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.roundRect(labX+1,labY+1,labW-2,labH-2,labH*0.34);ctx.stroke();
+    /* the orb currently armed in the lab, drawn at the size the picker uses:
+       the bar says what is behind it with the object rather than a word */
+    drawPow(labX+labH*0.62,labY+labH/2,{type:LAB_ORBS[LAB.sel].id,t:G.t},0.9);
+    const lbz=Math.min(11.5*u,labH*0.36);
+    ctx.textAlign='left';
+    text('POWERUP TESTING',labX+labH*1.16,labY+labH*0.44,
+      fitSz('POWERUP TESTING',lbz,'800',labW-labH*1.9),'800','rgba(226,214,255,0.92)',2);
+    const lbs='try any orb on a quiet board';
+    text(lbs,labX+labH*1.16,labY+labH*0.80,
+      fitSz(lbs,lbz*0.80,'600',labW-labH*1.9),'600','rgba(190,178,235,0.6)',0);
+    ctx.textAlign='right';
+    ctx.globalAlpha=0.75;
+    text('›',labX+labW-labH*0.5,labY+labH*0.68,labH*0.5,'700',COL.warp,0);
+    ctx.globalAlpha=1;
+    ctx.restore();
     ctx.textAlign='center';
     /* FOUR ROWS, NOT NINE. This is the densest block of text in the game and
        the first thing anybody reads \u2014 the playtester who counted "like eight
@@ -9484,9 +9852,9 @@ function drawHUD(){
        phone; it now takes the gap between the title and TAP TO START and
        divides it, so adding a row shrinks the leading instead of overflowing. */
     G.swipeRect=null;
-    /* the key now starts under the cards rather than under the title — same
+    /* the key now starts under the LAB BAR rather than under the cards — same
        divide-the-gap rule, one more thing above it */
-    const kTop=cardTop+cardH+10*u, kBot=bottomY-24*u;
+    const kTop=labY+labH+8*u, kBot=bottomY-24*u;
     const rh=Math.min(24*u,Math.max(15*u,(kBot-kTop)/rows.length));
     const fs=Math.min(13*u,rh*0.56), gs=Math.min(20*u,rh*0.84);
     /* centred in the gap rather than pinned to the top of it: on a tall phone
@@ -9684,6 +10052,115 @@ function drawHUD(){
     ctx.globalAlpha=lsA*0.6;
     text('back',cx,bkY+bkH*0.68,11*u,'700','rgba(200,215,255,0.85)',1);
     ctx.globalAlpha=1;
+  }else if(G.state==='powersel'){
+    /* WHICH POWERUP. The level picker's screen, one list deeper: heading,
+       rows, a pill, a way back — deliberately the same idiom rather than a new
+       one, because this is the same kind of question asked on the same live
+       arena, and a second layout for it would be a second thing to learn.
+       Each row carries the ORB ITSELF, drawn by drawPow — the same call the
+       arena makes, so the picture on the row is the object on the board and
+       cannot drift from it. Seven rows is nearly twice the level picker's
+       four, so the row height is derived from what is actually left after the
+       toggle, the pill and the back word are reserved, with a low floor: on a
+       short landscape phone the list compresses and the controls do not move,
+       which is the rule that screen already follows. */
+    const psA=Math.min(1,(G.t-G.lvT)/0.35);
+    ctx.globalAlpha=psA;
+    const psTop=Math.max(top+34*u,cy-R-44*u);
+    textFx('WHICH POWERUP?',cx,psTop,fitSz('WHICH POWERUP?',22*u,'800',W-30*u,2),'800',
+      '#ffffff','#c4a8ff','rgba(160,135,255,0.45)',2);
+    const psub='powerup testing · it appears over and over';
+    text(psub,cx,psTop+19*u,fitSz(psub,10.5*u,'600',W-24*u),'600',
+      'rgba(214,205,245,0.7)',1);
+    G.powSelRects=[];
+    const gH=26*u,ppH=38*u,pbkH=26*u;
+    const ppy=bottomY-ppH-10*u-pbkH-4*u;
+    const gy2=ppy-gH-8*u;
+    const psBot=gy2-8*u;
+    const pgap=4*u,N=LAB_ORBS.length;
+    const listTop=psTop+30*u,availH=psBot-listTop;
+    /* SEVEN ROWS IS NEARLY TWICE THE LEVEL PICKER'S FOUR, and on a landscape
+       phone the column simply does not fit: measured across eight viewports,
+       844x390 and 740x360 both drove the rows onto their floor and then ran the
+       last one straight through the ghost toggle. The floor was the bug — a
+       minimum height that the box cannot honour is not a minimum, it is an
+       overflow with a comment. So the list folds to TWO COLUMNS exactly when
+       one will not fit at a tappable height, which is the same viewport that
+       has width to spare: the block widens to 620u there, and each cell still
+       carries the orb, its name and its sentence at full size. The decision is
+       made from the measured box, not from an orientation test — a short
+       window on a desktop gets the same treatment as a phone on its side. */
+    const cols=(availH<N*24*u)?2:1;
+    const rowsN=Math.ceil(N/cols);
+    const pw3=Math.min(W-30*u,cols===2?620*u:320*u),plx=cx-pw3/2;
+    const colGap=8*u,cellW=(pw3-(cols-1)*colGap)/cols;
+    const plh=Math.max(20*u,Math.min(38*u,(availH-(rowsN-1)*pgap)/rowsN));
+    const listH=rowsN*plh+(rowsN-1)*pgap;
+    let py3=Math.max(listTop,(listTop+psBot)/2-listH/2);
+    for(let i=0;i<N;i++){
+      const o=LAB_ORBS[i],on=LAB.sel===i;
+      const cxx=plx+(i%cols)*(cellW+colGap),cyy=py3+Math.floor(i/cols)*(plh+pgap);
+      G.powSelRects.push({x:cxx,y:cyy,w:cellW,h:plh,id:'orb',i:i,orb:o.id});
+      ctx.save();
+      ctx.globalAlpha=psA;
+      ctx.fillStyle=on?'rgba(38,30,72,0.96)':'rgba(16,22,38,0.90)';
+      ctx.beginPath();ctx.roundRect(cxx,cyy,cellW,plh,10*u);ctx.fill();
+      ctx.strokeStyle=on?COL.warp:'rgba(140,170,220,0.24)';
+      ctx.lineWidth=on?2:1.2;
+      ctx.globalAlpha=psA*(on?Math.min(1,(RM?1:0.62+0.38*Math.sin(G.t*3))+G.powSelFx*0.35):1);
+      ctx.beginPath();ctx.roundRect(cxx+1,cyy+1,cellW-2,plh-2,10*u);ctx.stroke();
+      ctx.globalAlpha=psA;
+      drawPow(cxx+plh*0.62,cyy+plh/2,{type:o.id,t:G.t},on?1:0.55);
+      ctx.textAlign='left';
+      const tx=cxx+plh*1.14,tw=cellW-plh*1.14-12*u;
+      const nz=Math.min(13*u,plh*0.40),dz=Math.min(10*u,plh*0.30);
+      text(o.n,tx,cyy+plh*0.44,fitSz(o.n,nz,'800',tw),'800',
+        on?'#eaf1ff':'rgba(214,228,255,0.62)',1);
+      text(o.d,tx,cyy+plh*0.80,fitSz(o.d,dz,'600',tw),'600',
+        on?'rgba(206,220,255,0.85)':'rgba(180,198,230,0.42)',0);
+      ctx.textAlign='center';
+      ctx.restore();
+    }
+    /* THE GHOST SWITCH, stated as what it does and not as a difficulty. Red is
+       still on the board and still armed; it simply cannot land. Off, the lab
+       is the real game with one orb in it — which is the only way to find out
+       what taking that orb is worth. */
+    G.powSelRects.push({x:plx,y:gy2,w:pw3,h:gH,id:'ghost'});
+    ctx.save();
+    ctx.globalAlpha=psA;
+    ctx.fillStyle='rgba(16,22,38,0.86)';
+    ctx.beginPath();ctx.roundRect(plx,gy2,pw3,gH,gH*0.32);ctx.fill();
+    ctx.strokeStyle=LAB.invuln?'rgba(123,255,200,0.55)':'rgba(140,170,220,0.24)';
+    ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.roundRect(plx+1,gy2+1,pw3-2,gH-2,gH*0.32);ctx.stroke();
+    /* a filled box for on, an empty one for off — the same mark the level
+       picker's ordinal uses, so "set" reads the same way on both screens */
+    const bxs=Math.min(11*u,gH*0.44),bxx=plx+14*u,bxy=gy2+gH/2;
+    if(LAB.invuln){ctx.fillStyle=COL.shield;ctx.fillRect(bxx-bxs/2,bxy-bxs/2,bxs,bxs);}
+    else{ctx.strokeStyle='rgba(200,215,255,0.5)';ctx.lineWidth=1.3;
+      ctx.strokeRect(bxx-bxs/2,bxy-bxs/2,bxs,bxs);}
+    ctx.textAlign='left';
+    const gtx='red cannot touch you';
+    text(gtx,plx+30*u,bxy+3.5*u,fitSz(gtx,Math.min(11*u,gH*0.42),'700',pw3-44*u),'700',
+      LAB.invuln?'rgba(123,255,200,0.9)':'rgba(190,206,235,0.55)',1);
+    ctx.textAlign='center';
+    ctx.restore();
+    const ppw=Math.min(150*u,W-60*u),ppx=cx-ppw/2;
+    G.powSelRects.push({x:ppx,y:ppy,w:ppw,h:ppH,id:'start'});
+    ctx.save();
+    ctx.globalAlpha=psA*(RM?1:0.78+0.22*Math.sin(G.t*3));
+    ctx.strokeStyle=COL.warp;ctx.lineWidth=1.8;
+    ctx.beginPath();ctx.roundRect(ppx,ppy,ppw,ppH,ppH/2);ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha=psA;
+    ctx.textBaseline='middle';
+    textFx('START',cx,ppy+ppH/2,17*u,'800','#f2eaff',COL.warp,'rgba(160,135,255,0.5)',4);
+    ctx.textBaseline='alphabetic';
+    const pbW=64*u,pbY=ppy+ppH+5*u;
+    G.powSelRects.push({x:cx-pbW/2,y:pbY,w:pbW,h:pbkH,id:'back'});
+    ctx.globalAlpha=psA*0.6;
+    text('back',cx,pbY+pbkH*0.68,11*u,'700','rgba(200,215,255,0.85)',1);
+    ctx.globalAlpha=1;
   }else{
     /* THE LEVEL LEADS, AND THE SCREEN ASSEMBLES ITSELF. GAME OVER shrinks to
        a label — you already know you died — and instead of one static frame
@@ -9718,6 +10195,17 @@ function drawHUD(){
     ctx.globalAlpha=el(lvAt+0.35);
     if(G.newLevel)text('FURTHEST YET',cx,cy+42*u,13*u,'700',COL.ember,3);
     else if(G.newBest)text('NEW BEST',cx,cy+42*u,13*u,'700',COL.ember,3);
+    else if(LAB.on){
+      /* THE ONE LINE THAT HAS TO BE HERE. This screen prints a score in
+         54u type, and a lab score is not a score: pinned clock, one orb on
+         repeat, and red switched off unless you turned it back on. Without a
+         mark, a screenshot of it is indistinguishable from a real run's — and
+         the line under it would otherwise be the device's genuine BEST, which
+         is the pairing most likely to be read as a comparison. Say what the
+         number is and what happened to it. */
+      const ll='POWERUP TESTING · not recorded';
+      text(ll,cx,cy+42*u,fitSz(ll,12*u,'700',W-24*u,2),'700','rgba(190,178,235,0.75)',2);
+    }
     else{
       /* WHICH BEST. There are two records now and this line reports whichever
          mode is selected, so in chill it has to say so \u2014 otherwise a player
