@@ -5750,8 +5750,8 @@ function textFx(str,x,y,size,weight,c1,c2,glow,ls){
 
    ONE BUFFER CAN ONLY CARRY ONE RADIUS. How far a pass blurs is fixed by how
    far it is upscaled, so the quarter-res buffer put the same tight collar on
-   the hub lamp as on a spark: an ember's light was gone 13px out, the comet's
-   at 17px, barely past the blob itself. Every other layer of light here is
+   the hub lamp as on a spark: an ember's light was gone 15px out, the comet's
+   at 22px, barely past the blob itself. Every other layer of light here is
    several passes at different weights — the trail is three, the gate bar two,
    the nova front three — and the bloom was the one that was a single flat
    blit. Light with no range reads as paint.
@@ -5779,10 +5779,18 @@ const BLOOM_DIV=4,BLOOM_ALPHA=0.28;
    washing them toward white spends the one colour that means "collect me"),
    roundness, and how much the whole thing hazes a dense late-game board,
    which is the contrast the calm pool exists to buy back. As set: ember core
-   +4.8%, reach 13px -> 43px on an ember and 17px -> 69px on the comet, median
-   lift across a full board 0.026. Mutable at runtime, so `HALO_A=0.14` in the
-   console re-weights it on the next frame — the last word on how much glow is
-   too much belongs to eyes on a real screen, not to this table. */
+   +4.8%, reach x3.6, median lift across a full board 0.026.
+   REACH IS MEASURED TO 1/255 — the outermost radius whose light can still tint
+   an 8-bit pixel — as the maximum over a full circle, in sub-pixel steps. The
+   threshold has to be quoted or the number is not checkable, and stepping in
+   whole pixels off one ray is how the first cut of this comment ended up
+   claiming a before-gap of 4px between the ember and the comet when their
+   discs differ by 7u: two objects through the same filter chain cannot differ
+   in reach by less than their radii do. On a 390x844 phone: ember 15px -> 54px,
+   comet 22px -> 78px, and the ratio holds 3.44 to 3.74 across viewports.
+   Mutable at runtime, so `HALO_A=0.14` in the console re-weights it on the next
+   frame — the last word on how much glow is too much belongs to eyes on a real
+   screen, not to this table. */
 const HALO_DIV=12,HALO_WDIV=32;      /* the halo buffer, and its wide sibling */
 const HALO_K1=2.0,HALO_W1=0.50;      /* inner disc: radius multiple, weight */
 const HALO_K2=4.0,HALO_W2=0.20;      /* outer disc */

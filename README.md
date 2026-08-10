@@ -1510,14 +1510,17 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
 - **The bloom got a halo, and the halo is drawn rather than downsampled.**
   One buffer can only carry one radius — how far a pass blurs is set by how far
   it is upscaled — so the quarter-res pass put the same tight collar on the hub
-  lamp as on a spark: an ember's light was gone 13px out, the comet's at 17px,
+  lamp as on a spark: an ember's light was gone 15px out, the comet's at 22px,
   barely past the blob itself. Every other layer of light here is several
   passes at different weights (the trail is three, the gate bar two, the nova
   front three); the bloom was the one that was a single flat blit, and light
   with no range reads as paint. Each bloom dot now also draws two wider discs —
   2× and 4× its radius — into a coarse buffer, blitted back along with one
-  downsample of itself. Reach goes 13px → 43px on an ember, 17px → 69px on the
-  comet.
+  downsample of itself. **Reach goes up ×3.6** — on a 390×844 phone, an ember
+  15px → 54px and the comet 22px → 78px, with the ratio holding 3.44–3.74
+  across viewports. Reach is measured to 1/255, the outermost radius whose
+  light can still tint an 8-bit pixel, as the max over a full circle in
+  sub-pixel steps; quoting the threshold is what makes the figure checkable.
   The obvious cheaper route is a mip cascade, and it was built that way first
   and measured before being thrown away. It fails twice. A box downsample
   preserves the peak of anything larger than a buffer pixel, so a solid blob
@@ -1535,6 +1538,11 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   "collect me"), roundness, and how much a dense late-game board hazes over. As
   set: ember core +4.8%, median lift across a full board 0.026. How much glow
   is too much is the one part of this that wants eyes on a real screen.
+  The first cut of these figures was measured off a single ray in whole-pixel
+  steps against an arbitrary cutoff, and reported a before-gap of 4px between
+  the ember and the comet — impossible, since the two run through the same
+  filter chain and their discs differ by 7u. Two objects cannot differ in reach
+  by less than their radii do; that contradiction is what caught it.
 - **The comet lights its own ring** — a short arc centred on it, falling off
   both ways. Decorative, but it also makes "which ring am I on" readable
   without looking away from the comet.
