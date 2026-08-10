@@ -1495,14 +1495,26 @@ than guesses. The play-style aggregates round it out: `lands` vs
 `best_combo` (did the rhythm and combo lessons change behaviour),
 `hold_timeout` (the twin exam arrived by hop or by the release valve —
 the purest hop-teaching signal), `loop_caught`, `near_misses`, and
-`got_bass` / `got_spot` alongside the existing orb pickup flags.
+`got_bass` / `got_spot` alongside the existing orb pickup flags. **The black
+hole reports all three outcomes now:** `blackhole_entered`, `blackhole_survived`
+and — new — `blackhole_died`, which did not exist, so the mode's failure rate,
+the one number that says whether it is too hard, lived nowhere and had to be
+reconstructed by hand-joining an entry to a later `run_ended`. It carries how
+many seconds were survived, which phase the death fell in, and whether the
+innermost orbit had been reached. `blackhole_survived` used to send
+`seconds: BH_DUR` — a constant reported as a measurement, so every row that
+would ever exist read 17.0; it sends the elapsed time.
 **A POWERUP TESTING session sends nothing**, and it is suppressed at the choke
 point inside `track()` rather than tagged with a property. Tagging would have
 been the smaller change and the worse one: it moves the burden onto every
 future query, and the first dashboard that forgets the filter is averaging
 sandbox deaths — pinned clock, one orb on repeat, red switched off — into the
 real completion rate. Suppressing means a lab run cannot reach the funnel and
-an event added by a later change inherits that for free. Exactly one name is
+an event added by a later change inherits that for free. Note what that means
+for the three black hole events above: a lab session is the easiest way there
+has ever been to enter the mode, and none of those entries reach the data — so
+`blackhole_entered` keeps meaning "a player met one in a real run", which is
+the only reading its failure rate is worth anything under. Exactly one name is
 allowed through, `powerup_lab_started`, carrying which orb was picked and
 whether the ghost was on; which of the seven anybody actually wants to look at
 is the one thing about a lab session worth counting. There is deliberately no
