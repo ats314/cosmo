@@ -206,6 +206,15 @@ Breaking one of these is a product regression, not a style question.
   a player as not being slow at all. Adding a new animated layer means choosing
   one of these two on purpose. A deadline on `G.vt` will drift; an animation on
   `G.t` will contradict every slow-motion effect in the game.
+- **Difficulty is measured PER RING, not per board.** The player stands on one
+  orbit; what kills them is what arrives there. A board-wide count divided by
+  nothing will read a mode that adds a fourth ring as harder when the same
+  shard budget spread over four orbits is 0.75× the per-ring density of three.
+  The black hole was reported at 1.18×/1.28× "effective pressure" on a
+  board-wide metric and measures 0.82×/0.84× on a per-ring one, in the same
+  build, on the same day. Quote the per-ring figure, say which metric any
+  number came from, and be suspicious of a difficulty claim that improves the
+  moment a ring is added.
 - **A visual feature is not shipped until something proves it reaches a pixel.**
   The five harnesses stub the canvas and WebGL, so the entire render path is
   uncovered by construction, and the black hole spent its life with thirteen

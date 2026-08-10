@@ -1444,7 +1444,15 @@ than guesses. The play-style aggregates round it out: `lands` vs
 `best_combo` (did the rhythm and combo lessons change behaviour),
 `hold_timeout` (the twin exam arrived by hop or by the release valve —
 the purest hop-teaching signal), `loop_caught`, `near_misses`, and
-`got_bass` / `got_spot` alongside the existing orb pickup flags. There is deliberately no
+`got_bass` / `got_spot` alongside the existing orb pickup flags. **The black
+hole reports all three outcomes now:** `blackhole_entered`, `blackhole_survived`
+and — new — `blackhole_died`, which did not exist, so the mode's failure rate,
+the one number that says whether it is too hard, lived nowhere and had to be
+reconstructed by hand-joining an entry to a later `run_ended`. It carries how
+many seconds were survived, which phase the death fell in, and whether the
+innermost orbit had been reached. `blackhole_survived` used to send
+`seconds: BH_DUR` — a constant reported as a measurement, so every row that
+would ever exist read 17.0; it sends the elapsed time. There is deliberately no
 analytics SDK: events are plain POSTs to the capture API (sendBeacon
 first, so a death recorded as the tab closes still gets out; keepalive
 fetch as fallback), which means no third-party script to load and no

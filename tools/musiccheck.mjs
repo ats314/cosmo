@@ -522,6 +522,24 @@ for (const L of LEVELS) {
   vm.runInContext('BH.phase=0;BH.on=false;BH.warp=0;BH.t=0;bedTick(0.05);', ctx);
 }
 
+/* EARNED STAYS EARNED, THROUGH A BLACK HOLE TOO. startBlackHole silenced the
+   band with `MU.pend=null`, which reached past the audio and confiscated an
+   armed-but-unpaid drop — and build() has already zeroed G.build by then, so
+   the meter's charge went with it. Silent, and only ever to a player good
+   enough to have earned one. endSection has banked this since it was written;
+   the black hole is the one entry point that did not. */
+{
+  startLevel(3);
+  tick(3, 8);
+  vm.runInContext("MU.armed=true;MU.why='DROP EARNED';MU.flavor='ember';", ctx);
+  vm.runInContext('startBlackHole();', ctx);
+  const pend = $('MU').pend;
+  if (!pend) fail('entering a black hole destroyed an earned drop instead of banking it');
+  else ok(`an earned drop survives the black hole (banked as "${pend}")`);
+  if ($('MU').armed || $('MU').rise) fail('the black hole left the drop armed as well as banked');
+  vm.runInContext('BH.phase=0;BH.on=false;BH.warp=0;BH.t=0;MU.pend=null;MU.pendSrc=null;', ctx);
+}
+
 if (LOG.errors.length) LOG.errors.forEach(e => fail(e));
 
 if (failures) {
