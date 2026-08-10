@@ -444,11 +444,20 @@ try {
       throw new Error('the horizon bonus paid nothing, score ' + scoreH + ' -> ' + st('G.score'));
     }
     if (!(st('BH.igT') > 0)) throw new Error('the horizon display never ignited');
-    // and it is once per mode, not once per arrival — no farming by hopping
+    /* And it is once per mode, not once per arrival — no farming by hopping.
+       The assertion is "less than another BH_HORIZON", not "unchanged": the
+       board keeps paying ordinary score while these 40 frames run, so an
+       exact-equality check is really asserting that no star was collected,
+       which is luck. It passed locally and failed on CI for precisely that
+       reason — the harnesses are non-deterministic and this file says so. */
+    st('G.stars.length=0');
     const scoreH2 = st('G.score');
     st('G.ringI=2;G.hopP=1'); st('hop(1)');
     for (let i = 0; i < 40; i++) frame(16.7);
-    if (st('G.score') !== scoreH2) throw new Error('the horizon bonus paid twice in one black hole');
+    if (st('G.score') >= scoreH2 + st('BH_HORIZON')) {
+      throw new Error('the horizon bonus paid twice in one black hole, ' +
+                      scoreH2 + ' -> ' + st('G.score'));
+    }
     if (!(st('shardCap()') > cap0)) throw new Error('black hole mode did not raise the shard cap');
     if (!(st('spawnGap()') < gap0)) throw new Error('black hole mode did not shorten the spawn gap');
     if (!(st('G.tsCur') < 0.98)) throw new Error('black hole mode is not in slow motion, tsCur=' + st('G.tsCur'));
