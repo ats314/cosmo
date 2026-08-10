@@ -2,13 +2,17 @@
 
 One row per player-facing mechanic: what it does, where the game introduces
 it, and every channel that explains it. The curriculum rule this table
-enforces: **every mechanic is introduced and explained by the end of level 2.
-Level 3 opens with everything known and everything active.**
+enforces, **as the owner revised it**, now differs by kind:
+**every FORMATION is introduced and explained by the end of level 3** — level 4
+opens with every shape known and active and introduces none — while **orbs and
+modes are spread across all four levels**, taught at first contact wherever
+that falls. Shield/slow-mo/nova on level 1, hypernova and bass bomb on level 2,
+spotlight on level 3, the black hole guaranteed once on level 4.
 
 Difficulty-level (`dl`) values are difficulty-seconds — see `dl()` in
 `index.html`. Level windows: level 1 spans dl 0–90, level 2 spans 90–215,
 level 3 spans 215–340, and level 4 is 340 onward. A tier marked *(moved)* was
-pulled forward by the curriculum pass so nothing new is ever met past level 3.
+pulled by a curriculum pass; no FORMATION is ever met past dl 340.
 
 **Teaching runs through level 3 now.** The two compound shapes — a gate that
 also drifts, a twin that also blinks — used to arrive 22 dl-seconds apart at
@@ -41,9 +45,8 @@ separate change to `farFromAll` and is not in this ledger yet.
 **Level 3 used to be endless and therefore last.** It has a finish line and a
 star dive of its own now, and level 4 (EVENT HORIZON) took over as the level
 you do not finish — which keeps "the last level is the exam" true instead of
-making level 3 both the exam and the middle of the game. Neither introduces
-anything: every tier still unlocks by dl 215, so the extra level costs the
-curriculum rule nothing. `check.mjs` reads level 2's finish line positionally
+making level 3 both the exam and the middle of the game. Every tier unlocks by
+dl 340, so level 4 introduces no shape. `check.mjs` reads level 2's finish line positionally
 (`ends[1]`) rather than as `max(ends)`, which was the same number only while
 there were exactly three levels.
 
@@ -80,7 +83,7 @@ there were exactly three levels.
 | Blinkers | Phase on a two-beat cycle at 0.55 duty: harmless while dim, lethal while lit; the core fills as re-arm approaches. | dl 165 | banner + MEET lesson, one sentence: "harmless while dim — cross it then", longer first telegraphs, death coach |
 | Hypernova (pink star) | Sixteen beats of invincibility at nearly double speed: reds convert to paying embers on contact, everything pays double, the kit doubles to sixteenths. | guaranteed first post-curriculum placement on level 2 | MEET lesson naming the speed *(reworded)*, no slow-mo *(fixed)* |
 | Bass bomb (cyan orb) | Clears every shard in the neighbourhood and drops the low end. | guaranteed on level 2 *(new — was a dice roll)* | MEET lesson |
-| Spotlight (white/violet orb) | Four bars where you are the lead: your instrument doubles, tight taps pay double. | guaranteed on level 2 *(new — was a dice roll)* | MEET lesson, no slow-mo *(fixed)* |
+| Spotlight (white/violet orb) | Four bars where you are the lead: your instrument doubles, tight taps pay double. | **guaranteed on level 3** *(moved from level 2 by the introduction rebalance — six of the seven orbs used to be met by the end of level 2 while levels 3 and 4 introduced nothing. Spotlight moves best: it is the least load-bearing of the three guarantees and a pure reward, so meeting it later costs nothing that was needed earlier.)* | MEET lesson, no slow-mo *(fixed)* |
 | Overdrive | Hold the heat near max for a full bar: eight bars of double-time with embers and on-beat taps paying double. | heat-driven, reachable late L1, named on L2 card | "OVERDRIVE ×2" readout, gold band meter |
 | Drum break | The band steps out for a bar and your inputs ARE the fill — taps land as snares, hops as kicks. | heat-driven, named on L2 card | caption *(per-run again, new)*, input flashes — snare white, kick gold *(new)* |
 
@@ -144,7 +147,7 @@ effect does. Measured with audio running: 802 scheduled notes in 19s normally,
 | Score-bought band layers | Four permanent layers join at 600 / 1,400 / 2,400 / 3,600 points. | gold "NEW LAYER" lines, band-meter dots |
 | Band meter | Dot row under the level readout — one dot per layer currently in the record; the newest pulses; the loop shows as a cyan member. | gold "NEW LAYER" lines, one-time "THE BAND — score adds layers" caption *(new)* |
 | New sounds | The star's instrument steps up at tiers 4, 7 and 10. | "NEW SOUND" announcement, death-screen "next sound" hook |
-| Difficulty clock | Difficulty is a clock; good play nudges it forward a little (capped). Speed, caps and spawn rate never change *what* a level teaches. | (internal — documented here) |
+| Difficulty clock | Difficulty is a clock; good play nudges it forward a little (capped). Speed, caps and spawn rate never change *what* a level teaches. **The clock now has a second ramp.** Every pressure term used to reach its floor or ceiling by dl 420 — eighty seconds into a level that never ends — so a player surviving five minutes on EVENT HORIZON was playing the board they met at eighty seconds, only faster: warn 1.00 flat, gap 0.80 flat, embers flat, shields flat, tier flat, sky flat, with speed and one cap step the whole of it. Warn now eases 1.00 → 0.86 between dl 460 and 640, the spawn gap's floor decays 0.80 → 0.64 between dl 420 and 700, and the cap steps 10 → 11 → 12 at dl 540 and 680. Measured at dl 560–650: spawns per 90s 125 → 139, mean shards on the board 9.9 → 10.8. Nothing before dl 420 moves, so a run ending where most runs end sees none of it. | (internal — documented here) |
 | Level record | The deepest level a device has ever reached (`cometloop:gl`). It moves at death, beside the high score, so the announcement fires exactly once and a retry of the same level stays quiet. | death screen: **FURTHEST YET** in place of NEW BEST, otherwise "BEST · LEVEL n · score"; the death-screen pip row, one pip per level *(new)* |
 
 ## The teaching channels

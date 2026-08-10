@@ -100,11 +100,12 @@ Breaking one of these is a product regression, not a style question.
     `firstMeet` at first contact wherever that falls. THE BLACK HOLE is the
     first of these: it is rare on purpose, so guaranteeing it inside level 3
     to satisfy a boundary would have destroyed the thing that makes it work.
-  This is the owner's decision and not an inference from the code. The wider
-  rebalance that sentence describes — difficulty and power-up pacing across
-  all four levels — has NOT been done; only the black hole moves under it so
-  far. Do not read the new latitude as permission to scatter formations into
-  level 4.
+  This is the owner's decision and not an inference from the code. The pacing
+  half of it is now done: spotlight's guarantee moved to level 3, the black
+  hole's to level 4, and the difficulty clock grew a second ramp past dl 420
+  where every pressure term used to sit flat forever. Do not read the new
+  latitude as permission to scatter formations into level 4 — that half of the
+  rule is unchanged and still enforced.
 - **The formation half of the rule.** Every formation is introduced *and
   explained* by the end of level 3 — dl 340, which is `LV[2].end` and level 4's
   floor. Enforced by `curriculum.mjs` (which

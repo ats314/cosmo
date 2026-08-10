@@ -132,7 +132,7 @@ for (let i = 0; i < 60; i++) frame(16.7);
 tap(pid++);                                       // card -> level 1
 
 const levelAt = { 1: 0 };
-let guard = 0, placedByEndL2 = null;
+let guard = 0, placedByEndL2 = null, placedByEndL3 = null;
 /* THE EXAM IS LEVEL 4 NOW. Teaching runs through level 3 — the two compound
    shapes moved there so they get room instead of arriving 22 dl-seconds apart
    at the end of level 2 — so the acceptance criterion moved with them. */
@@ -150,13 +150,26 @@ while (st('G.level') < 4 || st('age()') < 30) {
   if (st("G.state==='lvend'")) {
     for (let i = 0; i < 60; i++) frame(16.7);
     const lv = st('G.lvCard&&G.lvCard.next');
-    /* the placed flags reset each startGame, so level 2's record is read
-       at its completion card, before the next level wipes them. The musical
-       orbs are still guaranteed on level 2 — only the two hard SHAPES moved */
+    /* The placed flags reset each startGame, so each level's record is read at
+       its completion card, before the next level wipes them.
+       THE GUARANTEES ARE NO LONGER ALL ON LEVEL 2. Six of the seven orbs used
+       to be met by the end of level 2 while levels 3 and 4 introduced nothing;
+       the owner's rebalance spreads them, so SPOTLIGHT's guarantee starts at
+       level 3 and the black hole's at level 4.
+       HONEST LIMIT ON WHAT THIS PROVES. The placed flags reset at every
+       startGame, so a guarantee written as `level >= N` fires on N and every
+       level after it. Both the old rule and the new one therefore place a
+       spotlight by the end of level 3, and no assertion here can tell them
+       apart — this checks that every orb is REACHED by the level its guarantee
+       names, which is the thing that matters to a player, not which line
+       forced it. The level-2 spot check was removed rather than moved because
+       it had started passing on a one-in-eight pool roll, which is the shape
+       of assertion that goes green for the wrong reason. */
     if (lv === 3 && st('G.lvCard.done') && !placedByEndL2) {
-      placedByEndL2 = {
-        hyper: st('G.hyperPlaced'), bass: st('G.bassPlaced'), spot: st('G.spotPlaced'),
-      };
+      placedByEndL2 = { hyper: st('G.hyperPlaced'), bass: st('G.bassPlaced') };
+    }
+    if (lv === 4 && st('G.lvCard.done') && !placedByEndL3) {
+      placedByEndL3 = { spot: st('G.spotPlaced') };
     }
     tap(pid++);
     if (lv && !(lv in levelAt)) levelAt[lv] = guard;
@@ -173,10 +186,11 @@ for (const f of TAUGHT) {
   if (!st(`G.seen['${f}']||G.seen2['${f}']`)) fail.push(`level 4 started without the ${f} lesson (seen: ${seenAtExam})`);
 }
 if (!placedByEndL2) fail.push('level 2 completion card never observed');
-else for (const [flag, name] of [['hyper', 'hypernova'], ['bass', 'bass bomb'],
-  ['spot', 'spotlight']]) {
+else for (const [flag, name] of [['hyper', 'hypernova'], ['bass', 'bass bomb']]) {
   if (!placedByEndL2[flag]) fail.push(`level 2 ended without the ${name} ever placed`);
 }
+if (!placedByEndL3) fail.push('level 3 completion card never observed');
+else if (!placedByEndL3.spot) fail.push('level 3 ended without the spotlight ever placed');
 /* Read off TIERS rather than written down: this line was a hardcoded 9, which
    meant ADDING A TIER ANYWHERE failed the build with a message about the wrong
    thing. The assertion that matters is that level 4 opens on the LAST rung —

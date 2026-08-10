@@ -76,9 +76,9 @@ first three have finish lines; the fourth does not:
 | Level | Name | Introduces | Key | Progression | Groove |
 |---|---|---|---|---|---|
 | 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor | i–♭VI–♭III–♭VII | the original groove |
-| 2 | INTO THE RINGS | gates, drifters, blinkers, bass bomb, spotlight, the gold star | G minor | i–♭VII–♭VI–iv | swung sixteenths, bass off the beat |
-| 3 | THE STORM | the two compounds — sliding gates, flicker pairs — plus THE SAUCER, then a finish line | F minor | i–♭III–v–♭VI | rolling four-on-the-floor |
-| 4 | EVENT HORIZON | **nothing new in formations** — the same storm with no exit, speed climbing toward the 4.2 rad/s ceiling. Endless. | E♭ minor | i–♭VI–♭VII–i, over a tonic pedal | octave bass, open offbeat hat |
+| 2 | INTO THE RINGS | gates, drifters, blinkers, bass bomb, hypernova | G minor | i–♭VII–♭VI–iv | swung sixteenths, bass off the beat |
+| 3 | THE STORM | the two compounds — sliding gates, flicker pairs — plus THE SAUCER and the spotlight, then a finish line | F minor | i–♭III–v–♭VI | rolling four-on-the-floor |
+| 4 | EVENT HORIZON | **no new formations** — the same storm with no exit, speed climbing toward the 4.2 rad/s ceiling, and one black hole guaranteed. Endless. | E♭ minor | i–♭VI–♭VII–i, over a tonic pedal | octave bass, open offbeat hat |
 
 **BLACK HOLE MODE** runs across levels 3 and 4 and is neither a level nor a
 power-up: a rare dark orb you may take or decline, and 17 seconds of somewhere
