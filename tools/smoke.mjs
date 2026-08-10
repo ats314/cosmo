@@ -405,6 +405,31 @@ try {
   }
   console.log('black hole: four rings, warped and restored ok');
 
+  // death during a black hole must not award the escape bonus or open the 4th ring
+  {
+    st("G.state='playing';G.level=3;G.score=0;G.lastHit=null;G.invuln=G.t+1e9");
+    st('startGame()');
+    for (let i = 0; i < 4; i++) frame(16.7);
+    const rings0 = st('G.nRings'), score0 = st('G.score');
+    st('startBlackHole()');
+    for (let i = 0; i < 70; i++) frame(16.7);          // past the 0.85s warp
+    if (st('BH.phase') !== 2) throw new Error('BH death test: never reached full mode');
+    if (st('G.nRings') !== 4) throw new Error('BH death test: fourth ring did not open');
+    // die in the middle of the mode
+    const scoreBefore = st('G.score');
+    st('die()');
+    if (st('G.state') !== 'dead') throw new Error('BH death test: die() did not kill');
+    if (st('BH.phase') !== 3) throw new Error('BH death test: die() did not skip to closing phase, phase=' + st('BH.phase'));
+    // run the death screen long enough for the mode to have ended if still ticking
+    for (let i = 0; i < 60 * 25; i++) frame(16.7);
+    if (st('bhActive()')) throw new Error('BH death test: closing warp never finished');
+    // the escape bonus must NOT have been awarded
+    if (st('G.score') > scoreBefore) throw new Error('BH death test: escape bonus was awarded to a dead player');
+    // the orbits must still come back
+    if (st('G.nRings') !== rings0) throw new Error('BH death test: ring count wrong after death, nRings=' + st('G.nRings'));
+  }
+  console.log('black hole death: no post-mortem escape bonus ok');
+
   // THE CLEARANCE FOLLOWS TRAVEL, NOT POSITION. This is a placement rule, so
   // nothing that plays the game can assert it directly — a run either meets a
   // shard or does not, and the reason is invisible. Tested at the function.

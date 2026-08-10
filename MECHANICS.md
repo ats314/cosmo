@@ -130,7 +130,7 @@ It actually does things to make it both harder and easier simultaneously."*
 
 | Mechanic | How it works | Introduced | Explained by |
 |---|---|---|---|
-| Black hole | A rare dark orb on level 3+ (10% of orb rolls behind a 55s cooldown, one at a time). Taking it is a **choice** — it sits on a ring like any pickup and staying off that ring declines it. For 17 seconds: **the arrangement stops dead** and a preset piece plays; **the player stops being an instrument** (`performerHit` returns early — no notes, no heat, no on-beat chain, no loop capture); **everything runs at 0.55×** for the whole duration; **shards run 2.5× the cap at 2.5× the rate** (measured: mean 6.2 → 11.6 on the board, peak 9 → 15); and **a fourth orbit opens**, with all four re-spaced over ~0.85s and withdrawn the same way. No power-up orbs spawn inside it; stars do. Surviving pays a lump **ESCAPE** bonus scaled by the stars gathered and halved per shield spent. | first rare roll on level 3+, including level 4 — see the revised curriculum rule in `CLAUDE.md` | MEET lesson, the only orb lesson that is **not** `soft` (it is the one orb that is not a gift): "black hole — everything slows, the reds pile up" |
+| Black hole | A rare dark orb on level 3+ (10% of orb rolls behind a 55s cooldown, one at a time). Taking it is a **choice** — it sits on a ring like any pickup and staying off that ring declines it. For 17 seconds: **the arrangement stops dead** and a preset piece plays (building crescendo in the final ~4s, accelerating heartbeat); **the player stops being an instrument** (`performerHit` returns early — no notes, no heat, no on-beat chain, no loop capture); **everything runs at 0.55×** for the whole duration; **shard density ramps from 1.5× to 3.5×** over the mode (progressive, not flat); **a fourth orbit opens**, with all four re-spaced over ~0.85s and withdrawn the same way; **gravity pulls the comet one ring inward every 5s** (one swipe counters it); and **stars on ring 0 are worth 2×** (risk/reward — the inner ring is the most dangerous). No power-up orbs spawn inside it; stars do. **All gameplay SFX are pitch-shifted down 2 semitones** (gravitational redshift). Surviving pays a lump **ESCAPE** bonus scaled by the stars gathered and halved per shield spent, plus **2 seconds of invulnerability and a decompression shockwave** (the slingshot). | first rare roll on level 3+, including level 4 — see the revised curriculum rule in `CLAUDE.md` | MEET lesson, the only orb lesson that is **not** `soft` (it is the one orb that is not a gift): "black hole — everything slows, the reds pile up" |
 
 **The fourth ring is possible because the orbits re-space, not because the
 gaps got smaller.** Adding a ring inside the shipped three puts it at f=0.33 —
@@ -154,11 +154,14 @@ the orbits do not come back.
 **The music is diatonic and the dread is timbral.** The preset piece is a tonic
 pedal, the tritone that already exists inside natural minor (degree 2 against
 ♭6), a noise wash and one kick a bar. The only glide is on the **sub alone** —
-a slow redshift down about a semitone across the mode — because the SFX
-pentatonic keeps firing in here for pickups and shield saves and is tuned to
-the level's scale, so the floor may move and nothing that has to agree with an
-effect does. Measured with audio running: 802 scheduled notes in 19s normally,
-46–52 during a black hole, and none of them from the player.
+a redshift that falls a minor third on an accelerating (squared) curve — because
+the SFX pentatonic keeps firing in here for pickups and shield saves and is
+tuned to the level's scale, so the floor may move and nothing that has to agree
+with an effect does. Additional building layers enter with time: a noise bed
+that widens, metallic resonances on the minor third, a sub heartbeat that
+doubles, and in the final ~4 seconds a full crescendo with the tritone pair
+swelling and the kick quadrupling. The piece now has an arc rather than
+looping flat.
 
 ## Level 4 — EVENT HORIZON (the exam)
 
