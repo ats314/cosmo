@@ -2216,7 +2216,23 @@ function bhTick(dt){
   BH.t+=dt;
   if(BH.phase===1){
     BH.warp=Math.min(1,BH.t/BH_WARP);
-    if(BH.warp>=1){BH.phase=2;BH.t=0;G.nRings=4;}
+    if(BH.warp>=1){
+      BH.phase=2;BH.t=0;G.nRings=4;
+      /* THE FOURTH RING ARRIVED IN SILENCE — spec item C, the mode's one
+         structural novelty ("a fourth ring in Black Hole mode would be epic"),
+         and the only new orbit in the game that got no announcement at all.
+         Rings two and three each get two expanding rings, two beeps and a
+         banner when they unlock. This one just appeared. Same gesture, in the
+         mode's colour, with the sentence naming the verb that reaches it. */
+      const nr=radiusOf(G.nRings-1);
+      if(!RM){
+        G.rings.push({x:cx,y:cy,r:nr*0.3,life:1,col:COL.bh});
+        G.rings.push({x:cx,y:cy,r:nr,life:1,col:COL.bh});
+      }
+      beep(CH[0][0]*2,0.20,'sine',0.05,CH[0][0]*3);        /* octave -> twelfth */
+      beep(CH[0][0]*3,0.25,'sine',0.05,CH[0][0]*4,0.16);
+      say('A FOURTH RING — '+swipeWords(),2,5);
+    }
   }else if(BH.phase===2){
     BH.warp=1;
     /* ---- GRAVITY PULL: the singularity drags the comet inward ----
@@ -2235,7 +2251,19 @@ function bhTick(dt){
        then let go of them. It pulls toward nRings-1 now, and it keeps
        pulling for the whole mode. */
     BH.pullT+=dt;
-    if(BH.pullT>=BH_PULL&&G.ringI<G.nRings-1&&G.hopP>=1&&G.state==='playing'){
+    if(BH.pullT>=BH_PULL&&G.ringI>=G.nRings-1){
+      /* ALREADY AT THE BOTTOM OF THE WELL: the interval is CONSUMED, not
+         banked. Letting it accumulate while the player sits on the innermost
+         orbit meant the next outward swipe was undone the instant it landed —
+         pullT was already overdue, so the escape hop completed straight into a
+         pull that fired on the same frame, and the singularity pinned them to
+         the densest ring for the rest of the mode with no counter at all. That
+         is the exact opposite of "one swipe counters it". Consuming it gives a
+         full interval after every escape. (Caught in review on this PR: the
+         guard shape predates the direction fix, where it pinned players to the
+         OUTER ring and was therefore harmless.) */
+      BH.pullT=0;
+    }else if(BH.pullT>=BH_PULL&&G.ringI<G.nRings-1&&G.hopP>=1&&G.state==='playing'){
       BH.pullT=0;
       G.hopFrom=radiusOf(G.ringI);G.hopFromI=G.ringI;
       G.ringI++;G.hopP=0;
@@ -2316,6 +2344,17 @@ function startBlackHole(){
      the pickup's swallow largely was not (its two loudest voices land at 27
      and 16 Hz). A long bright noise tear over a three-octave fall, both
      intervals over the tonic, both well inside the speaker's range. */
+  /* THE GAME HAS A DEDICATED "SOMETHING BIG JUST HAPPENED" CHANNEL and the
+     black hole was the one big thing that never used it. G.banner — a 20u
+     title with an eyebrow and an explanatory sub, held for 3.19s — fires for
+     every ring unlock, every formation and the star dive. The mode that
+     re-spaces the orbits, stops the band and opens a fourth ring got a 0.92s
+     floating popup. Every noun in the sub is one the game has. */
+  G.banner={str:'BLACK HOLE',eyebrow:'EVENT HORIZON',
+    sub:'everything slows — the reds pile up — a fourth ring',t:0};
+  /* a live hard lesson would otherwise run the reveal at 6% speed behind a
+     dim veil — the finale already flushes for exactly this reason */
+  if(G.teach>0&&!G.teachSoft)flushLesson(true);
   if(AC&&!muted){
     const t0=AC.currentTime;
     hat(t0,0.34,900,0.55,0.25,0,7600);
@@ -2378,8 +2417,20 @@ function endBlackHole(){
    No triangle voices: musiccheck isolates level 4's sub drone by oscillator
    type, and a triangle landing on one of two specific pitches fails the build. */
 function bhStep(t){
+  /* THE PIECE RUNS AT HALF TEMPO, and in a rhythm game that is the single
+     loudest way to say "somewhere else". The mode dilated the simulation to
+     0.42x and left the pulse at 104 BPM — twenty-nine identical quarter notes
+     across seventeen seconds, exactly the tempo of the game it interrupted.
+     The one clock this game's player reads without ambiguity never moved.
+     Halving here rather than touching MU's grid keeps every scheduled event on
+     the same sixteenth lattice as the rest of the file — nothing drifts, the
+     BEATQ pulses the visuals at the new rate, and the exit lands back in tempo
+     because the grid underneath was never altered. Every duration below is
+     doubled to match, so the notes still span their bars. */
   const fs=BH.step++;
-  const beat=fs%8,bar=(fs/8)|0;
+  if(fs&1)return;
+  const hs=fs>>1;
+  const beat=hs%8,bar=(hs/8)|0;
   if(beat%2===0)BEATQ.push(t);
   const root=CH[0][0];                       /* the level's tonic, whatever it is */
   /* THE REDSHIFT IS ON THE SUB ALONE, and that restriction is the whole reason
@@ -2404,7 +2455,7 @@ function bhStep(t){
      most of the mode. A drone two octaves down has no such neighbour. */
   const fq=Math.min(1,BH.t/BH_DUR);
   const fall=1-0.16*fq*fq;
-  if(beat===0)note(root*0.5*fall,t,SPB*2.1,'sawtooth',0.068,180,0);
+  if(beat===0)note(root*0.5*fall,t,SPB*4.2,'sawtooth',0.068,180,0);
   /* THE TRITONE IS ALREADY IN THE MODE. Degree 2 against flat-6 is a tritone
      in every natural minor, so the most ominous interval available needed no
      borrowing to reach — the dread is diatonic. 1.1225 is +2 semitones and
@@ -2420,15 +2471,15 @@ function bhStep(t){
      harmonic content is unchanged — these are the same two intervals over the
      same tonic — they are simply at the level of the record now. */
   if(beat===0||beat===5){
-    note(root*1.1225,t,SPB*1.6,'square',0.030,900,-0.35);
-    note(root*1.5874*1.004,t,SPB*1.6,'square',0.030,760,0.35);
+    note(root*1.1225,t,SPB*3.2,'square',0.030,900,-0.35);
+    note(root*1.5874*1.004,t,SPB*3.2,'square',0.030,760,0.35);
   }
   /* a slow pulse on the flat sixth, one bar in three, so the piece breathes
      rather than loops — bar 2 and bar 5 of a six-bar cycle stay empty */
-  if(beat===2&&(bar%6===0||bar%6===3))note(root*1.5874,t,SPB*0.9,'sawtooth',0.038,1200,0.1);
+  if(beat===2&&(bar%6===0||bar%6===3))note(root*1.5874,t,SPB*1.8,'sawtooth',0.038,1200,0.1);
   /* the horizon: a filtered noise wash on the half bar, no pitch at all */
-  if(beat===4)hat(t,0.20,300,0.055,0,0,900);
-  if(beat===0&&bar%2===0)hat(t,0.42,180,0.040,0,0.2,520);
+  if(beat===4)hat(t,0.20,300,0.110,0,0,900);
+  if(beat===0&&bar%2===0)hat(t,0.42,180,0.080,0,0.2,520);
   /* one heartbeat a bar. Not a kit — the pitch says you are not playing the
      music, so a groove would invite you to. */
   if(beat===0)kick(t,0.045);
@@ -2441,24 +2492,25 @@ function bhStep(t){
   if(beat===2){
     const noiseGain=0.06+0.22*fq;
     const noiseHP=200+300*fq;
-    hat(t,noiseGain,noiseHP,SPB*0.22,0,0,noiseHP+600);
+    hat(t,noiseGain,noiseHP,SPB*0.44,0,0,noiseHP+600);
   }
   /* metallic resonance on every other bar, beat 6 — a pitched hat on the
      minor third (+3st = 1.1892), wet with delay so it smears. Quiet early,
      present late. */
-  if(beat===6&&bar%2===1){
+  if(beat===6&&(bar%2===1||fq>0.45)){
     /* THE MODE HAD NO HIGH FREQUENCIES AT ALL — measured, zero energy above
        2 kHz across the whole seventeen seconds, on a device whose speaker
        reproduces almost nothing below 500 Hz. That is most of why it read as
        the game going quiet. This branch was supposed to supply them and could
        not: hat()'s third argument is a HIGHPASS CORNER, not a pitch, so
        "metallic resonance on the minor third" was asking for a 104-311 Hz
-       rumble. It is a tuned voice now, two octaves up on the minor third so
-       it lands where a phone can actually reproduce it, with the noise ring
-       kept underneath it for the metal. */
+       rumble. It is a tuned voice now, THREE octaves up on the minor third —
+       three and not two because the keys descend A -> G -> F -> E flat, so two
+       octaves puts level 4's at 370Hz, back under the floor this exists to
+       clear. The noise ring is kept underneath it for the metal. */
     const metalG=0.010+0.016*fq;
-    note(root*1.1892*4,t,SPB*0.5,'square',metalG,root*1.1892*8,0.35);
-    hat(t,0.014+0.020*fq,3200,0.050,0,0.35,7200);
+    note(root*1.1892*8,t,SPB*1.0,'square',metalG,root*1.1892*16,0.35);
+    hat(t,0.014+0.020*fq,3200,0.100,0,0.35,7200);
   }
   /* sub pulse doubles at the midpoint — a second heartbeat enters on bar 8+,
      offset by 4 beats, felt more than heard. */
@@ -2473,13 +2525,13 @@ function bhStep(t){
     const esc=(fq-0.76)/0.24;              /* 0 at 76%, 1 at 100% */
     /* tritone swell: extra hit on beat 3, rising in volume */
     if(beat===3){
-      note(root*1.1225,t,SPB*1.0,'square',0.030+0.026*esc,900,-0.35);
-      note(root*1.5874*1.004,t,SPB*1.0,'square',0.030+0.026*esc,760,0.35);
+      note(root*1.1225,t,SPB*2.0,'square',0.030+0.026*esc,900,-0.35);
+      note(root*1.5874*1.004,t,SPB*2.0,'square',0.030+0.026*esc,760,0.35);
     }
     /* rising noise sweep: bandwidth and gain both climb */
     if(beat===6){
       const swHP=400+800*esc;
-      hat(t,0.10+0.18*esc,swHP,SPB*0.15,0,0.15,swHP+400);
+      hat(t,0.10+0.18*esc,swHP,SPB*0.30,0,0.15,swHP+400);
     }
   }
   /* ---- HEARTBEAT ACCELERATION: in the final bars the pulse doubles,
@@ -3934,6 +3986,17 @@ const REV_FX=0.07; /* grace before a tap's effects fire, so swipes stay silent *
 const SND_SEEN={}; /* voices announced this visit — by crossing or level start */
 const G={
   state:'menu',t:0,started:0,deadT:0,
+  /* THE PRESENTATION CLOCK. G.t is real seconds and every deadline in the file
+     is written against it (G.invuln, G.bhCool, cooldowns, the audio), so it can
+     never be dilated. G.vt is the same clock scaled by G.tsCur — what the
+     VISIBLE world runs on. Slow motion used to reach the simulation and stop
+     there: the comet halved its speed while the backdrop, the camera dolly, the
+     sky drift, the ripples, the popups and the comet's own trail all kept
+     running off raw time, so roughly fifteen visible layers were still moving
+     at full speed and flatly contradicting the eight that were not. That
+     contradiction is what "it doesn't feel slow enough" is made of — the depth
+     of the number was never the problem. */
+  vt:0,
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
   newLevel:false, /* did this run reach deeper than any before it */
   swipeAsked:false,selRects:[],selPt:null,selFx:0,selFrom:null,swipeRect:null,
@@ -5743,8 +5806,16 @@ function update(dt){
   /* the ease is slower going IN than coming out: falling into a gravity well
      is a swoon, leaving it is a release */
   G.tsCur+=(tsT-G.tsCur)*Math.min(1,dt*(tsT<G.tsCur?3.2:8));
-  /* the menu demo hops at a third speed, so the gesture reads as a gesture */
-  if(G.hopP<1)G.hopP=Math.min(1,G.hopP+dt/((G.state==='menu'||G.state==='swipesel'||G.state==='levelsel')?HOP*3.5:HOP));
+  /* the presentation clock — see G.vt. Everything the player LOOKS at advances
+     on this; everything the game MEASURES stays on G.t and dt. */
+  const pdt=dt*G.tsCur;
+  G.vt+=pdt;
+  /* the menu demo hops at a third speed, so the gesture reads as a gesture.
+     The hop dilates too: it is the one motion the player commands, so leaving
+     it at full speed inside slow motion is the loudest possible statement that
+     the world is not really slow — and it also handed the mode's only escape
+     verb a 2.4x discount against everything it escapes. */
+  if(G.hopP<1)G.hopP=Math.min(1,G.hopP+(bhActive()?pdt:dt)/((G.state==='menu'||G.state==='swipesel'||G.state==='levelsel')?HOP*3.5:HOP));
   /* The grace holds while the finger is still down: a slow deliberate swipe
      used to outlive the 70ms window, fire the reverse beep and sparks, and
      then roll back anyway — sound for a reverse that never happened. A held
@@ -5758,7 +5829,6 @@ function update(dt){
      Deliberately G.tsCur alone and not sdt: hit-stop and the near-frozen
      teaching veil should not also freeze the particles that are explaining
      the thing being taught. */
-  const pdt=dt*G.tsCur;
   for(let i=G.parts.length-1;i>=0;i--){
     const p=G.parts[i];
     p.x+=p.vx*pdt;p.y+=p.vy*pdt;
@@ -5773,15 +5843,15 @@ function update(dt){
   }
   for(let i=G.rings.length-1;i>=0;i--){
     /* per-ripple speed and decay, so a death shockwave can outrun a pickup pop */
-    const r=G.rings[i];r.r+=(r.sp||170)*u*dt;r.life-=(r.dec||2.8)*dt;
+    const r=G.rings[i];r.r+=(r.sp||170)*u*pdt;r.life-=(r.dec||2.8)*pdt;
     if(r.life<=0)G.rings.splice(i,1);
   }
   for(let i=G.arcs.length-1;i>=0;i--){
-    const a=G.arcs[i];a.life-=2.6*dt;
+    const a=G.arcs[i];a.life-=2.6*pdt;
     if(a.life<=0)G.arcs.splice(i,1);
   }
   for(let i=G.laps.length-1;i>=0;i--){
-    const L=G.laps[i];L.life-=1.35*dt;
+    const L=G.laps[i];L.life-=1.35*pdt;
     if(L.life<=0)G.laps.splice(i,1);
   }
   /* dt, not sdt: the blast keeps expanding through the hitstop it caused */
@@ -5804,11 +5874,11 @@ function update(dt){
     }
   }
   for(let i=G.pops.length-1;i>=0;i--){
-    const p=G.pops[i];p.y-=34*u*dt;p.life-=1.1*dt;
+    const p=G.pops[i];p.y-=34*u*pdt;p.life-=1.1*pdt;
     if(p.life<=0)G.pops.splice(i,1);
   }
   for(let i=G.trail.length-1;i>=0;i--){
-    const tr=G.trail[i];tr.life-=dt*2.1;
+    const tr=G.trail[i];tr.life-=pdt*2.1;
     if(tr.life<=0)G.trail.splice(i,1);
   }
 
@@ -7256,7 +7326,10 @@ function glRender(dt){
     glResize();
     g.useProgram(GL.pr);
     g.uniform2f(GL.u.uRes,GL.vw,GL.vh);
-    g.uniform1f(GL.u.uTime,RM?12:G.t);
+    /* the backdrop is the largest moving object on the screen and it ignored
+       the dilation completely — the sky drifted at full speed behind an arena
+       running at 0.42x, which is most of why the slow motion did not read */
+    g.uniform1f(GL.u.uTime,RM?12:G.vt);
     g.uniform1f(GL.u.uEnergy,Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow));
     g.uniform1f(GL.u.uCombo,Math.min(1,G.combo/6*0.55+G.groove/8*0.45));
     g.uniform1f(GL.u.uBeat,RM?0:G.beat);
@@ -7315,7 +7388,9 @@ function draw(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
   ctx.globalAlpha=1;
   ctx.globalCompositeOperation='source-over';
-  const amb=RM?0:G.t;
+  /* the ambient clock: the camera dolly, the sky's own drift and every
+     background LFO ride this, so they slow with the world — see G.vt */
+  const amb=RM?0:G.vt;
   /* The GPU paints the backdrop; the 2D canvas is cleared to transparent and
      carries only the arena. BG stays true when WebGL is unavailable, and then
      every baked layer below draws exactly as it always did. */
@@ -8638,7 +8713,18 @@ function drawHUD(){
        moments a streak is likely to be running. The streak is the least urgent
        of the four (it is ambient; the others are on a clock), so it yields to
        all three rather than the guard growing one condition at a time. */
-    const timed=G.hyper>0?['HYPERNOVA','rgba(255,220,130,0.98)']:
+    /* THE BLACK HOLE TAKES THIS SLOT FIRST, and until now it never took it at
+       all. Measured, the mode was named on screen for 0.92s of its 18.7s — a
+       floating pickup popup — and then nothing referred to it again, while
+       HYPERNOVA, which lasts half as long, holds this label for 100% of its
+       life. Worse, the one sentence that explains the mode is a once-per-device
+       lesson consumed at the first pickup, so every black hole after a player's
+       first was completely wordless. Someone who has run it many times has
+       therefore been told what it is exactly once, years of runs ago. It also
+       answers the question the mode's whole tension depends on — how long is
+       left — from the clock that was already running. */
+    const timed=BH.phase===2?['BLACK HOLE · '+Math.max(0,Math.ceil(BH_DUR-BH.t))+'s',COL.bh]:
+                G.hyper>0?['HYPERNOVA','rgba(255,220,130,0.98)']:
                 G.od>0   ?['OVERDRIVE ×2','rgba(255,200,87,0.95)']:
                 G.spot>0 ?['SPOTLIGHT ×2','rgba(234,241,255,0.95)']:null;
     if(timed&&roomy){

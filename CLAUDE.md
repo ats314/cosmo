@@ -196,6 +196,16 @@ Breaking one of these is a product regression, not a style question.
   claims to replace the arrangement must have a branch in `bedTick`.
 - **Audio is optional everywhere.** The game must be completable with no
   WebAudio at all. Every audio path is guarded; keep it that way.
+- **Two clocks: `G.t` measures, `G.vt` shows.** `G.t` is real seconds and every
+  deadline in the file is written against it (`G.invuln`, cooldowns, the audio
+  scheduler), so it must never be dilated. `G.vt` is the same clock scaled by
+  `G.tsCur` — the one the *visible* world rides: the backdrop, the camera
+  dolly, ripples, popups, the trail, the particles, the hop. Slow motion used
+  to reach the simulation and stop there, and the result was a mode running at
+  0.42× behind a sky, a dolly and a debris field still at 1.0×, which reads to
+  a player as not being slow at all. Adding a new animated layer means choosing
+  one of these two on purpose. A deadline on `G.vt` will drift; an animation on
+  `G.t` will contradict every slow-motion effect in the game.
 - **A visual feature is not shipped until something proves it reaches a pixel.**
   The five harnesses stub the canvas and WebGL, so the entire render path is
   uncovered by construction, and the black hole spent its life with thirteen

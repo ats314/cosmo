@@ -424,7 +424,11 @@ try {
     if (st('radiusOf(3)') <= 0) throw new Error('the fourth ring has no radius');
     // it must be REACHABLE, not merely drawn: a ring you cannot hop to is scenery
     st('G.ringI=2;G.hopP=1'); st('hop(1)');
-    for (let i = 0; i < 20; i++) frame(16.7);
+    /* 40 frames, not 20: the hop DILATES inside the black hole now, so a 0.14s
+       HOP takes 0.14/0.42 = 0.333s of real time against a 20-frame window of
+       0.334s. That passed by under one frame, which in a harness this file
+       already documents as non-deterministic is a flake waiting to happen. */
+    for (let i = 0; i < 40; i++) frame(16.7);
     if (st('G.ringI') !== 3) throw new Error('could not hop onto the fourth ring, ringI=' + st('G.ringI'));
     if (!(st('shardCap()') > cap0)) throw new Error('black hole mode did not raise the shard cap');
     if (!(st('spawnGap()') < gap0)) throw new Error('black hole mode did not shorten the spawn gap');
@@ -438,14 +442,35 @@ try {
        harness can. Park on the outer ring, wait past one pull interval, and
        require that the singularity dragged the comet TOWARD the centre —
        which, with indices, means the index went UP. */
-    st('G.ringI=0;G.hopP=1;BH.pullT=0');
-    for (let i = 0; i < 60 * 6; i++) frame(16.7);
+    /* THE PULL TESTS TAKE LONGER THAN THE MODE DOES. Three BH_PULL intervals
+       plus a direction probe is ~19s against a 17s BH_DUR, so the clock is
+       rewound between them — this block asserts the PULL, and the duration is
+       separately asserted by the ride-out check below. Without the rewind the
+       black hole simply ends mid-test and every later assertion in this block
+       runs outside the mode, which is how "a power-up was placed inside black
+       hole mode" appears as a failure of something that never happened. */
+    st('G.ringI=0;G.hopP=1;BH.pullT=0;BH.t=0');
+    for (let i = 0; i < 60 * 6; i++) { frame(16.7); st('BH.t=Math.min(BH.t,1)'); }
     if (!(st('G.ringI') > 0)) {
       throw new Error('the gravity pull did not drag the comet inward, ringI=' + st('G.ringI'));
     }
     if (st('radiusOf(G.ringI)') >= st('radiusOf(0)')) {
       throw new Error('the gravity pull moved the comet to a LARGER radius — it is inverted');
     }
+    /* AND IT MUST NOT BANK INTERVALS AT THE BOTTOM. Sitting on the innermost
+       orbit used to leave pullT accumulating past BH_PULL forever, so the next
+       outward swipe was cancelled by a pull that fired on the frame the hop
+       landed — the player pinned to the densest ring with no counter. Park at
+       the bottom, run three intervals, and require the timer is not overdue. */
+    st('G.ringI=G.nRings-1;G.hopP=1;BH.pullT=0;BH.t=0');
+    for (let i = 0; i < 60 * 13; i++) { frame(16.7); st('BH.t=Math.min(BH.t,1)'); }
+    if (st('BH.pullT') >= st('BH_PULL')) {
+      throw new Error('the gravity pull banked intervals at the innermost ring, pullT=' + st('BH.pullT'));
+    }
+    st('G.ringI=0;G.hopP=1');
+    for (let i = 0; i < 6; i++) { frame(16.7); st('BH.t=Math.min(BH.t,1)'); }
+    if (st('G.ringI') !== 0) throw new Error('an outward escape was cancelled on the frame it landed');
+    st('BH.t=0');   // hand the mode back its full clock for the checks below
     // no orbs inside the mode
     st('G.pows.length=0;G.powT=0');
     for (let i = 0; i < 60; i++) frame(16.7);
