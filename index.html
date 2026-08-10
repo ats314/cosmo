@@ -2180,7 +2180,15 @@ const FIN={on:false,pend:false,done:false,step:0,score:0,got:0,
 const BH_DUR=17;         /* real seconds at full mode, per the pitch */
 const BH_WARP=0.85;      /* the orbits re-space over this, in and out */
 const BH_TS=0.55;        /* the slow-motion factor — matches the slow-mo orb */
-const BH_DENSITY=2.5;    /* "double/triple amount of red obstacles" */
+const BH_DENSITY=2.5;    /* baseline — the actual multiplier now ramps */
+/* PROGRESSIVE DENSITY: starts at 1.5× and climbs to 3.5× over 17 seconds,
+   so the opening is survivable while you orient and the closing seconds
+   are the real gauntlet. Pairs with the audio crescendo. */
+function bhDensity(){
+  if(BH.phase!==2)return BH_DENSITY;
+  const fq=Math.min(1,BH.t/BH_DUR);
+  return 1.5+2.0*fq;                  /* 1.5 → 3.5 linearly */
+}
 const BH={on:false,phase:0,t:0,warp:0,score:0,hits0:0,n:0,ends:0,step:0,seed:0,rings0:3};
 /* phase 0 = off, 1 = the orbits opening, 2 = full mode, 3 = closing */
 function bhActive(){return BH.phase>0;}
@@ -2200,6 +2208,20 @@ function bhTick(dt){
     if(BH.warp>=1){BH.phase=2;BH.t=0;G.nRings=4;}
   }else if(BH.phase===2){
     BH.warp=1;
+    /* ---- GRAVITY PULL: the singularity drags the comet inward ----
+       Every 5 seconds, if the player is not already on ring 0 and is not
+       mid-hop, they are pulled one ring closer. One swipe counters it, so
+       it is tension rather than punishment — but camping on the outer ring
+       now costs active effort. */
+    BH.pullT+=dt;
+    if(BH.pullT>=5&&G.ringI>0&&G.hopP>=1&&G.state==='playing'){
+      BH.pullT=0;
+      G.hopFrom=radiusOf(G.ringI);G.hopFromI=G.ringI;
+      G.ringI--;G.hopP=0;
+      const pp=posPlayer();
+      ripple(pp[0],pp[1],COL.bh);
+      beep(340,0.15,'sine',0.03,220);       /* a low pull tone */
+    }
     if(BH.t>=BH_DUR)endBlackHole();
   }else{
     BH.warp=Math.max(0,1-BH.t/BH_WARP);
@@ -2219,10 +2241,38 @@ function bhTick(dt){
     if(BH.warp<=0){BH.phase=0;BH.on=false;}
   }
   for(let i=0;i<4;i++)RADII[i]=RAD_OFF[i]+(RAD_BH[i]-RAD_OFF[i])*BH.warp;
+  /* ---- PARTICLE VORTEX: matter spiraling inward during full mode ----
+     Two particles per tick, spawned on the outer edge with a tangential +
+     inward velocity so they spiral and vanish at the centre. Uses the
+     existing G.parts system so they get the streak-stretch drawing. */
+  if(!RM&&BH.phase===2&&G.parts.length<200){
+    for(let q=0;q<2;q++){
+      const a=Math.random()*TAU;
+      const rr=radiusOf(0)*1.1;            /* just outside the outermost ring */
+      const sx=cx+Math.cos(a)*rr,sy=cy+Math.sin(a)*rr;
+      /* inward radial + tangential spin → spiral */
+      const inSpd=60+Math.random()*40;
+      const tanSpd=(40+Math.random()*30)*(Math.random()<0.5?1:-1);
+      G.parts.push({x:sx,y:sy,
+        vx:-Math.cos(a)*inSpd+Math.sin(a)*tanSpd,
+        vy:-Math.sin(a)*inSpd-Math.cos(a)*tanSpd,
+        life:1,dec:0.55+Math.random()*0.35,col:COL.bh,size:(1+Math.random()*1.5)*u});
+    }
+  }
+  /* ---- HAWKING RADIATION: rare bright sparks ejecting outward ----
+     Cosmetically accurate and visually surprising against the inward flow. */
+  if(!RM&&BH.phase===2&&Math.random()<0.04){
+    const a=Math.random()*TAU;
+    const rr=radiusOf(0)*0.22;             /* near the photon ring */
+    const spd=180+Math.random()*120;
+    G.parts.push({x:cx+Math.cos(a)*rr,y:cy+Math.sin(a)*rr,
+      vx:Math.cos(a)*spd,vy:Math.sin(a)*spd,
+      life:1,dec:2.0+Math.random()*1.2,col:'#e6d4ff',size:(2+Math.random()*2)*u});
+  }
 }
 function startBlackHole(){
   if(BH.phase>0)return;
-  BH.phase=1;BH.t=0;BH.warp=0;BH.score=0;BH.n++;BH.step=0;
+  BH.phase=1;BH.t=0;BH.warp=0;BH.score=0;BH.n++;BH.step=0;BH.pullT=0;
   BH.hits0=G.blocks;BH.seed=(BH.seed+1)%4;BH.rings0=G.nRings;BH.on=true;G.bhN++;
   G.bhT=G.t;
   /* the band does not fade out, it STOPS. The pitch is explicit that the music
@@ -2250,6 +2300,18 @@ function endBlackHole(){
   const p=posPlayer();
   popup(p[0],p[1]-30*u,'ESCAPED +'+bonus,COL.warp,1.35);
   if(!RM)G.rings.push({x:cx,y:cy,r:radiusOf(0),life:1,col:COL.warp,sp:260,dec:1.2});
+  /* GRAVITATIONAL SLINGSHOT: the decompression blasts the comet outward.
+     Brief invulnerability (2 seconds), a burst of particles, and shake — the
+     player feels ejected. The invuln window forgives the density spike that
+     was building right before the exit. */
+  G.invuln=Math.max(G.invuln,G.t+2.0);
+  if(!RM){
+    G.shake=Math.max(G.shake,12);
+    burst(p[0],p[1],COL.warp,24,360);
+    /* a second expanding ring, faster and brighter, for the shockwave */
+    G.rings.push({x:cx,y:cy,r:radiusOf(0)*0.5,life:1,col:'#e6d4ff',sp:400,dec:1.5});
+  }
+  try{if(navigator.vibrate)navigator.vibrate([30,50,80]);}catch(e){}
   /* THE ESCAPE: decompression — a rising tone that answers the swallow's fall,
      plus a bright shimmer that says "daylight". Both diatonic intervals over
      the tonic. The sub was dragging down for seventeen seconds; the exit sound
@@ -2341,6 +2403,26 @@ function bhStep(t){
   /* sub pulse doubles at the midpoint — a second heartbeat enters on bar 8+,
      offset by 4 beats, felt more than heard. */
   if(beat===4&&bar>=8)kick(t,0.025+0.020*fq);
+  /* ---- ESCAPE CRESCENDO: the last ~4 seconds build toward daylight ----
+     The tritone pair doubles in gain, the noise bed opens fully, and a rising
+     filtered sweep enters. The piece no longer just ends — it ARRIVES. */
+  if(fq>0.76){
+    const esc=(fq-0.76)/0.24;              /* 0 at 76%, 1 at 100% */
+    /* tritone swell: extra hit on beat 3, rising in volume */
+    if(beat===3){
+      note(root*1.1225,t,SPB*1.0,'square',0.011+0.010*esc,900,-0.35);
+      note(root*1.5874*1.004,t,SPB*1.0,'square',0.011+0.010*esc,760,0.35);
+    }
+    /* rising noise sweep: bandwidth and gain both climb */
+    if(beat===6){
+      const swHP=400+800*esc;
+      hat(t,0.10+0.18*esc,swHP,SPB*0.15,0,0.15,swHP+400);
+    }
+  }
+  /* ---- HEARTBEAT ACCELERATION: in the final bars the pulse doubles,
+     then quadruples — a heart racing toward the exit ---- */
+  if(fq>0.82&&beat===4)kick(t,0.040+0.015*(fq-0.82)/0.18);
+  if(fq>0.91&&(beat===2||beat===6))kick(t,0.025+0.012*(fq-0.91)/0.09);
 }
 function finStep(t){
   const fs=FIN.step++;
@@ -2767,6 +2849,11 @@ function beep(f,d,type,g,slide,when,pan,wet){
   if(!AC||muted)return;
   try{
     if(!A)buildBus();
+    /* GRAVITATIONAL REDSHIFT: inside full BH mode, gameplay SFX are pitched
+       down two semitones. The shift is felt more than noticed — everything
+       sounds heavier. Gated on phase 2 so the BH entry beeps (phase 1) and
+       exit beeps (phase 3) keep their designed pitch. */
+    if(BH.phase===2){const rs=Math.pow(2,-2/12);f*=rs;if(slide)slide*=rs;}
     const t0=AC.currentTime+(when||0),o=AC.createOscillator(),v=AC.createGain();
     o.type=type;o.frequency.setValueAtTime(f,t0);
     if(slide)o.frequency.exponentialRampToValueAtTime(slide,t0+d);
@@ -3301,7 +3388,7 @@ function shardCap(){
   /* "Suddenly, there are double/triple amount of red obstacles." Applied to
      the CAP and to the rate together, because raising one without the other
      just changes how long the board takes to fill. */
-  return BH.phase===2?Math.round(n*BH_DENSITY):n;
+  return BH.phase===2?Math.round(n*bhDensity()):n;
 }
 /* was 2.1-d*0.0035: the same late floor arrives via a gentler opening */
 function spawnGap(){
@@ -3317,7 +3404,7 @@ function spawnGap(){
      into the exact window this change promised not to touch. */
   const floor=Math.max(0.64,0.80-Math.max(0,d-420)*0.00057);
   const g=Math.max(floor,2.6-d*0.005);
-  return BH.phase===2?g/BH_DENSITY:g;
+  return BH.phase===2?g/bhDensity():g;
 }
 /* EVERY RUN OPENS QUIETLY. This used to fade out by the fourth run, so a
    returning player was dropped straight into a moving board with no room to
@@ -5707,7 +5794,12 @@ function update(dt){
       if(BH.phase===2)BH.score++;   /* what the escape bonus is scaled by */
       if(G.combo>G.bestCombo)G.bestCombo=G.combo;
       if(G.combo>=3)firstMeet('combo');   /* the multiplier names itself once */
-      G.score+=G.combo;G.diff+=1;G.scorePop=1;
+      /* INNER-RING MULTIPLIER: during BH, stars on ring 0 (closest to the
+         singularity) are worth 2×. Risk/reward — the inner ring is the most
+         dangerous orbit, nearest the centre. Same verb (swipe in/out), higher
+         stakes. The popup shows the multiplied value so the player sees it. */
+      const bhRing0=BH.phase===2&&s.ring===0;
+      G.score+=(bhRing0?2:1)*G.combo;G.diff+=1;G.scorePop=1;
       /* embers ride the section too: doubled (×2 more on a perfect landing) */
       if(MU&&MU.pay>0){
         const ex=G.combo*(G.secMult||1);
@@ -6426,6 +6518,8 @@ void main(){
   float ph=dot(r,vec2(0.9,0.7))+f*0.55+f2*0.30+t*0.010+uCombo*0.42;
   m=pow(m,mix(1.0,0.72,uCombo));
   float ca=0.022+0.05*rd;
+  /* ---- BLACK HOLE: chromatic aberration — gravity disperses light ---- */
+  if(uBH>0.0) ca+=uBH*0.12*(0.5+rd);
   vec3 col=vec3(palette(ph-ca).r,palette(ph).g,palette(ph+ca).b);
   col*=pow(m,uExp);
   col+=pow(m,3.2)*vec3(0.92,0.86,1.00)*0.62;
@@ -6461,8 +6555,9 @@ void main(){
       vec3 dCol=(d==0)?vec3(0.56,0.33,1.0):vec3(0.78,0.62,1.0);
       col+=glow*dCol;
     }
-    /* photon ring: thin bright circle at the innermost stable orbit */
-    float photon=exp(-pow((brd2-0.11)/0.008,2.0))*uBH*0.55;
+    /* photon ring: thin bright circle at the innermost stable orbit,
+       pulsing with the heartbeat kick so the visual and audio lock */
+    float photon=exp(-pow((brd2-0.11)/0.008,2.0))*uBH*(0.40+0.35*uBeat);
     col+=photon*vec3(0.90,0.82,1.0);
     /* cross-fade the whole result toward the Event Horizon palette */
     vec3 ehCol=palette(ph-ca);               /* re-sample in palette 3 colours */
@@ -7266,6 +7361,15 @@ function draw(){
     ctx.translate(p[0],p[1]);
     ctx.rotate(G.angle+Math.PI/2*dv);
     if(hs>0)ctx.scale(1-0.12*hs,1+0.26*hs);  /* local y is the radial */
+    /* SPAGHETTIFICATION: tidal stretching toward the singularity during BH.
+       Local y is the radial, so scaling y stretches toward/away from centre.
+       The factor grows with BH.warp so it arrives and leaves with the orbits,
+       and the thinning on x preserves apparent area so the comet looks pulled
+       rather than inflated. */
+    if(!RM&&BH.warp>0){
+      const sph=0.22*BH.warp;
+      ctx.scale(1-sph*0.4,1+sph);
+    }
     ctx.globalAlpha=pal;
     const cd=SPR.comet.s;
     ctx.drawImage(SPR.comet.c,-cd/2,-cd/2,cd,cd);
