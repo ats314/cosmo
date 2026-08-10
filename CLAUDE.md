@@ -86,9 +86,28 @@ harness on the unmodified file — several times.
 
 Breaking one of these is a product regression, not a style question.
 
-- **The curriculum rule.** Every mechanic is introduced *and explained* by the
-  end of level 3 — dl 340, which is `LV[2].end` and level 4's floor. **Level 4
-  introduces nothing; it is the exam.** Enforced by `curriculum.mjs` (which
+- **The curriculum rule, as the owner revised it.** The rule used to end
+  teaching at level 4's floor. The owner's call, verbatim: *"We are going to
+  change to balance power up introduction, mechanics, and difficulty all the
+  way the level 4."* So the boundary now differs by KIND, and the split is
+  deliberate rather than a loophole:
+  - **Formations** — the shard shapes on the tier ladder — still complete by
+    dl 340. They compound with each other, they are what the death coach
+    explains, and meeting a new one at the speed ceiling is the density
+    problem the ladder was rebuilt to avoid. `curriculum.mjs` still fails if a
+    tier banner fires inside level 4, and that guard stays.
+  - **Orbs and modes** may now be introduced through level 4, taught by
+    `firstMeet` at first contact wherever that falls. THE BLACK HOLE is the
+    first of these: it is rare on purpose, so guaranteeing it inside level 3
+    to satisfy a boundary would have destroyed the thing that makes it work.
+  This is the owner's decision and not an inference from the code. The wider
+  rebalance that sentence describes — difficulty and power-up pacing across
+  all four levels — has NOT been done; only the black hole moves under it so
+  far. Do not read the new latitude as permission to scatter formations into
+  level 4.
+- **The formation half of the rule.** Every formation is introduced *and
+  explained* by the end of level 3 — dl 340, which is `LV[2].end` and level 4's
+  floor. Enforced by `curriculum.mjs` (which
   fails if any tier banner fires inside level 4, and requires every type in its
   `TAUGHT` list to have been lessoned by then) and by a static guard in
   `check.mjs` (`max(TIERS[].at) <= ends[2]`). `smoke.mjs` additionally pins the

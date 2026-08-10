@@ -92,6 +92,44 @@ there were exactly three levels.
 | The saucer | The only shape placed against the **player** rather than the board. It takes station 0.55 rad off your tail and rides there, harmless, for 5–7.5s. Turn back and it does not move: the reversal leaves it in front of you, where it holds and charges for one beat, then blocks the whole ring it is standing on for 0.42s. Its body is never solid — only the shot is — so there is no contact death and the counter always exists: it is still on the ring you *left*, and it takes 0.42s to follow a hop. The charge cannot be cancelled by turning back again. One at a time, on a 9–15s cooldown, and **never on a board with a gate** — the gate exists to force a reversal and the saucer exists to price one, so the pair could demand a move and punish it in the same breath. | dl 275 *(new)* | banner + MEET lesson, one sentence: "turn back and it blocks your ring — swipe off", death coach |
 | Flicker pairs | A twin whose halves strictly alternate at duty 0.5, offset half a cycle: at every instant exactly one side is solid and the other is the gap. | dl 310 *(moved from 295 to keep level 3's three shapes ~35 dl apart)* | banner + MEET lesson, one sentence: "only one is solid — cross the dim one" *(the pair ran at 0.55 duty, so both sides were armed for 10% of every cycle and the lesson was false exactly when a player acted on it; smoke.mjs now walks a full period and requires strict alternation)*, death coach |
 
+## Level 3+ — BLACK HOLE MODE (rare, optional, not a power-up)
+
+From a playtester, and built close to the pitch: *"It's not a power up. It's
+something you hit in orbit and trigger. It's a rare mode. And it's optional…
+It actually does things to make it both harder and easier simultaneously."*
+
+| Mechanic | How it works | Introduced | Explained by |
+|---|---|---|---|
+| Black hole | A rare dark orb on level 3+ (10% of orb rolls behind a 55s cooldown, one at a time). Taking it is a **choice** — it sits on a ring like any pickup and staying off that ring declines it. For 17 seconds: **the arrangement stops dead** and a preset piece plays; **the player stops being an instrument** (`performerHit` returns early — no notes, no heat, no on-beat chain, no loop capture); **everything runs at 0.55×** for the whole duration; **shards run 2.5× the cap at 2.5× the rate** (measured: mean 6.2 → 11.6 on the board, peak 9 → 15); and **a fourth orbit opens**, with all four re-spaced over ~0.85s and withdrawn the same way. No power-up orbs spawn inside it; stars do. Surviving pays a lump **ESCAPE** bonus scaled by the stars gathered and halved per shield spent. | first rare roll on level 3+, including level 4 — see the revised curriculum rule in `CLAUDE.md` | MEET lesson, the only orb lesson that is **not** `soft` (it is the one orb that is not a gift): "black hole — everything slows, the reds pile up" |
+
+**The fourth ring is possible because the orbits re-space, not because the
+gaps got smaller.** Adding a ring inside the shipped three puts it at f=0.33 —
+55px from centre on a 390px phone — where `hitTol` makes one shard block 35.7°
+of the orbit. That version was measured and rejected. Re-spacing all four
+across the same annulus (`RAD_BH = [1.0, 0.80, 0.62, 0.45]`) puts the innermost
+at 75px, where a shard blocks 26.2° — against the shipped inner ring's 21.6°, a
+step rather than a cliff. The arena is also an ellipse (`AY` ≈ 1.41 in
+portrait), which the original rejection did not account for: the re-spaced gaps
+are 33/30/28px horizontally but **47/42/40px vertically**, wider than the gaps
+the shipped three rings already run at their tightest, against a 7.4px comet
+and a 9.3px shard.
+
+`RADII` is therefore live and eased rather than constant, and the ring halos
+are baked once at `RAD_BAKE` and scaled at draw time so a warp costs no
+re-bake. The comet's ring **index** never changes during a warp — only the
+radius that index resolves to — so nothing about position, collision or input
+has to know it is happening. `smoke.mjs` drives a whole black hole and fails if
+the orbits do not come back.
+
+**The music is diatonic and the dread is timbral.** The preset piece is a tonic
+pedal, the tritone that already exists inside natural minor (degree 2 against
+♭6), a noise wash and one kick a bar. The only glide is on the **sub alone** —
+a slow redshift down about a semitone across the mode — because the SFX
+pentatonic keeps firing in here for pickups and shield saves and is tuned to
+the level's scale, so the floor may move and nothing that has to agree with an
+effect does. Measured with audio running: 802 scheduled notes in 19s normally,
+46–52 during a black hole, and none of them from the player.
+
 ## Level 4 — EVENT HORIZON (the exam)
 
 | Mechanic | How it works | Introduced | Explained by |

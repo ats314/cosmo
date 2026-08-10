@@ -86,7 +86,7 @@ const RM=(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matc
    hypernova now at ~318deg, far enough from the shard that the two never trade
    places at speed, and nowhere near anything that means "collect me". */
 const COL={comet:'#5df0ff',ember:'#ffc857',shard:'#ff5d73',shield:'#7bffc8',
-  warp:'#b48bff',nova:'#ffffff',hyper:'#ff4fd8'};
+  warp:'#b48bff',nova:'#ffffff',hyper:'#ff4fd8',bh:'#8f5cff'};
 const LAP_EMB_MAX=4; /* embers per orbit that still raise the payout */
 
 /* THE ARENA IS AN ELLIPSE (playtest, near-verbatim: "I wonder if the orbits
@@ -113,13 +113,40 @@ let bgStars=[];
    existing rings never move when a new one appears. Declared ahead of the
    sprite cache because the initial bake (which runs from the first resize())
    needs the ratios for the conduit sprites. */
-const RADII=[1.0,0.76,0.545];
+/* ---------- THE ORBITS, AND THE ONE THAT IS NOT ALWAYS THERE ----------
+   RADII is LIVE and eased, not a constant: black hole mode re-spaces the whole
+   annulus rather than squeezing a fourth ring into the gaps of the other three.
+   That distinction is the entire reason the fourth ring is possible now, and it
+   is worth writing down because the naive version was measured and rejected.
+   Adding a ring INSIDE the shipped three puts it at f=0.33 — 55px from centre
+   on a 390px phone — where hitTol makes a single shard block 35.7 degrees of
+   the orbit, a tenth of the circle behind one crystal. Re-spacing all four
+   across the same annulus puts the innermost at f=0.45, 75px out, where a
+   shard blocks 26.2 degrees. The shipped INNER ring already blocks 21.6, so
+   the new one is a step, not a cliff.
+   And the arena is an ellipse (AY ~ 1.41 in portrait), which the rejection did
+   not account for: the re-spaced gaps are 33/30/28px horizontally but 47/42/40
+   vertically, against a 7.4px comet and a 9.3px shard. That is wider than the
+   gaps the shipped three rings already run at their tightest.
+   The halos are baked once at RAD_BAKE and scaled at draw time, so easing the
+   radii costs no re-bake — buildSprites runs on resize, not per frame. */
+const RAD_OFF =[1.0,0.76,0.545,0.0 ];  /* normal play — the fourth is not there */
+const RAD_BH  =[1.0,0.80,0.62, 0.45];  /* black hole — four orbits, re-spaced */
+const RAD_BAKE=[1.0,0.80,0.62, 0.45];  /* what the halo sprites are baked at */
+let RADII=RAD_OFF.slice();
 const RING_MULT=[1,1,1]; /* set e.g. [1,1.5,2] to pay more for riding inside */
 /* EACH RING IS AN INSTRUMENT — see the audio section for why these move. */
 const RINGS=[
   /* outer */ {wave:'sawtooth',cut:1.00,lift:0,   sub:0, tint:'132,162,255'},
   /* mid   */ {wave:'square',  cut:1.18,lift:380, sub:1, tint:'128,206,255'},
-  /* inner */ {wave:'square',  cut:1.42,lift:820, sub:2, tint:'168,240,255'}];
+  /* inner */ {wave:'square',  cut:1.42,lift:820, sub:2, tint:'168,240,255'},
+  /* THE ACCRETION RING — only reachable inside black hole mode. It keeps the
+     ladder's own logic (each ring in carries a brighter filter lift) rather
+     than inventing a voice, because during the black hole the player is not
+     playing the band at all: these values are what the SFX layer reads, and
+     the arrangement they would have fed is halted. Violet, not the cyan the
+     ladder was walking toward — it belongs to the black hole, not the band. */
+  /* accretion */ {wave:'square',cut:1.62,lift:1180,sub:2,tint:'186,150,255'}];
 /* SIX CLOUDS, NOT THREE, AND NO TWO ON THE SAME CLOCK. Three blobs on
    near-identical LFOs read as three blobs sliding; six on incommensurate
    periods read as weather. `sp` scales each one's drift rate and `dir` flips
@@ -682,7 +709,10 @@ function buildSprites(bandOnly){
      a hot core line, a soft halo — so the track reads as a machine of energy
      rather than a pencil stroke, and the dark walls lift every ember and
      shard sitting on it. Core alpha stays under the gameplay objects'. */
-  SPR.ringCh=RADII.map(function(f,i){
+  /* baked at RAD_BAKE, never at the live RADII: the radii ease during a black
+     hole warp and re-baking four radial gradients per frame is not a thing
+     this game is going to do. The draw scales each halo by RADII[i]/RAD_BAKE[i]. */
+  SPR.ringCh=RAD_BAKE.map(function(f,i){
     const rr=R*f,t=RINGS[i].tint;
     const T=t.split(',').map(function(v){return Math.min(255,(+v)+55);}).join(',');
     return makeSprite(rr+26*u,function(g){
@@ -1710,6 +1740,11 @@ function musicStep(i,t,k){
       BED.oscs[v*2+u2].frequency.setTargetAtTime(CH[bar%4][v],t,0.09);
   }
   if(beat===0)MU.barN++;
+  /* THE BLACK HOLE OUTRANKS EVERYTHING, including a payoff section already in
+     flight. Placed after the chord retune so the pad keeps tracking the
+     progression silently underneath and returns in tune, exactly as it does
+     through the payoff — the same reason that retune sits above every return. */
+  if(bhActive()){bhStep(t);return;}
   if(MU.pay>0){payoffStep(t,ch,k);return;}
   /* A two-bar rise, latched at the NEXT BAR LINE. The old fixed latch at
      i===16 meant arming just after it waited a full 32-eighth cycle — up to
@@ -2114,6 +2149,153 @@ const LOOP={pat:null,n:0,until:0,heard:false};
    words. */
 const FIN={on:false,pend:false,done:false,step:0,score:0,got:0,
   voices:0,t0:0,trail:[],sun:null,bloomed:false,lastAt:-9};
+
+/* ================= BLACK HOLE MODE =================
+   Playtester's pitch, near-verbatim: "It's not a power up. It's something you
+   hit in orbit and trigger. It's a rare mode. And it's optional. It actually
+   does things to make it both harder and easier simultaneously... The concept
+   is to have something to totally switch it up and be a really fun switch up.
+   Both in gameplay, music and atmosphere."
+
+   Three things at once, and the pairing is the design: SLOW MOTION for the
+   whole duration (easier), two and a half times the shards (harder), and a
+   FOURTH orbit that only exists in here. Plus the arrangement stops dead and
+   a preset piece takes over — "during the black hole period, you're not
+   making music and that part of the game is temporarily suspended."
+
+   THE ARRANGEMENT HALTING IS THE PART WITH A PRECEDENT. finStep already
+   replaces the whole band for the star dive, out of one line in musicStep, so
+   bhStep sits beside it and the machinery is proven. What is new is that the
+   PLAYER stops being an instrument: performerHit returns early, so taps and
+   hops make no notes for the duration. That is the pitch's actual demand and
+   it is the one thing that makes the mode feel like somewhere else.
+
+   IT IS OPTIONAL, which is why it is an orb and not an event. You can see it
+   coming, and you can decline it by staying off its ring. Nothing else in the
+   game asks the player to choose whether to be in a mode.
+
+   The pitch asked for 15-20 seconds, "make it last, like, a big thing".
+   BH_DUR is real seconds, not simulated ones: the clock runs on dt, not sdt,
+   so the slow motion does not silently stretch it to half a minute. */
+const BH_DUR=17;         /* real seconds at full mode, per the pitch */
+const BH_WARP=0.85;      /* the orbits re-space over this, in and out */
+const BH_TS=0.55;        /* the slow-motion factor — matches the slow-mo orb */
+const BH_DENSITY=2.5;    /* "double/triple amount of red obstacles" */
+const BH={on:false,phase:0,t:0,warp:0,score:0,hits0:0,n:0,ends:0,step:0,seed:0,rings0:3};
+/* phase 0 = off, 1 = the orbits opening, 2 = full mode, 3 = closing */
+function bhActive(){return BH.phase>0;}
+/* THE ORBITS MOVE UNDER THE PLAYER, which is the one genuinely novel thing in
+   here and the reason the fourth ring is possible at all. The comet's RING
+   INDEX never changes during the warp — only the radius that index resolves
+   to — so nothing about position, collision or input has to know this is
+   happening. hitTol, farFromAll, sep and every draw already read radiusOf().
+   The fourth ring is only made REACHABLE at full mode, never mid-warp: an
+   index whose radius is still sliding would give a shard a hit tolerance that
+   changes under the player, and radiusOf(3) starts at zero. */
+function bhTick(dt){
+  if(BH.phase===0)return;
+  BH.t+=dt;
+  if(BH.phase===1){
+    BH.warp=Math.min(1,BH.t/BH_WARP);
+    if(BH.warp>=1){BH.phase=2;BH.t=0;G.nRings=4;}
+  }else if(BH.phase===2){
+    BH.warp=1;
+    if(BH.t>=BH_DUR)endBlackHole();
+  }else{
+    BH.warp=Math.max(0,1-BH.t/BH_WARP);
+    /* the fourth orbit is withdrawn the instant the mode ends, before it has
+       finished shrinking — standing on a ring that is closing IS the exit, and
+       a player left there would be riding a radius toward zero */
+    if(G.nRings>BH.rings0){
+      G.nRings=BH.rings0;
+      if(G.ringI>=G.nRings){
+        G.ringI=G.nRings-1;G.hopFromI=G.ringI;G.hopFrom=radiusOf(G.ringI);G.hopP=1;
+        /* thrown outward by the collapse rather than silently teleported */
+        const pp=posPlayer();
+        if(!RM)burst(pp[0],pp[1],COL.bh,16,240);
+        ripple(pp[0],pp[1],COL.bh);
+      }
+    }
+    if(BH.warp<=0){BH.phase=0;BH.on=false;}
+  }
+  for(let i=0;i<4;i++)RADII[i]=RAD_OFF[i]+(RAD_BH[i]-RAD_OFF[i])*BH.warp;
+}
+function startBlackHole(){
+  if(BH.phase>0)return;
+  BH.phase=1;BH.t=0;BH.warp=0;BH.score=0;BH.n++;BH.step=0;
+  BH.hits0=G.blocks;BH.seed=(BH.seed+1)%4;BH.rings0=G.nRings;BH.on=true;G.bhN++;
+  G.bhT=G.t;
+  /* the band does not fade out, it STOPS. The pitch is explicit that the music
+     "immediately cuts out", and a crossfade would read as a transition between
+     two songs rather than as the floor dropping away. */
+  if(MU){MU.brk=0;MU.armed=false;MU.rise=false;MU.pend=null;}
+  duckBed(0.06,0.12);
+  track('blackhole_entered',{game_level:G.level,tier:G.tier,score:G.score,run_index:G.runs});
+}
+function endBlackHole(){
+  if(BH.phase!==2)return;
+  BH.phase=3;BH.t=0;
+  /* THE PAYOUT IS FOR COMING OUT THE OTHER SIDE, and it is banked here rather
+     than accrued per second, so it reads as one result rather than as a
+     trickle you cannot separate from ordinary scoring. Scaled by the shards
+     that were actually on the board — surviving a crowded black hole is worth
+     more than surviving a quiet one — and halved for each shield spent, which
+     is the honest middle between "all or nothing" and "free money". */
+  const clean=Math.max(0,G.blocks-BH.hits0);
+  const bonus=Math.round((260+40*BH.score)/Math.pow(2,Math.min(3,clean)));
+  G.score+=bonus;G.scorePop=1;
+  const p=posPlayer();
+  popup(p[0],p[1]-30*u,'ESCAPED +'+bonus,COL.warp,1.35);
+  if(!RM)G.rings.push({x:cx,y:cy,r:radiusOf(0),life:1,col:COL.warp,sp:260,dec:1.2});
+  track('blackhole_survived',{game_level:G.level,seconds:BH_DUR,shields_spent:clean,
+    bonus:bonus,stars:BH.score,run_index:G.runs});
+}
+/* THE PRESET PIECE. Diatonic to the level's own natural minor and written as
+   intervals over its tonic, like everything else in the file — the dread comes
+   from timbre and motion, not from leaving the key. Three reasons that is the
+   right call and not a dodge: the SFX pentatonic is scaled into the level's
+   key and keeps firing in here (pickups, shield saves), so an out-of-key bed
+   would put every effect a semitone out against it; the tritone between the
+   second and the flat sixth is ALREADY in natural minor, and it is the most
+   ominous interval the mode has; and a slow downward detune is what gravity
+   actually does to light, which is a better black hole than an atonal chord.
+   No triangle voices: musiccheck isolates level 4's sub drone by oscillator
+   type, and a triangle landing on one of two specific pitches fails the build. */
+function bhStep(t){
+  const fs=BH.step++;
+  const beat=fs%8,bar=(fs/8)|0;
+  if(beat%2===0)BEATQ.push(t);
+  const root=CH[0][0];                       /* the level's tonic, whatever it is */
+  /* THE REDSHIFT IS ON THE SUB ALONE, and that restriction is the whole reason
+     this stays inside the pitch rule rather than beside it. A drone sinking
+     under everything reads as gravity; the same glide applied to the tuned
+     voices would drag them off the level's scale, and the SFX pentatonic —
+     which keeps firing in here for every pickup and shield save — is tuned to
+     exactly that scale. So the floor moves and nothing that has to agree with
+     an effect does. It is also where the ear expects it: low frequencies are
+     what "falling" sounds like. */
+  const fall=1-0.055*Math.min(1,BH.t/BH_DUR);
+  if(beat===0)note(root*0.5*fall,t,SPB*2.1,'sawtooth',0.050,180,0);
+  /* THE TRITONE IS ALREADY IN THE MODE. Degree 2 against flat-6 is a tritone
+     in every natural minor, so the most ominous interval available needed no
+     borrowing to reach — the dread is diatonic. 1.1225 is +2 semitones and
+     1.5874 is +8; both exact, both written over the tonic. The 4-cent offset
+     on the upper voice makes the pair BEAT slowly against each other, which
+     is a timbre trick and not a tuning. */
+  if(beat===0||beat===5){
+    note(root*1.1225,t,SPB*1.6,'square',0.011,900,-0.35);
+    note(root*1.5874*1.004,t,SPB*1.6,'square',0.011,760,0.35);
+  }
+  /* a slow pulse on the flat sixth, one bar in three, so the piece breathes
+     rather than loops — bar 2 and bar 5 of a six-bar cycle stay empty */
+  if(beat===2&&(bar%6===0||bar%6===3))note(root*1.5874,t,SPB*0.9,'sawtooth',0.016,1200,0.1);
+  /* the horizon: a filtered noise wash on the half bar, no pitch at all */
+  if(beat===4)hat(t,0.20,300,0.055,0,0,900);
+  if(beat===0&&bar%2===0)hat(t,0.42,180,0.040,0,0.2,520);
+  /* one heartbeat a bar. Not a kit — the pitch says you are not playing the
+     music, so a groove would invite you to. */
+  if(beat===0)kick(t,0.045);
+}
 function finStep(t){
   const fs=FIN.step++;
   const beat=fs%8;
@@ -2268,6 +2450,15 @@ function judgeTiming(x,y){
 }
 function performerHit(kind,dir,ring){
   if(!A||!AC||!MU||G.state!=='playing'||AC.state!=='running')return;
+  /* IN THE BLACK HOLE THE PLAYER IS NOT AN INSTRUMENT. The pitch is explicit:
+     "nothing you do in black hole mode will change the music. It's preset.
+     You're just trying to survive." This one line is what enforces it — no
+     note, no heat, no loop capture, no on-beat chain. The band is halted in
+     musicStep; this halts the player. Both halves are needed or the mode is
+     just the same song with a different backdrop.
+     Deliberately NOT gated on BH.on alone: the whole warp counts, so the
+     player does not get one last note in as the orbits are still moving. */
+  if(bhActive())return;
   const now=AC.currentTime,slot=gridNear();
   /* One note per sixteenth. Two taps inside one slot is not a faster rhythm,
      it is a flam — and it is how mashing would otherwise stack nodes.
@@ -2393,7 +2584,7 @@ function bedTick(dt){
      line would notice. */
   if(MU&&MU.pay>0&&t>MU.payEnd)endSection();
   /* a banked drop fires the instant the music can carry one */
-  if(MU&&MU.pend&&!MU.armed&&!MU.rise&&MU.pay<=0&&t>=MU.cool&&playing){
+  if(MU&&MU.pend&&!MU.armed&&!MU.rise&&MU.pay<=0&&t>=MU.cool&&playing&&!bhActive()){
     const w=MU.pend,ws=MU.pendSrc;MU.pend=null;MU.pendSrc=null;armDrop(w,ws);
   }
   const lvl=playing?0.17+0.26*k:(G.state==='menu'?0.06:0.02);
@@ -3040,10 +3231,17 @@ function shardCap(){
      has had something real to answer. */
   /* the 5->6->7 steps used to land at dl 70/110/160 — all three inside the
      window where every run was already dying. Spaced out. */
-  return d<8?1:d<20?2:d<32?3:d<55?4:d<120?5:d<200?6:d<270?7:d<340?8:d<420?9:10;
+  const n=d<8?1:d<20?2:d<32?3:d<55?4:d<120?5:d<200?6:d<270?7:d<340?8:d<420?9:10;
+  /* "Suddenly, there are double/triple amount of red obstacles." Applied to
+     the CAP and to the rate together, because raising one without the other
+     just changes how long the board takes to fill. */
+  return BH.phase===2?Math.round(n*BH_DENSITY):n;
 }
 /* was 2.1-d*0.0035: the same late floor arrives via a gentler opening */
-function spawnGap(){return Math.max(0.80,2.6-dl()*0.005);}
+function spawnGap(){
+  const g=Math.max(0.80,2.6-dl()*0.005);
+  return BH.phase===2?g/BH_DENSITY:g;
+}
 /* EVERY RUN OPENS QUIETLY. This used to fade out by the fourth run, so a
    returning player was dropped straight into a moving board with no room to
    re-find the controls — and anyone handed the phone at run twelve got no
@@ -3388,7 +3586,8 @@ const G={
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,slowD:4,shMax:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
   didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,gotShield:false,
-  gotBass:false,gotSpot:false,hyperPlaced:false,
+  gotBass:false,gotSpot:false,gotBH:false,hyperPlaced:false,
+  bhCool:0,bhT:0,bhN:0,   /* black hole: rarity gate, entry stamp, count this run */
   dropsEarned:0,loopN:0,nearN:0,bestCombo:0,holdTimeout:false, /* play-style aggregates for run_ended */
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
   stop:0, /* hitstop: freezes the comet while the celebration plays */
@@ -3728,6 +3927,15 @@ const MEET={
      "double" rounded up on a value that spends a fifth of its life below even
      1.9x. */
   hyper: {t:'the pink star — untouchable and fast',g:'star',soft:1},
+  /* NOT soft. Every other orb lesson is soft:1 — dilation is protection from
+     threats, not ceremony for rewards — and this is the one orb that is not a
+     reward. Taking it starts a mode that is slower, four times as crowded and
+     an orbit deeper, and the player gets one sentence's warning before it does.
+     Naming the trade IS the lesson, because both halves are true at once and
+     a sentence that gave only one of them would be a lie in either direction.
+     "everything slows" is the easier half; "the reds pile up" is the harder;
+     "a new ring" is the thing they will see and otherwise not believe. */
+  blackhole:{t:'black hole — everything slows, the reds pile up',g:'warp'},
   /* not a spawned object: fired by the first reversal that discards most of
      an orbit — the one rule of the scoring economy nothing else teaches */
   lapcost:{t:'turning back restarts the orbit — stars stay banked',g:'star',soft:1},
@@ -3922,6 +4130,18 @@ function spawnPow(){
     type='bass';
   }else if(G.level>=2&&!G.spotPlaced){
     type='spot';
+  }else if(G.level>=3&&G.t>=G.bhCool&&!bhActive()&&Math.random()<0.10){
+    /* THE BLACK HOLE. Rare by design and gated behind its own cooldown as
+       well as its roll, because the pitch's whole premise is that it is "a
+       rare mode" and "something cool to look forward to" — a thing you meet
+       twice a minute is a mechanic, not an event.
+       It is the only orb that is not a gift, and the only one you might
+       reasonably decline: it sits on a ring like any other pickup, so
+       staying off that ring is a real choice with a real cost either way.
+       Level 3 onward, per the pitch. It is introduced wherever the player
+       first meets it, including level 4 — see the curriculum note in
+       CLAUDE.md, which the owner widened to cover all four levels. */
+    type='blackhole';
   }else{
     /* the family expansion: three musical orbs join the rotation */
     const rr=Math.random();
@@ -3936,6 +4156,7 @@ function spawnPow(){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
     if(farFromAll(a,ring,0.6,sep(ring,3.2),sep(ring,3.0))){
       G.pows.push({a,ring,t:0,life:7,type});
+      if(type==='blackhole')G.bhCool=G.t+55;   /* rare stays rare */
       if(type==='hyper')G.hyperPlaced=true;
       if(type==='bass')G.bassPlaced=true;
       if(type==='spot')G.spotPlaced=true;
@@ -4015,7 +4236,10 @@ function startGame(){
      all. Each clears the instant the thing is done, so a veteran sees each for
      well under a second. */
   G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;G.gotShield=false;
-  G.gotBass=false;G.gotSpot=false;
+  G.gotBass=false;G.gotSpot=false;G.gotBH=false;
+  G.bhCool=0;G.bhT=0;G.bhN=0;
+  BH.phase=0;BH.on=false;BH.warp=0;BH.t=0;BH.rings0=3;
+  for(let i=0;i<4;i++)RADII[i]=RAD_OFF[i];
   G.dropsEarned=0;G.loopN=0;G.nearN=0;G.bestCombo=0;G.holdTimeout=false;
   G.hyperPlaced=false;G.bassPlaced=false;G.spotPlaced=false;
   G.didReverse=false;G.didHop=false;G.didLap=false;
@@ -4155,7 +4379,7 @@ function die(){
        loop captures, deliberate dodges, and musical-orb pickups */
     drops_earned:G.dropsEarned,hold_timeout:G.holdTimeout,
     best_combo:G.bestCombo,loop_caught:G.loopN,near_misses:G.nearN,
-    got_bass:G.gotBass,got_spot:G.gotSpot,
+    got_bass:G.gotBass,got_spot:G.gotSpot,got_blackhole:G.gotBH,blackholes:G.bhN,
     /* two ladders, two names, never the word `level` for the tier one: `tier`
        is the zero-based UNLOCK ladder (what has been introduced), `game_level`
        is the 1-3 structure the player is told about. `level` used to be sent
@@ -4882,8 +5106,13 @@ function update(dt){
   if(G.groove>G.bestGroove)G.bestGroove=G.groove;
   G.slow=Math.max(0,G.slow-dt);
   G.stop=Math.max(0,G.stop-dt);
+  /* real dt, never sdt: the pitch asked for 15-20 SECONDS, and running the
+     mode's own clock through its own slow motion would quietly make it 31 */
+  if(G.state==='playing'||bhActive())bhTick(dt);
   bedTick(dt);
-  const tsT=G.slow>0?0.55:1;
+  /* "Slow Motion mode. But extended slow motion. The entire time is slow
+     motion." The existing easing carries it in and out with the warp. */
+  const tsT=(G.slow>0||bhActive())?BH_TS:1;
   G.tsCur+=(tsT-G.tsCur)*Math.min(1,dt*8);
   /* the menu demo hops at a third speed, so the gesture reads as a gesture */
   if(G.hopP<1)G.hopP=Math.min(1,G.hopP+dt/((G.state==='menu'||G.state==='swipesel')?HOP*3.5:HOP));
@@ -5347,7 +5576,12 @@ function update(dt){
     G.spikeT=spawnGap()*rand(0.85,1.15);
   }
   G.powT-=sdt;
-  if(G.powT<=0&&!FIN.on&&G.pows.length===0&&dl()>=6){
+  /* "There are prob no other items given during black hole." Agreed, and for
+     a reason worth stating: an orb in here is either a lifeline that undoes
+     the difficulty the mode exists to create, or a musical orb whose whole
+     effect is on an arrangement that is halted. Stars stay — they are the
+     scoring, and the pitch wants the mode to be worth something. */
+  if(G.powT<=0&&!FIN.on&&!bhActive()&&G.pows.length===0&&dl()>=6){
     G.powT=spawnPow()?Math.max(6,rand(10,15)-dl()*0.02):0.5;
   }
 
@@ -5369,6 +5603,7 @@ function update(dt){
     if(s.ring===er&&sweptHit(s.a,(22*u)/radiusOf(er))){
       G.stars.splice(i,1);
       G.combo=Math.min(G.combo+1,6);G.comboT=CW;
+      if(BH.phase===2)BH.score++;   /* what the escape bonus is scaled by */
       if(G.combo>G.bestCombo)G.bestCombo=G.combo;
       if(G.combo>=3)firstMeet('combo');   /* the multiplier names itself once */
       G.score+=G.combo;G.diff+=1;G.scorePop=1;
@@ -5467,20 +5702,21 @@ function update(dt){
        call at placement could hit a busy moment, defer, and the orb —
        guaranteed once per level-2 run — leave unexplained. firstMeet's own
        guards (seen, calm, spacing) make the retry free. */
-    if(!G.seen[s.type]&&(s.type==='bass'||s.type==='spot'||s.type==='hyper'))firstMeet(s.type);
+    if(!G.seen[s.type]&&(s.type==='bass'||s.type==='spot'||s.type==='hyper'||s.type==='blackhole'))firstMeet(s.type);
     if(s.ring===er&&sweptHit(s.a,(22*u)/radiusOf(er))){
       const p=posAt(s.a,radiusOf(s.ring));
       G.pows.splice(i,1);
       /* using an orb IS the introduction — better than any sentence about
          it, and it stops a redundant lesson firing after the experience */
-      if((s.type==='bass'||s.type==='spot'||s.type==='hyper')&&!G.seen[s.type]){
+      if((s.type==='bass'||s.type==='spot'||s.type==='hyper'||s.type==='blackhole')&&!G.seen[s.type]){
         G.seen[s.type]=1;savePref('cometloop:seen',Object.keys(G.seen).join(','));
       }
       arcFlash(s.a,s.ring,
         s.type==='shield'?COL.shield:
         s.type==='warp'||s.type==='spot'?COL.warp:
         s.type==='bass'?COL.comet:
-        s.type==='hyper'?COL.hyper:COL.nova);
+        s.type==='hyper'?COL.hyper:
+        s.type==='blackhole'?COL.bh:COL.nova);
       if(s.type==='shield'){
         const span=panAt(p[0]);
         G.gotShield=true;   /* the naming hint retires on first pickup */
@@ -5511,6 +5747,23 @@ function update(dt){
         burst(p[0],p[1],COL.shield,14,150);
         ripple(p[0],p[1],COL.shield);
         cueTone(function(w){beep(520,0.12,'triangle',0.06,780,w);});
+      }else if(s.type==='blackhole'){
+        G.gotBH=true;
+        startBlackHole();
+        popup(p[0],p[1]-26*u,'BLACK HOLE',COL.bh,1.6);
+        burst(p[0],p[1],COL.bh,30,300);
+        ripple(p[0],p[1],COL.bh);
+        if(!RM){
+          G.shake=Math.max(G.shake,10);
+          G.stop=Math.max(G.stop,0.12);
+          for(let q=0;q<3;q++)
+            G.rings.push({x:cx,y:cy,r:radiusOf(0)*(1+q*0.15),life:1,col:COL.bh,sp:-260,dec:0.9});
+        }
+        /* the swallow: the tonic dragged down two octaves. Written as an
+           interval over CH[0][0] like every other pitch in the file, so it
+           lands in whatever key the level is in. */
+        beep(CH[0][0],0.9,'sawtooth',0.085,CH[0][0]*0.25);
+        try{if(navigator.vibrate)navigator.vibrate([18,40,60]);}catch(e){}
       }else if(s.type==='warp'){
         G.slow=upgOn('slowworld')?6:4;G.slowD=G.slow;G.gotWarp=true;
         popup(p[0],p[1]-20*u,'SLOW-MO',COL.warp);
@@ -5665,6 +5918,37 @@ function drawPow(x,y,s,al){
     ctx.beginPath();ctx.arc(x,y,2.9*u*pulse,0,TAU);ctx.fill();
     ctx.fillStyle=COL.warp;
     ctx.beginPath();ctx.arc(x,y,1.6*u,0,TAU);ctx.fill();
+    ctx.restore();
+  }else if(s.type==='blackhole'){
+    /* THE ONLY DARK OBJECT IN THE GAME. Everything else on the board emits;
+       this one takes. Drawn as a hole rather than a ball: a flat black disc
+       with a violet accretion ring leaning around it and a lensing halo that
+       bends the wrong way — light going IN instead of out. It is the one orb
+       a player should be able to identify before they can name it, because
+       taking it is a decision and the pitch says it is optional. */
+    ctx.save();
+    const wob=RM?0:Math.sin(s.t*1.7)*0.25;
+    ctx.globalAlpha=al;
+    /* the lensing halo: drawn as a soft violet ring OUTSIDE the disc */
+    if(!RM){
+      const gl=ctx.createRadialGradient(x,y,2*u,x,y,12*u);
+      gl.addColorStop(0,'rgba(143,92,255,0)');
+      gl.addColorStop(0.55,'rgba(143,92,255,0.42)');
+      gl.addColorStop(1,'rgba(143,92,255,0)');
+      ctx.fillStyle=gl;ctx.beginPath();ctx.arc(x,y,12*u,0,TAU);ctx.fill();
+    }
+    /* the accretion ring, seen almost edge-on so it reads as a disc in space */
+    ctx.translate(x,y);ctx.rotate(0.5+wob);
+    ctx.strokeStyle=COL.bh;ctx.lineWidth=2.1*u;
+    ctx.globalAlpha=al*0.95;
+    ctx.beginPath();ctx.ellipse(0,0,8.4*u*pulse,2.9*u*pulse,0,0,TAU);ctx.stroke();
+    ctx.globalAlpha=al*0.5;
+    ctx.beginPath();ctx.ellipse(0,0,10.6*u*pulse,3.7*u*pulse,0,0,TAU);ctx.stroke();
+    ctx.rotate(-(0.5+wob));
+    /* the event horizon itself — nothing, and nothing is the point */
+    ctx.globalAlpha=al;
+    ctx.fillStyle='#05060d';
+    ctx.beginPath();ctx.arc(0,0,4.4*u,0,TAU);ctx.fill();
     ctx.restore();
   }else if(s.type==='hyper'){
     /* upright with a wobble — a star that spins reads as a shard of light,
@@ -6346,6 +6630,50 @@ function draw(){
     }
   }
   ctx.globalCompositeOperation='source-over';
+  /* ---------- THE BLACK HOLE BACKDROP ----------
+     "A super cool black hole backdrop." Drawn here, over the star field and
+     under the arena, so the singularity sits BEHIND the orbits and the comet
+     rides in front of it — the alternative, laying it over the top, dimmed
+     the one thing the player needs to read while the board is at its most
+     crowded.
+     Three pieces and no texture: a well that eats the middle, an accretion
+     disc leaning at the same angle as the orb that started it, and the
+     photon ring. It fades with BH.warp, so the whole thing arrives and
+     leaves with the orbits rather than cutting. */
+  if(bhActive()&&BG){
+    const k=BH.warp,rr=radiusOf(0);
+    ctx.save();
+    ctx.globalAlpha=Math.min(1,k);
+    /* the well: everything toward the centre goes to nothing */
+    const wg=ctx.createRadialGradient(cx,cy,0,cx,cy,rr*1.15);
+    wg.addColorStop(0,'rgba(2,2,6,1)');
+    wg.addColorStop(0.42,'rgba(4,3,12,0.92)');
+    wg.addColorStop(0.78,'rgba(10,6,26,0.55)');
+    wg.addColorStop(1,'rgba(10,6,26,0)');
+    ctx.fillStyle=wg;
+    ctx.beginPath();ctx.ellipse(cx,cy,rr*1.15,rr*1.15*AY,0,0,TAU);ctx.fill();
+    if(!RM){
+      /* the disc: two leaning ellipses turning at different rates, bright on
+         the side rotating toward the viewer, which is the one detail that
+         makes a black hole read as spinning rather than as a dark circle */
+      ctx.globalCompositeOperation='lighter';
+      for(let d=0;d<2;d++){
+        const sp2=G.t*(0.22+d*0.13),ry=0.20+d*0.07;
+        ctx.globalAlpha=k*(0.30-d*0.10);
+        ctx.strokeStyle=d?'#c9a4ff':COL.bh;
+        ctx.lineWidth=(9-d*4)*u;
+        ctx.beginPath();
+        ctx.ellipse(cx,cy,rr*(0.62+d*0.16),rr*ry*AY,Math.sin(sp2)*0.30,0,TAU);
+        ctx.stroke();
+      }
+      /* the photon ring — thin, bright, and exactly circular */
+      ctx.globalAlpha=k*0.5;
+      ctx.strokeStyle='#e6d4ff';ctx.lineWidth=1.6*u;
+      ctx.beginPath();ctx.ellipse(cx,cy,rr*0.30,rr*0.30*AY,0,0,TAU);ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalCompositeOperation='source-over';
+  }
   /* the drum break drops the room dark — the spotlight moves to the kit —
      and the crash snaps the light back (musicStep flashes on the crash) */
   if(G.brkGlow>0.01){
@@ -6411,9 +6739,12 @@ function draw(){
        track leaning away rather than as an error, and it is the only way to
        keep a baked cross-section on an elliptical path. */
     if(SPR.ringCh&&SPR.ringCh[i]){
-      const sp=SPR.ringCh[i],d=sp.s;
+      const sp=SPR.ringCh[i];
+      /* the halo follows the live radius by scaling the bake, so a warping
+         arena costs one multiply instead of a gradient rebuild */
+      const d=sp.s*(RAD_BAKE[i]?RADII[i]/RAD_BAKE[i]:1);
       ctx.save();
-      ctx.globalAlpha=on?1.0:0.6;
+      ctx.globalAlpha=(on?1.0:0.6)*(i===3?Math.min(1,RADII[3]/RAD_BH[3]):1);
       ctx.translate(cx,cy);ctx.scale(1,AY);
       ctx.drawImage(sp.c,-d/2,-d/2,d,d);
       ctx.restore();
