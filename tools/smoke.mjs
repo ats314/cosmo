@@ -429,6 +429,23 @@ try {
     if (!(st('shardCap()') > cap0)) throw new Error('black hole mode did not raise the shard cap');
     if (!(st('spawnGap()') < gap0)) throw new Error('black hole mode did not shorten the spawn gap');
     if (!(st('G.tsCur') < 0.98)) throw new Error('black hole mode is not in slow motion, tsCur=' + st('G.tsCur'));
+    /* THE GRAVITY PULL HAS A DIRECTION AND NOTHING WAS WATCHING IT. It shipped
+       inverted: RAD_BH is [1.0,0.80,0.62,0.45], so index 0 is the OUTERMOST
+       orbit, and `G.ringI--` walked the comet outward to the widest, safest,
+       emptiest ring and then stopped there forever because the guard was
+       `G.ringI>0`. The code and its comment used "ring 0" to mean opposite
+       things, which is exactly the kind of error a reader cannot catch and a
+       harness can. Park on the outer ring, wait past one pull interval, and
+       require that the singularity dragged the comet TOWARD the centre —
+       which, with indices, means the index went UP. */
+    st('G.ringI=0;G.hopP=1;BH.pullT=0');
+    for (let i = 0; i < 60 * 6; i++) frame(16.7);
+    if (!(st('G.ringI') > 0)) {
+      throw new Error('the gravity pull did not drag the comet inward, ringI=' + st('G.ringI'));
+    }
+    if (st('radiusOf(G.ringI)') >= st('radiusOf(0)')) {
+      throw new Error('the gravity pull moved the comet to a LARGER radius — it is inverted');
+    }
     // no orbs inside the mode
     st('G.pows.length=0;G.powT=0');
     for (let i = 0; i < 60; i++) frame(16.7);

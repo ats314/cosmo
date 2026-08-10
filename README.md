@@ -150,10 +150,26 @@ first three have finish lines; the fourth does not:
 **BLACK HOLE MODE** runs across levels 3 and 4 and is neither a level nor a
 power-up: a rare dark orb you may take or decline, and 17 seconds of somewhere
 else if you take it. The band stops, a preset piece plays, you stop being an
-instrument, everything runs at 0.55×, the reds run 2.5× — and a fourth orbit
-opens while all four re-space. See `MECHANICS.md` for the geometry and the
+instrument, everything runs at 0.42×, the reds run 1.5× to 3.5× — and a fourth
+orbit opens while all four re-space. See `MECHANICS.md` for the geometry and the
 measurements; the short version is that the fourth ring works because the
 orbits move, not because the gaps shrank, and because the arena is an ellipse.
+
+**And for most of its life it did almost none of that.** The mode shipped with
+thirteen sub-features and a playtester who had run it many times could see one:
+"nothing but some purple color." Every one of the thirteen was present in the
+source. The arena-scale art was gated on WebGL having *failed*; the shader's
+lens inverted the UV field so the gravity well darkened nothing; the sustaining
+pad ignored the mode entirely and played the level's own chords straight
+through it at full volume; the density divisor was drained by a timer on the
+slowed clock, which made the mode *easier* than the level it interrupted; the
+gravity pull ran backwards, pushing the comet to the safest orbit, where the
+2× star bonus also happened to pay; and the rare roll sat below seven
+guaranteed placements, so it first became reachable one second after the median
+level-3 run had already ended. `MECHANICS.md` has the clause-by-clause table.
+The lesson worth keeping is that none of this was visible from the code: every
+feature read correctly at its own site, and each was disabled by something
+somewhere else. Only measurement found them.
 
 Level 3 used to be the endless one. Giving it a finish line and handing
 "endless" to level 4 keeps *the last level is the exam* true, rather than
