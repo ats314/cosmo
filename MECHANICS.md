@@ -36,11 +36,38 @@ Simulated against the shipped build, a camper that adds one hop rule survived
 five fifteen-minute level-4 runs without a scratch, covering 1.3 radians of the
 circle. THE SAUCER is the first object in the game whose position is a function
 of where the player has chosen to be, which is what makes turning around cost
-something. It is a tax on the strategy, not a cure: against a bot with
+something. It is a tax on the strategy rather than a cure: against a bot with
 frame-perfect hop reactions it forces 600–900 ring changes per five minutes and
-fires 51–88 times but does not reliably kill. The structural half — giving the
-no-spawn bubble a direction so the arc behind the comet fills in — is a
-separate change to `farFromAll` and is not in this ledger yet.
+fires 51–88 times but does not reliably kill.
+
+**The structural half is the clearance rule, and it has landed.** `farFromAll`'s
+player term was one symmetric read of `G.angle` with no heading and no memory,
+so nothing could be placed within `minP` of where the comet *is* — which is
+exactly right for a player who travels and a permanent shelter for one who does
+not. It now follows travel: the full reaction gap **ahead** along the heading, a
+short pad **behind**, measured in time (0.16s of travel, floored at 0.45 rad) so
+it cannot quietly shrink as the game speeds up. The arc you have just left fills
+in behind you, and turning around means turning into what you abandoned.
+
+This is not a new hazard class. Shards already end up behind the player every
+orbit — you travel past them. The bubble never stopped that; it only stopped
+them being *placed* there. And a shard placed behind still spends its whole warn
+phase harmless, so a reversal meets a telegraph first, like every other shard.
+
+**Gates are exempt while any wall is on the board.** A gate exists to force a
+reversal, and `reverseEscape` vets at spawn time that the reversal has 1.1 rad to
+open onto — a check a later spawn behind the player could invalidate. The bubble
+goes symmetric while a gate is live, so the one formation that demands a turn can
+never be the one that punishes it.
+
+Measured on level 4, immortal-camper bot, five runs of five minutes: **5/5
+survived before, 3/5 after**, and the survivors are executing roughly three
+perfect ring changes a second. A travelling bot is unaffected — median survival
+54.4s → 52.4s across twelve runs each, well inside this harness's noise — and
+board density is unchanged (mean shards 9.1 → 8.8), so the rule redistributes
+placement rather than adding any. Rewards keep the old symmetric clearance:
+letting stars and orbs fill in behind a stationary player would hand the camper
+a reason to stay, which is the behaviour the change exists to price.
 
 **Level 3 used to be endless and therefore last.** It has a finish line and a
 star dive of its own now, and level 4 (EVENT HORIZON) took over as the level
