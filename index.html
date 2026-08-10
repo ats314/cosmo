@@ -2274,7 +2274,20 @@ function bhStep(t){
      exactly that scale. So the floor moves and nothing that has to agree with
      an effect does. It is also where the ear expects it: low frequencies are
      what "falling" sounds like. */
-  const fall=1-0.055*Math.min(1,BH.t/BH_DUR);
+  /* WIDENED, AND WIDENED ON THE SUB RATHER THAN SPREAD ACROSS THE VOICES. The
+     first version fell 5.5% — under a semitone across seventeen seconds, which
+     is roughly the drift of a tape machine and reads as a mistake rather than
+     as a decision. It now falls a minor third, and it ACCELERATES: the curve is
+     squared, so the first half barely moves and the last few seconds are
+     audibly going. That is the shape of falling, and it is the shape the mode
+     needs anyway — the thing bhStep most lacked was an arc.
+     Still the sub alone. Spreading it across the tuned voices is the tempting
+     version and it is wrong: the SFX pentatonic keeps firing in here for every
+     pickup and shield save and is tuned to the level's scale, so a glide on
+     the mid voices puts every effect a beating semitone out against the bed for
+     most of the mode. A drone two octaves down has no such neighbour. */
+  const fq=Math.min(1,BH.t/BH_DUR);
+  const fall=1-0.16*fq*fq;
   if(beat===0)note(root*0.5*fall,t,SPB*2.1,'sawtooth',0.050,180,0);
   /* THE TRITONE IS ALREADY IN THE MODE. Degree 2 against flat-6 is a tritone
      in every natural minor, so the most ominous interval available needed no
