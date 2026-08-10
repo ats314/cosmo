@@ -5746,14 +5746,76 @@ function textFx(str,x,y,size,weight,c1,c2,glow,ls){
    not help when the single operation eats all of it.
    So the bright objects are re-drawn as crude blobs into a quarter-size
    buffer instead. Precision is pointless there: the upscale blurs it past
-   recognition, and bilinear filtering on the way back up IS the blur. */
-const BLOOM_DIV=4,BLOOM_ALPHA=0.34;
-let bloomC=null,bloomG=null;
-function bloomDot(g,x,y,r,col){g.fillStyle=col;g.beginPath();g.arc(x,y,r,0,TAU);g.fill();}
+   recognition, and bilinear filtering on the way back up IS the blur.
+
+   ONE BUFFER CAN ONLY CARRY ONE RADIUS. How far a pass blurs is fixed by how
+   far it is upscaled, so the quarter-res buffer put the same tight collar on
+   the hub lamp as on a spark: an ember's light was gone 13px out, the comet's
+   at 17px, barely past the blob itself. Every other layer of light here is
+   several passes at different weights — the trail is three, the gate bar two,
+   the nova front three — and the bloom was the one that was a single flat
+   blit. Light with no range reads as paint.
+   THE HALO IS DRAWN, NOT DOWNSAMPLED, and that is the whole design. The
+   obvious cheap route is a mip cascade: downsample the quarter-res buffer
+   twice more and blit each level back. It was built that way first and
+   measured, and it fails twice over. A box downsample preserves the peak of
+   any feature bigger than a buffer pixel, so a solid blob keeps full
+   brightness at every level and the passes simply SUM — the core came out 61%
+   hotter while the halo barely moved, which is a brightness bug wearing a
+   glow's clothes. Worse, a tiny buffer blown up 40x spreads through bilinear,
+   and bilinear is a separable tent: the footprint is a cross, not a disc, and
+   its shape depends on where the object happens to fall on the coarse grid.
+   Sliding one ember across a single coarse pixel swung its halo by 80%. Every
+   object in this game is in orbit, permanently crossing that grid, so that is
+   a halo that crawls and breathes on nothing musical at all.
+   Drawing the halo as REAL CIRCLES into a coarse buffer costs one more pair
+   of arc+fills per dot and is round by construction — measured 0.97 to 1.09
+   across the halo, and 17% ripple against the cascade's 80%. Two stacked
+   discs, at 2x and 4x the dot's radius, give a falloff one flat disc has
+   not. */
+const BLOOM_DIV=4,BLOOM_ALPHA=0.28;
+/* THE DIAL. Every number here was chosen against four measurements at once,
+   and they pull against each other: reach, the core (embers must stay GOLD —
+   washing them toward white spends the one colour that means "collect me"),
+   roundness, and how much the whole thing hazes a dense late-game board,
+   which is the contrast the calm pool exists to buy back. As set: ember core
+   +4.8%, reach 13px -> 43px on an ember and 17px -> 69px on the comet, median
+   lift across a full board 0.026. Mutable at runtime, so `HALO_A=0.14` in the
+   console re-weights it on the next frame — the last word on how much glow is
+   too much belongs to eyes on a real screen, not to this table. */
+const HALO_DIV=12,HALO_WDIV=32;      /* the halo buffer, and its wide sibling */
+const HALO_K1=2.0,HALO_W1=0.50;      /* inner disc: radius multiple, weight */
+const HALO_K2=4.0,HALO_W2=0.20;      /* outer disc */
+let HALO_A=0.09,HALO_WA=0.06;        /* composite alphas */
+let bloomC=null,bloomG=null,haloC=null,haloG=null,haloWC=null,haloWG=null;
+/* One call site, three discs: the tight blob every caller already asked for,
+   and the two that build its halo. Guarded on haloG so the tight pass still
+   stands alone if the halo buffers never came up. */
+function bloomDot(g,x,y,r,col){
+  g.fillStyle=col;g.beginPath();g.arc(x,y,r,0,TAU);g.fill();
+  if(!haloG)return;
+  haloG.fillStyle=col;
+  haloG.globalAlpha=HALO_W1;
+  haloG.beginPath();haloG.arc(x,y,r*HALO_K1,0,TAU);haloG.fill();
+  haloG.globalAlpha=HALO_W2;
+  haloG.beginPath();haloG.arc(x,y,r*HALO_K2,0,TAU);haloG.fill();
+}
 function drawBloom(){
   if(!bloomC){bloomC=document.createElement('canvas');bloomG=bloomC.getContext('2d');}
+  if(!haloC){
+    haloC=document.createElement('canvas');haloG=haloC.getContext('2d');
+    haloWC=document.createElement('canvas');haloWG=haloWC.getContext('2d');
+  }
   const bw=Math.max(1,Math.ceil(W/BLOOM_DIV)),bh=Math.max(1,Math.ceil(H/BLOOM_DIV));
   if(bloomC.width!==bw||bloomC.height!==bh){bloomC.width=bw;bloomC.height=bh;}
+  /* the halo buffer has to be cleared and put in world coordinates BEFORE the
+     dot loop below, because bloomDot writes into it as it goes */
+  const hw=Math.max(1,Math.ceil(W/HALO_DIV)),hh=Math.max(1,Math.ceil(H/HALO_DIV));
+  if(haloC.width!==hw||haloC.height!==hh){haloC.width=hw;haloC.height=hh;}
+  haloG.setTransform(1,0,0,1,0,0);
+  haloG.clearRect(0,0,hw,hh);
+  haloG.setTransform(1/HALO_DIV,0,0,1/HALO_DIV,0,0);
+  haloG.globalCompositeOperation='lighter';
   const g=bloomG,s=1/BLOOM_DIV;
   g.setTransform(1,0,0,1,0,0);
   g.clearRect(0,0,bw,bh);
@@ -5792,10 +5854,28 @@ function drawBloom(){
   /* the hub lamp blooms too, harder while the drop is landing */
   bloomDot(g,cx,cy,(9+9*G.dropFx)*u,'#9db9ff');
   g.setTransform(1,0,0,1,0,0);
+  /* The widest reach comes free: one downsample of the halo buffer that is
+     already drawn. Smoothing has to be asserted every frame, because assigning
+     width RESETS the context and a downscale with it off is a point sample
+     that discards fifteen pixels in sixteen. */
+  haloG.setTransform(1,0,0,1,0,0);
+  haloG.globalAlpha=1;
+  const ww=Math.max(1,Math.ceil(W/HALO_WDIV)),wh=Math.max(1,Math.ceil(H/HALO_WDIV));
+  if(haloWC.width!==ww||haloWC.height!==wh){haloWC.width=ww;haloWC.height=wh;}
+  haloWG.imageSmoothingEnabled=true;
+  haloWG.clearRect(0,0,ww,wh);
+  haloWG.drawImage(haloC,0,0,ww,wh);
   ctx.save();
   ctx.globalCompositeOperation='lighter';
   /* the bloom breathes with the payoff kick — the visual half of the pump */
-  ctx.globalAlpha=BLOOM_ALPHA*(1+((G.pay>0&&!RM)?0.45*G.beat:0));
+  const bp=1+((G.pay>0&&!RM)?0.45*G.beat:0);
+  /* Additive, so the order buys nothing mathematically; widest first because
+     that is the order the light is built in and the one a reader expects. */
+  ctx.globalAlpha=HALO_WA*bp;
+  ctx.drawImage(haloWC,0,0,W,H);
+  ctx.globalAlpha=HALO_A*bp;
+  ctx.drawImage(haloC,0,0,W,H);
+  ctx.globalAlpha=BLOOM_ALPHA*bp;
   ctx.drawImage(bloomC,0,0,W,H);
   ctx.restore();
 }
