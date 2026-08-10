@@ -817,6 +817,19 @@ try {
     // NOTHING BELOW THIS LINE MAY REACH THE DEVICE. Snapshotted as a whole map
     // rather than key by key: the point is that a lab session is inert, and a
     // named-key check only ever catches the writes somebody remembered.
+    //
+    // THE STORE IS EMPTIED FIRST, and the first version of this test did not do
+    // that — which is exactly how it missed three writes. Everything above has
+    // already played the game, so `cometloop:hopped`, `:groove` and `:landed`
+    // were all present and set to '1' before the snapshot was taken; the lab
+    // then wrote '1' over '1' and a before/after comparison saw nothing. A lab
+    // session must be unable to CREATE a key, not merely unable to change one,
+    // and only a cleared store can tell those apart. The in-memory lifetime
+    // flags are reset with it for the same reason — everHopped gates the
+    // once-ever first-hop rehearsal, so leaving it true would hide the write
+    // that matters most.
+    for (const k of Object.keys(store)) delete store[k];
+    st('G.everHopped=false;G.everLanded=false;G.didGroove=false');
     const before = JSON.stringify(store);
     const runs0 = st('G.runs');
     const seen0 = st('JSON.stringify(Object.keys(G.seen).sort())');
@@ -846,15 +859,27 @@ try {
     // The mode peak is kept as the other half of the same claim: the black
     // hole has to visibly crowd a quiet board or the sandbox is too quiet to
     // be testing the thing it was opened to test.
-    let sawBH = false, calmPeak = 0, modePeak = 0;
+    // THE LAB IS PLAYED, not just watched. A snapshot only proves what the
+    // session actually did, and a session that never touched the screen would
+    // have exonerated all three of the writes this block exists to catch —
+    // they hang off gameplay verbs, not off menus. So: hops (the lab runs on
+    // three rings, which is what makes everHopped reachable at all) and taps
+    // through the real handler, which is what calls tryLand().
+    let sawBH = false, calmPeak = 0, modePeak = 0, hops = 0, gpid = 1300;
     for (let i = 0; i < 7000; i++) {
       frame(16.7);
+      if (i % 120 === 60) { st('hop(' + (hops % 2 ? -1 : 1) + ')'); hops++; }
+      if (i % 90 === 0) {
+        fire('pointerdown', pev(gpid, 200, 400, 'pointerdown'));
+        fire('pointerup', pev(gpid++, 200, 400, 'pointerup'));
+      }
       const inMode = st('BH.phase') === 2;
       if (inMode) sawBH = true;
       const n = st('G.spikes.length');
       if (inMode) { if (n > modePeak) modePeak = n; }
       else if (st('G.bhN') === 0 && n > calmPeak) calmPeak = n;
     }
+    if (!st('G.didHop')) throw new Error('the lab run never landed a hop — the everHopped guard went untested');
     const seenTypes = Object.keys(JSON.parse(st('JSON.stringify(G.__labSeen)')));
     const placed = st('G.__labN');
     if (placed < 4) throw new Error(`the lab placed ${placed} orbs in two minutes — "frequently" is not happening`);
@@ -914,6 +939,13 @@ try {
         + ' now ' + st('JSON.stringify(Object.keys(G.seen).sort())'));
     }
     if (st('G.runs') !== runs0) throw new Error('a lab session moved the lifetime run count');
+    // The lifetime tutorial flags, in memory as well as on disk. everHopped is
+    // the one with teeth: it gates the once-ever first-hop rehearsal, so a
+    // fresh player who opened the lab and swiped would have met the real
+    // second ring with the rehearsal already spent.
+    for (const f of ['everHopped', 'everLanded', 'didGroove']) {
+      if (st('G.' + f)) throw new Error(`a lab session set the lifetime flag G.${f}`);
+    }
     if (JSON.stringify(store) !== before) {
       const now = JSON.parse(JSON.stringify(store)), was = JSON.parse(before);
       const bad = Object.keys(now).filter(k => now[k] !== was[k])

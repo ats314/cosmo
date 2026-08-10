@@ -1416,7 +1416,9 @@ function tryLand(){
   const gain=perfect?300:good?100:0;
   G.landFx={t:0,perfect:perfect,good:good,gain:gain};
   if(gain){G.score+=gain;G.scorePop=1;G.lands++;
-    if(!G.everLanded){G.everLanded=true;savePref('cometloop:landed','1');}}
+    /* not from the lab — see the note in hop(). A record-only flag today, but
+       it is persisted, and "nothing reaches the device" is the whole promise */
+    if(!LAB.on&&!G.everLanded){G.everLanded=true;savePref('cometloop:landed','1');}}
   if(perfect)G.secMult=2;
   const p=posPlayer();
   if(perfect){
@@ -2729,7 +2731,7 @@ function judgeTiming(x,y){
        didGroove stays persisted as the lifetime record. */
     if(G.groove>=2&&!G.beatPop){
       G.beatPop=true;
-      if(!G.didGroove){G.didGroove=true;savePref('cometloop:groove','1');}
+      if(!LAB.on&&!G.didGroove){G.didGroove=true;savePref('cometloop:groove','1');}  /* not from the lab — see hop() */
       popup(x,y-34*u,'ON BEAT!',COL.warp,1.0);
     }
     /* the popup names the tap; the lesson names the SYSTEM — once per
@@ -5450,7 +5452,17 @@ function hop(step){
      thing being explained (complying with 'swipe to another ring'!)
      destroyed the once-ever sentence mid-read */
   if(G.teachKind==='hop')G.teach=0;
-  if(!G.everHopped){G.everHopped=true;savePref('cometloop:hopped','1');}
+  /* NOT FROM THE LAB, and this is the one lifetime flag with teeth. everHopped
+     gates the FIRST-HOP REHEARSAL — the once-ever dilation, held spawns and
+     radial guide that fire when the second ring lands for someone who has
+     never hopped. The lab runs on three rings, so a fresh player who opened it
+     first and swiped once would have spent that rehearsal on a sandbox and met
+     the real second ring with nothing. Same shape as the lesson bug above:
+     a gameplay action, not a menu, quietly writing a lifetime record.
+     The in-memory flag is inside the guard as well as the write — setting it
+     without persisting would suppress the rehearsal for the rest of the visit,
+     which is the same bug with a shorter fuse. */
+  if(!LAB.on&&!G.everHopped){G.everHopped=true;savePref('cometloop:hopped','1');}
   G.hopFrom=radiusOf(G.ringI);
   G.hopFromI=G.ringI;
   G.ringI=t;

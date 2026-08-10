@@ -170,7 +170,10 @@ lengthens future openings is not fed, and no first-encounter lesson is spent —
 that last one matters more than it sounds, because *taking* a musical orb
 normally counts as having been taught it, so one unguarded black hole session
 would have permanently retired the black hole's lesson on a device that had
-never met one. There is no share button on a lab death: the share text has no
+never met one. Nor does hopping in the lab count as having hopped: `hop()`
+persists a lifetime flag that gates the once-ever first-hop rehearsal, so a
+fresh player who opened the lab and swiped would otherwise have met the real
+second ring with the game's tutorial for its hardest gesture already spent. There is no share button on a lab death: the share text has no
 room to say any of the above, and a boast the game knows to be false should not
 be one tap away. Telemetry is suppressed rather than tagged — a lab run cannot
 reach the funnel at all, and one event records that the lab was opened and with
@@ -1755,13 +1758,15 @@ It also runs the POWERUP TESTING lab, which needs proving in two opposite
 directions. That it *does* something: all seven orbs are run for 45 simulated
 seconds each and each lab must place its own orb and nothing else, at a
 measured cadence. And that it *leaves nothing behind*: `localStorage` is
-snapshotted as a whole map across an entire session — entry, orbs taken, a
+**cleared**, then a whole session is played — entry, hops, taps, orbs taken, a
 forced death with every record set so that it would move if it could — and any
-changed key fails the build. A named-key check would only ever catch the
-writes somebody remembered, which is the point: the guards are all one
-`!LAB.on` on a line whose ordinary job is to write to the device, and an
-omitted one looks exactly like the others in a diff. That is how the second
-lesson-spending writer was found. The lab's two screens are also measured on
+key that reappears fails the build. Clearing rather than diffing is the point,
+and it was learned the hard way: the first version snapshotted a store the
+earlier tests had already filled, so three leaked writes wrote `'1'` over `'1'`
+and the comparison saw nothing. A lab session must be unable to *create* a key,
+not merely unable to change one. `check.mjs` carries a tripwire on the set of
+persisted keys for the two write sites smoke cannot reach at all — both return
+immediately without WebAudio, which smoke removes by design. The lab's two screens are also measured on
 eight viewports for rects that run off the screen, overlap each other, or fall
 below a pressable height — the canvas is stubbed so no pixel can be checked,
 but every control publishes a rect from its own draw pass, and geometry can

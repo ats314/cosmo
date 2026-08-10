@@ -282,6 +282,18 @@ first would have let one black hole session permanently retire the black hole's
 lesson on a device that had never met one. Both are guarded; the harness found
 the second.
 
+**And the gameplay verbs write, not just the menus.** `hop()` persists
+`cometloop:hopped`, and `G.everHopped` gates the **first-hop rehearsal** — the
+once-ever dilation, held spawns and radial guide that fire when the second ring
+lands for someone who has never hopped. The lab runs on three rings, so a fresh
+player who opened it first and swiped once would have spent that rehearsal on a
+sandbox and met the real second ring with nothing. `tryLand()` and
+`judgeTiming()` persist two more. All three are guarded, and neither of the
+last two is reachable in `smoke.mjs` — both return immediately without WebAudio,
+which smoke removes by design — so `check.mjs` carries a tripwire on the set of
+persisted keys instead: a new one cannot be added without someone being asked
+whether the lab must be kept out of it.
+
 ## Cross-level systems (never gate progression)
 
 | System | How it works | Explained by |

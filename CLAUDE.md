@@ -174,8 +174,22 @@ Breaking one of these is a product regression, not a style question.
   struggle streak, the `seen` bits, telemetry — so an omitted guard looks
   exactly like the others in a diff and no amount of reading finds it. Do not
   add another such line without its guard, and do not trust a review to catch
-  it: `smoke.mjs` snapshots `localStorage` as a whole map across a lab session
-  and fails on any changed key, which is the only enforcement that scales.
+  it: `smoke.mjs` CLEARS `localStorage`, plays a lab session including hops and
+  taps, and fails if any key reappears — which is the only enforcement that
+  scales. It has to clear rather than diff, and that distinction is the whole
+  lesson: the first version snapshotted a store the earlier tests had already
+  filled, so three leaked writes (`hopped`, `groove`, `landed`) wrote `'1'`
+  over `'1'` and the comparison saw nothing. A lab session must be unable to
+  CREATE a key, not merely unable to change one.
+  **The gameplay verbs write too, not just the menus.** `hop()` persists
+  `cometloop:hopped`, and `G.everHopped` gates the once-ever first-hop
+  rehearsal — so an unguarded lab could spend a fresh player's tutorial for the
+  hardest gesture in the game before they ever met the real second ring. Two
+  more sit in `tryLand()` and `judgeTiming()`, and **neither is reachable in
+  `smoke.mjs` at all**: both return immediately without `AC`/`MU`, and smoke
+  removes WebAudio by design. `check.mjs` covers that gap with a tripwire on
+  the set of persisted keys — it cannot tell whether a write is guarded, but a
+  new one cannot be added without someone being asked the question.
   **Two writers spend a lesson, not one** — `firstMeet()` fires the sentence,
   and the pickup path separately treats *taking* a musical orb as being taught
   it. Guarding only the first was the shipped-looking bug the harness caught:
