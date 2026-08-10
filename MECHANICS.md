@@ -192,7 +192,7 @@ looping flat.
 | The storm | No new tricks. Every threat and orb from levels 1–2 active at once, spawn pool full from the first second, speed climbing toward the 4.2 rad/s ceiling. **Finite now** — it has a finish line at dl 340 and a star dive of its own. | dl 215 *(aligned to the level 3 start — was 380)* | L3 intro card: "no new tricks — everything at once" |
 | Event horizon | The same storm with no exit: level 4 is endless, at the speed ceiling, in the fourth key (A → G → F → E♭). Its song is the one that never leaves home — i–♭VI–♭VII–i over a sub drone pinned to the tonic — with an octave-jumping bass and an open offbeat hat of its own. Introduces nothing. | dl 340 *(new)* | L4 intro card: "past the point of return" |
 
-## Before the run — the three front screens
+## Before the run — the front screens
 
 None of these gates progression, and none of them changes what is taught.
 
@@ -201,6 +201,8 @@ None of these gates progression, and none of them changes what is taught.
 | Mode picker (title screen) | Two cards, CHILL and SKILL, on the title screen. SKILL is the default and the game as balanced. Tapping a card **selects**; START (or a tap anywhere that is not a card) begins. Each card animates its own mode — orbit speed, shard count and trail length are drawn from that mode's own knobs — and carries that mode's best score. Arrow keys pick left/right. The demo comet behind the cards runs at the selected mode's pace, so the title screen visibly calms down when CHILL is armed. | the cards themselves: each one is a moving picture of what it sells |
 | Swipe rule chooser | Unchanged. Still once per device, still between the title screen and the run — it now hands off to the level picker rather than straight to level 1's card. | live arena with both rules tryable |
 | Level picker | Four rows, one per level, plus START and back. **Every level is selectable on any device**, including ones never reached — the screen exists so a level can be tested without playing to it. Rows the device has actually reached are marked *reached*, so picked and earned stay visibly different. Level 1 for a returning player starts instantly; every other pick goes through that level's own intro card first. Arrow keys move the selection, Enter starts. | the rows name the level and its title; *reached* marks the honest ones |
+| POWERUP TESTING bar (title screen) | A wide bar under the two mode cards, and a **door rather than a card**: tapping it opens the powerup picker instead of selecting anything. Deliberately not a third mode — `MODES` is the difficulty table and the lab pins the difficulty rather than scaling it. A fresh device is asked the swipe rule on the way through, once, exactly as the run route is. | the bar draws the orb currently armed, so it says what is behind it with the object |
+| Powerup picker (the lab) | Seven rows, one per orb, plus a *red cannot touch you* toggle, START and back. Folds to two columns when the box is too short for seven rows — measured, not guessed; a landscape phone gets two columns and a portrait one gets seven rows. Arrow keys move the selection, **G** flips the ghost, Enter starts, Escape goes back. | each row carries the orb itself, drawn by the same `drawPow` the arena uses, and the sentence that channel already uses for it |
 
 ## CHILL and SKILL (one game, two clocks)
 
@@ -244,6 +246,41 @@ opened on, and the level record only moves for a run that began at level 1 —
 so choosing EVENT HORIZON and dying on the first shard prints no FURTHEST YET
 and writes no record. A run that started at level 1 and climbed keeps counting,
 including across the retries that put it on a later level.
+
+## POWERUP TESTING (the lab)
+
+A sandbox for looking at one orb, reached from the bar under the mode cards.
+It teaches nothing, gates nothing and changes nothing about the game it sits
+in front of — it exists because six of the seven orbs are behind a curriculum
+ladder and the seventh is rare on purpose, so finding out what one feels like
+used to mean playing until the game offered it.
+
+| Piece | How it works |
+|---|---|
+| The orb | Whichever of the seven is picked, and only that one. `spawnPow()` short-circuits its entire ladder — the intro trio, the level gates, the pity shield, the three guarantees and the black hole's 10% die are all rules about *when* the game is willing to show you something, which is the obstacle the lab exists to remove. |
+| How often | One orb on the board at a time (the real game never has two), refilled about 3 seconds after one is taken instead of 10–15. Measured: 7–10 placements per 45 seconds for a plain orb, and 4 full black holes — against three `blackhole_entered` events in the game's entire recorded history. |
+| The board | `dl()` returns `LAB_DL` (40) and never moves. That is exactly `TIERS[3].at`, the lowest clock value that gives the arena all three orbits — the black hole opens a *fourth* on entry, so a one-ring lab would have demonstrated that against nothing. Everything else follows from the pinned clock: shard cap 4, arrival gap 2.4s, speed 1.62 of a 4.2 ceiling, a 2.35s telegraph. Level 1's finish line is dl 90, so nothing ever finishes and no tier ever arrives mid-session. |
+| The ghost | *red cannot touch you*, on by default, flipped on the picker or with **G**. Read at the single lethal-contact site, ahead of the hypernova and shield branches: no shield is spent, no pip moves, no popup, no i-frame. The shard stays on the board and keeps travelling, so watching one pass through you is how you can tell it is on. Turn it off and the lab is the real game with one orb in it. |
+| The way out | A pill in the top-left of a lab run, live on the death screen too, plus **Escape**. A ghosted run cannot end by itself, so without a door the only exit would be a page reload. Leaving mid-black-hole resets the mode outright — `bhTick` runs on `bhActive()` as well as on `playing`, so an abandoned horizon would otherwise keep rewriting `RADII` under the picker. |
+| The difficulty mode | Whatever card is selected still applies its trims (`speed`, `warn`, `cap`, `gap`, `shields`). Only `clock` is bypassed, because a pinned constant has nothing to scale. |
+
+**Nothing a lab session does reaches the device.** No score becomes a best, no
+level record moves, the lifetime run count does not advance, the struggle
+streak — which lengthens every future run's calm opening — is not fed, no
+first-encounter lesson is spent or re-armed, and the death screen offers no
+share because `runSummary()` has no room to say any of the above. Telemetry is
+suppressed at the choke point in `track()` rather than tagged, so a lab run
+cannot reach the funnel and an event added later inherits that for free; one
+event, `powerup_lab_started`, carries the chosen orb. `smoke.mjs` snapshots
+`localStorage` across an entire lab session — entry, orbs taken, a forced
+death — and fails if a single key changes.
+
+**Two writers spend a lesson, not one.** `firstMeet()` fires the sentence, and
+the pickup path separately treats *taking* a musical orb as having been taught
+it. The lab hands you the same orb every few seconds, so guarding only the
+first would have let one black hole session permanently retire the black hole's
+lesson on a device that had never met one. Both are guarded; the harness found
+the second.
 
 ## Cross-level systems (never gate progression)
 

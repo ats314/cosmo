@@ -77,7 +77,11 @@ so every harness crosses them by pressing the control it actually drew
 fixed point does not fail; it waits there forever, which is how the swipe
 chooser broke all four harnesses when it arrived. Add a front screen and you
 add a crossing helper to `smoke.mjs`, `dropcheck.mjs` and `curriculum.mjs` in
-the same commit.
+the same commit. A fourth screen, the powerup picker, sits off that route —
+it opens only from the title screen's POWERUP TESTING bar — and all three
+harnesses carry `passPowerSelect` anyway, returning untouched. That is not
+redundancy: it was exactly true of the swipe chooser the day before it stalled
+everything, and the helper costs one function.
 
 `musiccheck.mjs` is the only harness that runs the arrangement. `smoke.mjs`
 removes WebAudio deliberately and `dropcheck.mjs` never drives past level 2, so
@@ -162,6 +166,32 @@ Breaking one of these is a product regression, not a style question.
   Records are per mode and the unsuffixed storage keys are SKILL's — writing a
   chill value under `cometloop:best` redefines every historical value on every
   device, which is the retired-`cometloop:level` failure exactly.
+- **A LAB SESSION LEAVES NOTHING BEHIND, and that is the whole feature.**
+  POWERUP TESTING is a sandbox reached from the title screen: it forces one
+  orb, pins `dl()` to `LAB_DL`, and switches red off by default. Every one of
+  its guarantees is a `!LAB.on` sitting on a line whose ordinary job is to
+  write to the device — the best score, the level record, the run count, the
+  struggle streak, the `seen` bits, telemetry — so an omitted guard looks
+  exactly like the others in a diff and no amount of reading finds it. Do not
+  add another such line without its guard, and do not trust a review to catch
+  it: `smoke.mjs` snapshots `localStorage` as a whole map across a lab session
+  and fails on any changed key, which is the only enforcement that scales.
+  **Two writers spend a lesson, not one** — `firstMeet()` fires the sentence,
+  and the pickup path separately treats *taking* a musical orb as being taught
+  it. Guarding only the first was the shipped-looking bug the harness caught:
+  one black hole lab session would have permanently retired the black hole's
+  lesson on a device that had never met one in the real game.
+  **The lab is not a MODES row and must not become one.** `MODES` is the
+  difficulty table and `check.mjs` holds it to that shape; a sandbox that pins
+  the clock rather than scaling it has no knob set to offer. It is a flag with
+  its own front screen, and the two mode cards are untouched. Likewise the
+  title bar that opens it is a DOOR, not a card — it navigates, the way the
+  menu's `change` swipe control already does, so "cards select rather than
+  start" survives intact.
+  **A pinned clock has one trap and it is already sprung once.** Anything
+  written as "N difficulty-seconds from now" is a deadline that never arrives
+  in the lab, because the difference is always zero. `tierIndex`'s hop-hold
+  release valve was exactly that and is exempted; check any new one.
 - **Two ladders, two names.** `G.tier` is the ten-rung *unlock* ladder (what has
   been introduced); `G.level` is the 1–3 structure the player is told about.
   Everything player-facing — the HUD, the death headline, the pips, the share

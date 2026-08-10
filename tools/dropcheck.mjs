@@ -145,11 +145,24 @@ function passLevelSelect(st, frame, fire, pev, pid) {
   if (st('G.state') === 'levelsel') throw new Error('START did not leave the level picker');
   return pid;
 }
+/* THE POWERUP PICKER. Off the ordinary route — it opens from the title
+   screen's POWERUP TESTING bar, which nothing here presses — so this returns
+   untouched on every path this harness takes today. It is written anyway,
+   because that is exactly what was true of the swipe chooser the day before it
+   stalled all four harnesses, and the cost of having it is one function. */
+function passPowerSelect(st, frame, fire, pev, pid) {
+  if (st('G.state') !== 'powersel') return pid;
+  pid = pressRect(st, frame, fire, pev, pid,
+    'JSON.stringify(G.powSelRects.find(x=>x.id==="start")||null)', 'powerup-picker START');
+  if (st('G.state') === 'powersel') throw new Error('START did not leave the powerup picker');
+  return pid;
+}
 
 /* boot: menu frame, then cross the front of the game (unlocks audio, builds MU) */
 frame(16.7);
 let bpid = passMenu(st, frame, fire, pev, 800);
 bpid = passSwipeChooser(st, frame, fire, pev, bpid);
+bpid = passPowerSelect(st, frame, fire, pev, bpid);
 bpid = passLevelSelect(st, frame, fire, pev, bpid);
 console.log('MU exists:', !!st('MU'), '| state:', st('G.state'));
 
