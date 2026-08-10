@@ -356,6 +356,54 @@ try {
     throw new Error('share text and its bar disagree on the ladder: ' + share.split('\n').slice(0, 2).join(' / '));
   }
   console.log('level ladder + FURTHEST YET ok');
+
+  // BLACK HOLE MODE. Nothing else in the gate can reach this: it is a rare orb
+  // on level 3+, so a harness that plays honestly will almost never trigger
+  // one, and every assertion below would sit unexercised behind that dice roll
+  // for as long as the mode exists. Driven directly instead.
+  // The thing actually being protected is the ORBITS MOVING. RADII stopped
+  // being a constant so the mode could re-space all four rings, and every
+  // radius, hit tolerance and clearance in the file now reads a value that can
+  // change mid-run. If the warp ever fails to put it back, the arena is
+  // silently wrong for the rest of the session and nothing else would notice.
+  {
+    st("G.state='playing';G.level=3;G.score=0;G.lastHit=null;G.invuln=G.t+1e9");
+    st('startGame()');
+    for (let i = 0; i < 4; i++) frame(16.7);
+    const rings0 = st('G.nRings'), rad0 = JSON.parse(st('JSON.stringify(RADII)'));
+    const cap0 = st('shardCap()'), gap0 = st('spawnGap()');
+    if (st('bhActive()')) throw new Error('a black hole was already running at level start');
+    st('startBlackHole()');
+    for (let i = 0; i < 70; i++) frame(16.7);          // past the 0.85s warp
+    if (st('BH.phase') !== 2) throw new Error('the black hole never reached full mode, phase=' + st('BH.phase'));
+    if (st('G.nRings') !== 4) throw new Error('black hole mode did not open the fourth ring, nRings=' + st('G.nRings'));
+    if (st('radiusOf(3)') <= 0) throw new Error('the fourth ring has no radius');
+    // it must be REACHABLE, not merely drawn: a ring you cannot hop to is scenery
+    st('G.ringI=2;G.hopP=1'); st('hop(1)');
+    for (let i = 0; i < 20; i++) frame(16.7);
+    if (st('G.ringI') !== 3) throw new Error('could not hop onto the fourth ring, ringI=' + st('G.ringI'));
+    if (!(st('shardCap()') > cap0)) throw new Error('black hole mode did not raise the shard cap');
+    if (!(st('spawnGap()') < gap0)) throw new Error('black hole mode did not shorten the spawn gap');
+    if (!(st('G.tsCur') < 0.98)) throw new Error('black hole mode is not in slow motion, tsCur=' + st('G.tsCur'));
+    // no orbs inside the mode
+    st('G.pows.length=0;G.powT=0');
+    for (let i = 0; i < 60; i++) frame(16.7);
+    if (st('G.pows.length') !== 0) throw new Error('a power-up was placed inside black hole mode');
+    // ride it out from the ring that is about to stop existing
+    for (let i = 0; i < 60 * 20; i++) { frame(16.7); if (!st('bhActive()')) break; }
+    if (st('bhActive()')) throw new Error('the black hole never ended');
+    if (st('G.nRings') !== rings0) throw new Error('the ring count did not come back, nRings=' + st('G.nRings'));
+    if (st('G.ringI') >= st('G.nRings')) throw new Error('the player was left on a ring that no longer exists, ringI=' + st('G.ringI'));
+    const rad1 = JSON.parse(st('JSON.stringify(RADII)'));
+    for (let i = 0; i < rad0.length; i++) {
+      if (Math.abs(rad0[i] - rad1[i]) > 1e-6) {
+        throw new Error(`the orbits did not return: RADII[${i}] ${rad0[i]} -> ${rad1[i]}`);
+      }
+    }
+    if (st('shardCap()') !== cap0) throw new Error('the shard cap stayed raised after the black hole');
+    if (!(st('G.score') > 0)) throw new Error('surviving a black hole paid nothing');
+  }
+  console.log('black hole: four rings, warped and restored ok');
 } catch (e) {
   console.error('RUNTIME FAILED:', e.stack.split('\n').slice(0, 6).join('\n'));
   process.exit(1);

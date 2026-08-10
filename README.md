@@ -78,7 +78,15 @@ first three have finish lines; the fourth does not:
 | 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor | i–♭VI–♭III–♭VII | the original groove |
 | 2 | INTO THE RINGS | gates, drifters, blinkers, bass bomb, spotlight, the gold star | G minor | i–♭VII–♭VI–iv | swung sixteenths, bass off the beat |
 | 3 | THE STORM | the two compounds — sliding gates, flicker pairs — plus THE SAUCER, then a finish line | F minor | i–♭III–v–♭VI | rolling four-on-the-floor |
-| 4 | EVENT HORIZON | **nothing** — the same storm with no exit, speed climbing toward the 4.2 rad/s ceiling. Endless. | E♭ minor | i–♭VI–♭VII–i, over a tonic pedal | octave bass, open offbeat hat |
+| 4 | EVENT HORIZON | **nothing new in formations** — the same storm with no exit, speed climbing toward the 4.2 rad/s ceiling. Endless. | E♭ minor | i–♭VI–♭VII–i, over a tonic pedal | octave bass, open offbeat hat |
+
+**BLACK HOLE MODE** runs across levels 3 and 4 and is neither a level nor a
+power-up: a rare dark orb you may take or decline, and 17 seconds of somewhere
+else if you take it. The band stops, a preset piece plays, you stop being an
+instrument, everything runs at 0.55×, the reds run 2.5× — and a fourth orbit
+opens while all four re-space. See `MECHANICS.md` for the geometry and the
+measurements; the short version is that the fourth ring works because the
+orbits move, not because the gaps shrank, and because the arena is an ellipse.
 
 Level 3 used to be the endless one. Giving it a finish line and handing
 "endless" to level 4 keeps *the last level is the exam* true, rather than
