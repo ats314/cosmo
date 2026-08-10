@@ -2353,6 +2353,25 @@ function bhTick(dt){
         life:1,dec:0.42+Math.random()*0.20,col:COL.bh,size:(1+Math.random()*1.5)*u});
     }
   }
+  /* ---- LIGHT FALLING IN: bright filaments torn off the rim ----
+     The single most direct statement that light is being taken. These spawn
+     well outside the outermost orbit, run straight at the centre at three
+     times the vortex speed, and are drawn by the existing streak-stretch pass
+     — so the faster they go the longer they smear, which is what infall looks
+     like. Undamped, and short-lived enough to die near the photon ring rather
+     than pile up in the middle.
+     Cosmetic in the strictest sense: G.parts is a draw-only array. Nothing in
+     collision, scoring, spawning or input reads it, so no number of these can
+     change what the board does — which is the constraint this is built to. */
+  if(!RM&&BH.phase===2&&G.parts.length<170&&Math.random()<0.55){
+    const a=Math.random()*TAU;
+    const rr=radiusOf(0)*(1.35+Math.random()*0.5);
+    const sp=(300+Math.random()*180)*u;
+    G.parts.push({x:cx+Math.cos(a)*rr,y:cy+Math.sin(a)*rr*AY,nd:1,
+      vx:-Math.cos(a)*sp,vy:-Math.sin(a)*sp*AY,
+      life:1,dec:1.05+Math.random()*0.35,col:'#efe6ff',
+      size:(0.7+Math.random()*0.8)*u});
+  }
   /* ---- HAWKING RADIATION: rare bright sparks ejecting outward ----
      Cosmetically accurate and visually surprising against the inward flow. */
   if(!RM&&BH.phase===2&&Math.random()<0.04){
@@ -4487,6 +4506,16 @@ function firstMeet(type){
   if(G.teach>0&&G.teachKind==='hop')return;
   if(G.banner&&G.banner.t<2.4)return;
   if(G.landFx||G.secFx)return;
+  /* AND NEVER INSIDE A BLACK HOLE. The mode owns the centre slot — its own
+     banner, its countdown label, the horizon display — and a hard lesson
+     drops a veil over the whole screen and dilates a world already running
+     at 0.42x. Screenshotted: the arena went dark mid-mode and the HUD with
+     it, because the saucer's first encounter fired at second eleven of a set
+     piece. Deferred, not spent: seen is not set, so the next encounter of the
+     same type offers it again, exactly like the two deferrals above. This is
+     the third of the mode's screen-owning guards, beside the tier banner and
+     the hint ladder. */
+  if(bhActive())return;
   /* soft (no slow-mo) for reward orbs by table flag — and for RE-offers:
      when a death re-armed this lesson (see die), the sentence returns but
      the ceremony does not, so a veteran is never slow-motioned twice */
@@ -7232,9 +7261,29 @@ void main(){
   col+=pow(m,7.5)*vec3(1.0,0.97,0.92)*0.85;
   col*=(0.74+0.52*uEnergy)*(1.0+0.30*uCombo);
   col*=(1.0+0.06*uBeat);
-  col+=starLayer(frag,7.0,0.880,t,520.0,0.55);
-  col+=starLayer(frag,17.0,0.905,t,1500.0,0.14);
-  col+=starLayer(frag,38.0,0.930,t,5200.0,0.0);
+  /* ---- FRAME DRAGGING: the whole sky turns into the hole ----
+     The star layers sample screen space, so they were the one part of the
+     backdrop the lensing never touched — the nebula bent and the stars sat
+     still on top of it, which is exactly the tell that nothing is really being
+     pulled anywhere. They now rotate about the arena centre and compress
+     toward it, both falling off with distance so the rim is nearly untouched
+     and the middle visibly winds in. The rotation grows with the mode's own
+     clock, so over seventeen seconds the inner sky turns about half a
+     revolution. Purely a sampling transform: no star moves in any coordinate
+     the game reads, and nothing outside this shader knows it happened. */
+  vec2 sfrag=frag;
+  if(uBH>0.0){
+    vec2 fc=uCtr*uRes.y+0.5*uRes;
+    vec2 dv3=frag-fc; float dl3=length(dv3)+1e-5;
+    float fall=1.0/(1.0+dl3/(uRes.y*0.38));
+    float swirl=uBH*(0.55+t*0.22)*fall;
+    float pull=uBH*0.26*fall;
+    float cs=cos(swirl),sn=sin(swirl);
+    sfrag=fc+vec2(dv3.x*cs-dv3.y*sn,dv3.x*sn+dv3.y*cs)*(1.0-pull);
+  }
+  col+=starLayer(sfrag,7.0,0.880,t,520.0,0.55);
+  col+=starLayer(sfrag,17.0,0.905,t,1500.0,0.14);
+  col+=starLayer(sfrag,38.0,0.930,t,5200.0,0.0);
   col*=clamp(1.0-0.62*pow(length(uv*vec2(0.88,0.66)),1.9),0.0,1.0);
   col+=vec3(0.010,0.013,0.032);
   /* ---- BLACK HOLE: gravity well, accretion disc, photon ring, palette shift ---- */
@@ -7745,6 +7794,34 @@ function draw(){
       ctx.globalAlpha=Math.min(1,k*0.5*(1+2*ig));
       ctx.strokeStyle='#e6d4ff';ctx.lineWidth=(1.6+2.4*ig)*u;
       ctx.beginPath();ctx.ellipse(cx,cy,rr*0.30,rr*0.30*AY,0,0,TAU);ctx.stroke();
+      /* ---- EVERY LIGHT ON THE BOARD BLEEDS TOWARD THE MIDDLE ----
+         A tapered smear from each star and each power-up orb toward the
+         singularity, brightest at the object and gone a third of the way in.
+         This is what sells "all the light is being pulled in" better than any
+         backdrop effect can, because it happens to the things the player is
+         actually looking at rather than behind them.
+         Strictly a draw: it reads s.a and s.ring through the same posAt() every
+         other pass uses and writes nothing. The objects do not move, their
+         collision is untouched, and turning this off changes no number. */
+      ctx.globalAlpha=Math.min(1,k*(0.30+0.30*ig+0.10*lit));
+      ctx.lineCap='round';
+      for(let q=0;q<2;q++){
+        const list=q?G.pows:G.stars;
+        for(let i=0;i<list.length;i++){
+          const o=list[i],op=posAt(o.a,radiusOf(o.ring));
+          const dx=cx-op[0],dy=cy-op[1],dd=Math.hypot(dx,dy)||1;
+          const len=Math.min(dd*0.34,rr*0.42);
+          const sg=ctx.createLinearGradient(op[0],op[1],op[0]+dx/dd*len,op[1]+dy/dd*len);
+          sg.addColorStop(0,q?'rgba(190,150,255,0.75)':'rgba(255,225,150,0.80)');
+          sg.addColorStop(1,'rgba(180,160,255,0)');
+          ctx.strokeStyle=sg;ctx.lineWidth=(q?2.6:1.9)*u;
+          ctx.beginPath();
+          ctx.moveTo(op[0],op[1]);
+          ctx.lineTo(op[0]+dx/dd*len,op[1]+dy/dd*len);
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha=1;
       /* the ignition flash, over everything, brief */
       if(ig>0.02){
         const fg=ctx.createRadialGradient(cx,cy,0,cx,cy,rr*1.5);
