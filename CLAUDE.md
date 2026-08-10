@@ -173,8 +173,52 @@ Breaking one of these is a product regression, not a style question.
   corrupts historical rows. The difficulty mode is `play_mode` on every event
   and deliberately not `mode`, which `swipe_mode_chosen` has always used for the
   swipe rule; that is the rule being applied, not an inconsistency to tidy up.
+- **Ring index 0 is the OUTERMOST orbit.** `RAD_OFF` is `[1.0,0.76,0.545,0]`
+  and `RAD_BH` is `[1.0,0.80,0.62,0.45]`: the index counts *inward*, so
+  `G.ringI--` moves the comet AWAY from the centre and `ring===0` is the widest,
+  safest lane. Two black hole mechanics shipped inverted on this and neither
+  was catchable by reading: the gravity pull "dragging the comet inward" pushed
+  it outward and then stopped at the rim forever, and the "inner ring 2× star"
+  bonus paid on the outer ring — so the mode's two risk/reward systems both
+  rewarded avoiding risk, while their comments described the opposite. When
+  code and comment can both be read as true under different meanings of "ring
+  0", write the geometry, not the index: say *nearest the centre*, use
+  `G.nRings-1`, and assert on `radiusOf()` rather than on the ordinal.
+  `smoke.mjs` now fails if the pull's direction flips.
+- **Silencing the scheduler is not silencing the band.** The pad is a bank of
+  eight continuously running oscillators whose gain is written every frame by
+  `bedTick`, which is its ONLY writer. A mode that stops `musicStep` from
+  scheduling notes has not stopped the music — the pad sustains the level's
+  progression straight through at full level. This was diagnosed once for the
+  drop's hush, written up above `DROPQ`, and then repeated verbatim by the
+  black hole, where it left 54% of the mix identical either side of an entry
+  the pitch describes as the music "immediately cutting out". Any new mode that
+  claims to replace the arrangement must have a branch in `bedTick`.
 - **Audio is optional everywhere.** The game must be completable with no
   WebAudio at all. Every audio path is guarded; keep it that way.
+- **Two clocks: `G.t` measures, `G.vt` shows.** `G.t` is real seconds and every
+  deadline in the file is written against it (`G.invuln`, cooldowns, the audio
+  scheduler), so it must never be dilated. `G.vt` is the same clock scaled by
+  `G.tsCur` — the one the *visible* world rides: the backdrop, the camera
+  dolly, ripples, popups, the trail, the particles, the hop. Slow motion used
+  to reach the simulation and stop there, and the result was a mode running at
+  0.42× behind a sky, a dolly and a debris field still at 1.0×, which reads to
+  a player as not being slow at all. Adding a new animated layer means choosing
+  one of these two on purpose. A deadline on `G.vt` will drift; an animation on
+  `G.t` will contradict every slow-motion effect in the game.
+- **A visual feature is not shipped until something proves it reaches a pixel.**
+  The five harnesses stub the canvas and WebGL, so the entire render path is
+  uncovered by construction, and the black hole spent its life with thirteen
+  documented visual and audio features of which a playtester could perceive
+  one. Each was individually correct at its own site and disabled by something
+  elsewhere: the arena-scale art was gated on WebGL having *failed*; the
+  shader's lens inverted the UV field so its own gravity well darkened nothing;
+  `pow(x,2.0)` with `x` negative is undefined in GLSL ES and that is half of
+  every gaussian ring; particles integrated on raw `dt` inside slow motion. If
+  you add or change a draw or an audio layer, measure it — port the shader
+  maths and evaluate it, or instrument the voice functions and total the
+  energy — and put the number in the commit message. "It is in the source" is
+  not evidence that it is in the game.
 - **Every chord is diatonic to its level's natural minor, and every pitch is
   written as an interval over the level's tonic.** These are one rule seen from
   two sides. The SFX pentatonic is scaled into each level's key and every sound

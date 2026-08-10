@@ -451,6 +451,77 @@ for (const L of LEVELS) {
   else ok(`level ${L}: payoff ran ${paid} eighths, hook intact, nothing thrown`);
 }
 
+/* ---------- BLACK HOLE MODE: the preset piece ----------
+   This harness is the only one that runs the arrangement, and CLAUDE.md is
+   explicit that anything touching a pitch in the audio path belongs here.
+   bhStep had no coverage at all, and it shipped with three faults this section
+   now makes impossible: every tuned voice at a gain the band drowns (0.011
+   against leads at 0.050-0.085), no content above 2 kHz on a device that
+   reproduces little below 500 Hz, and a `bar>=8` branch that could never fire
+   because 17 seconds is 7.37 bars. The mode is also where the band is supposed
+   to STOP — a claim nothing checked, and which was false for the mode's whole
+   life because the pad's gain lives in bedTick and bedTick did not know. */
+console.log('\n--- black hole mode: the preset piece ---');
+for (const L of LEVELS) {
+  startLevel(L);
+  tick(L, 4);
+  const before = LOG.osc.length;
+  /* BH.t is pinned at 0 for the pitch assertions: the sub drone's redshift is a
+     deliberate glide of up to a minor third (`fall`), so sampling mid-mode
+     would flag the one detune the design is built on. The glide's shape is the
+     mode's own business; what has to hold at every instant is that the piece
+     STARTS from the level's scale. */
+  vm.runInContext('startBlackHole();BH.phase=2;BH.t=0;BH.warp=1;BH.step=0;', ctx);
+  const steps = Math.floor($('BH_DUR') / ($('SPB') / 2));
+  for (let i = 0; i < steps; i++) {
+    AUDIO_T += $('SPB') / 2;
+    vm.runInContext('BH.t=0;', ctx);
+    try { vm.runInContext('musicTick()', ctx); }
+    catch (e) { fail(`level ${L}: the black hole threw: ${e && e.message}`); break; }
+  }
+  const voices = LOG.osc.slice(before);
+  if (!voices.length) { fail(`level ${L}: the black hole scheduled nothing at all`); continue; }
+
+  /* 1. EVERY PITCH IS AN INTERVAL OVER THE LEVEL'S OWN TONIC. A bare frequency
+        shows up here as a ratio that is in no level's scale but level 1's —
+        which is exactly what the gravity-pull tone's hardcoded 340/220 was.
+        The kick is exempt: it is a drum, and its 400->48Hz sweep is the same
+        on every level by design (it logs as its 48Hz ramp target). */
+  const tonic = $('CH')[0][0];
+  const MINOR = [1, 1.1225, 1.1892, 1.3348, 1.4983, 1.5874, 1.7818];
+  const tuned = voices.filter(v => v.f > 20 && Math.abs(v.f - 48) > 0.5);
+  const stray = tuned.filter(v => {
+    let r = v.f / tonic;
+    while (r > 1.999) r /= 2;
+    while (r < 0.999) r *= 2;
+    return !MINOR.some(m => Math.abs(r - m) < 0.02);
+  });
+  if (stray.length) {
+    fail(`level ${L}: ${stray.length} black hole voice(s) are not diatonic over the tonic ` +
+         `(${stray.slice(0, 3).map(v => v.f.toFixed(1) + 'Hz').join(', ')})`);
+  } else ok(`level ${L}: all ${tuned.length} black hole pitches are intervals over the tonic`);
+
+  /* 2. IT REACHES THE SPEAKER THE GAME SHIPS TO. The piece had zero energy
+        above 2 kHz and its tuned voices topped out at 139 Hz, on a device that
+        reproduces almost nothing below 500 — which is most of why the mode
+        read as the game going quiet rather than as somewhere else. */
+  const highs = tuned.filter(v => v.f >= 500).length;
+  if (!highs) {
+    fail(`level ${L}: every black hole voice is below 400Hz — a phone reproduces none of it`);
+  } else ok(`level ${L}: ${highs} voice(s) above the phone's floor`);
+
+  /* 3. THE BAND STOPS. bedTick is the pad's only writer; drive it and require
+        that it pulls the eight sustaining voices down. */
+  vm.runInContext('bedTick(0.05);', ctx);
+  const bedLvl = $('BED').g.gain.value;
+  if (!(bedLvl <= 0.05)) {
+    fail(`level ${L}: the pad is still at ${bedLvl.toFixed(3)} inside the black hole — ` +
+         `the arrangement did not stop`);
+  } else ok(`level ${L}: the pad is silenced (${bedLvl.toFixed(3)})`);
+
+  vm.runInContext('BH.phase=0;BH.on=false;BH.warp=0;BH.t=0;bedTick(0.05);', ctx);
+}
+
 if (LOG.errors.length) LOG.errors.forEach(e => fail(e));
 
 if (failures) {
