@@ -2235,6 +2235,9 @@ function startBlackHole(){
 function endBlackHole(){
   if(BH.phase!==2)return;
   BH.phase=3;BH.t=0;
+  /* die() skips to phase 3 on death, so this should never fire for a dead run —
+     but if it somehow does, bail before awarding a bonus the player did not earn */
+  if(G.state!=='playing')return;
   /* THE PAYOUT IS FOR COMING OUT THE OTHER SIDE, and it is banked here rather
      than accrued per second, so it reads as one result rather than as a
      trickle you cannot separate from ordinary scoring. Scaled by the shards
@@ -4339,6 +4342,14 @@ function die(){
   if(G.state!=='playing')return;
   flushLesson(true);   /* a lesson the death interrupted still gets its record */
   G.state='dead';G.deadT=G.t;G.revPend=0;
+  /* DYING INSIDE THE BLACK HOLE. bhTick runs whenever bhActive() is true,
+     regardless of G.state, so the mode would otherwise complete on the death
+     screen: the timer would reach BH_DUR, endBlackHole would fire, the ESCAPE
+     bonus and blackhole_survived telemetry would land on a player who did not
+     survive, and — if the death came during phase 1 — the fourth ring would
+     open post-mortem. Skip straight to the closing warp, starting from the
+     current warp position so the orbits unwind smoothly instead of snapping. */
+  if(bhActive()){BH.phase=3;BH.t=BH_WARP*(1-BH.warp);}
   pd=null;   /* the gesture died with the run */
   G.newBest=G.score>G.best&&G.score>0;
   if(G.score>G.best){G.best=G.score;savePref('cometloop:best',G.best);}
@@ -6508,6 +6519,12 @@ try{
   }
 }catch(e){}
 function draw(){
+  /* ALWAYS start from the DPR identity. A thrown frame leaves the canvas
+     transform stack dirty (save without restore, translate still applied),
+     and the catch in frame() resets after the fact — but any code that runs
+     between draw()'s entry and the first save() also needs a clean slate.
+     One setTransform per frame is negligible. */
+  ctx.setTransform(DPR,0,0,DPR,0,0);
   const amb=RM?0:G.t;
   /* The GPU paints the backdrop; the 2D canvas is cleared to transparent and
      carries only the arena. BG stays true when WebGL is unavailable, and then
@@ -8344,8 +8361,20 @@ function frame(now){
      draw(), so a single throwing frame — one bad radius, one transient
      state — would otherwise freeze the run forever with no error the
      player can see. One dropped frame is invisible; a dead game is not.
-     The first error is kept for inspection instead of being re-thrown. */
-  try{draw();}catch(e){if(!window.__drawErr)window.__drawErr=e;}
+     The first error is kept for inspection instead of being re-thrown.
+     THE CANVAS STATE IS RESTORED on error. draw() nests ctx.save() and
+     ctx.translate() for the camera dolly and screen shake; if anything
+     between the save and the matching restore throws, the translate is
+     never popped and every subsequent frame starts from a shifted origin
+     that accumulates until the page is resized. The catch now resets the
+     transform to the DPR identity, so a dropped frame cannot corrupt
+     every frame that follows it. This was the "screen shifted and broke
+     the game" report: a BH activation's burst of new draw work hit a
+     transient error, the translate stuck, and the world stayed offset. */
+  try{draw();}catch(e){
+    if(!window.__drawErr)window.__drawErr=e;
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
