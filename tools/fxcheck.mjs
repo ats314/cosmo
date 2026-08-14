@@ -93,20 +93,30 @@ function makeGL(tag, log) {
 
 /* ---------------- the DOM, with WebGL that works ---------------- */
 function build({ webgl }) {
-  const log = { use: [], missing: [], set: new Set(), nullSet: [], draws: [], alloc: [], upload: [], tex: 0, fb: 0, flip: false, vp: null, fbBound: null, lost: false };
+  const log = { use: [], missing: [], set: new Set(), nullSet: [], draws: [], alloc: [], upload: [], blits: new Set(), tex: 0, fb: 0, flip: false, vp: null, fbBound: null, lost: false };
   const gradient = { addColorStop() {} };
+  /* THE ONE THING A STUBBED CANVAS CAN STILL ANSWER: which source was blitted.
+     Every backdrop layer reaches the screen through ctx.drawImage(sprite.c),
+     and each stub canvas carries an id, so recording the first argument tells
+     us exactly which layers a frame actually drew. Asserting that a SPRITE
+     EXISTS is not the same question and does not catch a re-gated blit — the
+     first version of this check asserted presence and two mutations that put
+     the planet and the god rays back behind `BG` sailed straight through it. */
   const ctx2d = () => new Proxy({}, {
     get(t, k) {
       if (k === 'createRadialGradient' || k === 'createLinearGradient') return () => gradient;
       if (k === 'measureText') return () => ({ width: 50 });
       if (k === 'canvas') return {};
+      if (k === 'drawImage') return (srcC) => { if (srcC && srcC.__id !== undefined) log.blits.add(srcC.__id); };
       return (typeof k === 'string') ? (t[k] !== undefined ? t[k] : () => {}) : undefined;
     },
     set(t, k, v) { t[k] = v; return true; },
   });
   const listeners = {};
   const calls = { raf: [] };
+  let canvasId = 0;
   const mkCanvas = tag => ({
+    __id: canvasId++,
     width: 0, height: 0, style: {},
     getContext: kind => (kind === '2d' ? ctx2d() : (webgl ? makeGL(tag, log) : null)),
     addEventListener: (ev, fn) => { (listeners[ev] = listeners[ev] || []).push(fn); },
@@ -255,6 +265,42 @@ function crossFront(st, frame, fire, pid) {
   }
   note.push(`GPU path: ${perFrame.toFixed(1)} draws/frame, ${got.length} targets, flip on upload`);
 
+  /* THE SCENE DRAWS OVER THE SHADER, AND THE BASE SKY IS NOT BAKED AT ALL.
+     Every one of these layers used to be gated on `BG` — on WebGL having
+     FAILED — so the composed scene shipped to the players on the weakest
+     hardware and to nobody else. They are objects with silhouettes and depth
+     order, and no amount of fBm is an object, so they belong over the shader
+     rather than instead of it. Asserted as SPRITES BUILT rather than as draw
+     calls, because the canvas is stubbed and cannot report a blit — but which
+     sprites exist is what the gate actually decided, and the gate is what
+     broke. */
+  log.blits.clear();
+  for (let i = 0; i < 90; i++) frame(16.7);
+  for (const k of ['galaxy', 'planet', 'rays', 'fogA', 'fogB', 'grade']) {
+    const id = st(`(SPR.${k}&&SPR.${k}.c&&SPR.${k}.c.__id)`);
+    if (id === undefined || id === null) { fail.push(`GPU path: SPR.${k} was never built`); continue; }
+    if (!log.blits.has(id)) {
+      fail.push(`GPU path: SPR.${k} exists but is never DRAWN with the shader running — `
+        + 'it is gated on WebGL having failed, so only players whose GPU died would see it');
+    }
+  }
+  /* the cloud field and the motes are arrays / repeated blits of one sprite */
+  for (const k of ['neb', 'mote']) {
+    const id = st(k === 'neb' ? '(SPR.neb&&SPR.neb[0]&&SPR.neb[0].c.__id)' : '(SPR.mote&&SPR.mote.c.__id)');
+    if (id === undefined || id === null) { fail.push(`GPU path: SPR.${k} was never built`); continue; }
+    if (!log.blits.has(id)) fail.push(`GPU path: SPR.${k} exists but is never drawn with the shader running`);
+  }
+  /* and the base sky, which the shader really does replace, must NOT be:
+     drawing that gradient over a live shader would paint it out entirely, and
+     baking it costs ~22MB of canvas nothing will ever draw */
+  for (const k of ['bg', 'bg2', 'starsFar', 'starsNear']) {
+    if (st(`!!SPR.${k}`)) {
+      fail.push(`GPU path: SPR.${k} was baked with the shader running — that is fallback-only art, `
+        + 'and ~22MB of canvas nothing will ever draw');
+    }
+  }
+  note.push('scene sprites built over the shader; base sky never baked');
+
   /* THE SCALE DIAL CLIMBS AND ITS CEILING LATCHES. Fast seconds raise it;
      one slow stretch drops it and pins the cap there for the rest of the run. */
   const s0 = Number(st('GL.scale'));
@@ -377,7 +423,15 @@ function crossFront(st, frame, fire, pid) {
   if (st('FX.on') !== false) fail.push('no-GPU: the glow pass claims to be running');
   if (st('bloomHalo') !== true) fail.push('no-GPU: the disc halo did not take over — the glow has no reach at all');
   if (log.draws.length) fail.push('no-GPU: something issued GPU draws anyway');
-  note.push('no-GPU path: disc halo active, no GPU calls issued');
+  /* AND THE BASE SKY COMES BACK. It is baked on first use rather than at
+     load, so the assertion that matters is that a fallback device which has
+     actually drawn a frame HAS one — a lazy bake that never fires is a player
+     staring at a transparent sky. */
+  for (const k of ['bg', 'bg2', 'starsFar', 'starsNear']) {
+    if (!st(`!!SPR.${k}`)) fail.push(`no-GPU: SPR.${k} was never baked — the fallback sky is missing`);
+  }
+  if (st('skyBaseBand') !== st('skyI')) fail.push('no-GPU: the base sky was baked for the wrong band');
+  note.push('no-GPU path: disc halo active, base sky baked on first use, no GPU calls issued');
 }
 
 if (fail.length) {
