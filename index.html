@@ -2812,8 +2812,11 @@ function judgeTiming(x,y){
       G.score+=ex;G.secScore+=ex;G.scorePop=Math.max(G.scorePop,0.6);
     }else if(G.od>0||G.spot>0||G.hyper>0||G.shields>=shieldMax()||MU.sect===1){
       /* riding the CHORUS pays like the other standing states: the section
-         hot play earned is worth staying inside — same garnish scale */
-      G.score+=8;G.scorePop=Math.max(G.scorePop,0.5);
+         hot play earned is worth staying inside — same garnish scale.
+         THE SPOTLIGHT DOUBLES THE GARNISH, not the world: 16 against the
+         standing 8, because its one taught sentence says "taps pay double"
+         and this is the only site where that can be made literally true. */
+      G.score+=(G.spot>0?16:8);G.scorePop=Math.max(G.scorePop,0.5);
     }
     const was=G.groove;
     G.groove=Math.min(8,G.groove+1);
@@ -3395,7 +3398,7 @@ const LAB_ORBS=[
  {id:'shield',   n:'SHIELD',    d:'a shield takes one hit for you'},
  {id:'warp',     n:'SLOW-MO',   d:'this one slows everything down'},
  {id:'nova',     n:'NOVA',      d:'this one turns every red into a star'},
- {id:'spot',     n:'SPOTLIGHT', d:'you take the lead, taps pay double'},
+ {id:'spot',     n:'SPOTLIGHT', d:'the light is on you: stars and taps pay double'},
  {id:'hyper',    n:'PINK STAR', d:'untouchable and fast'},
  {id:'blackhole',n:'BLACK HOLE',d:'everything slows, the reds pile up'}
 ];
@@ -4483,7 +4486,7 @@ const G={
   loopFx:0,bandCap:false,bandCapT:0,  /* loop-ghost pulse; band-meter caption */
   killerTaught:false,killerRetaught:false,
   od:0,odT:0,odCool:0,odBrk:false,     /* overdrive: eighths left, heat clock, cooldown, break-due */
-  odGlow:0,brkGlow:0,finGlow:0,        /* backdrop envelopes: overdrive, break dim, dive gold */
+  odGlow:0,brkGlow:0,finGlow:0,spotGlow:0, /* backdrop envelopes: overdrive, break dim, dive gold, followspot */
   spot:0,lastTapAt:-9,finEnd:0,        /* spotlight; last raw tap time; finale end flag */
   hyper:0,hyperD:0,hyperGlow:0,        /* hypernova: seconds left, full duration, backdrop envelope */
   upg:{},offered:{},offer:[],offerRects:[],picks:[],  /* the upgrade draft */
@@ -4848,7 +4851,7 @@ const MEET={
      the test the two twin wordings failed. */
   saucer:  {t:'turn back and it blocks your ring — swipe off',g:'swipe'},
   blinktwin:{t:'only one is solid — cross the dim one',g:'shard'},
-  spot:  {t:'spotlight — you take the lead, taps pay double',g:'beat',soft:1},
+  spot:  {t:'spotlight — the light is on you: stars and taps pay double',g:'beat',soft:1},
   /* NOT "gold", and not "double". COL.hyper is '#ff4fd8' and SPR.powHyper
      fills with it — the orb is magenta. Gold is COL.ember, the colour of the
      ordinary collectibles the player is picking up continuously, so the one
@@ -5237,8 +5240,8 @@ function startGame(){
   G.teach=0;G.teachKind=null;G.teachHint=null;G.campT=0;G.holdD=0;G.hopHintT=0;G.coach=null;
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
   G.sparkT=0;G.sparkN=0;
-  G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;G.finGlow=0;
-  G.spot=0;G.lastTapAt=-9;G.finEnd=0;G.hyper=0;G.hyperD=0;G.hyperGlow=0;
+  G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;G.finGlow=0;G.spotGlow=0;
+  G.spot=0;G.spotD=0;G.lastTapAt=-9;G.finEnd=0;G.hyper=0;G.hyperD=0;G.hyperGlow=0;
   FIN.on=false;FIN.pend=false;FIN.done=false;FIN.step=0;FIN.score=0;FIN.got=0;FIN.voices=0;FIN.t0=0;FIN.trail.length=0;
   PLAY.tape.length=0;
   LOOP.pat=null;LOOP.n=0;LOOP.until=0;LOOP.heard=false;
@@ -5664,7 +5667,7 @@ function enterPowerSel(){
      still be running underneath a menu. */
   BH.phase=0;BH.on=false;BH.warp=0;BH.t=0;BH.rings0=3;
   for(let i=0;i<4;i++)RADII[i]=RAD_OFF[i];
-  G.hyper=0;G.spot=0;G.slow=0;G.tsCur=1;
+  G.hyper=0;G.spot=0;G.spotD=0;G.spotGlow=0;G.slow=0;G.tsCur=1;
   G.nRings=1;G.ringI=0;G.hopFromI=0;G.hopP=1;
   G.trail.length=0;G.stars=[];G.spikes=[];G.pows=[];
 }
@@ -6859,6 +6862,7 @@ function update(dt){
     if(G.hyper===0)G.invuln=Math.max(G.invuln,G.t+1.2);
   }
   G.hyperGlow+=(((G.hyper>0)?1:0)-G.hyperGlow)*Math.min(1,dt*3);
+  G.spotGlow+=(((G.spot>0)?1:0)-G.spotGlow)*Math.min(1,dt*3);
   /* THE PROMISE IS WITHDRAWN ON A CLOCK, SO SAY SO. shieldMax() steps 3->4->5
      at dl 160 and 320. A bank sitting full at 3/3 stops being full the instant
      the clock crosses, the ember doubling stops with it, and nothing was ever
@@ -7152,11 +7156,12 @@ function update(dt){
          — and the pull was herding the player onto it at the same time. The
          two systems that exist to price risk both paid for avoiding it. */
       const bhInner=BH.phase===2&&s.ring===G.nRings-1;
-      G.score+=(bhInner?2:1)*G.combo;G.diff+=1;G.scorePop=1;
+      let paid=(bhInner?2:1)*G.combo;
+      G.score+=paid;G.diff+=1;G.scorePop=1;
       /* embers ride the section too: doubled (×2 more on a perfect landing) */
       if(MU&&MU.pay>0){
         const ex=G.combo*(G.secMult||1);
-        G.score+=ex;G.secScore+=ex;
+        G.score+=ex;G.secScore+=ex;paid+=ex;
       /* SPOTLIGHT JOINS THE ONLY DOUBLING TEST IN THE GAME. Three strings
          asserted "SPOTLIGHT x2" — the lesson, the say() and a HUD chip sitting
          in the same slot and the same grammar as OVERDRIVE x2, which genuinely
@@ -7168,16 +7173,19 @@ function update(dt){
          force-placed on level 2 with no audio condition and the x2 chip draws
          off G.spot alone. One token makes the badge true, makes it true with
          no WebAudio, and puts it in the category it was already claiming. */
-      }else if(G.od>0||G.spot>0||G.hyper>0||G.shields>=shieldMax())G.score+=G.combo;
+      }else if(G.od>0||G.spot>0||G.hyper>0||G.shields>=shieldMax()){G.score+=G.combo;paid+=G.combo;}
       G.lapEmbers++;G.embers++;
       const p=posAt(s.a,radiusOf(s.ring));
       burst(p[0],p[1],COL.ember,14,150);
       ripple(p[0],p[1],COL.ember);
       arcFlash(s.a,s.ring,COL.ember);
-      /* the popup pays what the score paid: the inner-ring double was
-         invisible, so the one thing that made the dangerous orbit worth
-         riding never reached the player as a number */
-      popup(p[0],p[1]-20*u,'+'+(bhInner?2:1)*G.combo,bhInner?COL.bh:COL.ember);
+      /* the popup pays what the score paid — EVERY branch of it now. The
+         inner-ring fix taught the rule, and then the standing states kept
+         breaking it: under spotlight/overdrive/hypernova/overcharge the
+         score added 2x combo while this line printed the undoubled half,
+         so the one number on screen hid exactly the doubling that three
+         channels had promised. */
+      popup(p[0],p[1]-20*u,'+'+paid,bhInner?COL.bh:COL.ember);
       /* THE EMBER IS THE ARP'S NOTE NOW. It used to be a sine ding over the
          music; it plays the band's own square, chord-aware, through the bed
          bus — so it ducks, pans and mixes as part of the record, and a
@@ -7338,10 +7346,15 @@ function update(dt){
         ripple(p[0],p[1],COL.warp);
         beep(400,0.3,'sine',0.07,150);
       }else if(s.type==='spot'){
-        /* SPOTLIGHT: four bars where YOU are the lead — your instrument
-           doubles and brightens, the band steps back a notch, and every
-           tight tap pays double. A performance, not a transaction. */
-        G.spot=(upgOn('stagelight')?24:16)*SPB;G.gotSpot=true;
+        /* SPOTLIGHT: four bars where YOU are the lead, and the stage now
+           SHOWS it — a followspot beam and light-pool pin the comet while
+           the house dims UNDER the arena (hazards stay lit; the veil draws
+           below every gameplay object). Your instrument gains x1.5, the
+           band steps back a notch, stars pay double, and the tight-tap
+           garnish doubles: 16 against the standing states' 8 — the one
+           reading of "taps pay double" that is actually true, with or
+           without WebAudio for the star half. */
+        G.spot=(upgOn('stagelight')?24:16)*SPB;G.spotD=G.spot;G.gotSpot=true;
         cueState(true);
         popup(p[0],p[1]-24*u,'SPOTLIGHT!',COL.warp,1.5);
         burst(p[0],p[1],'#eaf1ff',20,220);
@@ -8559,6 +8572,18 @@ function draw(){
     ctx.fillRect(0,0,W,H);
     ctx.restore();
   }
+  /* THE SPOTLIGHT DARKENS THE HOUSE — the drum break's own gesture (above),
+     reused at 0.22 against its 0.30, held for the whole four bars instead of
+     a fill. The beam and the pool draw inside the world pass so they land
+     under the comet; this veil sits with the washes so every gameplay
+     object — shards, telegraphs, rings, orbs — draws ABOVE it at full
+     brightness. Dimming the board itself would be a difficulty change (the
+     pause rule: a hidden board is balance); dimming the sky behind it is
+     staging. */
+  if(G.spotGlow>0.01){
+    ctx.fillStyle='rgba(3,5,14,'+(0.22*G.spotGlow).toFixed(3)+')';
+    ctx.fillRect(0,0,W,H);
+  }
   ctx.globalAlpha=1;
   /* THE CALM POOL. The whole sky stack dims under the play space — a baked
      feathered darkening behind the ring stack, so the arena sits on a quiet
@@ -8574,6 +8599,39 @@ function draw(){
   ctx.save();
   ctx.translate(camX,camY);   /* the world rides the dolly; HUD stays pinned */
   if(G.shake>0)ctx.translate(rand(-G.shake,G.shake)*0.5,rand(-G.shake,G.shake)*0.5);
+
+  /* THE FOLLOWSPOT ITSELF. A beam from above the frame down to the comet and
+     a pool of light flattened onto the orbital plane, both riding the same
+     glow envelope as the veil so they arrive and leave together. Drawn first
+     inside the world pass: light on the stage floor, actors on top. Additive,
+     so it brightens whatever the level's sky left here without repainting it.
+     Peak numbers, measured not guessed: beam alpha at the comet 0.09 flat
+     (0.15 at beat peak), pool centre 0.14 flat (0.22 at beat peak), against
+     a house veil of 0.22 — the state is legible with the sound off, where
+     G.beat never moves and every flat term still draws. */
+  if(G.spotGlow>0.01){
+    const sp2=posPlayer(),sx=sp2[0],sy=sp2[1];
+    const bA=(RM?0.11:0.09+0.06*G.beat)*G.spotGlow;
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    const by0=-40*u;
+    const bg=ctx.createLinearGradient(0,by0,0,sy);
+    bg.addColorStop(0,'rgba(234,241,255,0)');
+    bg.addColorStop(0.35,'rgba(234,241,255,'+(bA*0.45).toFixed(3)+')');
+    bg.addColorStop(1,'rgba(234,241,255,'+bA.toFixed(3)+')');
+    ctx.fillStyle=bg;
+    ctx.beginPath();
+    ctx.moveTo(sx-9*u,by0);ctx.lineTo(sx+9*u,by0);
+    ctx.lineTo(sx+30*u,sy);ctx.lineTo(sx-30*u,sy);
+    ctx.closePath();ctx.fill();
+    const pg=ctx.createRadialGradient(0,0,2*u,0,0,26*u);
+    pg.addColorStop(0,'rgba(234,241,255,'+((RM?0.16:0.14+0.08*G.beat)*G.spotGlow).toFixed(3)+')');
+    pg.addColorStop(1,'rgba(234,241,255,0)');
+    ctx.save();ctx.translate(sx,sy);ctx.scale(1,AY);
+    ctx.fillStyle=pg;
+    ctx.beginPath();ctx.arc(0,0,26*u,0,TAU);ctx.fill();
+    ctx.restore();
+    ctx.restore();
+  }
 
   /* ORBIT RINGS AS CONDUITS: the baked cross-section (dark channel walls, a
      hot core, a halo) replaces the two wide strokes; current visibly flows
@@ -9035,6 +9093,29 @@ function draw(){
       ctx.globalAlpha=ending?(RM?0.95:0.35+0.65*FLK[(G.t*26|0)&15]):0.95;
       ctx.beginPath();
       ctx.arc(p[0],p[1],30*u,-Math.PI/2,-Math.PI/2+TAU*frac);
+      ctx.stroke();
+      ctx.restore();ctx.globalAlpha=1;
+    }
+    /* HOW MUCH LIGHT IS LEFT. The star's lesson, applied to the spotlight
+       before a playtester has to report it a second time: a ring that
+       empties clockwise and blinks through the last 1.5s. One size inside
+       the star's 30u so the two can burn together without overprinting;
+       violet under a white core because the house is DARK while this is on
+       screen — the one state whose backdrop guarantees the contrast. */
+    if(G.spot>0&&G.spotD>0){
+      const sf=Math.max(0,Math.min(1,G.spot/G.spotD)),sEnd=G.spot<1.5;
+      ctx.save();
+      ctx.lineCap='round';
+      ctx.strokeStyle='rgba(180,139,255,0.60)';
+      ctx.lineWidth=(sEnd?4.6:3.6)*u;
+      ctx.beginPath();
+      ctx.arc(p[0],p[1],25*u,-Math.PI/2,-Math.PI/2+TAU*sf);
+      ctx.stroke();
+      ctx.strokeStyle='#eaf1ff';
+      ctx.lineWidth=(sEnd?2.8:1.8)*u;
+      ctx.globalAlpha=sEnd?(RM?0.95:0.35+0.65*FLK[(G.t*26|0)&15]):0.90;
+      ctx.beginPath();
+      ctx.arc(p[0],p[1],25*u,-Math.PI/2,-Math.PI/2+TAU*sf);
       ctx.stroke();
       ctx.restore();ctx.globalAlpha=1;
     }

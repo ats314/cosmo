@@ -1064,11 +1064,14 @@ entered three times in the game's whole recorded history.
   every overflow shield is worth +50 ("OVERCHARGED") instead of a token
   +2. Reaching full announces it: "SHIELDS FULL — everything pays
   double."
-- **Spotlight** (white/violet) — four bars where YOU are the lead: your
-  instrument doubles and brightens, the band steps back a notch, every
-  tight tap pays double. A performance, not a transaction. (It replaced
-  the Echo orb, which the loop recorder made redundant, and which the
-  playtest didn't love.)
+- **Spotlight** (white/violet) — four bars where YOU are the lead, on an
+  actual stage: the house dims under the arena, a followspot beam and a
+  pool of light pin the comet, stars and tight taps pay double, your
+  instrument gains half again and the band steps back a notch. A violet
+  ring around the comet empties clockwise and blinks through the last
+  1.5 seconds. A performance, not a transaction. (It replaced the Echo
+  orb, which the loop recorder made redundant, and which the playtest
+  didn't love.)
 - **Hypernova** — the gold star (the playtest group asked for "a star in
   Mario", so it is one, drawn plainly). Sixteen beats of invincibility at
   nearly double speed: the kit doubles to sixteenths, the room floods
@@ -1101,7 +1104,29 @@ one of them inferior and illegible, is one orb too many; the nova keeps the
 job. `LONG FUSE` goes with it, leaving seven upgrade tiles, and the bomb's
 0.15 share of the spawn roll is redistributed proportionally across the
 remaining five — the magnetar's precedent, both times: removal changes what
-can appear, not how often the others appear relative to each other. Two honest shapes only: stopping just short of a shard on
+can appear, not how often the others appear relative to each other.
+
+**THE SPOTLIGHT FINALLY LIGHTS THE STAGE.** The same review found the
+spotlight's active state changed zero arena pixels for its whole nine-to-
+fourteen seconds: the entire inventory was an audio mix move (instrument
+×1.5, pad to 0.8 — about −1.9dB on one layer, at the edge of a phone
+speaker's JND) plus a text chip that only drew on tall viewports, and the
+one universal effect — stars paying double — printed the UNDOUBLED number
+in its popup. The owner's brief asked for an actual spotlight, so it has
+one now: the house dims under the arena (the drum break's own veil at
+0.22 against its 0.30 — every gameplay object draws above it, because a
+dimmed board would be a difficulty change and a dimmed sky is staging), a
+followspot beam and a pool of light track the comet (beam 0.09 flat/0.15
+at beat peak at the comet, pool centre 0.14/0.22 — flat terms first, so
+the state reads with the sound off, where `G.beat` never moves), and a
+violet timer ring around the comet empties clockwise, blinking through
+the last 1.5s — the hypernova's playtest lesson applied before a second
+playtester had to teach it. The claim is true now too: the tight-tap
+garnish doubles (16 against the standing states' 8), and every ember
+popup prints what the score actually paid — a fix that repairs the same
+lie for overdrive, hypernova and overcharge, which had all been adding
+2× while printing 1×. The lesson rewords to what is countable: "the
+light is on you: stars and taps pay double." Two honest shapes only: stopping just short of a shard on
 your own ring (the reverse that saved you), and sweeping past a shard on the
 ring you just left mid-hop (the hop that saved you). Either pays +3, a white
 spark, a breath of heat and a tick of build — passing shards on other rings
