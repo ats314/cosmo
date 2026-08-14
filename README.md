@@ -2161,7 +2161,7 @@ node tools/fxcheck.mjs     # the glow actually reaches a pixel, on a GPU and wit
 node tools/drawcheck.mjs   # every 2D draw call is one a real canvas would honour
 ```
 
-All seven run on every pull request; only `main` goes on to publish.
+Every check runs on every pull request; only `main` goes on to publish.
 
 `all.mjs` is a runner, not a seventh check, and it holds no list of its own: it
 parses `pages.yml` and runs exactly the harnesses CI runs, in CI's order. A list

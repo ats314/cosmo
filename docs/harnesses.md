@@ -1,6 +1,6 @@
 # The harnesses
 
-All seven run on every pull request and must pass. Run them locally before
+Every one of them runs on every pull request and must pass. Run them locally before
 pushing — they are fast and need nothing installed.
 
 ```sh

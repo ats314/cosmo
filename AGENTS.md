@@ -12,7 +12,7 @@ open it:
   for playtesting only. Do not add an open-source licence, a contributor guide,
   or anything else that invites outside reuse. `CLAUDE.md` explains what follows
   from that.
-- **Run `node tools/all.mjs` before you push.** Six checks, no dependencies,
+- **Run `node tools/all.mjs` before you push.** Every check, no dependencies,
   seconds to run. It reads the CI workflow, so it cannot drift from what the
   pull request will run.
 - **`docs/invariants.md` is not optional reading.** `CLAUDE.md` carries a table

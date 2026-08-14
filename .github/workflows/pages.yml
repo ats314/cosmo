@@ -105,7 +105,7 @@ jobs:
       - run: sed -i "s/const BUILD='dev'/const BUILD='${GITHUB_SHA:0:7}'/" index.html
       # THE SITE IS AN ALLOWLIST, NOT THE REPOSITORY. This used to be `path: .`,
       # which handed the whole checkout to Pages: CLAUDE.md, README.md,
-      # MECHANICS.md and all six harnesses were served at the site root, so the
+      # MECHANICS.md and every harness were served at the site root, so the
       # operating doc and the design record were public documents whether or not
       # anyone meant them to be. Repository visibility never covered this —
       # turning the repo private would have left every one of those files
