@@ -109,6 +109,8 @@ game through a seeded `Math.random` injected at the sandbox boundary
 (`tools/lib/rng.mjs`) — `index.html` is untouched by this. A local run replays
 the same game every time, so a changed number IS your diff and the old ritual
 of re-running several times before believing anything is retired. CI rotates
-the seed per run so coverage keeps moving, and every harness prints its seed:
-reproduce any CI failure with `SEED=<n> node tools/<harness>.mjs`.
+the seed per run so coverage keeps moving, and every harness that runs the game
+prints its seed on the way in — before any assertion can exit — so reproducing a
+CI failure is `SEED=<n> node tools/<harness>.mjs`. (`check.mjs` is the exception
+and needs no seed: it is static and touches no RNG.)
 
