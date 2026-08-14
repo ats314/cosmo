@@ -61,13 +61,13 @@ Deployed to GitHub Pages from `main`. The published page is the product.
 | `MECHANICS.md` | The mechanics ledger: one row per player-facing mechanic, where it is introduced, every channel that explains it. |
 | `LICENSE` | All-rights-reserved proprietary grant. |
 | `docs/invariants.md` | The rules that are load-bearing, grouped by what you'd be touching. Indexed below. |
-| `docs/harnesses.md` | What each of the seven checks covers, and where a new test belongs. |
+| `docs/harnesses.md` | What each check covers, and where a new test belongs. |
 | `docs/review.md` | The two halves of a review here, including the hygiene half people skip. |
 | `tools/all.mjs` | Runs every check in CI's order, or `--fast` for the quick four. Holds no list — it reads the workflow. |
-| `tools/*.mjs` | The seven CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
+| `tools/*.mjs` | The CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
 | `tools/lib/rng.mjs` | The seeded `Math.random` every harness runs on. Determinism lives here, not in the game. |
 | `AGENTS.md` | Pointer here, for agent tools that look for that name instead. |
-| `.github/workflows/pages.yml` | Runs all seven checks on every PR; only `main` deploys, and only an allowlist. |
+| `.github/workflows/pages.yml` | Runs every check on every PR; only `main` deploys, and only an allowlist. |
 | `*.png`, `manifest.webmanifest` | Icons, share image, PWA manifest. |
 
 ## Before you push
@@ -142,10 +142,10 @@ finishes it, but it was the only sentence here about merging and so it became
 the rule. It is replaced rather than clarified.
 
 - **Merge your own work.** Open pull requests ready for review, not as drafts.
-  Squash-merge as soon as all seven checks are green — that matches the history,
+  Squash-merge as soon as every check is green — that matches the history,
   where each commit on `main` carries its `(#N)`. Do not ask first. Do not wait
   for review that was never coming.
-- **Never merge red, and never merge unverified.** The seven checks are the gate,
+- **Never merge red, and never merge unverified.** The checks are the gate,
   and `main` publishes to the live page on merge, so a red merge is a broken
   product for real players. If a check fails, fix it or say plainly why you are
   not going to.

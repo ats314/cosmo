@@ -38,7 +38,7 @@
 
 ---
 
-**Before merging:** all six checks green, then squash-merge, then
+**Before merging:** every check green, then squash-merge, then
 `git push origin --delete <branch>`. Squash-merging leaves the branch behind
 looking permanently unmerged; twenty-nine of them accumulated before anyone
 counted.
