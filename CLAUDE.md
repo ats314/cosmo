@@ -307,6 +307,21 @@ Breaking one of these is a product regression, not a style question.
   everywhere else, unnoticed for as long as the levels differed only by
   transposition. Never write a bare frequency into the audio path. `PROG` and
   `musiccheck.mjs` are where both halves are enforced.
+  **The song is two sections per level now, and the chorus obeys three extra
+  laws.** `PROGB` is the chorus table, `CHOFF` its per-level walk rotation,
+  `SEVB` its color tones; `applySect` is the ONLY writer of the live `CH`/`ARP`
+  tables and `chI()` the only translator from bar ordinal to chord. (1) Chord
+  0 of every row in BOTH tables is the i chord: `CH[0][0]` is read as "the
+  level's tonic" by ~25 call sites at arbitrary moments in either section, so
+  a chorus opens off-tonic only through the rotation, never by reordering a
+  row. (2) Sections change only at a four-bar seam, never inside a payoff,
+  rise, black hole or star dive, and a level's first eight bars are always
+  the verse. (3) The chorus's harmonic color lives in `SEVB` (stacked-third
+  sevenths — the pad-extension half of the genre voicing); the arps stay
+  plain pentatonic under degree 4, the band's ceiling below the player's
+  register. All three are enforced in `musiccheck.mjs`, including walk ORDER
+  (the L2 chorus is the verse's chords walked the other way — invisible to
+  any pitch-set comparison) and the seam glides.
 - **No aimed input.** There is no target to hit anywhere in this game. Landing
   the beat drop is *any* move in the window, wherever the thumb is.
 - **A lesson may only reference actions and objects the game actually has.**

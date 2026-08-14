@@ -9,7 +9,15 @@
    scheduler at every level and asserts what came out: that each level plays
    ITS chords and ITS hook, that no level falls through to another's parts,
    and that nothing in the music path throws. Levels 3 and 4 are the ones that
-   matter — nothing else in tools/ reaches level 4's arrangement at all. */
+   matter — nothing else in tools/ reaches level 4's arrangement at all.
+
+   Since the chorus arrived (PROGB) each level is TWO progressions and a
+   section machine: cold play must stay on the verse, hot play must lift at a
+   four-bar seam into the chorus WALK (the row read through CHOFF), and both
+   rows must hold the same law — chord 0 is the i chord, every pitch diatonic
+   to the level's natural minor. Order is asserted, not just pitch sets: the
+   L2 chorus is the verse's own chords walked the other way, and a set
+   comparison cannot see that at all. */
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
@@ -68,8 +76,12 @@ function stubCtx() {
       const o = node('osc', {
         type: 'sine', detune: param(0),
         frequency: param(0, (f, p) => { LOG.tune.push(f); if (p.__pad) LOG.pad.push(f); }),
-        start(t) { LOG.osc.push({ type: o.type, f: o.frequency.value, t: t ?? AUDIO_T }); },
-        stop() {},
+        /* dur is recorded so a voice can be identified by its SUSTAIN as
+           well as its pitch — the chorus color tone shares a frequency with
+           the counter-line by pentatonic arithmetic, and only the length
+           tells them apart */
+        start(t) { o.__rec = { type: o.type, f: o.frequency.value, t: t ?? AUDIO_T }; LOG.osc.push(o.__rec); },
+        stop(t) { if (o.__rec) o.__rec.dur = (t ?? AUDIO_T) - o.__rec.t; },
       });
       return o;
     },
@@ -173,7 +185,14 @@ function fail(msg) { console.error('FAIL ' + msg); failures++; }
 function ok(msg) { console.log('ok  ' + msg); }
 
 /* ---------- drive one level's arrangement ---------- */
-function startLevel(level) {
+/* `heat` decides which SECTION a run can reach: the chorus eval reads
+   PLAY.heat (nothing in these runs drives the other terms — groove, od,
+   hyper and the afterglow are zeroed below), and heat never decays here
+   because bedTick is not being ticked. 0 pins a run to the verse; 0.9
+   lifts it at the first legal seam (bar 8). MU.barN is reset so "the
+   first eight bars are the verse" is measured from THIS run's opening
+   rather than from however long the previous scenario ran. */
+function startLevel(level, heat = 0.8) {
   LOG.osc.length = 0; LOG.buf.length = 0; LOG.tune.length = 0; LOG.pad.length = 0;
   AUDIO_T = 0;
   vm.runInContext(`
@@ -182,8 +201,9 @@ function startLevel(level) {
     G.state = 'playing';
     G.score = 5000;          /* every score layer open, including the sub drone */
     G.t = 400; G.dl0 = 0;
-    PLAY.heat = 0.8;
-    MU.next = 0; MU.step = 0; MU.chord = -1;
+    PLAY.heat = ${heat};
+    G.groove = 0; G.od = 0; G.hyper = 0;
+    MU.next = 0; MU.step = 0; MU.chord = -1; MU.barN = 0; MU.glow = 0;
   `, ctx);
 }
 function tick(level, n) {
@@ -194,10 +214,21 @@ function tick(level, n) {
     catch (e) { LOG.errors.push(`level ${level} step ${i}: ${e && e.message}`); throw e; }
   }
 }
-function runLevel(level, seconds) {
-  startLevel(level);
+function runLevel(level, seconds, heat) {
+  startLevel(level, heat);
   tick(level, Math.floor(seconds / ($('SPB') / 2)));
   return { osc: LOG.osc.slice(), tune: LOG.tune.slice(), pad: LOG.pad.slice(), noise: LOG.buf.length };
+}
+/* The pad writes 8 frequencies per bar (4 voices x 2 unison oscs, voice 0
+   first — see the retune loop), and it retunes on every bar ordinal, so
+   LOG.pad[k*8] is the ROOT the pad was handed for bar k. That makes the
+   heard chord SEQUENCE checkable, not just the pitch set — which matters
+   because the L2 chorus reuses the verse's chords in a different order,
+   and a set comparison cannot see order at all. */
+function padRoots(pad) {
+  const roots = [];
+  for (let k = 0; k + 8 <= pad.length; k += 8) roots.push(pad[k]);
+  return roots;
 }
 
 /* ---------- the assertions ---------- */
@@ -242,14 +273,19 @@ console.log('--- the SFX scale is in the same key as the band ---');
   }
 }
 
-console.log('--- every level schedules its own harmony ---');
+console.log('--- the verse: cold play voices the level\'s own row and nothing else ---');
+/* At heat 0 the song must never lift: the old exact guarantee — the pad
+   voices its level's PROG row and not one pitch more — now belongs to the
+   verse, and holding it at heat 0 is also what proves the chorus cannot
+   trigger itself. */
 const heard = {};
 for (const L of LEVELS) {
-  const r = runLevel(L, 60);
+  const r = runLevel(L, 60, 0);
   if (!r.osc.length) { fail(`level ${L} scheduled no notes at all in 60s of music`); continue; }
   heard[L] = r;
+  if ($('MU').sect !== 0) { fail(`level ${L}: the chorus engaged at heat 0 — the lift is free`); }
 
-  /* The pad IS the progression: eight voices, retuned to CH[bar%4] every bar.
+  /* The pad IS the progression: eight voices, retuned to the bar's chord.
      Testing it exactly — the set of pitches the pad was retuned to must equal
      the set in this level's PROG row, with nothing extra — is sound in a way
      that sifting one-shot voices is not. The four keys are a whole step apart,
@@ -261,18 +297,107 @@ for (const L of LEVELS) {
   const extra = padSet.filter(f => !want.some(x => Math.abs(x - f) < 0.02));
   if (missing.length) fail(`level ${L}: the pad never voiced ${missing.join(', ')}`);
   else if (extra.length) fail(`level ${L}: the pad voiced pitches outside its progression: ${extra.join(', ')}`);
-  else ok(`level ${L}: the pad voiced its ${want.length} chord tones and nothing else`);
+  else ok(`level ${L}: verse pad voiced its ${want.length} chord tones and nothing else`);
+}
+
+console.log('--- the chorus: hot play lifts the song at the seam, and only there ---');
+const PROGB = $('PROGB');
+const CHOFF = $('CHOFF');
+const heardHot = {};
+for (const L of LEVELS) {
+  const r = runLevel(L, 74, 0.9);
+  heardHot[L] = r;
+  if ($('MU').sect !== 1) { fail(`level ${L}: 74s at heat 0.9 never reached the chorus`); continue; }
+
+  /* the heard chord sequence: eight verse bars first (the song states its
+     home before it leaves — the barN >= 8 guard), then the chorus WALK,
+     which is the row read through its rotation (CHOFF), not the row raw.
+     Order is the assertion that matters: the L2 chorus is the verse's own
+     chords walked the other way, invisible to any set comparison. */
+  const roots = padRoots(r.pad);
+  const vWalk = b => PROG[L - 1][b % 4][0];
+  const bWalk = b => PROGB[L - 1][(b + CHOFF[L - 1]) % 4][0];
+  /* A bar can legitimately match BOTH walks — L3's chorus opens on the same
+     tonic chord its verse walk would have played — so "first divergence" is
+     not the entry. The claim tested instead: there exists ONE seam s (a
+     multiple of four, not before bar 8) with pure verse before it and the
+     pure chorus walk from it to the end. */
+  let seam = -1;
+  const near = (a, b) => Math.abs(a - b) < 0.02;
+  for (let s = 8; s < roots.length; s += 4) {
+    let good = true;
+    for (let b = 0; b < s && good; b++) good = near(roots[b], vWalk(b));
+    for (let b = s; b < roots.length && good; b++) good = near(roots[b], bWalk(b));
+    if (good) { seam = s; break; }
+  }
+  if (seam < 0) {
+    const b0 = roots.findIndex((f, b) => !near(f, vWalk(b)));
+    fail(`level ${L}: no clean verse->chorus seam found (first off-verse bar: ${b0}, root ${roots[b0]})`);
+  } else ok(`level ${L}: verse for ${seam} bars, then the chorus walk held for ${roots.length - seam} bars`);
+
+  /* the union law: hot play may voice both rows and nothing else */
+  const padSet = [...new Set(r.pad.map(f => Math.round(f * 100) / 100))];
+  const union = [...new Set([...PROG[L - 1].flat(), ...PROGB[L - 1].flat()])];
+  const extra = padSet.filter(f => !union.some(x => Math.abs(x - f) < 0.02));
+  if (extra.length) fail(`level ${L}: the hot pad voiced pitches outside both sections: ${extra.join(', ')}`);
+  else ok(`level ${L}: every hot pad pitch is in one of the level's two rows`);
+
+  /* the color tone: the chorus schedules its chord's own seventh (SEVB), a
+     sustained triangle an octave up, and it must actually fire. Matched on
+     pitch AND sustain: the counter-line's triangle lands on the same
+     frequency by pentatonic arithmetic (PENT[4]/2 = the i chord's seventh
+     doubled, in every key), and a first version of this check counted it —
+     which is how deleting the color line entirely stayed green. Only the
+     1.6s hold is unambiguous. */
+  const SEVB = $('SEVB')[L - 1];
+  const sevHits = LOG.osc.filter(o => o.type === 'triangle' && o.dur > 1.55 &&
+    SEVB.some(s => Math.abs(o.f - s * 2) < 0.02)).length;
+  if (sevHits < 3) fail(`level ${L}: the chorus color tone fired ${sevHits} time(s) in ${roots.length} bars — SEVB is not reaching the schedule`);
+  else ok(`level ${L}: the seventh color tone sang ${sevHits} times`);
 }
 if (Object.keys(heard).length === 4) ok('no level read another level\'s progression row');
 
-/* and the rows really are four different progressions, not one transposed:
-   normalise each row to its own tonic and the SHAPES must differ */
+console.log('--- the song settles back to the verse when the play cools ---');
+{
+  startLevel(2, 0.9);
+  tick(2, 100);                       /* 12+ bars: chorus by bar 8 */
+  if ($('MU').sect !== 1) fail('the exit test never entered the chorus to leave it');
+  vm.runInContext('PLAY.heat = 0;', ctx);
+  LOG.pad.length = 0;
+  tick(2, 72);                        /* across at least one seam, then two loops */
+  if ($('MU').sect !== 0) fail('heat gone, and the chorus never handed the song back');
+  else {
+    /* the last four bars must be the verse walk — some rotation of the row,
+       since the window cut into the cycle at an arbitrary bar */
+    const tail = padRoots(LOG.pad).slice(-4);
+    const verseRoots = PROG[1].map(c => c[0]);
+    const settled = [0, 1, 2, 3].some(k => tail.every((f, i2) => Math.abs(f - verseRoots[(i2 + k) % 4]) < 0.02));
+    if (!settled) fail(`after cooling, the pad walked ${tail.join(', ')} — not the verse row`);
+    else ok('cooling off returns the walk to the verse at the next seam');
+  }
+}
+
+/* and the rows really are different progressions, not one transposed:
+   normalise each HEARD walk to its own tonic and the shapes must differ —
+   across levels within each table, and between a level's two sections */
 {
   const shape = row => row.map(c => Math.round(12 * Math.log2(c[0] / row[0][0]))).join(' ');
   const shapes = PROG.map(shape);
   const uniq = new Set(shapes);
   if (uniq.size < 3) fail(`only ${uniq.size} distinct progression shape(s) across four levels: ${shapes.join(' / ')}`);
-  else ok(`${uniq.size} distinct progression shapes in semitones from the tonic: ${shapes.map((s, i) => `L${i + 1}[${s}]`).join(' ')}`);
+  else ok(`${uniq.size} distinct verse shapes in semitones from the tonic: ${shapes.map((s, i) => `L${i + 1}[${s}]`).join(' ')}`);
+
+  const walkShape = L => {
+    const tonic = PROGB[L][0][0];
+    return [0, 1, 2, 3].map(b => Math.round(12 * Math.log2(PROGB[L][(b + CHOFF[L]) % 4][0] / tonic))).join(' ');
+  };
+  const bShapes = [0, 1, 2, 3].map(walkShape);
+  if (new Set(bShapes).size < 4) fail(`the four chorus walks are not four shapes: ${bShapes.join(' / ')}`);
+  else ok(`4 distinct chorus walks: ${bShapes.map((s, i) => `L${i + 1}[${s}]`).join(' ')}`);
+  for (let L = 0; L < 4; L++) {
+    const v = PROG[L].map(c => Math.round(12 * Math.log2(c[0] / PROG[L][0][0]))).join(' ');
+    if (bShapes[L] === v) fail(`level ${L + 1}'s chorus walk is its own verse — a section change that changes nothing`);
+  }
 }
 
 console.log('--- the four hooks are four different tunes ---');
@@ -318,15 +443,21 @@ console.log('--- level 4 has parts of its own ---');
   else ok(`level 4's octave bass alternates (root x${r4}, octave x${o4})`);
 
   /* the tonic pedal: the sub drone must sit on CH[0][0]/2 every bar, never on
-     the bar's own root — Cb and Db halves must not appear as drone pitches */
+     the bar's own root — no non-tonic root of EITHER section may appear as a
+     drone pitch, and the chorus run is checked too: the chorus is where the
+     bass finally moves, which is exactly when a drone that secretly follows
+     the chord would start following it */
   const tonicHalf = PROG[3][0][0] / 2;
-  const cbHalf = PROG[3][1][0] / 2, dbHalf = PROG[3][2][0] / 2;
-  const drone = osc4.filter(o => o.type === 'triangle');
-  const onTonic = drone.filter(o => Math.abs(o.f - tonicHalf) < 0.02).length;
-  const offTonic = drone.filter(o => Math.abs(o.f - cbHalf) < 0.02 || Math.abs(o.f - dbHalf) < 0.02).length;
-  if (!onTonic) fail('level 4 never sounded its tonic pedal');
-  else if (offTonic) fail(`level 4's sub drone followed the chord ${offTonic} times instead of pedalling`);
-  else ok(`level 4's sub drone is a tonic pedal (${onTonic} bars, 0 chord-following)`);
+  const offRoots = [...PROG[3], ...$('PROGB')[3]]
+    .map(c => c[0] / 2).filter(f => Math.abs(f - tonicHalf) > 0.02);
+  for (const [name, list] of [['verse', osc4], ['chorus', heardHot[4].osc]]) {
+    const drone = list.filter(o => o.type === 'triangle');
+    const onTonic = drone.filter(o => Math.abs(o.f - tonicHalf) < 0.02).length;
+    const offTonic = drone.filter(o => offRoots.some(r => Math.abs(o.f - r) < 0.02)).length;
+    if (!onTonic) fail(`level 4 never sounded its tonic pedal in the ${name} run`);
+    else if (offTonic) fail(`level 4's sub drone followed the chord ${offTonic} times in the ${name} run instead of pedalling`);
+    else ok(`level 4's sub drone is a tonic pedal in the ${name} run (${onTonic} bars, 0 chord-following)`);
+  }
 
   if (!noise4) fail('level 4 scheduled no percussion');
   else ok(`level 4's kit fires (${noise4} noise hits in the last run)`);
@@ -353,6 +484,81 @@ for (let L = 0; L < 4; L++) {
   }
   if (worst > 12) fail(`level ${L + 1}: a pad voice glides ${worst.toFixed(1)} semitones (${worstAt}) — over an octave`);
   else ok(`level ${L + 1}: widest pad glide ${worst.toFixed(1)} semitones, displacement ${ss.toFixed(0)}`);
+}
+/* ...and the chorus glides are measured over the WALK (the row read through
+   CHOFF), including both seams — the section swap itself is a retune the
+   player hears, so verse[last] -> chorus[first] and back are glides too */
+for (let L = 0; L < 4; L++) {
+  const walk = [0, 1, 2, 3].map(b => PROGB[L][(b + CHOFF[L]) % 4]);
+  const seq = [PROG[L][3], ...walk, walk[0], PROG[L][0]]; /* seam in, cycle, loop, seam out */
+  let worst = 0, worstAt = '';
+  for (let i = 0; i < seq.length - 1; i++) {
+    for (let v = 0; v < 4; v++) {
+      const d = Math.abs(12 * Math.log2(seq[i + 1][v] / seq[i][v]));
+      if (d > worst) { worst = d; worstAt = `step ${i}, voice ${v}`; }
+    }
+  }
+  if (worst > 12) fail(`level ${L + 1}: a chorus pad voice glides ${worst.toFixed(1)} semitones (${worstAt}) — over an octave`);
+  else ok(`level ${L + 1}: widest chorus glide (walk + both seams) ${worst.toFixed(1)} semitones`);
+}
+
+console.log('--- the chorus tables hold the same law as the verse ---');
+/* THE TONIC ANCHOR. CH[0][0] is read as "the level's tonic" by the snare
+   body, fireDrop, braam, the star dive, the black hole and half the SFX
+   layer, at any moment, in either section. The rotation (CHOFF) exists so a
+   chorus can OPEN off-tonic while row slot 0 never stops being the i chord
+   those readers assume. Both halves are structural; both are pinned here. */
+{
+  const MIN = new Set([0, 2, 3, 5, 7, 8, 10]);
+  for (const L of LEVELS) {
+    const vRow = PROG[L - 1], bRow = PROGB[L - 1];
+    if (bRow.length !== 4 || bRow.some(c => c.length !== 4)) { fail(`level ${L}: PROGB row is not 4 chords x 4 voices`); continue; }
+    if (!vRow[0].every((f, v) => f === bRow[0][v]))
+      fail(`level ${L}: PROGB chord 0 is not the verse's i chord — CH[0][0] stops being the tonic in the chorus`);
+    const off = CHOFF[L - 1];
+    if (!(Number.isInteger(off) && off >= 0 && off <= 3)) fail(`level ${L}: CHOFF ${off} is not a row index`);
+    const tonic = vRow[0][0];
+    for (const [tn, rows] of [['PROG', vRow], ['PROGB', bRow]]) {
+      for (let j = 0; j < 4; j++) {
+        if (Math.abs(rows[j][1] / rows[j][0] - 2) > 0.001)
+          fail(`level ${L} ${tn} chord ${j}: voice 1 is not the root's octave — the basslines and the L4 alternation read that role`);
+        for (const f of rows[j]) {
+          const semis = 12 * Math.log2(f / tonic), nearest = Math.round(semis);
+          if (Math.abs(semis - nearest) > 0.02) fail(`level ${L} ${tn} chord ${j}: ${f}Hz is off the semitone grid`);
+          else if (!MIN.has(((nearest % 12) + 12) % 12)) fail(`level ${L} ${tn} chord ${j}: ${f}Hz is outside the natural minor`);
+        }
+      }
+    }
+    /* SEVB: each chorus chord's seventh — diatonic, and genuinely the
+       STACKED THIRD (a third above the chord's own fifth), which is what
+       makes maj7 land on III and VI and m7 everywhere else without anyone
+       choosing wrong by hand */
+    const SEVB = $('SEVB')[L - 1];
+    for (let j = 0; j < 4; j++) {
+      const s = 12 * Math.log2(SEVB[j] / tonic), ns = Math.round(s);
+      if (Math.abs(s - ns) > 0.02 || !MIN.has(((ns % 12) + 12) % 12))
+        fail(`level ${L}: SEVB[${j}] (${SEVB[j]}Hz) is not diatonic to the key`);
+      const fifth = bRow[j][3];
+      const up = ((Math.round(12 * Math.log2(SEVB[j] / fifth)) % 12) + 12) % 12;
+      if (up !== 3 && up !== 4)
+        fail(`level ${L}: SEVB[${j}] is ${up} semitones above the chord's fifth — not the stacked third`);
+    }
+  }
+  ok('both tables: chord 0 is i, voice 1 is the octave, every pitch diatonic, every seventh a stacked third');
+}
+/* the chorus arps: same ceiling as the verse arp (the band must stop below
+   the player's 784Hz floor), and actually different contours */
+{
+  const ARPL2 = $('ARPL'), ARPBL = $('ARPBL');
+  for (let L = 0; L < 4; L++) {
+    for (const [tn, row] of [['ARPL', ARPL2[L]], ['ARPBL', ARPBL[L]]]) {
+      if (row.length !== 8 || row.some(d => d < 0 || d > 4))
+        fail(`level ${L + 1} ${tn}: a degree leaves 0-4 — the arp would cross the player's register floor`);
+    }
+    if (ARPL2[L].join() === ARPBL[L].join())
+      fail(`level ${L + 1}: the chorus arp is the verse arp — the section change loses its melodic surface`);
+  }
+  ok('both arp tables stay under the player\'s floor and differ per level');
 }
 
 console.log('--- the tuned percussion stays in key ---');
@@ -546,4 +752,4 @@ if (failures) {
   console.error(`\nMUSICCHECK FAILED (${failures})`);
   process.exit(1);
 }
-console.log('\nOK  four levels, four progressions, four hooks — all scheduled, none crossed');
+console.log('\nOK  four levels, eight progressions, four hooks — verse and chorus both walked, none crossed');
