@@ -954,8 +954,12 @@ let BED=null;
 /* ---------- music ----------
    Adaptive layering, which is how games do this: ONE fixed tempo, with layers
    entering as the difficulty clock rises. Nothing speeds up and nothing
-   changes key mid-LEVEL, so it can never lurch; what changes inside a level is
-   how much of the arrangement you are hearing.
+   changes key mid-LEVEL, so it can never lurch; what changes inside a level
+   is how much of the arrangement you are hearing — and, since the chorus
+   arrived, WHICH SECTION of the song it is playing: hot play lifts the
+   record from its verse into a second progression at the four-bar seam and
+   cooling off settles it back, which is the horizontal axis (form) on top
+   of the vertical one (layers). See PROGB.
 
    The key and the progression are per level, not per game — see PROG and
    LV[].key. What every level shares is the constraint: its chords are drawn
@@ -1128,6 +1132,7 @@ function buildBed(){
   for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
   NOISE=n;
   MU={next:0,step:0,chord:-1,armed:false,cool:0,
+      sect:0,       /* 0 verse, 1 chorus — see PROGB and applySect */
       chainT:0,     /* audio time the current groove chain began */
       crown:0,      /* the ring the drop fired from — sets section richness */
       landT:0,      /* audio time the drop lands — the moment to move on */
@@ -1693,6 +1698,10 @@ function endSection(){
     A.pump.gain.cancelScheduledValues(t);
     A.pump.gain.setTargetAtTime(1,t,0.04);}
   if(BED&&AC)BED.lp.frequency.cancelScheduledValues(AC.currentTime);
+  /* every abnormal path lands back on the verse — a phrase interrupted by a
+     lock screen or a death is not resumed, and neither is a section. The
+     next seam re-earns the chorus if the play still deserves it. */
+  if(MU.sect)applySect(0);
 }
 /* A tier unlock gets ceremony, not a chorus: 2.3s, no hush, no response bars.
    Handing an 18.5s section with three player bars to someone who has never
@@ -1732,16 +1741,40 @@ function breakStep(beat,t){
    sounds different from its opening — which is also the only channel telling
    you that speed has climbed from 1.4 to 4.2 rad/s. */
 function musicStep(i,t,k){
-  const bar=(i/8)|0,ch=CH[bar%4],beat=i%8;
+  const bar=(i/8)|0,beat=i%8;
+  /* THE SONG MOVES BETWEEN ITS SECTIONS HERE, and only here: once per
+     four-bar loop, at the seam, when nothing else owns the harmony. Hot
+     play — an earned state, a groove chain, real heat — lifts the record
+     into its chorus (see PROGB); cooling off hands it back. The afterglow
+     term means every payoff RESOLVES into the chorus, so the drop is also
+     the guaranteed road in: a player who never chains still hears the
+     section, the same worst-case promise the drop itself makes. Frozen
+     while a drop is anywhere in flight (the payoff owns its eight bars),
+     and the first eight bars of a level are always the verse — the song
+     states its home before it leaves it. */
+  if(i===0&&MU.pay<=0&&!MU.rise&&!MU.armed&&!FIN.on&&!bhActive()&&MU.barN>=8){
+    const wantB=(G.od>0||G.hyper>0||t<MU.glow||G.groove>=4||PLAY.heat>0.62)?1:0;
+    if(wantB!==MU.sect){
+      applySect(wantB);
+      if(wantB&&G.state==='playing'){
+        G.chorusN++;
+        if(!G.saidChor){G.saidChor=true;say('THE SONG LIFTS — chorus',2,8);}
+      }
+    }
+  }
+  const cix=chI(bar),ch=CH[cix];
   /* The retune moved to the TOP, before any return: the pad keeps tracking the
      progression while it is ducked and through the whole payoff, so it comes
-     back in tune rather than glissing into place. */
+     back in tune rather than glissing into place. MU.chord tracks the BAR,
+     not the pitch — a section swap retunes at its first bar line because the
+     ordinal moved, and the L2 chorus's repeated tonic bar retunes to the same
+     four frequencies, which is a no-op by value. */
   if(MU.chord!==bar%4){
     MU.chord=bar%4;
     for(let v=0;v<4;v++)for(let u2=0;u2<2;u2++)
-      BED.oscs[v*2+u2].frequency.setTargetAtTime(CH[bar%4][v],t,0.09);
+      BED.oscs[v*2+u2].frequency.setTargetAtTime(ch[v],t,0.09);
   }
-  if(beat===0)MU.barN++;
+  if(beat===0){MU.barN++;if(MU.sect)G.chorusBars++;}
   /* THE BLACK HOLE OUTRANKS EVERYTHING, including a payoff section already in
      flight. Placed after the chord retune so the pad keeps tracking the
      progression silently underneath and returns in tune, exactly as it does
@@ -1762,7 +1795,9 @@ function musicStep(i,t,k){
   if(rn===8)schedulePreDrop(t+8*(SPB/2));
   if(rn===16){fireDrop(t);payoffStep(t,ch,k);return;}
   const rise=MU.rise;
-  if(FIN.on&&FIN.pend&&i%16===0){FIN.pend=false;FIN.step=0;}
+  /* the star dive is a composed setpiece: it walks the level's own verse
+     home, whatever section the run had earned when the finish line hit */
+  if(FIN.on&&FIN.pend&&i%16===0){FIN.pend=false;FIN.step=0;if(MU.sect)applySect(0);}
   if(FIN.on&&!FIN.pend){finStep(t);return;}
   if(beat%2===0)BEATQ.push(t);          /* quarter notes, for the visual pulse */
   /* THE DRUM BREAK (playtest: "more percussion breakdowns"). Play hot and
@@ -1844,7 +1879,9 @@ function musicStep(i,t,k){
   if(beat===0&&A){
     const pg=A.pump.gain;
     pg.setValueAtTime(1,t-0.002);
-    pg.linearRampToValueAtTime(0.84,t+0.02);
+    /* the chorus inhales deeper — the pump is most of what "the record
+       lifted" feels like on a phone speaker, where the harmony is subtle */
+    pg.linearRampToValueAtTime(MU.sect?0.80:0.84,t+0.02);
     pg.setTargetAtTime(1,t+0.05,0.11);
   }
   /* THE BASS IS A SYNTH NOW. The polite triangle floor never registered
@@ -1864,7 +1901,15 @@ function musicStep(i,t,k){
        octave. This used to be the largest single difference between the
        songs, back when all four walked the same chords in different keys;
        the progressions differ now too, so it is one of several. */
-    if(G.level===1){
+    if(MU.sect&&G.level<=2){
+      /* THE CHORUS BASS DRIVES. Levels 1 and 2 walk sparse verse figures;
+         when the song lifts they switch to the genre's engine — root
+         eighths leaning legato, one approach note into the turn. Levels 3
+         and 4 keep their own figures: they already drive, and the roll and
+         the octave jump ARE those levels' identities. */
+      bassN(ch[0],t,beat%2?0.11:0.15,bg*(beat===0?1:(beat%2?0.55:0.75)));
+      if(beat===6)bassN(ch[3]/2,t+S16,0.12,bg*0.60);
+    }else if(G.level===1){
       if(beat===2)bassN(ch[0],t+S16,0.16,bg*0.80);
       if(beat===5)bassN(ch[3]/2,t,0.18,bg*0.85);
       if(beat===7)bassN(ch[0]*0.75,t+S16,0.12,bg*0.70);
@@ -2005,7 +2050,8 @@ function musicStep(i,t,k){
   if(G.level===2){
     if(beat===2||beat===6)hat(t+S16*1.16,0.007,4400,0.03,0,0,7200);
     if(beat===7)hat(t+S16,0.006,4200,0.03,0,0,7000);
-    if((k>0.35||hot)&&bar%2===1&&beat===4)snare(t,0.020,0.20);
+    /* ...and in the chorus the backbeat stops waiting for the clock */
+    if((k>0.35||hot||MU.sect)&&bar%2===1&&beat===4)snare(t,0.020,0.20);
   }
   if(G.level===3){
     if((beat===2||beat===6)&&ringOf()===0)kick(t,0.032);
@@ -2022,6 +2068,20 @@ function musicStep(i,t,k){
     if(beat%2===1)hat(t,0.012,3600,0.15,0,0.35,6400);
     if((k>0.25||hot)&&(beat===2||beat===6))kick(t,0.030);
     if((k>0.45||hot)&&beat===7)snare(t+S16,0.022,0.28);
+  }
+  /* THE CHORUS LEAN — the genre's chorus recipe, at this band's scale: the
+     open offbeat hat arrives (levels 1-3; level 4 rides one all game, so its
+     chorus adds the sixteenth ghost instead), a half-time backbeat lands
+     (level 2's own lean already covers it there — see above), and ONE color
+     tone a bar: the sounding chord's own seventh (SEVB), sustained an octave
+     up. m7 on the minor chords, maj7 on III and VI — the pad voicing split
+     the reference records use, and the one place extensions live: the arp
+     and every riff stay plain pentatonic, per the same records. */
+  if(MU.sect){
+    if(G.level===4){if(beat%2===0)hat(t+S16,0.007,4400,0.04,0,0,7200);}
+    else if(beat%2===1)hat(t,0.010,3800,0.13,0,0.3,6600);
+    if(beat===4&&G.level!==2)snare(t,0.018,0.20);
+    if(beat===0)note(SEVB[G.level-1][cix]*2,t,1.6,'triangle',0.016,1400,(bar%2)?0.22:-0.22);
   }
   /* THE SKY FLAVOURS THE KIT (playtest: "more electro beats"). Each palette
      band the run climbs through puts its own spin on the percussion: band 1
@@ -2118,8 +2178,14 @@ function musicStep(i,t,k){
    voicing (root, octave, third, fifth), each block of four an octave up.
    Everything the player triggers speaks through this, so a tap is a chord
    tone of THIS bar by construction — harmony is no longer luck. */
+/* WHICH CHORD IS SOUNDING is two facts, not one: the bar ordinal, and the
+   section's walk order. The verse walks its row in place; the chorus may
+   open anywhere in its row (CHOFF — see PROGB), which is how a chorus
+   starts off-tonic while CH[0] stays the i chord every tonic-reader
+   assumes. Every consumer of "the chord now" goes through this. */
+function chI(bar){return (MU&&MU.sect)?((bar+CHOFF[G.level-1])%4):(bar%4);}
 function chTone(ix){
-  const ch=CH[MU?(((MU.step/8)|0)%4):0];
+  const ch=CH[MU?chI((MU.step/8)|0):0];
   const i2=Math.max(0,ix|0);
   return ch[i2%4]*(1<<((i2/4)|0));
 }
@@ -2711,7 +2777,9 @@ function judgeTiming(x,y){
     if(MU&&MU.pay>0){
       const ex=8*(G.secMult||1);
       G.score+=ex;G.secScore+=ex;G.scorePop=Math.max(G.scorePop,0.6);
-    }else if(G.od>0||G.spot>0||G.hyper>0||G.shields>=shieldMax()){
+    }else if(G.od>0||G.spot>0||G.hyper>0||G.shields>=shieldMax()||MU.sect===1){
+      /* riding the CHORUS pays like the other standing states: the section
+         hot play earned is worth staying inside — same garnish scale */
       G.score+=8;G.scorePop=Math.max(G.scorePop,0.5);
     }
     const was=G.groove;
@@ -2969,6 +3037,7 @@ function bedTick(dt){
   let cut=520+1500*k*k+900*PLAY.heat+420*gv+(playing?RINGS[ringOf()].lift:0)
     +((MU&&MU.armed&&!MU.rise)?260:0)    /* the armed wait audibly opens */
     +(G.od>0?420:0)+(G.hyper>0?520:0)+((MU&&t<MU.glow)?280:0) /* overdrive, hypernova and afterglow run bright */
+    +((MU&&MU.sect)?200:0)               /* the chorus opens the pad — half the lift */
     +(FIN.on?90*FIN.got:0);                      /* the dive opens with every star */
   if(MU&&MU.pay>0)cut=Math.min(cut,((PAY-MU.pay)>>3)<(MU.lateAt||4)?380:700);
   /* the slow breath: textures in the reference genres move over MINUTES —
@@ -3480,11 +3549,96 @@ const SOLOL=[
   5,-1,7,-1,8,-1,9,10, -1,9,-1,7,-1,5,-1,-1],
  [9,-1,10,-1,9,8,-1,7, -1,9,-1,10,-1,12,-1,10,
   9,-1,7,-1,8,-1,9,-1, 7,5,-1,7,-1,-1,5,-1]];
+/* ---------- THE CHORUS ----------
+   A VERSE ALONE IS NOT A SONG. Every level walked its one four-chord loop
+   forever: the arrangement thickened and thinned (the vertical axis games
+   share), but what the harmony was DOING never changed — no section, no lift,
+   no form. Each level now owns a SECOND diatonic progression, and the song
+   moves between them with the run: play hot and the record lifts into its
+   chorus at the next four-bar seam; cool off and it settles back to the
+   verse. Horizontal form, driven by play, on top of the vertical layering.
+
+   The shapes are studied from the genre this band imitates (the owner's
+   references: Kavinsky — Nightcall, Odd Look, Protovision). Two lessons from
+   the records carried here:
+   - THE LIFT IS A ROTATION, NOT A KEY CHANGE. Nightcall's chorus never
+     modulates: it starts the loop on VI with the tonic withheld until the
+     turnaround (F G Em Am under an A-minor verse), and floats. That is
+     CHOFF below — the chorus may open on any chord of its row because the
+     walk ORDER is a separate fact from the chord INVENTORY.
+   - EVERY ROW'S CHORD 0 IS THE i CHORD, IN BOTH TABLES, ALWAYS. CH[0][0] is
+     read as "the level's tonic" by roughly twenty-five call sites — the
+     snare body, fireDrop, braam, the star-dive floor, the black hole, half
+     the SFX layer. The rotation exists so a chorus can START off-tonic
+     while CH[0] never stops being the tonic chord those readers assume.
+     musiccheck.mjs enforces both halves.
+
+   The four choruses, heard order (walk = row[(bar+CHOFF)%4]):
+   L1 LIFT OFF      — VI VII v i  (F G Em Am). Nightcall's own chorus in
+     Nightcall's own key: tonic withheld for three bars, home on the fourth.
+     The v is the mode's cool minor dominant — lift without a leading tone.
+   L2 INTO THE RINGS — VI VII i i (Eb F Gm). The Aeolian cadence — two
+     whole-step root ascents into the tonic — where the verse only ever
+     descended. Same chords, opposite direction; the loop's last bar IS the
+     verse's first, so the sections dovetail with zero seam.
+   L3 THE STORM     — i i III VII (Fm Fm Ab Eb). Protovision's cell with its
+     one borrowed chord translated: the record rides two bars of tonic, lifts
+     through III and cadences V–i every four bars — the harmonic-minor V is
+     unusable here (the raised seventh against the SFX pentatonic), and
+     VII–i is the mode's own cadence, so the ramp keeps its shape and burns
+     cooler. Asymmetric harmonic rhythm: a ramp, not a circle.
+   L4 EVENT HORIZON — iv i III v (Abm Ebm Gb Bbm). Odd Look's loop in Odd
+     Look's actual key (the album take sits in Eb minor at ~105 BPM — this
+     band's own tempo): launches on the subdominant, and the v recycles to
+     iv at the seam instead of resolving, endless as the level. Its major V
+     is the one chord the record has that this game cannot borrow — the SFX
+     pentatonic would rub its raised seventh — so the diatonic v stands in,
+     which is also what Nightcall does all along.
+
+   Every chord is diatonic to its level's natural minor, same as PROG — the
+   constraint that binds the whole audio path binds the chorus too. */
+const PROGB=[
+ [[110,220,261.63,329.63],[87.31,174.61,220,261.63],
+  [98,196,246.94,293.66],[82.41,164.81,196,246.94]],          /* Am F  G  Em  */
+ [[98,196,233.08,293.66],[98,196,233.08,293.66],
+  [77.78,155.56,196,233.08],[87.31,174.61,220,261.63]],       /* Gm Gm Eb F   */
+ [[87.31,174.61,207.65,261.63],[87.31,174.61,207.65,261.63],
+  [103.83,207.65,261.63,311.13],[77.78,155.56,196,233.08]],   /* Fm Fm Ab Eb  */
+ [[77.78,155.56,184.99,233.08],[92.50,184.99,233.08,277.18],
+  [116.54,233.08,277.18,349.23],[103.83,207.65,246.94,311.13]]];/* Ebm Gb Bbm Abm */
+/* where each chorus's walk begins in its row — the rotation that lets a
+   chorus open off-tonic while row slot 0 stays the i chord */
+const CHOFF=[1,2,0,3];
+/* THE COLOR TONE: each chorus chord's own stacked-third seventh, sustained
+   once a bar an octave up — m7 on the minor chords, maj7 on III and VI,
+   which is exactly the voicing split the reference records use. Diatonic by
+   construction (a third above the chord's fifth never leaves the scale);
+   held to that numerically in musiccheck. Indexed like PROGB rows. */
+const SEVB=[
+ [196,164.81,174.61,146.83],       /* G  E  F  D  — Am7 Fmaj7 G7 Em7   */
+ [174.61,174.61,146.83,155.56],    /* F  F  D  Eb — Gm7 Gm7 Ebmaj7 F7  */
+ [155.56,155.56,196,138.59],       /* Eb Eb G  Db — Fm7 Fm7 Abmaj7 Eb7 */
+ [138.59,174.61,207.65,184.99]];   /* Db F  Ab Gb — Ebm7 Gbmaj7 Bbm7 Abm7 */
+/* the chorus arps: same even-eighth grid, same 0-4 ceiling (the band still
+   stops below the player's floor), different contour — the surface the ear
+   tracks bar to bar, so the section change reads melodically too */
+const ARPBL=[[2,4,3,4,2,4,3,4],[0,1,2,3,4,3,2,1],[3,4,3,4,2,4,3,4],[4,0,3,0,4,1,4,2]];
+/* ONE WRITER FOR THE SECTION. CH and ARP are the live tables everything
+   reads — the pad retune, chTone, every bassline — so swapping the section
+   is copying a row set, and everything downstream follows by construction.
+   Callable any time: the pad retunes at the next bar line, not here. */
+function applySect(s){
+  if(MU)MU.sect=s;
+  const li=G.level-1;
+  const rows=s?PROGB[li]:PROG[li];
+  for(let j=0;j<4;j++)CH[j]=rows[j];
+  const arp=s?ARPBL[li]:ARPL[li];
+  for(let i=0;i<ARP.length;i++)ARP[i]=arp[i];
+}
 function applyLevelMusic(){
   const L=LV[G.level-1];
   for(let i=0;i<PENT.length;i++)PENT[i]=PENT_BASE[i]*L.key;
-  for(let j=0;j<4;j++)CH[j]=PROG[G.level-1][j];
-  for(let i=0;i<ARP.length;i++)ARP[i]=ARPL[G.level-1][i];
+  applySect(0);   /* a level always opens on its verse */
 }
 /* THE WHAAA. The braam from the drop hit — sub boom under a swelling
    fifth-stack — promoted to the game's signature voice: level starts and
@@ -3563,6 +3717,8 @@ function levelComplete(){
        reset, and the data was simply gone. Same scale as `seconds` above, so
        the run total is a sum across a run_index either way. */
     pauses:PAUSE.n,paused_seconds:Math.round(pausedSeconds()),
+    /* the same pair run_ended carries, for the same reason as `pauses` */
+    chorus_entries:G.chorusN,chorus_bars:G.chorusBars,
     /* how the Star Dive went: 11 is the perfect ending */
     fin_got:(FIN.on||FIN.done)?FIN.got:null,
     fin_perfect:(FIN.on||FIN.done)&&FIN.got>=11
@@ -4299,6 +4455,7 @@ const G={
   bassPlaced:false,spotPlaced:false,   /* the level-2 orb guarantees */
   lapCut:0,lapCutDir:1,lapCutA:0,lapFx:null, /* a committed reverse's discarded orbit — the cost, drawn */
   beatPop:false,lsnN:0,said8:false,   /* per-run: ON BEAT popup, lessons shown, ×8 line */
+  saidChor:false,chorusN:0,chorusBars:0, /* the chorus: named once per run; entries and bars for telemetry */
   loopFx:0,bandCap:false,bandCapT:0,  /* loop-ghost pulse; band-meter caption */
   killerTaught:false,killerRetaught:false,
   od:0,odT:0,odCool:0,odBrk:false,     /* overdrive: eighths left, heat clock, cooldown, break-due */
@@ -5065,6 +5222,7 @@ function startGame(){
   G.bandN=0;G.bandFx=0;G.sndAt=0;G.sndStr=null;
   G.flashT=0;G.meetNext=0;G.teachSoft=false;G.teachType=null;ANN.length=0;annNext=0;
   G.lapCut=0;G.lapCutDir=1;G.lapFx=null;G.beatPop=false;G.lsnN=0;G.said8=false;
+  G.saidChor=false;G.chorusN=0;G.chorusBars=0;
   G.loopFx=0;G.bandCap=false;G.bandCapT=0;LOOPQ.length=0;
   skyI=0;      /* the sky opens on band 0 — the ratchet re-deepens it as the run climbs */
   pd=null;     /* a finger held across the death screen must not steer the new run */
@@ -5303,6 +5461,9 @@ function die(){
        on-beat chain's peak — the timing-skill numbers the balance
        questions keep needing */
     lands:G.lands,best_groove:G.bestGroove,
+    /* the chorus: entries and bars held, per level like `seconds` — did the
+       run ever lift the song, and could it stay there */
+    chorus_entries:G.chorusN,chorus_bars:G.chorusBars,
     /* the conversion and engagement aggregates: earned drops vs landed,
        whether the twin exam arrived by hop or by timeout, peak combo,
        loop captures, deliberate dodges, and musical-orb pickups */
@@ -9593,6 +9754,13 @@ function drawHUD(){
          the same idiom as OVERDRIVE x2, which is a real multiplier. */
       text('LAPS '+G.lapStreak+' IN A ROW',cx,top+154*u,9*u,'700',
         'rgba(255,200,120,0.85)',2);
+      ctx.globalAlpha=1;
+    }else if(MU&&MU.sect===1&&roomy){
+      /* the chorus is the most ambient state of all, so it yields this slot
+         to everything above — in the groove's own violet, breathing with
+         the beat like the counter that shares its color */
+      ctx.globalAlpha=0.40+0.14*G.beat;
+      text('CHORUS',cx,top+154*u,9*u,'700',COL.warp,2);
       ctx.globalAlpha=1;
     }
     /* WHY A DROP IS COMING, at the moment it is earned. Named, so the cause

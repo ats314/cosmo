@@ -222,12 +222,12 @@ fails if one key changes.
 The run is **four levels**, each with an intro card and its own song. The
 first three have finish lines; the fourth does not:
 
-| Level | Name | Introduces | Key | Progression | Groove |
+| Level | Name | Introduces | Key | Verse · Chorus | Groove |
 |---|---|---|---|---|---|
-| 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor | i–♭VI–♭III–♭VII | the original groove |
-| 2 | INTO THE RINGS | gates, drifters, blinkers, bass bomb, hypernova | G minor | i–♭VII–♭VI–iv | swung sixteenths, bass off the beat |
-| 3 | THE STORM | the two compounds — sliding gates, flicker pairs — plus THE SAUCER and the spotlight, then a finish line | F minor | i–♭III–v–♭VI | rolling four-on-the-floor |
-| 4 | EVENT HORIZON | **no new formations** — the same storm with no exit, speed climbing toward the 4.2 rad/s ceiling, and one black hole guaranteed. Endless. | E♭ minor | i–♭VI–♭VII–i, over a tonic pedal | octave bass, open offbeat hat |
+| 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor | i–♭VI–♭III–♭VII · ♭VI–♭VII–v–i | the original groove |
+| 2 | INTO THE RINGS | gates, drifters, blinkers, bass bomb, hypernova | G minor | i–♭VII–♭VI–iv · ♭VI–♭VII–i–i | swung sixteenths, bass off the beat |
+| 3 | THE STORM | the two compounds — sliding gates, flicker pairs — plus THE SAUCER and the spotlight, then a finish line | F minor | i–♭III–v–♭VI · i–i–♭III–♭VII | rolling four-on-the-floor |
+| 4 | EVENT HORIZON | **no new formations** — the same storm with no exit, speed climbing toward the 4.2 rad/s ceiling, and one black hole guaranteed. Endless. | E♭ minor | i–♭VI–♭VII–i · iv–i–♭III–v, both over a tonic pedal | octave bass, open offbeat hat |
 
 **BLACK HOLE MODE** runs across levels 3 and 4 and is neither a level nor a
 power-up: a rare dark orb you may take or decline, and 17 seconds of somewhere
@@ -350,6 +350,52 @@ dominant that would be the obvious way to make a minor loop sound more
 finished. All four rows were checked numerically rather than by ear: exact
 octaves, perfect fifths, every chord diatonic, and no semitone rub against the
 pentatonic that the shipped progressions did not already carry.
+
+**The song has a chorus now, and playing well is how you get there.** A verse
+alone is not a song: the arrangement always thickened and thinned with the run
+(vertical layering, the axis every adaptive score has), but what the harmony
+was *doing* never changed. Each level now owns a second diatonic progression,
+and the record moves between the two with the play — hot play (a groove chain,
+an earned state, real heat) lifts it into the chorus at the next four-bar
+seam; cooling off hands it back to the verse; every beat-drop payoff resolves
+into the chorus through its afterglow, so the drop the game already guarantees
+is also the guaranteed road in. That last clause matters: a player who never
+chains a beat still hears every level's chorus, the same worst-case promise
+the drop itself makes. Riding the chorus pays on-beat taps like the other
+standing states, the HUD names it, and one line names the mechanic the first
+time a run earns it.
+
+The chorus shapes are studied from the records this band imitates — the
+owner's three references, cross-checked across transcriptions: **Nightcall**
+(A minor, pure Aeolian — its chorus never modulates; it starts the loop on ♭VI
+with the tonic withheld and floats), **Odd Look** (E♭ minor at ~105 BPM, this
+band's own tempo — one iv–i–♭III–V loop for the whole song, the lift purely
+textural), and **Protovision** (E♭ minor — one asymmetric i–i–♭III–V cell,
+two bars of tonic then a ramp). So level 1's chorus is Nightcall's, in
+Nightcall's own key; level 4's is Odd Look's loop in Odd Look's actual key,
+launched on the subdominant, endless as the level; level 3's is Protovision's
+ramp; and level 2 — whose verse walks the descending tetrachord — gets the
+Aeolian cadence, the same chords climbing the other way, dovetailing back
+into its verse with a zero-glide seam. The one thing the records do that this
+game cannot copy is their single borrowed chord: Odd Look's and Protovision's
+major V carries a raised seventh that would put the entire SFX layer a
+semitone out, so the diatonic v stands in — which is what Nightcall, 100%
+diatonic, does all along.
+
+Two implementation facts are load-bearing. A chorus *starts* off-tonic but
+its row slot 0 is still the i chord — `CH[0][0]` is read as "the level's
+tonic" by roughly twenty-five call sites, so the walk order (`CHOFF`) is a
+separate fact from the chord inventory, and the rotation is what lets
+Nightcall's tonic-withholding trick coexist with every tonic reader in the
+file. And the chorus carries the genre's voicing split — m7 on the minor
+chords, maj7 on ♭III and ♭VI, one sustained color tone a bar (`SEVB`) — while
+the arp and every riff stay plain pentatonic, which is also how the reference
+records keep their extensions from muddying the ostinato. `musiccheck.mjs`
+holds all of it: cold play voices the verse row exactly, hot play must lift
+at a legal seam and hold the chorus *walk* (order, not pitch sets — the L2
+chorus reuses the verse's chords in a different order, invisible to a set
+comparison), both rows diatonic, both anchored on i, every seventh a stacked
+third, every glide including the section seams inside an octave.
 
 **Level 4 had been getting the leftovers.** Its bassline branch fell through to
 level 3's, it had no kit block at all, and the endless level — the one good
@@ -1532,7 +1578,11 @@ than guesses. The play-style aggregates round it out: `lands` vs
 `best_combo` (did the rhythm and combo lessons change behaviour),
 `hold_timeout` (the twin exam arrived by hop or by the release valve —
 the purest hop-teaching signal), `loop_caught`, `near_misses`, and
-`got_bass` / `got_spot` alongside the existing orb pickup flags. **The black
+`got_bass` / `got_spot` alongside the existing orb pickup flags.
+`chorus_entries` and `chorus_bars` ride on `run_ended` *and* `level_cleared`
+(the same per-level scale and split as `pauses`, for the same reason): did a
+run ever lift the song, and could it stay there — the two numbers that say
+whether the chorus threshold is tuned right. **The black
 hole reports all three outcomes now:** `blackhole_entered`, `blackhole_survived`
 and — new — `blackhole_died`, which did not exist, so the mode's failure rate,
 the one number that says whether it is too hard, lived nowhere and had to be
@@ -1845,7 +1895,7 @@ checks green while crashing the real game on level 4 with an undefined index.
 
 So this one stubs WebAudio rather than removing it, drives the real scheduler
 at every level, and asserts what came out: that each level's pad voices *its*
-chords and nothing else, that the four progressions are four distinct shapes
+chords and nothing else, that the progressions are distinct shapes
 rather than one transposed, that the four payoff hooks are four distinct tunes
 sharing one rhythmic signature, that the response bars stay silent, that level
 4 has a bassline and a kit of its own, that no pad voice glides more than an
@@ -1853,6 +1903,20 @@ octave between chords (the pad portamentos, so a chord that leaps is a chord
 you hear swoop), and that every pitch in the drop, the snare body and the tom
 fill is diatonic to the key actually playing. It also pins level 1: its snare
 is still 196Hz and its drop still within a cent of what shipped.
+
+The chorus doubled what it holds. Cold play must voice the verse row exactly
+(which is also the proof the lift cannot trigger itself), hot play must lift
+at a four-bar seam no earlier than bar 8 and then hold the chorus *walk* —
+the row read through its rotation, asserted in order, because the L2 chorus
+is the verse's own chords walked the other way and a pitch-set comparison
+cannot see order. Both tables are held to one law: chord 0 is the i chord
+(the tonic anchor twenty-five `CH[0][0]` readers rely on), every pitch
+diatonic, every chorus seventh a genuine stacked third, every glide — the
+section seams included — inside an octave, and the chorus arps under the same
+784Hz ceiling as the verse's. The color-tone assertion matches on sustain as
+well as pitch: the counter-line lands on the same frequency by pentatonic
+arithmetic, and a first version of the check counted it, so deleting the
+color line stayed green until the check learned to read note length.
 
 ## License
 
