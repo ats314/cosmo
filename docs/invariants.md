@@ -132,7 +132,7 @@ reachable from POWERUP TESTING.*
 
 - **A LAB SESSION LEAVES NOTHING BEHIND, and that is the whole feature.**
   POWERUP TESTING is a sandbox reached from the title screen: it forces one
-  orb, pins `dl()` to `LAB_DL`, and switches red off by default. Every one of
+  orb, pins `dl()` to `LAB_DL` (40), and switches red off by default. Every one of
   its guarantees is a `!LAB.on` sitting on a line whose ordinary job is to
   write to the device — the best score, the level record, the run count, the
   struggle streak, the `seen` bits, telemetry — so an omitted guard looks
@@ -379,7 +379,7 @@ render-scale dial.*
   as the game being broken, not as weather. It shipped that way from the
   shader's first day and was found from two same-build screenshots hours
   apart: one vivid, one black. Two rules now hold. The drift is an ELLIPSE, so
-  one lap (~14 minutes at the current `GL_MOTION`) is every drift the game can
+  one lap (~14 minutes at the current `GL_MOTION` of 0.72) is every drift the game can
   ever show, and a closed set can be verified end to end. The gate is FLOORED
   (`0.10 + 0.90*smoothstep`), so a barren stretch reads quiet, never black.
   **These two numbers were wrong here for two commits** — this entry quoted the
@@ -424,7 +424,7 @@ render-scale dial.*
   "danger". The owner lifted both, deliberately and against a stated risk, so
   that worlds like EMBERFALL could exist and the backdrop could stop being
   four recolours of one picture. The contract is now held where it is actually
-  read: `SKY_ARENA_CALM` compresses local contrast in the annulus the orbits
+  read: `SKY_ARENA_CALM` (currently 0.34) compresses local contrast in the annulus the orbits
   occupy (0.09–0.20 of screen height), so a hot sky burns at the rim while the
   band a shard is read against stays quiet. **Hue is free everywhere;
   brightness and contrast directly behind the rings are not.** If a playtest
