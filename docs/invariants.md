@@ -333,6 +333,30 @@ render-scale dial.*
   This was caught by measurement, not by reading: the code was a faithful copy
   of a shipped, correct lens, and it looked right in review.
 
+- **A HALO MUST BE COMPOSITED IN THE SAME TRANSFORM ITS SOURCE WAS DRAWN IN,
+  and "the same transform" is a thing to check rather than assume.** This is
+  the entry above's failure one level worse: there the halo's displacement
+  *bound* was wrong, which a better constant fixes; here the halo was in the
+  wrong coordinate *space*, which no constant can fix.
+  `drawBloom`'s bright pass draws every light with `setTransform(s,0,0,s,0,0)`
+  — a pure scale, no camera dolly. The composite that lays the finished glow
+  back down ran INSIDE the world pass, which is wrapped in
+  `ctx.translate(camX,camY)`. So the whole glow layer sat offset from the
+  lights it was made of by exactly the dolly, every frame, oscillating on a
+  sine. Two player-visible defects out of that one mismatch, both reported in
+  the same sentence — *"it's like you put a layer over the screen ...
+  everything just kind of wobbles around"*: every halo drifted off its own
+  light and back forever, and the full-screen layer hung past the frame
+  boundary so `drawImage`'s upscale clamped and smeared the outermost texel
+  into a hairline rim. Measured on the 2D layer alone, left device columns
+  0/1/2 against an interior of 3.6: 5.0/4.4/3.5 before, 3.5/3.5/3.5 after.
+  **Nothing in the suite could ever have seen this.** The harnesses stub the
+  canvas, so a `drawImage` at the wrong translate is indistinguishable from
+  one at the right translate — `drawcheck.mjs` counts the call and validates
+  its arguments, and both versions are valid on every count. It needed a
+  screenshot. If you add a full-screen composite, state which transform its
+  source used and put the composite in that one.
+
 - **A SCREEN-SPACE WARP IS INVERSE SAMPLING, so its sign is the opposite of
   what it looks like.** The shader is handed a destination fragment and asked
   which part of the source to read, so reading from a SMALLER radius
