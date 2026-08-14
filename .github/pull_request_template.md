@@ -38,7 +38,8 @@
 
 ---
 
-**Before merging:** every check green, then squash-merge, then
-`git push origin --delete <branch>`. Squash-merging leaves the branch behind
-looking permanently unmerged; twenty-nine of them accumulated before anyone
-counted.
+**Merging:** arm **auto-merge (squash)** as soon as this is open — the
+repository allows it, so GitHub merges on green and deletes the branch itself.
+Do not sit and watch the run: the merge condition is "checks green", which
+GitHub already evaluates, and polling it costs a minute of billed waiting per
+pull request and buys nothing.
