@@ -473,14 +473,14 @@ function crossFront(st, frame, fire, pid) {
   if (!fs) { fail.push('GL_FS not found — the sky-luminance sweep cannot run'); }
   else {
     const body = fs[1];
-    const mOrbit = body.match(/float drA=uFlow\*([\d.]+);\s*\n\s*vec2 dr=vec2\(sin\(drA\)\*([\d.]+),cos\(drA\)\*([\d.]+)\)/);
+    const mOrbit = body.match(/float drA=uFlow\*([\d.]+);\s*\n\s*vec2 dr=vec2\(([\d.-]+)\+sin\(drA\)\*([\d.]+),([\d.-]+)\+cos\(drA\)\*([\d.]+)\)/);
     const mGate = body.match(/band\*=\(([\d.]+)\+([\d.]+)\*smoothstep\(uCov,uCov\+0\.20,covA-0\.18\*\(covB-0\.5\)\)\)/);
     const mCov = src.match(/const GL_COV=([\d.]+), GL_EXP=([\d.]+)/);
     const mMot = src.match(/const GL_MOTION=([\d.]+)/);
     if (!mOrbit) fail.push('the drift is not the bounded orbit — a linear drift walks into multi-minute nebula blackouts (or the port desynced: update it with GL_FS)');
     if (!mGate) fail.push('the coverage gate has no floor — a barren coverage sample blacks out the whole sky (or the port desynced: update it with GL_FS)');
     if (mOrbit && mGate && mCov && mMot) {
-      const [OMEGA, AX, AY] = [+mOrbit[1], +mOrbit[2], +mOrbit[3]];
+      const [OMEGA, CX2, AX, CY2, AY] = [+mOrbit[1], +mOrbit[2], +mOrbit[3], +mOrbit[4], +mOrbit[5]];
       const [GF0, GF1] = [+mGate[1], +mGate[2]];
       const [COV, EXP] = [+mCov[1], +mCov[2]];
       const MOT = +mMot[1];
@@ -513,7 +513,7 @@ function crossFront(st, frame, fire, pid) {
       const STEPS = 96, GX = 8, GY = 16;
       for (let i = 0; i < STEPS; i++) {
         const th = (i / STEPS) * 2 * Math.PI;
-        const drx = Math.sin(th) * AX, dry = Math.cos(th) * AY;
+        const drx = CX2 + Math.sin(th) * AX, dry = CY2 + Math.cos(th) * AY;
         let lum = 0;
         for (let gy = 0; gy < GY; gy++) for (let gx = 0; gx < GX; gx++) {
           lum += lumAt((-0.5 + (gx + 0.5) / GX) * (390 / 844), -0.5 + (gy + 0.5) / GY, drx, dry);
@@ -523,11 +523,32 @@ function crossFront(st, frame, fire, pid) {
         if (lum < worst) { worst = lum; worstTh = th; }
       }
       const mean = msum / STEPS;
-      if (worst < 0.04) {
+      /* BOTH DIRECTIONS ARE PINNED, because each has now shipped broken once.
+         Too dark: the blackout epochs, 0.0000 for ten minutes. Too bright:
+         the first orbit swept lush territory under a 0.42 gate floor and the
+         sky came out ~3x the historical look — a glowing frame around the
+         arena, which a one-sided floor check waved through. The bands are the
+         historical healthy statistics (mean 0.142, dips 0.028, peaks 0.268)
+         with margin either side. */
+      if (worst < 0.03) {
         fail.push(`the sky goes dark: darkest point of the drift orbit has mean nebula luminance ${worst.toFixed(4)} `
-          + `(orbit mean ${mean.toFixed(4)}) — the old blackouts read 0.0000 for 10+ minutes, and 0.04 is the never-again floor`);
+          + `(orbit mean ${mean.toFixed(4)}) — the old blackouts read 0.0000 for 10+ minutes; the historical look never dipped under 0.028`);
+      } else if (mean > 0.17 || mean < 0.10) {
+        /* 0.17, not 0.20: the first cut of this ceiling was tuned by feel and
+           the exact bug it existed to catch — the 0.42 gate floor — produced
+           mean 0.1918 and sailed under it. Bands must be set from the failure
+           they guard against, measured, not from a round number. */
+        fail.push(`the sky's brightness left the historical band: orbit mean ${mean.toFixed(4)} against the look's 0.142 `
+          + '— "never black" must not be bought by flooding the sky with light, nor the reverse');
+      } else if (worst > 0.07) {
+        /* the beloved look RESTS: its healthy epochs dip to 0.028-0.05, and
+           real darkness is part of the composition. An orbit whose darkest
+           point is still bright means a floor or territory change abolished
+           the quiet stretches — the milky-sky failure from the other side. */
+        fail.push(`the sky never rests: the darkest point of the orbit is ${worst.toFixed(4)}, `
+          + 'but the historical look dips to 0.028-0.05 — its darkness is part of the composition');
       } else {
-        note.push(`sky over the full orbit: darkest ${worst.toFixed(4)}, mean ${mean.toFixed(4)} — never black (lap ${Math.round(2 * Math.PI / (OMEGA * MOT))}s)`);
+        note.push(`sky over the full orbit: darkest ${worst.toFixed(4)}, mean ${mean.toFixed(4)} — matches the historical look (lap ${Math.round(2 * Math.PI / (OMEGA * MOT))}s)`);
       }
     } else if (mOrbit && mGate) {
       fail.push('GL_COV/GL_EXP/GL_MOTION constants no longer parse — the sky sweep cannot run');
