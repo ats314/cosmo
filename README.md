@@ -949,10 +949,11 @@ beats is never really explained: some of the best parts of the game are
 never used by new players" — gets its own lesson set, event-triggered at
 the exact moment the player first touches each system: the first reverse's
 calm names the whole idea ("your moves play the music — every tap is a
-note"), the first on-beat tap names the timing game ("tight timing pays
-and opens the band"), the first ×3 names the combo, ×8 says what the
-summit bought, and the level 1 card carries the promise up front. All
-soft lessons — sentences, never slow-mo.
+note"), the first on-beat tap names the timing game ("tap as the ring
+lands and the chain climbs" — it points at the one object that shows the
+beat), the first ×3 names the combo, ×8 says what the summit bought, and
+the level 1 card carries the promise up front. All soft lessons —
+sentences, never slow-mo.
 
 **Hard lessons are a held breath now.** The first-encounter slow-mo ran at
 0.35x — the new threat was explained over a board still visibly in motion.
@@ -1310,17 +1311,45 @@ the next one (the payoff sweep later drains the same circle), and the only
 message the player ever sees is "BEAT DROP COMING…". Nothing earned while
 the music is busy is discarded; it counts toward the next.
 
-**Timing is rewarded, and never punished.** Each input is judged against the
-sixteenth grid; land tight and the **on-beat** chain climbs to ×8 (shown as "ON BEAT ×N" — playtesters had no idea what "groove" meant). An off-beat
-input simply earns nothing — the game already demands you tap when a shard
-arrives, and docking you for surviving at the wrong moment would force a choice
-between playing well and playing in time.
+**Timing is rewarded, and never punished.** Each input is judged in three
+tiers. Tight against the **quarter — the beat the contracting ring draws —
+climbs** the **on-beat** chain toward ×8 (shown as "ON BEAT ×N" —
+playtesters had no idea what "groove" meant). Tight against the sixteenth
+only — offbeats, fills, survival taps in the song's own subdivisions —
+**holds** the chain and still earns the section garnish; it just doesn't
+climb. Everything else **slips** one rung — never the chain, never points:
+the game already demands you tap when a shard arrives, and docking you for
+surviving at the wrong moment would force a choice between playing well and
+playing in time. The chain used to climb on any sixteenth-tight hit, and at
+±32ms against a 144ms grid random tapping landed ~44% of hits — a playtest
+said "feels like you can just tap randomly and get chains", and simulation
+agreed: mashing reached ×8 in a quarter of 300-tap trials. On the quarter
+it reaches ×8 in none of 500, while a player actually tapping the beat
+still maxes in ~12 taps. A near-miss aimed at the beat answers with a dim
+arc beside the ring — leading side early, trailing side late — so a player
+hunting the beat can steer instead of guessing; a climb lands the next ring
+with visible extra weight. The thing taught and the thing judged are now
+the same object.
+
+**Holding ×8 is a place, and the sky is how you know you're in it.** The
+pocket: keep the chain at the top (×7 sustains it — one slip of grace, the
+same one rung a miss costs) and over about a bar the backdrop changes state
+rather than brightness. The nebula's flow field accelerates 3.2×, the dust
+lanes crystallize into a bright filament network that breaches the coverage
+voids — the same ridged field that carves them dark, re-entered as light,
+widening on each landed beat — the palette phase nudges per beat, the big
+stars glint on the grid, and every landed beat seeds a ripple at the comet
+through the interference field the taps already use. Measured on a ported
+copy of the shader math: filaments light 8.1% of the void on the landed
+beat (0% at rest), highlight coverage 15.9%→19.4%. The 2D fallback rides
+the same envelope through its swell, rays, twinklers and motes, and the
+trail's last 0.3 of payoff-grade brightness belongs to the pocket alone.
 
 **Each rung of the chain is heard.** The per-rung gain boost was ~0.6dB —
 under what a phone speaker makes audible — so the ladder used to speak only
 through HUD text until the pad opened at ×5. Now the tap that raises the
 chain carries a quiet confirmation tone one scale degree higher per rung, so
-eight tight sixteenths literally walk up the scale, and ×8 lands with the
+eight nailed beats literally walk up the scale, and ×8 lands with the
 tier-unlock fanfare and a build bonus worth about a quarter of the meter —
 the summit stopped being a dead end.
 
@@ -1329,9 +1358,15 @@ The judgement is of **consistency, not absolute accuracy**. A phone adds
 player tapping perfectly in time registers late and never scores — their device
 deciding their result. Instead a running bias is tracked and the deviation from
 it is judged, so a player reliably 60ms late is playing in time and gets credit.
-Verified by simulating exactly that: the system learned a bias of 0.057 against
-an injected 55ms and that player reached ×8 alongside a perfectly-timed one,
-while arbitrary tapping topped out at ×4.
+But a latency is static, so the learner is too: twelve gated taps of fast
+calibration for a fresh device, then the bias slews at most 2ms per tap inside
+±120ms. At the old always-on 0.18 EMA the calibration was fast enough to
+*track* a sloppy masher's wandering cadence — simulation showed a ~7Hz
+renewal tapper being chased by his own bias all the way to ×8 in 458 of 500
+trials; slew-limited on the quarter grid that is 0. Verified end-to-end in
+`musiccheck.mjs`: a tapper 40ms late on every beat calibrates in and maxes in
+~10 taps, 600 mashed taps peak around ×2–×4, and dead-on odd-sixteenth taps
+hold a ×5 chain without climbing or slipping.
 
 Score is awarded **only when the chain climbs**, never for holding it. Paying
 per tight hit made forty taps worth 320 against 86 for a maxed orbit — rhythm
