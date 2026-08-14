@@ -8152,6 +8152,28 @@ function drawBloom(){
     haloWG.drawImage(haloC,0,0,ww,wh);
   }
   ctx.save();
+  /* THE GLOW WAS COMPOSITED IN A DIFFERENT COORDINATE SPACE FROM ITS SOURCE.
+     The bright pass above draws every light with `setTransform(s,0,0,s,0,0)`
+     — a pure scale, no camera dolly. This composite runs inside the world
+     pass, which is wrapped in `ctx.translate(camX,camY)`. So the whole glow
+     layer landed offset from the lights it was made of by exactly the dolly,
+     every frame, oscillating on a sine (`camX=sin(amb*0.16)*3*u`).
+     Two visible defects out of that one mismatch, and both were reported:
+       - every halo drifts a few pixels off its own light and back, forever,
+         which reads as the scene never quite settling. Field report: "it's
+         like you put a layer over the screen ... everything just kind of
+         wobbles around."
+       - the full-screen layer is shifted past the frame boundary, so the
+         drawImage upscale clamps and smears the outermost texel into a
+         hairline rim. Measured on the 2D layer alone, left device columns
+         0/1/2 against an interior of 3.6: 5.0/4.4/3.5 before.
+     This is the detached-glow failure class the invariants already record
+     once, in a worse form: there the halo's bound was wrong, here the halo
+     is in the wrong space entirely. Resetting to the base transform puts the
+     composite exactly where the bright pass put its source. The halo
+     fallback below is drawn the same way for the same reason — `haloG` also
+     sets a pure scale with no dolly. */
+  ctx.setTransform(DPR,0,0,DPR,0,0);
   ctx.globalCompositeOperation='lighter';
   /* the bloom breathes with the payoff kick — the visual half of the pump */
   const bp=1+((G.pay>0&&!RM)?0.45*G.beat:0);
