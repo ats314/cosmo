@@ -3314,6 +3314,105 @@ const LAB={on:false,type:'blackhole',invuln:true,sel:6};
    the LAST SHIELD popup would fire, both of them lying about a run that cannot
    end. Nothing is consumed and nothing is announced; red simply passes. */
 function labGhost(){return LAB.on&&LAB.invuln;}
+/* ---------- pause ----------
+   A FLAG, NOT A STATE, and that distinction is load-bearing. G.state==='playing'
+   gates roughly twenty behaviours, and draw() dispatches on it with the DEATH
+   SCREEN as its final else — so a 'paused' state would have rendered GAME OVER
+   over a live run the first time anyone pressed the button. The run stays
+   'playing' and everything that reads the state stays true; what stops is the
+   clock.
+
+   AND STOPPING THE CLOCK IS THE WHOLE MECHANISM. update() opens with G.t+=dt,
+   so returning before that line freezes every deadline in the file at once —
+   invulnerability, spawn timers, cooldowns, lesson spacing, the tier ladder,
+   the difficulty clock, G.vt and the black hole's own tick, which lives inside
+   update and would otherwise run the mode to completion behind the panel. It is
+   the same argument the mode table makes for using dl() as its lever and the
+   lab makes for pinning it: one number, so nothing can drift out of step with
+   anything else. runTime() reads G.deadT-G.started, both on G.t, so paused
+   seconds leave the reported run length for free rather than by subtraction.
+
+   WHAT IT COSTS TO GET WRONG, already documented elsewhere in this file: the
+   pad is eight continuously running oscillators whose gain is written every
+   frame by bedTick, its only writer. Freezing update() stops bedTick, and a
+   stopped bedTick does not silence the band — it FREEZES it, droning one chord
+   at playing volume for as long as the panel is up. Silencing the scheduler is
+   not silencing the band. The bed is taken down explicitly on the way in, the
+   way the visibilitychange handler already does it, and bedTick restores it on
+   the first frame after the countdown.
+
+   THE BOARD IS HIDDEN WHILE PAUSED, which is the balance half. Shards telegraph
+   for between one and 2.35 seconds; a button that freezes a warning mid-flight
+   and lets you read the board at leisure is a difficulty change wearing a
+   convenience label. You cannot study what is not drawn. The countdown covers
+   the other direction — the board comes back for three seconds so you can
+   re-orient, frozen and unresponsive, and only then does time start again.
+   RE-PAUSING IS ON A COOLDOWN for the reason the countdown alone does not
+   cover: without one, pause-resume-pause is an unlimited supply of three-second
+   frozen looks at a live board, which is the exact thing the hidden board
+   exists to prevent, reassembled out of the escape hatch. */
+const PAUSE_COUNT=3;    /* seconds of frozen, visible board before play resumes */
+const PAUSE_COOL=5;     /* seconds of real play before pause re-arms */
+const PAUSE={on:false,resumeT:0,cool:0,n:0,total:0,at:0};
+/* PAUSED TIME IS WALL-CLOCK, AND THE FRAME DELTA CANNOT MEASURE IT.
+   frame() clamps dt to 0.05s, deliberately, so a stalled tab cannot fast-
+   forward the simulation on its first frame back — and while a tab is hidden
+   requestAnimationFrame does not fire at all. Accumulating pause duration out
+   of dt therefore recorded a ten-minute locked-phone break as a single capped
+   frame: 0.05 seconds. That is not a rounding error, it is the exact case the
+   field exists to detect, silently reported as its opposite.
+   performance.now() is monotonic and answers whether or not any frames ran.
+   The countdown deliberately still rides dt: it is an animation, and a tab
+   backgrounded mid-count SHOULD hold rather than silently expire.
+   Read through a function because the in-flight pause has not been committed
+   yet — telemetry can fire while the panel is up only if a later change lets
+   it, and a getter cannot be wrong about that the way a bare field can. */
+function pauseNow(){try{return performance.now();}catch(e){return 0;}}
+function pausedSeconds(){
+  return PAUSE.total+(PAUSE.at?Math.max(0,(pauseNow()-PAUSE.at)/1000):0);
+}
+/* Paused, or counting back in — either way the simulation is frozen. Read by
+   update() and by the input handler, so the two can never disagree about
+   whether the world is running. */
+function frozen(){return PAUSE.on||PAUSE.resumeT>0;}
+function canPause(){return G.state==='playing'&&!frozen()&&PAUSE.cool<=0;}
+/* THE AUDIO CONTEXT IS DELIBERATELY LEFT RUNNING. Suspending it would freeze
+   AC.currentTime and keep MU.next valid, which sounds like the tidy answer and
+   is the riskier one: iOS only reliably resumes a context from inside a user
+   gesture, the resume would land three seconds later at the end of the
+   countdown, and every tap already calls ensureAudio() at the top of the
+   handler — so a stray touch on the panel would have un-suspended it behind the
+   pause anyway.
+   Nothing is needed, because musicTick already survives an arbitrary gap: it
+   detects MU.next falling more than 0.4s behind, abandons the section rather
+   than replaying it compressed, and restarts on the next grid line. That is the
+   path a backgrounded tab has always taken, and its guard++<16 cap bounds the
+   worst case regardless. So a pause does exactly what the visibilitychange
+   handler does when the tab goes away — that code is the template, and this
+   should stay a copy of it rather than a second answer to the same question. */
+function pauseAudio(){
+  endSection();                        /* banks an earned drop instead of eating it */
+  BEATQ.length=0;DROPQ.length=0;       /* or resuming fires a stale drop shake */
+  if(BED&&AC)BED.g.gain.setTargetAtTime(0.005,AC.currentTime,0.08);
+}
+function pauseGame(){
+  if(!canPause())return;
+  PAUSE.on=true;PAUSE.resumeT=0;PAUSE.n++;PAUSE.at=pauseNow();
+  /* a finger held across the pause must not steer the run when it comes back:
+     the same reason die() drops it */
+  pd=null;
+  pauseAudio();
+  track('paused',{game_level:G.level,tier:G.tier,score:G.score,
+    seconds:Math.round(G.t-G.started),run_index:G.runs});
+}
+function unpauseGame(){
+  if(!PAUSE.on)return;
+  PAUSE.on=false;PAUSE.resumeT=PAUSE_COUNT;
+  /* resumed from INSIDE the tap that asked for it, which is the only place iOS
+     reliably lets a context come back. bedTick restores the pad on the first
+     live frame, exactly as it does when a tab becomes visible again. */
+  ensureAudio();
+}
 /* FOUR KEYS WAS NOT FOUR SONGS. Every level walked the identical
    i-VI-III-VII and differed only by transposition, so the harmony under
    EVENT HORIZON was the harmony under LIFT OFF played lower — and the chord
@@ -3457,6 +3556,13 @@ function levelComplete(){
   track('level_cleared',{
     game_level:G.level,score:G.score,run_index:G.runs,
     seconds:Math.round(G.t-G.started),
+    /* THE ONLY EVENT THAT CAN REPORT A CLEARED LEVEL'S PAUSES. run_ended fires
+       on death and carries the counters startGame() re-baselined at this
+       boundary, so without these two a pause taken on level 1 of a run that
+       died on level 4 was recorded nowhere at all — the counters existed, were
+       reset, and the data was simply gone. Same scale as `seconds` above, so
+       the run total is a sum across a run_index either way. */
+    pauses:PAUSE.n,paused_seconds:Math.round(pausedSeconds()),
     /* how the Star Dive went: 11 is the perfect ending */
     fin_got:(FIN.on||FIN.done)?FIN.got:null,
     fin_perfect:(FIN.on||FIN.done)&&FIN.got>=11
@@ -4163,6 +4269,7 @@ const G={
   lvSel:1,lvSelRects:[],lvSelPt:null,lvSelFx:0,  /* the starting-level picker */
   powSelRects:[],powSelFx:0,   /* the powerup lab's picker */
   labRect:null,                /* the lab's way out, drawn only during a lab run */
+  pauseBtn:null,               /* RESUME, published by the pause panel's draw pass */
   startLevel:1,   /* which level this run BEGAN on — see the record guard in die() */
   level:1,lvlMax:1,lvT:0,lvCard:null,carryScore:0,
   carryOrbits:0,carryStreak:0,carryTime:0,carryLands:0,carryGroove:0, /* the three-level structure,
@@ -4961,6 +5068,20 @@ function startGame(){
   G.loopFx=0;G.bandCap=false;G.bandCapT=0;LOOPQ.length=0;
   skyI=0;      /* the sky opens on band 0 — the ratchet re-deepens it as the run climbs */
   pd=null;     /* a finger held across the death screen must not steer the new run */
+  /* EVERY RUN STARTS UNPAUSED AND WITH THE BUTTON ARMED. Cleared here rather
+     than at each exit, so no path — retry, level card, a picked level, a lab
+     restart — can begin a run behind a panel or inside a countdown left over
+     from the last one.
+     THE COUNTERS ARE THEREFORE PER LEVEL, not per run — startGame() runs at
+     every level boundary, not only at a fresh run. That is deliberate and
+     matches `seconds`, which has always been this level's clock on both
+     telemetry events; it is also why `level_cleared` has to carry the pair,
+     since run_ended fires only on death and would otherwise be the sole
+     reporter of a number this line had already reset. This comment claimed
+     "per RUN" when it was written, which was wrong the moment it was written
+     and is exactly the kind of stale claim that makes a careful reader wrong. */
+  PAUSE.on=false;PAUSE.resumeT=0;PAUSE.cool=0;PAUSE.n=0;PAUSE.total=0;PAUSE.at=0;
+  G.pauseBtn=null;
   BEATQ.length=0;DROPQ.length=0;
   /* brkN resets per RUN: it capped the DRUM BREAK caption per page-load,
      so across a sitting only the first two breaks ever were named */
@@ -5187,6 +5308,24 @@ function die(){
        loop captures, deliberate dodges, and musical-orb pickups */
     drops_earned:G.dropsEarned,hold_timeout:G.holdTimeout,
     best_combo:G.bestCombo,loop_caught:G.loopN,near_misses:G.nearN,
+    /* WHETHER PAUSE IS BEING USED AS A BREAK OR AS A TELESCOPE. `pauses` is the
+       count and `paused_seconds` the real time spent frozen. A level with
+       twenty short pauses is a different thing from one with a single
+       two-minute break, and only the pair can tell them apart; the hidden board
+       and the count-in were balanced on an assumption, and this is what would
+       show the assumption wrong.
+       PER LEVEL, exactly like `seconds` beside it — which reads
+       G.deadT-G.started and so has always been this level's clock, not the
+       run's. startGame() re-baselines both at every level boundary. That is why
+       `level_cleared` carries the same two properties: a run that cleared three
+       levels reports four rows, one per level, and the run total is the sum
+       across a run_index. Carrying them into run_ended instead would have put a
+       cumulative number next to a per-level `seconds` on the same event — one
+       scale for one property and another for the one beside it, which is the
+       shape of the retired `level` bug rather than a fix for it.
+       Named `paused_seconds` and not `paused`, because a bare `paused` would be
+       read as a boolean by the first person to query it. */
+    pauses:PAUSE.n,paused_seconds:Math.round(pausedSeconds()),
     got_bass:G.gotBass,got_spot:G.gotSpot,got_blackhole:G.gotBH,blackholes:G.bhN,
     /* two ladders, two names, never the word `level` for the tier one: `tier`
        is the zero-based UNLOCK ladder (what has been introduced), `game_level`
@@ -5614,6 +5753,19 @@ function doShare(){
 
 /* ---------- input ---------- */
 function muteRect(){const s=24*u;return{x:W-s-16*u,y:safeTop+14*u,w:s,h:s};}
+/* MIRRORS MUTE, and mirroring it is the whole placement argument. Same size,
+   same inset, opposite corner: the top of the screen is not where a one-thumb
+   hand rests, and the mute icon has sat there without generating mis-tap
+   reports. It matters that this is small and inset rather than a bar — the
+   arena answers a tap ANYWHERE, so every pixel given to a pause control is a
+   pixel where a reversal silently becomes a pause, and in a reaction game that
+   is a death. */
+function pauseRect(){const s=24*u;return{x:16*u,y:safeTop+14*u,w:s,h:s};}
+function inPause(x,y){
+  if(!canPause())return false;
+  const r=pauseRect(),pad=10;
+  return x>=r.x-pad&&x<=r.x+r.w+pad&&y>=r.y-pad&&y<=r.y+r.h+pad;
+}
 /* Pinned to the bottom of the safe area — it is a one-thumb game, and this is
    the only part of the screen the thumb rests on anyway. */
 function shieldRect(){
@@ -5658,6 +5810,24 @@ function inShare(x,y){
 let pd=null;
 cv.addEventListener('pointerdown',function(e){
   e.preventDefault();ensureAudio();
+  /* PAUSE IS RESOLVED BEFORE ANYTHING ELSE, in both directions.
+     Going in: the arena answers a tap anywhere with a reversal, so a control
+     drawn during play has to be read first or it can never be pressed — the
+     same rule the mute icon and the lab's door already follow.
+     Coming out: while the panel is up, RESUME is the only thing on screen that
+     answers, and the background answers nothing. A picker is a decision and so
+     is this; a stray touch must not start a three-second countdown the player
+     did not ask for, and must certainly not fall through to reverse() on a run
+     whose world is frozen. The countdown itself takes no input at all. */
+  if(frozen()){
+    if(PAUSE.on&&G.pauseBtn&&
+       e.clientX>=G.pauseBtn.x&&e.clientX<=G.pauseBtn.x+G.pauseBtn.w&&
+       e.clientY>=G.pauseBtn.y&&e.clientY<=G.pauseBtn.y+G.pauseBtn.h){
+      unpauseGame();beep(523,0.14,'triangle',0.06,784);
+    }
+    return;
+  }
+  if(inPause(e.clientX,e.clientY)){pauseGame();beep(392,0.09,'triangle',0.04,294);return;}
   if(inMute(e.clientX,e.clientY)){toggleMute();return;}
   if(inShare(e.clientX,e.clientY)){doShare();return;} /* must precede the retry tap */
   if(G.state==='menu'){
@@ -5898,6 +6068,19 @@ window.addEventListener('keydown',function(e){
      hops, and a held M should not fight the mute toggle. One guard covers
      all of them. */
   if(e.repeat)return;
+  /* A FROZEN WORLD TAKES NO GAMEPLAY INPUT. Without this the keyboard walked
+     straight past the panel: Space reaches the final else and calls reverse()
+     on a run whose clock is stopped, and the arrow keys hop. Mute is
+     deliberately still live — pausing to silence the game is one of the
+     reasons to pause — and Space or Enter presses RESUME, which is the panel's
+     own button answering a key rather than a second way to START a pause. */
+  if(frozen()){
+    if(e.code==='KeyM'){toggleMute();return;}
+    if(PAUSE.on&&(e.code==='Space'||e.code==='Enter')){
+      e.preventDefault();unpauseGame();beep(523,0.14,'triangle',0.06,784);
+    }
+    return;
+  }
   if(e.code==='Space'||e.code==='Enter'){
     e.preventDefault();ensureAudio();
     if(G.state==='menu'){
@@ -6150,6 +6333,26 @@ function updateSpikes(sdt,lethal){
   }
 }
 function update(dt){
+  /* BEFORE G.t MOVES, and nothing above this line. Every deadline in the file
+     is written against G.t, so this one return is the entire freeze — see the
+     note above PAUSE. The countdown runs on the REAL frame delta rather than on
+     G.t, because G.t is precisely the thing it is holding still. */
+  if(frozen()){
+    if(PAUSE.on)return;
+    PAUSE.resumeT=Math.max(0,PAUSE.resumeT-dt);
+    /* the cooldown is armed HERE, at the moment play actually restarts, rather
+       than when the panel closed — otherwise the three counted-down seconds
+       would pay for most of it. The wall-clock span is banked on the same
+       edge, so it covers the count-in too: the world was frozen for all of it,
+       and a measurement that stopped at the panel closing would be describing
+       a different thing from the one the player experienced. */
+    if(PAUSE.resumeT<=0){
+      PAUSE.cool=PAUSE_COOL;
+      PAUSE.total=pausedSeconds();PAUSE.at=0;
+    }
+    return;
+  }
+  if(PAUSE.cool>0)PAUSE.cool=Math.max(0,PAUSE.cool-dt);
   G.t+=dt;
   G.shake=Math.max(0,G.shake-dt*45);
   G.flash=Math.max(0,G.flash-dt*1.6);
@@ -8758,8 +8961,12 @@ function draw(){
   }
   drawHUD();
   drawMute();
+  drawPauseBtn();
   drawShieldBtn();
   drawShareBtn();
+  /* over the HUD, not under it: the score and the shard count are worth
+     studying too, so the blackout has to cover them as well as the arena */
+  drawPausePanel();
   if(G.flash>0){
     ctx.fillStyle='rgba(255,255,255,'+(G.flash*0.5)+')';
     ctx.fillRect(0,0,W,H);
@@ -8820,6 +9027,64 @@ function drawShareBtn(){
   ctx.globalAlpha=1;
   ctx.textAlign='center';ctx.textBaseline='middle';
   text(copied?'COPIED':'SHARE',cx,midY,14*u,'800',COL.comet,3);
+  ctx.restore();
+}
+/* The icon is drawn only when the button will actually answer — while the
+   cooldown is running there is nothing to press, and an icon that ignores a
+   tap is worse than no icon. */
+function drawPauseBtn(){
+  if(!canPause())return;
+  const r=pauseRect(),x=r.x+r.w/2,y=r.y+r.h/2,s=r.w/2;
+  ctx.save();
+  ctx.globalAlpha=0.5;
+  ctx.fillStyle='#cfe4ff';
+  ctx.fillRect(x-s*0.46,y-s*0.62,s*0.32,s*1.24);
+  ctx.fillRect(x+s*0.14,y-s*0.62,s*0.32,s*1.24);
+  ctx.restore();
+}
+/* THE PANEL, AND THE BLACKOUT UNDER IT. The scrim is the balance decision made
+   visible: at full opacity there is no board to read, so the button cannot buy
+   a free look at a shard that is mid-telegraph. It is drawn over everything
+   including the HUD, because the score and the shard count are worth studying
+   too. During the countdown it lifts entirely — three frozen seconds to find
+   the comet again is the point of counting down at all. */
+function drawPausePanel(){
+  if(!frozen())return;
+  if(PAUSE.on){
+    ctx.save();
+    ctx.fillStyle='rgba(4,6,14,0.97)';
+    ctx.fillRect(0,0,W,H);
+    ctx.textAlign='center';
+    textFx('PAUSED',cx,cy-14*u,fitSz('PAUSED',30*u,'800',W-40*u,3),'800',
+      '#ffffff','#7de4ff','rgba(93,240,255,0.45)',3);
+    const sub='the board is hidden — it comes back on the count';
+    text(sub,cx,cy+10*u,fitSz(sub,11*u,'600',W-30*u),'600','rgba(200,215,255,0.55)',0);
+    const pw=Math.min(170*u,W-60*u),ph=44*u,px=cx-pw/2,py=cy+34*u;
+    G.pauseBtn={x:px,y:py,w:pw,h:ph};
+    ctx.strokeStyle=COL.comet;ctx.lineWidth=1.8;
+    ctx.globalAlpha=RM?1:0.78+0.22*Math.sin(G.t*3);
+    ctx.beginPath();ctx.roundRect(px,py,pw,ph,ph/2);ctx.stroke();
+    ctx.globalAlpha=1;
+    ctx.textBaseline='middle';
+    textFx('RESUME',cx,py+ph/2,17*u,'800','#eaffff',COL.comet,'rgba(93,240,255,0.5)',4);
+    ctx.textBaseline='alphabetic';
+    ctx.restore();
+    return;
+  }
+  /* counting back in: the world is visible and still, and nothing answers */
+  G.pauseBtn=null;
+  ctx.save();
+  ctx.fillStyle='rgba(4,6,14,0.34)';
+  ctx.fillRect(0,0,W,H);
+  ctx.textAlign='center';
+  const n=Math.ceil(PAUSE.resumeT);
+  /* the digit swells as each second lands — its phase comes from resumeT, not
+     from G.t, which is the thing being held still */
+  const fr=1-(PAUSE.resumeT-Math.floor(PAUSE.resumeT));
+  const sc=RM?1:1+0.35*(1-Math.min(1,fr*3));
+  ctx.textBaseline='middle';
+  textFx(String(n),cx,cy,64*u*sc,'800','#ffffff','#7de4ff','rgba(93,240,255,0.5)',0);
+  ctx.textBaseline='alphabetic';
   ctx.restore();
 }
 function drawMute(){
@@ -9182,7 +9447,13 @@ function drawHUD(){
      Top-left, because the arena answers a tap anywhere and the bottom of the
      screen is where the thumb lives. */
   if(LAB.on&&(G.state==='playing'||G.state==='dead')){
-    const dw=Math.min(150*u,W*0.52),dh=26*u,dx2=14*u,dy2=top+12*u;
+    /* SHIFTED RIGHT OF THE PAUSE ICON, which took this corner. Both controls
+       live in the same band and neither moves the other's position, so the door
+       is offset by exactly the icon's footprint rather than by a guess — and
+       its width takes the offset out of itself, so the pair cannot run off the
+       right edge of a narrow phone. */
+    const px2=pauseRect(),off=px2.x+px2.w+10*u;
+    const dw=Math.min(150*u,W*0.52-off+14*u),dh=26*u,dx2=off,dy2=top+12*u;
     G.labRect={x:dx2,y:dy2,w:dw,h:dh};
     ctx.save();
     ctx.globalAlpha=0.9;

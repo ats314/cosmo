@@ -247,6 +247,52 @@ so choosing EVENT HORIZON and dying on the first shard prints no FURTHEST YET
 and writes no record. A run that started at level 1 and climbed keeps counting,
 including across the retries that put it on a later level.
 
+## Pause
+
+Requested by players. A small icon top-left, mirroring the mute icon top-right
+at the same size and inset — small and inset on purpose, because the arena
+answers a tap *anywhere* with a reversal, so every pixel given to a pause
+control is a pixel where a reversal silently becomes a pause.
+
+| Piece | How it works |
+|---|---|
+| The freeze | One early return in `update()`, placed **before** `G.t+=dt`. Every deadline in the file is written against `G.t`, so that single line stops all of them together — invulnerability, spawn timers, cooldowns, lesson spacing, the tier ladder, the difficulty clock, `G.vt`, and `bhTick`, which lives inside `update()` and would otherwise run the black hole to completion behind the panel. |
+| Not a state | `PAUSE` is a flag; `G.state` stays `'playing'`. `draw()` dispatches on the state with the **death screen as its final `else`**, so a `'paused'` state would have rendered GAME OVER over a live run. |
+| The board is hidden | The panel is opaque. Shards telegraph for 1–2.35s, and a button that freezes a warning mid-flight and lets you read the board at leisure is a difficulty change wearing a convenience label. You cannot study what is not drawn. |
+| The count-in | RESUME shows the frozen board again for 3 seconds — enough to find the comet — and only then does time restart. Nothing takes input during it. |
+| The cooldown | Pause re-arms 5 seconds after play actually restarts. Without it, pause–resume–pause is an unlimited supply of 3-second frozen looks at a live board: the hidden board's protection reassembled out of its own escape hatch. |
+| Run time | `runTime()` reads `G.deadT-G.started`, both on `G.t`, so paused seconds leave the reported run length for free rather than by subtraction. |
+| Audio | The context is **left running**. `musicTick` already survives an arbitrary gap — it detects `MU.next` falling >0.4s behind, abandons the section rather than replaying it compressed, and restarts on the next grid line. That is the path a backgrounded tab has always taken. Pause does exactly what the `visibilitychange` handler does: `endSection()`, drain the flash queues, take the bed down. |
+
+**The trap this file already predicted.** *Silencing the scheduler is not
+silencing the band.* The pad is eight continuously running oscillators whose
+gain is written every frame by `bedTick`, its only writer — so freezing
+`update()` does not silence the pad, it **freezes it**, droning one chord at
+playing volume for as long as the panel is up. The bed is taken down
+explicitly on the way in; `bedTick` restores it on the first live frame.
+
+Telemetry: `pauses` and `paused_seconds`, on **both** `run_ended` and
+`level_cleared`. Twenty short pauses and one long break are different
+behaviours and only the pair tells them apart — the hidden board and the
+count-in were balanced on an assumption, and this is what would show it wrong.
+
+Two things about that pair are easy to get wrong and were:
+
+- **They are per level, like the `seconds` beside them.** `startGame()`
+  re-baselines the counters at every level boundary and `run_ended` only fires
+  on death, so a pause taken on level 1 of a run that died on level 4 was
+  recorded nowhere until `level_cleared` carried them too. Reported per level
+  rather than carried into `run_ended`, because a cumulative number sitting
+  next to a per-level `seconds` on the same event is one name with two scales —
+  the shape of the retired `level` bug, not a fix for it.
+- **Paused time is wall-clock, never the frame delta.** `frame()` clamps `dt`
+  to 0.05s and `requestAnimationFrame` does not fire at all while a tab is
+  hidden, so a break taken with the phone locked produces no frames — and a
+  `dt` accumulator recorded a ten-minute break as 0.05 seconds, reporting the
+  exact case the field exists to detect as its opposite. The count-in still
+  rides `dt` on purpose: it is an animation, and a tab backgrounded mid-count
+  should hold rather than silently expire.
+
 ## POWERUP TESTING (the lab)
 
 A sandbox for looking at one orb, reached from the bar under the mode cards.
