@@ -1157,6 +1157,150 @@ for (const L of LEVELS) {
   vm.runInContext('BH.phase=0;BH.on=false;BH.warp=0;BH.t=0;MU.pend=null;MU.pendSrc=null;', ctx);
 }
 
+/* ---------- THE HYPERNOVA STAR RUN ----------
+   The star is the game's Mario-star moment and it is an OVERLAY, not a
+   section: it adds a voice on top of whatever harmony is already playing,
+   starting on the frame it is taken. That is what makes it immediate — the
+   chorus lift it also triggers can only land at a four-bar seam, which can be
+   most of a loop away against a star that lasts sixteen beats.
+   Being an overlay is also what makes it checkable here, and it needs to be:
+   these are new pitches in the audio path, which is exactly the category this
+   harness exists for. Three things have to hold, and the third is the one
+   that has shipped broken twice before in this file. */
+console.log('\n--- the hypernova star run ---');
+{
+  const STARRUN = $('STARRUN');
+  const PENT_BASE = $('PENT_BASE');
+  const LV = $('LV');
+  if (!Array.isArray(STARRUN) || STARRUN.length !== 16) {
+    fail(`STARRUN is not a 16-step bar (got ${STARRUN && STARRUN.length})`);
+  }
+  /* IT MUST BE ABOVE THE BAND. The arps are held under degree 4 so the band
+     stops below the player's register; the star is the one voice meant to sit
+     on top of the arrangement, so every degree it uses must clear that. */
+  const under = STARRUN.filter(d => d < 4);
+  if (under.length) fail(`the star run drops to degree(s) ${under.join(',')} — at or under the band's degree-4 arp ceiling`);
+  else ok(`star run spans degrees ${Math.min(...STARRUN)}-${Math.max(...STARRUN)}, clear of the band's ceiling`);
+
+  for (const L of LEVELS) {
+    /* EVERY PITCH AN INTERVAL OVER THE LEVEL'S TONIC. Written as PENT degrees
+       in the source, so this is really a check that nothing downstream has
+       reintroduced a bare frequency — the failure that put the beat drop, the
+       snare body and the tom fill in A minor on all four levels. */
+    startLevel(L, 0);
+    vm.runInContext('G.hyper = 99; G.hyperD = 99;', ctx);
+    tick(L, 16);
+    const hyperOsc = LOG.osc.slice();
+    const key = LV[L - 1].key;
+    const scale = PENT_BASE.map(f => f * key);
+    const near = (f, t) => Math.abs(f - t) < Math.max(0.5, t * 0.002);
+    const want = new Set(STARRUN.map(d => scale[d]));
+    const heard = [...want].filter(f => hyperOsc.some(o => near(o.f, f)));
+    if (heard.length < want.size) {
+      fail(`level ${L}: only ${heard.length}/${want.size} star-run degrees were sounded — the run is not reaching the oscillators`);
+    } else {
+      ok(`level ${L}: all ${want.size} star-run degrees sounded, every one an interval over the tonic`);
+    }
+    /* AND IT IS GENUINELY NEW — but the test is DENSITY, not pitch
+       exclusivity, because exclusivity is not true and asserting it would be
+       asserting something false about the game. The band's counter-line draws
+       on CNT = [7,5,4,5,7,8,7,5], which overlaps this register, so a couple of
+       voices land on star-run pitches in ordinary play. What cannot happen by
+       accident is sixty-odd of them: the run writes two notes per eighth in
+       two waves each, so a star bar is an order of magnitude denser up here
+       than any bar without one. */
+    const hotN = hyperOsc.filter(o => [...want].some(f => near(o.f, f))).length;
+    startLevel(L, 0);
+    vm.runInContext('G.hyper = 0;', ctx);
+    tick(L, 16);
+    const coldN = LOG.osc.filter(o => [...want].some(f => near(o.f, f))).length;
+    /* COUNTED AGAINST WHAT THE RUN OWES, not against a margin over the cold
+       run. The margin version tolerated half the run being wrong: each
+       sixteenth is voiced twice (square for the bite, triangle for the body),
+       so replacing one of the pair with a bare frequency still cleared a
+       "much denser than cold" bar comfortably — and a bare frequency is the
+       precise failure this harness exists to catch, the one that put the beat
+       drop and the snare body in A minor on all four levels. 16 ticks x 2
+       sixteenths x 2 waves = 64 owed. */
+    const owed = 16 * 2 * 2;
+    if (hotN < owed * 0.9) {
+      fail(`level ${L}: the star run sounded ${hotN} voices at pentatonic pitches, owes ~${owed} `
+        + `(${coldN} cold) — part of the run is missing or is not an interval over the tonic`);
+    } else {
+      ok(`level ${L}: ${hotN}/${owed} star voices on pitch (${coldN} in that register cold)`);
+    }
+    /* both halves of each voice pair, for the same reason */
+    for (const w of ['square', 'triangle']) {
+      if (!hyperOsc.some(o => o.type === w && [...want].some(f => near(o.f, f)))) {
+        fail(`level ${L}: no ${w} voice in the star run — half the pair is missing or off-scale`);
+      }
+    }
+  }
+
+  /* AND THE FLOOR DRIVES. The star adds one bass note per eighth on the live
+     chord's root an octave down. The level's own bassline already visits that
+     pitch, so presence proves nothing and only the COUNT separates them —
+     the same reason the run above is counted rather than merely detected. */
+  for (const L of [1, 3]) {
+    startLevel(L, 0);
+    vm.runInContext('G.hyper = 0;', ctx);
+    tick(L, 16);
+    /* ALL FOUR ROOTS, not just bar 0's. The bass follows the live chord, so
+       over the two bars these ticks cover it plays two different roots — a
+       first version counted only CH[0]'s and read +8 against an expected +16,
+       which looks exactly like half the notes going missing. The chord walk is
+       the feature, not the discrepancy. */
+    const roots = $('CH').map(c => c[0] * 0.5);
+    const at = o => roots.some(r => Math.abs(o.f - r) < Math.max(0.5, r * 0.002));
+    const coldB = LOG.osc.filter(at).length;
+    startLevel(L, 0);
+    vm.runInContext('G.hyper = 99; G.hyperD = 99;', ctx);
+    tick(L, 16);
+    const hotB = LOG.osc.filter(at).length;
+    /* 16 eighths, one bass note each; 14 allows for a chord root that happens
+       to coincide with a voice the level's own bassline was already playing */
+    if (hotB < coldB + 14) {
+      fail(`level ${L}: the star's driving bass is not reaching the oscillators `
+        + `(${coldB} root voices cold, ${hotB} with the star, owes ~16 more)`);
+    } else {
+      ok(`level ${L}: the floor drives under the star (${coldB} -> ${hotB} root voices)`);
+    }
+  }
+
+  /* THE BLACK HOLE OUTRANKS IT. bhStep replaces the scheduler entirely, so a
+     star carried into the hole must not keep playing over the preset piece. */
+  startLevel(3, 0);
+  vm.runInContext('G.hyper = 99; startBlackHole();', ctx);
+  LOG.osc.length = 0;
+  tick(3, 8);
+  const key3 = LV[2].key;
+  const starPitches = new Set(STARRUN.map(d => PENT_BASE[d] * key3));
+  const leaked = LOG.osc.filter(o => [...starPitches].some(f => Math.abs(o.f - f) < 0.5));
+  if (leaked.length) fail(`the star run kept playing through a black hole (${leaked.length} voices)`);
+  else ok('a black hole outranks the star run');
+  vm.runInContext('BH.phase=0;BH.on=false;BH.warp=0;BH.t=0;G.hyper=0;', ctx);
+
+  /* AND THE BAND OPENS UNDER IT. This is the one that has shipped wrong twice.
+     bedTick is the ONLY writer of BED.g, so a mode that adds voices in
+     musicStep and touches nothing here gets a busier arrangement over a pad
+     sitting at exactly the level it was — which is how the drop's hush and
+     then the black hole both shipped with the band playing straight through
+     the thing that was supposed to have replaced it. The star is the inverse
+     case (it should sound BIGGER, not quieter) and it fails the same way. */
+  startLevel(2, 0);
+  vm.runInContext('G.hyper = 0; bedTick(0.05);', ctx);
+  const cold = $('BED').g.gain.value;
+  vm.runInContext('G.hyper = 99; bedTick(0.05);', ctx);
+  const hot = $('BED').g.gain.value;
+  if (!(hot > cold * 1.05)) {
+    fail(`the star does not open the band: pad ${cold.toFixed(4)} -> ${hot.toFixed(4)} `
+      + '— bedTick is the only writer of BED.g, so scheduling extra voices alone cannot lift it');
+  } else {
+    ok(`the star opens the band (pad ${cold.toFixed(4)} -> ${hot.toFixed(4)}, ${(hot / cold).toFixed(2)}x)`);
+  }
+  vm.runInContext('G.hyper = 0; bedTick(0.05);', ctx);
+}
+
 if (LOG.errors.length) LOG.errors.forEach(e => fail(e));
 
 if (failures) {

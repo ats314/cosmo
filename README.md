@@ -68,51 +68,67 @@ threat arrives alone (the shard cap starts at one), early warning pulses run
 almost half a second longer, and spawns open at 2.6s apart instead of 2.1 —
 all of it converging on the same late game, none of it touching the ceiling.
 
-### CHILL and SKILL
+### One mode, and the table that survives it
 
-Two modes, and only one implementation of the game. SKILL is Cosmo as
-balanced. CHILL is the same code with **the clock turned down** and four
-forgiveness terms scaled: `MODES` is a table of multipliers, every difficulty
-curve reads it, and a balance change made once lands in both.
+**CHILL is retired for now.** The owner's call: one mode until the game is
+perfected, and then a difficulty conversation from a settled baseline rather
+than alongside one. What is *not* retired is the mechanism.
 
-The clock is the main lever on purpose. Everything that presses on the player
-— speed, shard cap, arrival rate, warning length, the tier ladder, the finish
-line — is already keyed off `dl()`, so slowing that one number eases all six
-together *and in the proportions they were tuned in*, which is the only way
-"easier" stays recognisably the same game rather than a differently-broken
-one. Chill runs it at 0.72, and trims the comet's speed (×0.86), the telegraph
-(×1.3), the shard cap (×0.78) and the spawn gap (×1.3) on top, and starts you
-one shield deeper.
+`MODES` stays, with a single row, and that row is still the **identity**:
+every knob 1, or 0 for the additive shield. So every expression the knobs
+appear in — `dl()`, `speedAt()`, `warnTime()`, `shardCap()`, `spawnGap()`, the
+shield bank — still reduces to exactly what shipped, and the table still
+cannot quietly become the place the real game is tuned.
 
-SKILL is the **identity mode**: every one of its knobs is 1, or 0 for the
-additive shield. That is not tidiness — it is what makes the claim checkable.
-With skill selected, every expression the knobs appear in reduces to exactly
-the expression that shipped, so this table can never quietly become the place
-the real game is tuned. `check.mjs` fails the build if a skill knob stops being
-the neutral element, if one mode grows a knob the others lack, or if any knob
-is declared and never read; `smoke.mjs` measures every term through the real
-functions in both modes, at the same difficulty second, so a table of
-multipliers wired to nothing cannot pass for a mode.
+Keeping it costs one row and buys the thing that was expensive to get right:
+the rule that a second difficulty is a **derivative** and never a second
+implementation. That rule was arrived at, not obvious, and it is written into
+the shape of the table and its guards. Deleting the table would delete the
+rule and leave a future second mode to rediscover it — most likely as a branch
+on a flag somewhere in the game code, which is exactly what the table exists
+to prevent. Bringing chill back is adding a row, not re-deriving a design.
 
-Chill deliberately touches nothing else. The curriculum is gated on `dl` and
-on the level ordinal, so a chill run meets every formation and every orb in
-the same order at the same points — it takes more seconds to get there, which
-is the entire difference. The music is untouched: a mode is not a key change.
-And nothing multiplies the score, so a chill minute is worth less only because
-it contains less game.
+The clock stays the intended main lever, and the reasoning is kept because a
+second mode will need it. Everything that presses on the player — speed, shard
+cap, arrival rate, warning length, the tier ladder, the finish line — is
+already keyed off `dl()`, so slowing that one number eases all six together
+*and in the proportions they were tuned in*, which is the only way "easier"
+stays recognisably the same game rather than a differently-broken one. The
+other knobs are trims on top of it, never a second difficulty curve. And a
+mode must never touch the curriculum, the music or the scoring: orbs and
+lessons are gated on `G.level` and tiers on `dl`, so any mode meets every
+formation in the same order at the same points and merely takes a different
+number of seconds to get there.
 
-The records are kept per mode. An easier mode writing to `cometloop:best`
-would redefine every value already sitting on every device — the same failure
-the retired `cometloop:level` key exists to remember — so the unsuffixed keys
-stay SKILL's and chill gets its own. Each mode card on the title screen carries
-its own best, the death screen names the mode when it reports chill's record,
-and the share text appends `· CHILL` so a shared claim is the claim that was
-earned.
+The guards stay armed. `check.mjs` still fails the build if the row stops
+being the neutral element, if any knob is declared and never read, or if a
+future second row grows a knob skill lacks. `smoke.mjs` goes further and is
+the reason this is more than a comment: it **injects a synthetic mode** with
+every knob off neutral and measures every curve through the real functions, at
+the same difficulty second, so a table of multipliers wired to nothing cannot
+pass. Deleting that test along with chill would have meant discovering the
+plumbing was dead on the day someone added a row — the worst possible day.
+
+**No player loses a record.** Every value ever written to `cometloop:best` and
+`cometloop:gl` was SKILL's, because chill's went to `:chill`-suffixed keys
+precisely so an easier mode could never redefine what the plain key meant (the
+failure the retired `cometloop:level` key is remembered for). So the plain
+keys mean exactly what they always meant, on every device, with nothing to
+migrate. The `:chill` keys are **left on disk deliberately** — they cost a few
+bytes, nothing reads them, and they are somebody's record. `cometloop:mode` is
+likewise left but no longer read: a device that last played chill has `chill`
+sitting under it, and honouring that would select a mode that no longer
+exists.
+
+The title screen loses its cards and gets its best line back under the title,
+where it lived before there were two records to tell apart. It answers a tap
+anywhere again — with no selection on the screen, there is nothing a stray tap
+can cost you, which is the only thing the select-don't-start rule existed to
+prevent. The lab door stays exactly as it was; it was never a card.
 
 ### Where you start
 
-The title screen is the mode picker, and the screen after it picks the
-starting level. All four are selectable on any device, including levels never
+The screen after the title picks the starting level. All four are selectable on any device, including levels never
 reached — the screen exists so a level can be reached without playing to it,
 which is what makes testing level 4 possible at all. Rows the device has
 actually got to are marked *reached*, so picked and earned stay visibly
@@ -1083,6 +1099,58 @@ entered three times in the game's whole recorded history.
   invulnerability grace after it fades, so the star never dumps you at
   double speed into an armed shard. Everything pays double while it burns.
 
+  **And the song gets a star tune**, which is what the playtest was really
+  asking for. Doubling the kit is a *texture* change — the same song, busier.
+  What a star does in the game everyone means by that comparison is melodic: a
+  different tune arrives, instantly, and it is unmistakably the invincibility
+  tune. So `STARRUN` is sixteen sixteenths that climb and wrap — four ascending
+  four-note cells, each starting a degree higher than the last, so the line
+  spirals upward and never resolves — restated every bar for as long as you are
+  untouchable, over a driving eighth-note bass on the live chord's root, with
+  the band's pad opening 1.22× underneath rather than stepping back.
+
+  It is an **overlay, not a section**, and both halves of that are deliberate.
+  The star already lifts the record into the chorus (hypernova is in the
+  hot-play set) — but that lift can only land at a four-bar seam, and a seam
+  can be most of a loop away against a star that lasts four bars, so a player
+  could take the orb, hear nothing change, and have it expire before the
+  section arrived. The one thing this moment cannot be is late. And a third
+  *section* was not available: `applySect` is the only writer of `CH`/`ARP`,
+  sections change only at a four-bar seam, and a star that swapped the harmony
+  mid-bar would break the rule the payoff, rise, black hole and star dive
+  exceptions exist to protect. An overlay adds a voice above whatever harmony
+  is already playing, so it is immediate and cannot collide with anything.
+  Written as pentatonic degrees 4–10 — an interval over the level's own tonic,
+  never a frequency — so it transposes with the key and stays consonant against
+  every chord in either section, and it sits above the band's degree-4 arp
+  ceiling because it is the one voice meant to be *on top* of the arrangement.
+  A black hole outranks it. `musiccheck.mjs` holds all of that: every degree
+  sounded on every level, the density (2 voices in that register cold against
+  66 with the star), silence through a black hole, and — the one that has
+  shipped wrong twice in this file — that `bedTick` actually lifts the pad,
+  because it is the only writer of `BED.g` and scheduling extra voices alone
+  cannot make a band louder.
+
+  **And the tail becomes the comet.** "A comet flying through orbit with a
+  brilliant tail" is the other half of the ask, so during a star the ribbon
+  stops being the groove's scoreboard and becomes the thing itself: five
+  passes instead of three — a wide magenta bloom outside a hot gold body
+  inside a white core, in the orb's own two colours rather than a new palette
+  — 1.85× wider, and *longer*, because the per-sample decay eases off (the
+  sample cap is only headroom; it was never the binding constraint, and saying
+  otherwise would be a comment taking credit for a line that does nothing).
+  Sparks shed off it unconditionally rather than waiting for a groove chain,
+  in the star's colours, at a raised particle ceiling. Measured on a 390×844
+  phone, ordinary run → hypernova, repeated across runs: **trail samples held
+  29→53, arc length 143→428px (3.00×), widest point 15→28px (1.85×), filled
+  area 5.31×.** Particles are quoted as a *range* — 4.3× to 11.5× the debris in
+  the air — because a point read of `G.parts.length` is whatever the decay left
+  standing on that frame, and the first version of this measurement disagreed
+  with itself threefold and once reported the star shedding *less*. Averaged
+  over a hundred frames it is proportional to spawn rate × lifetime, which is
+  the number that means something; the spread is the game's unseeded
+  `Math.random`, not the effect.
+
 The musical orbs join the spawn rotation after the intro curriculum
 (shield → slow-mo → nova) has run, each named by a first-encounter hint.
 On level 2 and up the FIRST placement after the curriculum is the
@@ -1628,7 +1696,7 @@ holding `tier + 1` while `level_cleared` sent `level` holding 1–3 — one
 property name, two scales, two events. The ambiguous name is retired rather
 than redefined, so no historical row silently changes meaning; `tier` carried
 the same number all along. The two difficulty modes ride on every event as
-`play_mode` — without it, chill and skill deaths average into one unreadable
+`play_mode` — with a second mode, deaths would otherwise average into one unreadable
 completion rate, exactly as the two swipe rules would — and it is deliberately
 **not** called `mode`, because `swipe_mode_chosen` has always carried the swipe
 rule under that name and reusing it would rewrite what every historical row of
@@ -1885,12 +1953,142 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   the ember and the comet — impossible, since the two run through the same
   filter chain and their discs differ by 7u. Two objects cannot differ in reach
   by less than their radii do; that contradiction is what caught it.
+- **And then the halo moved to the GPU, which is where it always belonged.**
+  The bright pass stays on the CPU and stays semantic — it knows which objects
+  are lights, so it never thresholds a composited frame and can never pick up
+  the rings, the pool or the HUD. Only the *blur* moved. Drawn discs bought
+  roundness at the price of three arc+fills per light and a falloff made of
+  two stacked steps; a separable gaussian is a true convolution, round by
+  construction, and its grid is the ¼ bright buffer — four times finer than
+  the ¹⁄₁₂ the mid halo was drawn into. So the crawl goes *down* by moving the
+  halo to a smaller buffer, which is the opposite of how that sounds.
+  Two levels, ¼ and ¹⁄₁₆, reached by way of ⅛: a single 4:1 read undersamples
+  a source only smooth to σ≈2 and the halo shimmers as lights orbit across the
+  sampling grid. Weighted so the halo carries the **same light it did before**
+  — this is a change of filter, not a brightness change. Per light, halo term
+  only, on a 390×844 phone: ember energy 1.04×, reach 54→64px, roundness
+  0.750→0.867; shard 1.07×, 56→69px, 0.821→0.883; comet 1.06×, 79→84px,
+  0.828→0.935; hub 1.02×, 51→59px, 0.733→0.881. Sliding a light across one
+  whole coarse pixel swung the old halo's reach 8.8% and its peak 5.7%; the
+  gaussian swings 3.5% and 3.2%. If any of it fails, `FX.on` goes false and
+  the two discs per light come straight back.
+- **The glow can be bent, because it is a field now and not a pile of discs.**
+  Radial chromatic aberration scaled by the same energy that drives the sky —
+  zero at the arena centre by construction, 0.57px of R/B separation a quarter
+  of the way out when idle, 3.80px running hot, 7.60px in a black hole — and
+  the hole's own pull applied to the arena's light. The shader has always bent
+  the sky while the arena sat flat on top of it, which is exactly the tell this
+  file already records for the star layer. The sharp arena still does not bend;
+  its light does. **The lens had to be re-derived rather than copied**: the
+  sky's pull is bounded as a *fraction* of the radius, which is right for a
+  nebula and catastrophic for a halo. The orbits live between 0.09 and 0.20 of
+  screen height, and across that band the sky's clamp binds at the full 72% —
+  120 to 170px of displacement, tearing every halo off the light it belongs to,
+  which is the detached-glow failure this project has already shipped once.
+  Bounded in absolute terms instead: 6–9px of lean and 2.8° of wind across the
+  play annulus, and a sweep of the whole screen confirms the map never folds.
+  **And it shipped pointing the wrong way, which is the third time this exact
+  inversion has hit the black hole.** The pass is *inverse* sampling: reading
+  from a smaller radius magnifies, so subtracting the pull shoves every halo
+  *away* from the singularity — measured at +6.8px and +8.8px where the
+  comment above it promised the opposite. The gravity pull that "dragged the
+  comet inward" pushed it outward, the "inner ring 2×" bonus paid on the outer
+  ring, and now this. All three read as correct, because code and comment are
+  both true under some reading of which way the number counts. Reading cannot
+  catch it. Asking where a specific light *ends up*, in pixels, can — so
+  `fxcheck.mjs` parses the coefficients out of the shader and does exactly
+  that, and now reports −6.2/−7.8/−8.6/−8.8px at 0.10/0.15/0.20/0.30 of screen
+  height.
+- **A lost context on the glow is silence, not an error.** Every call on a lost
+  WebGL context is a no-op that does not throw, so `fxResize` would see
+  unchanged sizes and return true, `drawArrays` would do nothing, and
+  `fxRender` would return *true* — compositing an empty canvas. Worse than the
+  backdrop's version of the same bug, which at least left a baked sky behind:
+  `bloomHalo` is set false before the dot loop, so the discs that exist for
+  exactly this would never have been drawn either, and the glow would simply
+  stop with no way back. `isContextLost()` is now asked every frame, before
+  anything else, and the lost/restored listeners drop the six render targets —
+  a restored context hands back a new context object and every texture,
+  framebuffer and program made against the old one is dead.
+- **The composed scene was only reaching players whose GPU had failed.** When
+  the shader arrived it replaced the *entire* 2D backdrop, and that was one
+  decision too broad. It genuinely does replace the base sky — a baked gradient
+  and two star planes cannot express filaments, dust lanes or flow, which is
+  the whole argument for a shader. It does not replace the **scene**: the
+  planet, the galactic band, the god rays, the six drifting cloud sprites, the
+  fog banks and the dust motes. Those are objects, with silhouettes and depth
+  order, and no amount of fBm is an object — a texture is not a place. All of
+  them were gated on `BG`, i.e. on WebGL having *failed*, so the only people
+  who ever saw them were the ones on the weakest hardware. The gate is split
+  now: `BG` still covers the base sky and its star planes, and the scene draws
+  over the shader. Their alphas were authored against a flat dark gradient and
+  are now landing on a live structured field, so `SKY_OVER` (source-over layers,
+  which *veil*), `SKY_ADD` (the additive rays, which only *add*) and
+  `SKY_GRADE` (against a shader that already vignettes) weigh them down — but
+  only when the shader is running; the fallback composites exactly as before.
+  All three are runtime-mutable, because they are the most eye-dependent and
+  least measurable numbers in the file.
+- **The base sky is baked only if it will be seen.** It is 5.65 Mpx — about
+  22MB of canvas, four times the visible game canvas — and on a working GPU
+  not one pixel of it is ever drawn. It cannot simply be gated on `GL.on`,
+  because `glInit()` runs long after the first `resize()`: at the moment
+  `buildSprites` first runs, `GL.on` is false on *every* device. Baking on
+  first use is the version that works, and it is also correct when a context is
+  lost mid-run and the fallback takes over for real. There is one deliberate
+  loss — a band change on a device that has never drawn the base sky has no
+  outgoing bake to crossfade from — and that is the frame a GPU has just died
+  on, where a hard cut is the least of what the player is seeing.
+- **The render scale climbs as well as falls.** `GL_SCALE` is 0.60 — a
+  compromise struck between a phone that might not cope and a desktop that
+  could render the sky four times over — and it used to be permanent in both
+  directions. It now rises toward 1.0 on a machine holding its frame. The
+  ceiling *latches down* the first time anything is slow and never comes back
+  up, because a dial that can rise and fall near the threshold oscillates, and
+  a visibly pulsing sky resolution is worse than either end of it. Raising asks
+  for more evidence than lowering (four fast seconds against two slow) at a
+  stricter threshold, so the two bands can never both be true.
+- **The hub lamp finally lights something.** `SPR.core` is the light source the
+  whole scene is described as answering to, and exactly one object answered it:
+  the shard, whose baked bright face is rotated hubward at draw time. Embers,
+  orbs and the saucer now take a rim highlight the same way, falling off with
+  distance from the lamp — written as a *distance* against the outermost
+  radius, never as a ring ordinal, because index 0 is the outermost orbit and
+  the two read opposite. Rotated by the **screen** direction rather than the
+  parametric ring angle: with `AY` above 1 the arena is a stretched circle and
+  the two differ by up to 11° at the diagonals. The black hole orb is the one
+  thing left unlit — it is the only object in the game that does not emit.
+- **The orbit stack has depth.** Five backdrop planes already rode the camera
+  dolly by their own depth while the four orbits sat on one plane, dead still,
+  which read as rings printed on glass in front of a world. The offset is a
+  function of the *radius alone*, so `posAt()` hands every object exactly the
+  offset its orbit gets and a shard cannot come unstuck from its track. Same
+  LFO as the dolly, scaled — one camera moving, not two effects agreeing — and
+  the hub is depth 0, which is what makes the differential visible.
+  `ARENA_PARALLAX = 0` restores the flat stack exactly.
 - **The comet lights its own ring** — a short arc centred on it, falling off
   both ways. Decorative, but it also makes "which ring am I on" readable
   without looking away from the comet.
 - **The trail runs hot at its core.** Three additive passes of one flat cyan
   read as paint; the narrow pass now runs near-white so the ribbon cools
   outward the way anything incandescent does.
+- **The whole wake burns, not just the head.** The furnace sheds sparks from
+  one point seven pixels behind the comet, which is right for an idle orbit
+  and wrong for a hot one: the ribbon already reports the groove by tinting
+  toward warp-violet, so at ×6 it was a bright violet ribbon with sparks
+  coming off one end. Above groove 4 the ribbon itself throws embers, picked
+  at a random point along its length and pushed out along the local normal —
+  never the last two samples, because the furnace owns the head and two
+  emitters on one point read as one brighter emitter. Metered on the *dilated*
+  delta, so a spark thrown by a ribbon thins out when the ribbon slows.
+- **Slow motion smears.** Dilation reaches the whole visible world now, and the
+  result is correct and strangely undersold — everything slowing down together
+  looks a great deal like nothing happening. What reads as slow motion is one
+  thing smearing against another, so while time is dilated the ribbon is drawn
+  twice: an after-image lagging by up to nine samples, wider and dimmer and in
+  the warp violet the slow-mo vignette is already tinted with, drawn first so
+  the live cyan ribbon lies on top of its own past. Two passes rather than
+  three — giving the ghost the hot white core would make it read as a second
+  comet instead of the first one's past.
 - **Particles stretch along their velocity.** Burst speed drives the
   elongation, and since velocity damps at `0.15^dt` the streak collapses to a
   round spark on its own within a few frames — the shape carries the motion,
@@ -1916,9 +2114,10 @@ node tools/smoke.mjs       # loads and plays the game headlessly
 node tools/dropcheck.mjs   # the build meter still delivers drops
 node tools/curriculum.mjs  # nothing is left untaught by level 3
 node tools/musiccheck.mjs  # four levels, four songs, all in their own key
+node tools/fxcheck.mjs     # the glow actually reaches a pixel, on a GPU and without one
 ```
 
-All five run on every pull request; only `main` goes on to publish.
+All six run on every pull request; only `main` goes on to publish.
 
 `check.mjs` confirms the inline script still parses, that the elements it
 looks up by ID are still in the document, and that the teaching tables have
@@ -1996,6 +2195,52 @@ slot carrying two snare bodies, asserts the star dive's first bar opens on
 the verse chord (the section revert has to reach the oscillators, not just
 the tables), and holds `chorus_bars` still through a black hole and a
 payoff, where the section flag is frozen but the chorus is not sounding.
+
+`fxcheck.mjs` is the one that runs the *render* path, and it exists for the
+same reason `musiccheck.mjs` does: the other five stub the canvas and WebGL
+away, so the entire draw layer was uncovered by construction. That is not a
+theoretical gap — it is how thirteen black hole features shipped with one of
+them perceptible.
+
+So this one stubs WebGL as a *recording fake* rather than removing it. Shaders
+compile, programs link, framebuffers complete, and every call is written down;
+then it asserts on what was actually issued. The most valuable assertion by
+far is the uniform-name check. In real WebGL `getUniformLocation` returns null
+for a name the shader does not declare, and `uniform1f(null, x)` is a silent
+no-op — so a single typo does not throw, does not warn, and fails no other
+check in this repo. It just quietly removes an effect from the game. The fake
+reproduces that exactly, parsing the uniform declarations out of the shader
+source it was handed and returning null for anything else, and the harness
+fails if any location came back null or any write went to one.
+
+It also holds the glow to eight GPU draws a frame (one backdrop, six blur, one
+composite), pins the render-target ladder to ¼–¼–⅛–⅛–¹⁄₁₆–¹⁄₁₆ so nobody
+collapses the chained downsample back into one aliasing 4:1 read, and checks
+that the bright buffer is uploaded with `UNPACK_FLIP_Y_WEBGL` — a canvas
+counts rows down and a framebuffer counts them up, so flipping in neither
+place or in both renders the glow upside down, which nothing else here could
+notice. It drives the render-scale dial through a fast stretch, a slow one and
+a fast one again, and fails if the ceiling does not latch. Then it runs the
+whole game a second time with no WebGL at all and fails unless the drawn-disc
+halo takes over and not one GPU call is issued — a fallback nobody runs is a
+fallback nobody knows is broken.
+
+Two more assertions came out of review, both for defects the harness as first
+written could not see. It parses the lens coefficients out of the shader
+source, asks where a light at a given radius actually lands, and fails unless
+the answer is closer to the middle — the sign of an inverse-sampled
+displacement is the opposite of what it looks like, and reading has now failed
+to catch that same inversion three times in this file. And it takes the
+context away mid-run, failing unless the glow stands down and the discs take
+back over.
+
+All seven assertions were mutation-tested: renaming a uniform, deleting the
+y-flip, collapsing the downsample chain, removing the scale raise, removing
+the ceiling latch, flipping the lens sign and removing the lost-context guard
+each fail the harness with the right message. The first attempt at that last
+mutation silently failed to apply — the regex missed a character — and the
+harness "passed", which is its own lesson about mutation tests: confirm the
+mutation landed before believing the result.
 
 ## License
 

@@ -603,101 +603,143 @@ try {
   }
   console.log('clearance follows travel, not position ok');
 
-  // ---- CHILL IS SKILL, SLOWED ----
-  // The static half of this lives in check.mjs (skill is the identity mode,
-  // one knob set, no dead knobs). What that cannot see is whether the knobs
-  // reach the curves: a table of multipliers wired to nothing parses, has no
-  // dead entries by its own lights, and ships a "chill" mode that plays
-  // identically to skill. So every term is measured in both modes, at the
-  // same difficulty second, through the real functions.
+  // ---- THE MODE TABLE STILL REACHES THE CURVES ----
+  // CHILL IS RETIRED, but the mechanism it proved is not, and this is the
+  // test that keeps it honest with no second mode shipped.
+  //
+  // The static half lives in check.mjs (skill is the identity, no dead knobs).
+  // What that cannot see is whether the knobs REACH the curves: a table of
+  // multipliers wired to nothing parses, has no dead entries by its own
+  // lights, and would let a future mode ship playing identically to skill.
+  // Deleting this test with chill would mean discovering that the day someone
+  // adds a row — which is the worst possible day to discover it.
+  //
+  // So it injects a synthetic mode instead: every knob deliberately off
+  // neutral, in the direction an easier mode would take them, and measures
+  // every curve through the real functions at the same difficulty second.
+  // The probe is torn down afterwards and never touches REC or MODE's saved
+  // value.
   {
+    const probe = `MODES.__probe={id:'__probe',name:'PROBE',tag:'',c:'#fff',` +
+      `clock:0.72,speed:0.86,warn:1.3,cap:0.78,gap:1.3,shields:1,demo:0.62}`;
+    st(probe);
     const inMode = (m, expr) =>
       st(`(function(){var p=MODE;MODE='${m}';var v=(${expr});MODE=p;return v;})()`);
     // pin the clock: age() feeds dl(), so hold G.t/G.started and compare the
-    // curves rather than two runs that have been going for different lengths
+    // curves rather than two runs going for different lengths
     st("G.state='playing';G.level=1;G.started=0;G.t=200;G.diff=0");
     const skill = {
       dl: inMode('skill', 'dl()'), speed: inMode('skill', 'speedAt()'),
       warn: inMode('skill', 'warnTime()'), cap: inMode('skill', 'shardCap()'),
       gap: inMode('skill', 'spawnGap()'),
     };
-    const chill = {
-      dl: inMode('chill', 'dl()'), speed: inMode('chill', 'speedAt()'),
-      warn: inMode('chill', 'warnTime()'), cap: inMode('chill', 'shardCap()'),
-      gap: inMode('chill', 'spawnGap()'),
+    const pr = {
+      dl: inMode('__probe', 'dl()'), speed: inMode('__probe', 'speedAt()'),
+      warn: inMode('__probe', 'warnTime()'), cap: inMode('__probe', 'shardCap()'),
+      gap: inMode('__probe', 'spawnGap()'),
     };
-    if (!(chill.dl < skill.dl)) throw new Error(`chill's clock does not run slower: dl ${chill.dl} vs ${skill.dl}`);
-    if (!(chill.speed < skill.speed)) throw new Error(`chill is not slower: ${chill.speed} vs ${skill.speed}`);
-    if (!(chill.warn > skill.warn)) throw new Error(`chill does not warn for longer: ${chill.warn} vs ${skill.warn}`);
-    if (!(chill.cap <= skill.cap)) throw new Error(`chill allows more shards: ${chill.cap} vs ${skill.cap}`);
-    if (!(chill.gap > skill.gap)) throw new Error(`chill's shards arrive no less often: ${chill.gap} vs ${skill.gap}`);
-    // and at the SAME dl — the trims have to hold independently of the clock,
-    // or "chill is easier" would be true only because it is earlier
+    if (!(pr.dl < skill.dl)) throw new Error(`the clock knob does not reach dl(): ${pr.dl} vs ${skill.dl}`);
+    if (!(pr.speed < skill.speed)) throw new Error(`the speed knob does not reach speedAt(): ${pr.speed} vs ${skill.speed}`);
+    if (!(pr.warn > skill.warn)) throw new Error(`the warn knob does not reach warnTime(): ${pr.warn} vs ${skill.warn}`);
+    if (!(pr.cap <= skill.cap)) throw new Error(`the cap knob does not reach shardCap(): ${pr.cap} vs ${skill.cap}`);
+    if (!(pr.gap > skill.gap)) throw new Error(`the gap knob does not reach spawnGap(): ${pr.gap} vs ${skill.gap}`);
+
+    // AND AT EQUAL dl, so each trim is proved separately from the clock. Held
+    // over from the chill tests for the reason they were written: the clock
+    // alone moves every curve, so without this the trims could all be dead and
+    // every comparison above would still pass, on the clock's evidence.
     const atDl = (m, expr) => st(
-      `(function(){var p=MODE,c=MODES[MODE].clock;MODE='${m}';` +
-      `var f=c/MODES['${m}'].clock,t=G.t,s=G.started;G.started=G.t-(G.t-G.started)*f;` +
-      `var v=(${expr});G.started=s;G.t=t;MODE=p;return v;})()`);
-    const dS = atDl('skill', 'dl()'), dC = atDl('chill', 'dl()');
-    if (Math.abs(dS - dC) > 1e-6) throw new Error(`the same-dl comparison is not at the same dl: ${dS} vs ${dC}`);
-    if (!(atDl('chill', 'speedAt()') < atDl('skill', 'speedAt()')))
-      throw new Error('at equal dl chill is not slower — the speed trim is not wired');
-    if (!(atDl('chill', 'warnTime()') > atDl('skill', 'warnTime()')))
-      throw new Error('at equal dl chill does not warn longer — the warn trim is not wired');
-    if (!(atDl('chill', 'spawnGap()') > atDl('skill', 'spawnGap()')))
-      throw new Error('at equal dl chill is no sparser — the gap trim is not wired');
-    // the extra shield is a real shield, counted where a run actually starts
-    st("useMode('skill');G.level=1;G.upg={}"); st('startGame()');
+      `(function(){var p=MODE,t=G.t;MODE='${m}';G.t=${'${T}'};var v=(${expr});MODE=p;G.t=t;return v;})()`);
+    const eq = (m, expr, T) => st(
+      `(function(){var p=MODE,t=G.t,s=G.started;MODE='${m}';G.started=0;G.t=${T};` +
+      `var v=(${expr});MODE=p;G.t=t;G.started=s;return v;})()`);
+    // solve for the wall time at which the probe's dl matches skill's at t=200
+    const target = skill.dl;
+    let T = 200;
+    for (let i = 0; i < 60; i++) {
+      const d = eq('__probe', 'dl()', T);
+      if (Math.abs(d - target) < 0.01) break;
+      T *= target / Math.max(1e-6, d);
+    }
+    const dP = eq('__probe', 'dl()', T);
+    if (Math.abs(dP - target) > 0.5) throw new Error(`could not match dl across modes (${dP} vs ${target})`);
+    if (!(eq('__probe', 'speedAt()', T) < eq('skill', 'speedAt()', 200)))
+      throw new Error('at equal dl the speed trim is not wired');
+    if (!(eq('__probe', 'warnTime()', T) > eq('skill', 'warnTime()', 200)))
+      throw new Error('at equal dl the warn trim is not wired');
+    if (!(eq('__probe', 'spawnGap()', T) > eq('skill', 'spawnGap()', 200)))
+      throw new Error('at equal dl the gap trim is not wired');
+
+    // the additive shield knob reaches the bank
+    st("MODE='skill';G.level=1"); st('startGame()');
     const shS = st('G.shields');
-    st("useMode('chill');G.level=1"); st('startGame()');
-    const shC = st('G.shields');
-    if (shC !== shS + 1) throw new Error(`chill's extra shield is missing: ${shC} vs ${shS}`);
-    // AND CHILL MUST NOT MOVE THE CURRICULUM. Everything taught is keyed off
-    // dl or off G.level, never off wall-clock, so a chill run meets every
-    // formation and every orb in the same order at the same points. A trim
-    // that reached the tier ladder or a level's finish line would make chill a
-    // different game rather than a slower one, and curriculum.mjs — which runs
-    // in skill — would never see it.
+    st("MODE='__probe';G.level=1"); st('startGame()');
+    const shP = st('G.shields');
+    if (shP !== shS + 1) throw new Error(`the shields knob does not reach the bank: ${shP} vs ${shS}`);
+
+    // AND A MODE MUST NEVER MOVE THE CURRICULUM. Tiers key off dl and orbs off
+    // G.level, so a mode changes how many seconds a run takes to reach a rung,
+    // never which rung. A knob that reached the tier ladder or a finish line
+    // would make a second mode a different game rather than the same one at a
+    // different pace.
+    // Compared at a fixed DL, not at a fixed wall time. A slower clock reaching
+    // a lower dl after the same number of seconds is the entire point of a
+    // mode; what must not change is WHICH tiers have unlocked once the clock
+    // reads a given value. Asserting the latter at equal wall time would fail
+    // on a correct mode, which is a check that punishes the feature working.
     for (const d of [0, 90, 215, 340, 600]) {
       const ti = m => st(`(function(){var p=MODE;MODE='${m}';var v=TIERS.filter(t=>t.at<=${d}).length;MODE=p;return v;})()`);
-      if (ti('chill') !== ti('skill')) throw new Error(`chill moved the tier ladder at dl ${d}`);
+      if (ti('__probe') !== ti('skill')) throw new Error(`a mode moved the tier ladder at dl ${d}`);
     }
-    if (inMode('chill', 'JSON.stringify(LV.map(l=>l.end))') !== inMode('skill', 'JSON.stringify(LV.map(l=>l.end))'))
-      throw new Error('chill moved a level finish line — it must take longer to reach it, not a shorter one');
-    st("useMode('skill')");
-    console.log('chill derives from skill ok: slower clock, slower comet, longer warn, sparser board, +1 shield;',
-      'curriculum untouched');
+    if (inMode('__probe', 'JSON.stringify(LV.map(l=>l.end))') !== inMode('skill', 'JSON.stringify(LV.map(l=>l.end))'))
+      throw new Error('a mode moved a level finish line — it must take longer to reach it, not a shorter one');
+
+    st("MODE='skill';delete MODES.__probe");
+    if (st('Object.keys(MODES).length') !== 1) throw new Error('the probe mode was not torn down');
+    console.log('mode table ok: every knob reaches its curve (clock, speed, warn, cap, gap, shields);',
+      'curriculum untouched; one mode ships');
   }
 
-  // ---- the mode picker, and per-mode records ----
-  // The two records are the reason the storage keys were suffixed rather than
-  // shared: an easier mode writing `cometloop:best` would silently redefine
-  // every value already on every device, which is the exact failure the
-  // retired `cometloop:level` key is remembered for.
+  // ---- THE TITLE SCREEN AFTER THE MODE CARDS ----
+  // The cards are gone with chill. Two things have to stay true: the screen
+  // still offers START and the lab door and nothing that looks like a choice,
+  // and the record still goes to the UNSUFFIXED key.
+  //
+  // That second one is the whole reason retiring a mode costs no player their
+  // history. Every value ever written to cometloop:best was skill's, because
+  // chill's went to a suffixed key precisely so it could never redefine the
+  // plain one. If recKey ever starts suffixing skill, every stored record on
+  // every device silently changes owner.
   {
     st("G.state='menu';G.t+=1");
     for (let i = 0; i < 30; i++) frame(16.7);
     const ids = JSON.parse(st('JSON.stringify(G.menuRects.map(r=>r.id))'));
-    for (const need of ['chill', 'skill', 'start']) {
+    for (const need of ['start', 'lab']) {
       if (!ids.includes(need)) throw new Error(`the title screen drew no ${need} control: ${ids.join(',')}`);
     }
-    const card = JSON.parse(st('JSON.stringify(G.menuRects.find(r=>r.id==="chill"))'));
-    fire('pointerdown', pev(600, card.x + card.w / 2, card.y + card.h / 2, 'pointerdown'));
-    fire('pointerup', pev(600, card.x + card.w / 2, card.y + card.h / 2, 'pointerup'));
-    if (st('MODE') !== 'chill') throw new Error('tapping the CHILL card did not select it');
-    if (st('G.state') !== 'menu') throw new Error('a mode card started a run — cards select, START starts');
-    if (store['cometloop:mode'] !== 'chill') throw new Error('the mode was not remembered');
-    // a chill record goes to chill's keys and leaves skill's alone
-    const skillBest0 = store['cometloop:best'], skillGl0 = store['cometloop:gl'];
+    for (const gone of ['chill', 'skill']) {
+      if (ids.includes(gone)) throw new Error(`the title screen still draws a ${gone} mode card`);
+    }
+    // a tap on the background starts the run again — there is no longer a
+    // selection on this screen that a stray tap could cost you
+    fire('pointerdown', pev(600, 200, 400, 'pointerdown'));
+    fire('pointerup', pev(600, 200, 400, 'pointerup'));
+    if (st('G.state') === 'menu') throw new Error('a tap on the title screen did not leave it');
+
+    st("G.state='menu'");
+    for (let i = 0; i < 20; i++) frame(16.7);
+    delete store['cometloop:best'];
+    delete store['cometloop:best:chill'];
     st("G.state='playing';G.level=1;G.startLevel=1;G.score=999999;G.lvlMax=1;G.lastHit=null");
     st('die()');
-    if (store['cometloop:best:chill'] !== '999999') throw new Error('a chill best did not reach chill\'s key');
-    if (store['cometloop:best'] !== skillBest0) throw new Error('a chill best overwrote the skill record');
-    if (store['cometloop:gl'] !== skillGl0) throw new Error('a chill level record overwrote the skill one');
-    // and switching back restores skill's numbers rather than carrying chill's
-    st("useMode('skill')");
-    if (st('G.best') === 999999) throw new Error('switching back to skill kept chill\'s best');
-    if (st('G.best') !== st('REC.skill.best')) throw new Error('G.best is not the selected mode\'s record');
-    console.log('mode picker + per-mode records ok');
+    if (store['cometloop:best'] !== '999999')
+      throw new Error('the record did not reach the unsuffixed key — every historical best is skill\'s');
+    if (store['cometloop:best:chill'] !== undefined)
+      throw new Error('something is still writing a chill-suffixed record');
+    if (store['cometloop:mode'] !== undefined)
+      throw new Error('cometloop:mode was written — there is no mode to remember');
+    if (st('G.best') !== st('REC.skill.best')) throw new Error('G.best is not the mode\'s record');
+    console.log('title screen ok: no mode cards, tap starts, record lands on the unsuffixed key');
   }
 
   // ---- the level picker, and the record it must not forge ----
@@ -759,21 +801,19 @@ try {
     st("G.state='playing';G.startLevel=1;G.level=3;G.lvlMax=1;G.score=10;G.lastHit=null");
     st('die()');
     if (!st('G.newLevel')) throw new Error('a run that started at level 1 and reached 3 was denied FURTHEST YET');
-    // THE SHARE TEXT CARRIES THE QUALIFIERS OR IT IS A CLAIM THE RUN DID NOT
-    // EARN. Two things changed what "LEVEL 4/4" means — the mode, and whether
-    // the run was picked into — and a text that travels further than the link
-    // does cannot leave either unsaid. The default run still shares the
-    // sentence that shipped, which is the other half of the guard.
-    st("G.level=2;G.tier=5;G.score=1234;G.deadT=G.t;G.startLevel=1;useMode('skill')");
+    // THE SHARE TEXT CARRIES THE QUALIFIER OR IT IS A CLAIM THE RUN DID NOT
+    // EARN. Two things used to change what "LEVEL 4/4" means — the mode and
+    // whether the run was picked into — and with chill retired one is left. A
+    // text that travels further than the link does cannot leave it unsaid, and
+    // the default run still shares the sentence that shipped, which is the
+    // other half of the guard.
+    st("G.level=2;G.tier=5;G.score=1234;G.deadT=G.t;G.startLevel=1");
     const plain = st('runSummary()').split('\n')[0];
     if (/CHILL|from L/.test(plain)) throw new Error('a default run qualified its share text: ' + plain);
     st("G.startLevel=3");
     if (!/from L3/.test(st('runSummary()'))) throw new Error('a picked start is not named in the share text');
-    st("useMode('chill');G.startLevel=1");
-    if (!/CHILL/.test(st('runSummary()'))) throw new Error('a chill run is not named in the share text');
-    st("useMode('skill')");
     console.log('level picker ok: any level selectable, none of them forges a record;',
-      'share text names mode and picked start');
+      'share text names a picked start');
   }
 
   // ---- pause ----

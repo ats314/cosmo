@@ -488,6 +488,38 @@ function bakeGrade(band){
   g.restore();
   return {c:c,w:W,h:H};
 }
+/* ---------- THE BASE SKY, BAKED ONLY IF IT WILL BE SEEN ----------
+   A baked gradient and two star planes: the one part of the sky the shader
+   really does replace, because drawing the gradient over a live shader would
+   paint it out completely and the star planes would double its own three.
+   Measured on a 390x844 phone at DPR 2 they are 5.65 Mpx — about 22MB of
+   canvas, four times the visible game canvas — and on any device with a
+   working GPU not one pixel of it is ever drawn.
+   THE BAKE CANNOT SIMPLY BE GATED ON GL.on, because glInit() runs long after
+   the first resize(): at the moment buildSprites first runs, GL.on is false
+   on every device, so a naive guard would bake the whole set anyway and then
+   only skip it on later resizes. Baking on FIRST USE is the version that
+   works, and it has the property that matters — it is also correct when a
+   context is lost mid-run and the fallback takes over for real.
+   There is one deliberate loss: a band change on a fallback device that has
+   never drawn the base sky has no outgoing bake to crossfade from, so the
+   first band it ever draws arrives without the 2.5s fade. That is the frame a
+   GPU has just died on; a hard cut is the least of what the player is seeing. */
+let skyBaseBand=-2;
+function buildSkyBase(){
+  const band=SKY_BANDS[skyI];
+  SPR.bg=bakeBackdrop(band.bg);
+  if(!SPR.bg2){
+    /* band-independent, so it survives a band change and is built once */
+    SPR.bg2=bakeBackdrop(['#231b3f','#151030','#0b081c','#05040e']);
+    /* TWO DEPTH PLANES, so orbiting actually parallaxes the sky: the dim small
+       stars barely move (and bake soft — the far plane is out of focus) while
+       the bright haloed ones ride a comet-coupled offset, pin sharp. */
+    SPR.starsFar=bakeStars(8,[0],true,true);
+    SPR.starsNear=bakeStars(28,[1,2]);
+  }
+  skyBaseBand=skyI;
+}
 function buildSprites(bandOnly){
   buildStarField();
   const band=SKY_BANDS[skyI];
@@ -496,7 +528,11 @@ function buildSprites(bandOnly){
      to rebake together on the banner frame. The nebulae bake from the BAND's
      tints now (they used to bake from the fixed seed colours, so the palette
      bands never actually recoloured them — dead data, found in review). */
-  SPR.bg=bakeBackdrop(band.bg);
+  /* THE BASE SKY IS NOT BAKED HERE ANY MORE — see buildSkyBase. It is the
+     only part of the sprite cache the shader genuinely replaces, so on a
+     working GPU it is 22MB of canvas that is painted, held, and never drawn.
+     Invalidated here and baked on first use, which on most devices is never. */
+  skyBaseBand=-2;
   SPR.neb=band.neb.map(function(c){return bakeNebula(c);});
   SPR.galaxy=bakeGalaxy(band);
   SPR.planet=bakePlanet(band);
@@ -509,17 +545,14 @@ function buildSprites(bandOnly){
   /* The payoff section owns a second sky. Baked here, drawn only while a
      section plays — the drop flips the world into a state that LASTS, rather
      than a one-second flash over the ordinary screen. */
-  SPR.bg2=bakeBackdrop(['#231b3f','#151030','#0b081c','#05040e']);
   SPR.neb2=nebulas.map(function(n,i){
     return bakeNebula(['150,110,255','90,80,220','190,90,200'][i%3]);
   });
   /* The wash that blooms behind the arena when the drop lands. */
   SPR.nebDrop=bakeNebula('180,139,255');
-  /* TWO DEPTH PLANES, so orbiting actually parallaxes the sky: the dim small
-     stars barely move (and bake soft — the far plane is out of focus) while
-     the bright haloed ones ride a comet-coupled offset, pin sharp. */
-  SPR.starsFar=bakeStars(8,[0],true,true);
-  SPR.starsNear=bakeStars(28,[1,2]);
+  /* the two star planes moved to buildSkyBase with the gradient: the shader
+     draws its own three star layers, so these are fallback-only too */
+  SPR.starsFar=null;SPR.starsNear=null;SPR.bg2=null;
   SPR.ember=makeSprite(9*u+24,function(g){
     const hr=22*u;
     const gr=g.createRadialGradient(0,0,0,0,0,hr);
@@ -778,6 +811,24 @@ function buildSprites(bandOnly){
     g.fillStyle='rgba(190,215,255,0.9)';
     g.beginPath();g.arc(0,0,1.7*u,0,TAU);g.fill();
   });
+  /* THE LIT LIMB. SPR.core is commented as "the hub lamp the whole scene is
+     lit by" and until now exactly one object answered it: the shard, whose
+     baked bright face is rotated hubward at draw time. That trick is right,
+     and it generalises — everything else on the board is a decal that glows
+     the same on all sides no matter where it is standing, which is why a
+     dense board reads as stickers on glass rather than objects in a room.
+     Baked facing -x and rotated by the SCREEN direction out from the hub, so
+     the lit edge always faces the lamp. Screen direction, not the parametric
+     ring angle: with AY above 1 the arena is a stretched circle and the two
+     differ by up to eleven degrees at the diagonals, which is a highlight
+     visibly off-centre on exactly the objects nearest the player's eye. */
+  SPR.rim=makeSprite(13*u+10,function(g){
+    g.lineCap='round';
+    g.shadowColor='rgba(180,215,255,0.85)';g.shadowBlur=6;
+    g.strokeStyle='rgba(214,234,255,0.95)';
+    g.lineWidth=2.2*u;
+    g.beginPath();g.arc(0,0,9*u,Math.PI*0.72,Math.PI*1.28);g.stroke();
+  });
 }
 
 function resize(){
@@ -822,6 +873,9 @@ function resize(){
        cannot, because the old bake is the wrong size. The 1-2ms rebake lands
        on the same frame as the tier banner, where a long frame is invisible. */
     const bandOnly=sprU===u&&sprDPR===DPR&&sprW===W&&sprH===H&&sprBand!==-1;
+    /* a real resize invalidates the band-INDEPENDENT base as well: those
+       bakes are sized to the viewport and cannot survive it changing */
+    if(!bandOnly){SPR.bg2=null;SPR.starsFar=null;SPR.starsNear=null;}
     const old=bandOnly?SPR.bg:null;
     buildSprites(bandOnly);
     if(old){SPR.bgOld=old;G.bgFade=RM?0:1;}
@@ -850,7 +904,42 @@ function radiusOf(i){return R*RADII[i];}
    The mechanic is gone and so is the free radius. There is nothing left to
    disagree about: radiusOf(s.ring) is the only radius an ember has. Anything
    that reintroduces a per-object radius reintroduces this whole bug class. */
-function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r*AY];}
+/* ---------- THE ORBIT STACK HAS DEPTH ----------
+   The backdrop already parallaxes: five baked planes ride the camera dolly by
+   their own depth, which is why the sky reads as far away. The arena did not.
+   Four orbits, one plane, pinned dead still while everything behind them
+   moved — so the stack read as rings printed on the glass in front of a
+   world, rather than as a machine standing in one.
+   The offset is a function of the RADIUS ALONE. That is the whole reason this
+   is safe: posAt() takes the radius as an argument, so every object standing
+   on an orbit gets exactly the offset that orbit gets, without anything
+   having to be told which ring it is on. A shard cannot come unstuck from its
+   track because the two are computed from the same number.
+   It rides the SAME LFO as the backdrop dolly, scaled — one camera moving,
+   not two effects agreeing. The hub is depth 0 and never moves, which is
+   what makes the differential visible at all: the outer orbit swings against
+   a fixed lamp.
+   KNOWN APPROXIMATION, and it is the only one: a few positions are STORED
+   rather than recomputed — the nova front's centre, the trail's points, a
+   particle's birthplace — so they carry the offset that was live when they
+   were taken. The dolly moves about half a pixel over a second at this
+   amplitude, against a nova front that grows to hundreds of pixels and a
+   trail that is three pixels wide. Nothing here is a hit test on a tolerance
+   that small; the real hit tests are all on angles and radii, which this
+   never touches.
+   ARENA_PARALLAX is the A/B dial: 0 restores the flat stack exactly. */
+let ARENA_PARALLAX=1.0;
+const PARA_K=1.15;          /* the arena's swing as a multiple of the dolly's */
+let paX=0,paY=0;            /* set once per frame in draw(), from camX/camY */
+function depthOf(r){return R>0?Math.min(1.35,r/R):0;}
+function posAt(a,r){
+  const d=depthOf(r);
+  return[cx+paX*d+Math.cos(a)*r,cy+paY*d+Math.sin(a)*r*AY];
+}
+/* the same offset for anything drawn as an arc about the hub rather than as a
+   point on one — ring strokes, lap arcs, ignition heads, the saucer's beam */
+function ecx(r){return cx+paX*depthOf(r);}
+function ecy(r){return cy+paY*depthOf(r);}
 
 /* ---------- audio ----------
    Everything is synthesised; there are no audio files. The layout is a fixed
@@ -980,6 +1069,15 @@ const CH=[[110,220,261.63,329.63],      /* Am  — level 1's i  */
 /* ARP tops out at degree 4 (784Hz) on purpose: the player's floor is 784 and a
    boundary only reads as a boundary if the band actually stops below it. */
 const ARP=[0,2,4,2,3,2,4,3],CNT=[7,5,4,5,7,8,7,5];
+/* THE STAR RUN — sixteen sixteenths, one bar, restated for as long as the
+   hypernova lasts. Four ascending four-note cells, each starting one degree
+   above the last, so the line climbs and wraps instead of resolving. Indices
+   into PENT, which is the level's own minor pentatonic: an interval over the
+   tonic, never a frequency, so it transposes with the key and stays consonant
+   against every chord in either section. Degrees 4-10 sit ABOVE the band's
+   degree-4 arp ceiling — the star is meant to be on top of the arrangement,
+   which is the one voice in the game that is. */
+const STARRUN=[4,5,6,7, 5,6,7,8, 6,7,8,9, 7,8,9,10];
 /* The score-anchored layer ladder. The riff and the solo it used to declare
    here (RIFF, SOLO) are deleted: they were superseded by the per-level RIFFL
    and SOLOL and had no reader left, so they sat in the distributed file as two
@@ -2161,13 +2259,58 @@ function musicStep(i,t,k){
     hat(t+S16,0.007,4600,0.04,0,0,7200);
     if(G.od===0){G.odBrk=true;cueState(false);} /* it ends the way a record ends: on the break */
   }
-  /* HYPERNOVA: the kit rides sixteenths and the floor pounds every other
-     beat — the star is audible as double-time, exactly the hyper-speed
-     zone the playtest asked to chase */
+  /* ================= HYPERNOVA: THE STAR RUN =================
+     "Like getting a star in Mario, but with our theme." The kit already rode
+     sixteenths and the floor already pounded every other beat, and that is a
+     TEXTURE change — the same song, busier. What a star does in the game
+     everyone means by this is HARMONIC and MELODIC: a different tune arrives,
+     instantly, and it is unmistakably the invincibility tune.
+
+     WHY NOT THE CHORUS. The star already lifts the record into it — hypernova
+     is in the hot-play set at the top of this function. But that lift can only
+     land at a four-bar seam, and a seam can be up to a full loop away while
+     the star lasts sixteen beats. So a player could take the star, hear
+     nothing change, and have it expire before the section arrived. The one
+     thing this moment cannot be is late.
+
+     WHY NOT A THIRD SECTION. `applySect` is the only writer of CH/ARP and
+     sections change only at a four-bar seam, never inside a payoff, rise,
+     black hole or star dive. A star that swapped the harmony mid-bar would
+     break the rule those four exceptions exist to protect, and it would fight
+     the chorus for the same tables.
+
+     SO THE STAR IS AN OVERLAY, NOT A SECTION. The harmony underneath is
+     whatever was already playing; the star adds a voice above it that starts
+     on the frame you take it. That is why it is immediate, and why it cannot
+     collide with anything.
+
+     THE RUN ITSELF is sixteen sixteenths that climb and wrap: four ascending
+     cells, each starting a degree higher than the last, so the line spirals
+     upward and never resolves. That is the whole feeling of the thing — an
+     unstoppable climb, restated every bar for as long as you are untouchable.
+     Written as PENT DEGREES, never frequencies, so it is an interval over the
+     level's own tonic and transposes with the key by construction. The
+     pentatonic is consonant against any triad in the natural minor, so the
+     run is safe over the verse, the chorus, and any chord either walks to. */
   if(G.hyper>0){
     hat(t,0.013,5200,0.045,0,0,7400);
     hat(t+S16,0.010,5800,0.04,0,0.3,7600);
     if(beat%2===0)kick(t,0.055);
+    /* the two sixteenths this eighth owns */
+    for(let s=0;s<2;s++){
+      const ix=beat*2+s,d=STARRUN[ix];
+      /* alternating pan gives the run width without moving anything else */
+      const pn=(ix%2)?0.22:-0.22;
+      /* square for the bite, triangle under it for body — the same pairing
+         lead() uses, at the register above the band's degree-4 ceiling */
+      note(PENT[d],t+s*S16,0.115,'square',0.026,3400,pn);
+      note(PENT[d],t+s*S16,0.115,'triangle',0.018,2100,pn);
+    }
+    /* AND THE FLOOR DRIVES. Straight eighths on the live chord's root, so the
+       star pushes forward against a progression that is still walking rather
+       than sitting on a pedal. chI/CH, never a stored frequency: this has to
+       follow a section change if one lands while the star is running. */
+    bassN(ch[0]*0.5,t,SPB*0.42,0.052);
   }
   /* 3 / 7 / 11 melodic events per bar still hold. The kit sits underneath
      them; the payoff section remains the loudest thing in the game. */
@@ -3109,6 +3252,14 @@ function bedTick(dt){
      loudest instant in the game and drove the soft clip to 1.45 pre-limiter.
      The pad comes down, never the hook — the pad receding IS the loudness. */
   if(MU&&MU.pay>0)mul=((PAY-MU.pay)>>3)<(MU.lateAt||4)?0.35:0.60;
+  /* THE STAR OPENS THE BAND, and it has to be written HERE or it does not
+     happen. bedTick is the only writer of BED.g, so a mode that adds voices in
+     musicStep and nothing else gets a brighter cutoff over a pad sitting at
+     exactly the level it was before — which is the bug the black hole shipped
+     and the drop's hush shipped before it. The star is the one moment in the
+     game that should sound BIGGER rather than merely busier, so the floor
+     comes up under the run instead of stepping back for it. */
+  else if(G.hyper>0)mul=1.22;
   else if(G.spot>0)mul=0.8;   /* the band steps back while you have the light */
   /* it CUTS on the way in (0.05s) and SWELLS on the way out (0.9s): the pitch
      is explicit that a crossfade would read as a transition between two songs
@@ -3375,79 +3526,76 @@ const LV=[
    clamp against it — it used to sit 1,300 lines further down, which put it in
    its own temporal dead zone for everything that boots first. */
 const LEVEL_MAX=LV.length;
-/* ---------- two modes, one game ----------
-   SKILL is the game. CHILL is not a second game and there is no second
-   implementation of anything below: it is the same code with the difficulty
-   CLOCK turned down and four forgiveness terms scaled. Every field here is a
-   MULTIPLIER over a curve that already exists — dl(), speedAt(), warnTime(),
-   shardCap(), spawnGap() — so a balance change made once lands in both modes
-   and cannot land in only one.
+/* ---------- one mode, and the table that survives it ----------
+   CHILL IS GONE FOR NOW. The owner's call: one mode until the game is
+   perfected, and then a difficulty conversation from a settled baseline
+   rather than alongside one. What is deliberately NOT gone is the mechanism.
 
-   SKILL IS THE IDENTITY. Every one of its knobs is 1 (or 0 for the additive
-   shield), which is what makes the claim above checkable rather than a
-   promise: with skill selected, every expression the knobs appear in reduces
-   to exactly the expression that shipped, so this table cannot quietly become
-   a place where the real game is tuned. check.mjs fails the build if a skill
-   knob stops being the neutral element, and if any knob here is never read.
+   MODES stays, with a single row, and that row is still the IDENTITY: every
+   knob 1, or 0 for the additive shield. So every expression the knobs appear
+   in — dl(), speedAt(), warnTime(), shardCap(), spawnGap(), the shield bank —
+   still reduces to exactly what shipped, and this table still cannot quietly
+   become the place the real game is tuned. check.mjs still fails the build if
+   a knob stops being neutral or is declared without a call site.
 
-   WHY THE CLOCK IS THE MAIN LEVER. Everything that presses on the player —
-   speed, shard cap, arrival rate, warning length, the tier ladder, the finish
-   line — is already keyed off dl(), the difficulty clock. Slowing that one
-   number eases all six together and in the proportions they were tuned in,
-   which is the only way "easier" stays recognisably the same game. The other
-   knobs are trims on top of it, not a second difficulty curve.
+   Keeping it costs one row and buys the thing that was expensive to get
+   right: the rule that a second difficulty is a DERIVATIVE and never a second
+   implementation. That rule was not obvious, it was arrived at, and it is
+   written into the shape of this table and its guards. Deleting the table
+   would delete the rule and leave a future second mode to rediscover it —
+   most likely as a branch on a flag somewhere in the game code, which is
+   exactly what the table exists to prevent. Bringing chill back is adding a
+   row; it is not re-deriving a design.
 
-   WHAT CHILL DELIBERATELY DOES NOT TOUCH: the curriculum, the music and the
-   scoring. Orbs and lessons are gated on G.level, tiers on dl, so a chill run
+   WHY THE CLOCK IS THE MAIN LEVER, kept here because it is the reasoning a
+   second mode will need. Everything that presses on the player — speed, shard
+   cap, arrival rate, warning length, the tier ladder, the finish line — is
+   already keyed off dl(), the difficulty clock. Slowing that one number eases
+   all six together and in the proportions they were tuned in, which is the
+   only way "easier" stays recognisably the same game. The other knobs are
+   trims on top of it, not a second difficulty curve.
+
+   AND WHAT A MODE MUST NEVER TOUCH: the curriculum, the music, the scoring.
+   Orbs and lessons are gated on G.level and tiers on dl, so any future mode
    meets every formation and every orb in the same order at the same points —
-   it just gets there in more seconds. The arrangement is untouched, because a
-   mode is not a key change. And nothing multiplies the score: chill is worth
-   less per minute only because a minute contains less game.
-
-   The tags are read on the menu and have to obey the same rule the lessons
-   do — claim nothing the player cannot check. "slower" and "more room to
-   read" are both literally what the numbers below say. */
+   it just gets there in a different number of seconds. curriculum.mjs fails
+   if a mode moves a tier, a finish line or a level boundary. */
 let MODE='skill';
 const MODES={
   skill:{id:'skill',name:'SKILL',tag:'the game at full pace',
     c:COL.comet,
-    clock:1,speed:1,warn:1,cap:1,gap:1,shields:0,demo:1},
-  /* 0.72 puts level 1's finish line around 2:55 instead of 2:06 — the calm
-     opening is the part of the game chill exists to lengthen, so the extra
-     time lands where the ramp is shallowest rather than being spread evenly.
-     The speed trim is separate and small: the clock alone eases how fast the
-     board FILLS, and a hand that wants a slower game can feel the comet. */
-  /* `c` is the mode's identity colour and the ONLY thing the two cards recolour.
-     Red belongs to the one thing that hurts you and is never borrowed — a chill
-     card drawing its shards in green would teach, on the first screen anybody
-     sees, that the colour of danger is negotiable. */
-  chill:{id:'chill',name:'CHILL',tag:'slower, and room to read it',
-    c:'#a887ff',
-    clock:0.72,speed:0.86,warn:1.3,cap:0.78,gap:1.3,shields:1,demo:0.62}
+    clock:1,speed:1,warn:1,cap:1,gap:1,shields:0,demo:1}
 };
 function MD(){return MODES[MODE]||MODES.skill;}
-/* THE RECORDS ARE PER MODE, and the existing keys stay SKILL's. A chill best
-   written to `cometloop:best` would silently redefine every historical value
-   under it — the same failure the retired `cometloop:level` key exists to
-   remember — so chill gets its own suffixed keys and nothing already on a
-   device changes meaning. G.best and G.lvlMax stay "the selected mode's
-   record" so every reader of them is unchanged; useMode swaps them. */
-const REC={skill:{best:0,lvlMax:1},chill:{best:0,lvlMax:1}};
-function recKey(k,m){return 'cometloop:'+k+((m||MODE)==='chill'?':chill':'');}
+/* THE RECORDS ARE STILL KEYED BY MODE, and the unsuffixed keys are still
+   SKILL's — which is the whole reason removing chill costs no player their
+   history. Every value ever written to `cometloop:best` and `cometloop:gl`
+   was skill's, because chill's went to `:chill`-suffixed keys precisely so
+   that a chill best could never redefine what the plain key meant. So with
+   chill gone the plain keys mean exactly what they always meant, on every
+   device, with nothing to migrate.
+   THE `:chill` KEYS ARE LEFT ON DISK, DELIBERATELY. They cost a few bytes,
+   nothing reads them, and they are somebody's record — if chill comes back
+   it comes back with its history intact. Deleting them would be a one-way
+   door opened for tidiness.
+   recKey keeps its mode argument even though one mode can only produce one
+   answer: it is the seam a second mode returns through, and the guard that
+   the unsuffixed key belongs to skill lives inside it. */
+const REC={skill:{best:0,lvlMax:1}};
+function recKey(k,m){return 'cometloop:'+k+((m||MODE)==='skill'?'':':'+(m||MODE));}
 function useMode(m){
-  MODE=(m==='chill')?'chill':'skill';
+  MODE=MODES[m]?m:'skill';
   G.best=REC[MODE].best;G.lvlMax=REC[MODE].lvlMax;
 }
 /* ---------- the powerup lab ----------
-   A third door on the title screen, beside the two mode cards and deliberately
-   NOT a third mode. MODES is the difficulty table and check.mjs holds it to
-   that: every row the same knobs, skill the identity element, no knob declared
-   without a call site. A sandbox that pins the difficulty clock and forces one
-   orb is not a difficulty, so it is a flag with its own front screen rather
-   than a row — MODES still parses to exactly two modes and every guard on it
-   is untouched. The lab bar is a DOOR, not a card: it navigates the way the
-   menu's `change` swipe control already does, so the rule that mode cards
-   select rather than start survives intact.
+   A door on the title screen, and deliberately NOT a mode. MODES is the
+   difficulty table and check.mjs holds it to that: every row the same knobs,
+   skill the identity element, no knob declared without a call site. A sandbox
+   that pins the difficulty clock and forces one orb is not a difficulty, so
+   it is a flag with its own front screen rather than a row — and that stayed
+   true when CHILL was retired, which is the test of it: the table went to one
+   row and the lab did not become the second one. It navigates the way the
+   swipe chooser's `change` control does.
 
    WHAT IT IS FOR. Six of the seven orbs sit behind a curriculum ladder and the
    seventh is rare on purpose — three blackhole_entered events in the game's
@@ -3852,11 +4000,13 @@ function readLocal(k){
   try{return window.localStorage?localStorage.getItem(k):null;}catch(e){return null;}
 }
 function loadPrefs(){
-  /* Both modes' records are read, and the selected mode's are copied into
-     G.best / G.lvlMax by useMode below. The unsuffixed keys are SKILL's and
-     always were, so a device that has only ever played the one game reads
-     back exactly what it wrote. */
-  for(const mk of ['skill','chill']){
+  /* The record is read per mode and copied into G.best / G.lvlMax by useMode
+     below. There is one mode, so this reads one pair of keys — but it stays a
+     loop over Object.keys(MODES) rather than two hardcoded reads, because
+     that is the difference between adding a mode later and remembering to
+     add a mode HERE later. The unsuffixed keys are SKILL's and always were,
+     so a device reads back exactly what it wrote. */
+  for(const mk of Object.keys(MODES)){
     const b=parseInt(readLocal(recKey('best',mk)),10);
     if(!isNaN(b))REC[mk].best=Math.max(REC[mk].best,b);
     /* `cometloop:level` is retired and deliberately NOT read: it held the
@@ -3867,10 +4017,13 @@ function loadPrefs(){
   }
   const r=parseInt(readLocal('cometloop:runs'),10);
   if(!isNaN(r))G.runs=Math.max(G.runs,r);
-  /* absent means this device has never chosen — SKILL is the default, and
-     the menu is where it changes */
-  const pm=readLocal('cometloop:mode');
-  useMode(pm==='chill'?'chill':'skill');
+  /* `cometloop:mode` is retired: there is one mode and the menu no longer
+     offers a choice. Deliberately NOT read — a device that last played chill
+     has a 'chill' sitting under this key, and honouring it would select a
+     mode that no longer exists. useMode's own fallback would catch that, but
+     the honest fix is not to ask. The key is left on disk with the `:chill`
+     records, for the same reason. */
+  useMode('skill');
   const m=readLocal('cometloop:muted');
   if(m!==null)muted=(m==='1');
   /* absent means this device has never been asked — the chooser is shown once */
@@ -3894,10 +4047,11 @@ function loadPrefs(){
   try{
     if(!window.storage||!window.storage.get)return;
     /* The host store is read per mode too, and into REC rather than straight
-       into G: these land asynchronously, possibly after the player has already
-       switched modes on the menu, and writing a chill arrival into G.best
-       while skill is selected would put the wrong record on the screen. */
-    for(const mk of ['skill','chill']){
+       into G: these land asynchronously, and the MODE check below is what
+       keeps a late arrival for one mode off the screen while another is
+       selected. With one mode that check is always true — it stays because
+       the asynchrony does not go away when the second mode comes back. */
+    for(const mk of Object.keys(MODES)){
       (function(m){
         window.storage.get(recKey('best',m)).then(function(r){
           const v=r&&parseInt(r.value,10);
@@ -3911,9 +4065,6 @@ function loadPrefs(){
         }).catch(function(){});
       })(mk);
     }
-    window.storage.get('cometloop:mode').then(function(r){
-      if(r&&r.value)useMode(r.value==='chill'?'chill':'skill');
-    }).catch(function(){});
     window.storage.get('cometloop:runs').then(function(r){
       const v=r&&parseInt(r.value,10);
       if(v&&!isNaN(v))G.runs=Math.max(G.runs,v);
@@ -4523,7 +4674,7 @@ const G={
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
   newLevel:false, /* did this run reach deeper than any before it */
   swipeAsked:false,selRects:[],selPt:null,selFx:0,selFrom:null,swipeRect:null,
-  menuRects:[],menuPt:null,modeFx:0,          /* the mode picker on the title screen */
+  menuRects:[],menuPt:null,            /* the title screen's controls: START and the lab door */
   lvSel:1,lvSelRects:[],lvSelPt:null,lvSelFx:0,  /* the starting-level picker */
   powSelRects:[],powSelFx:0,   /* the powerup lab's picker */
   labRect:null,                /* the lab's way out, drawn only during a lab run */
@@ -5316,7 +5467,7 @@ function startGame(){
   if(!carried)G.saidChor=false;
   G.teach=0;G.teachKind=null;G.teachHint=null;G.campT=0;G.holdD=0;G.hopHintT=0;G.coach=null;
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
-  G.sparkT=0;G.sparkN=0;
+  G.sparkT=0;G.sparkN=0;G.wakeT=0;
   G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;G.finGlow=0;G.spotGlow=0;
   G.spot=0;G.spotD=0;G.lastTapAt=-9;G.finEnd=0;G.hyper=0;G.hyperD=0;G.hyperGlow=0;
   FIN.on=false;FIN.pend=false;FIN.done=false;FIN.step=0;FIN.score=0;FIN.got=0;FIN.voices=0;FIN.t0=0;FIN.trail.length=0;
@@ -5439,7 +5590,8 @@ function die(){
   pd=null;   /* the gesture died with the run */
   /* THE LAB SCORES NOTHING. Guarded here at the point the record is COMPUTED
      and not merely at the savePref below it: G.best and REC[MODE].best are
-     what the two mode cards print, so a lab score that skipped only the write
+     what the title screen's best line prints, so a lab score that skipped the
+     write alone
      would still have rewritten the menu's best for the rest of the visit and
      then vanished on reload — a number the player watched appear and could
      never reproduce. A board pinned at dl 40 with red switched off is not a
@@ -5682,22 +5834,16 @@ function retry(){
   else startGame();
 }
 /* ---------- the front of the game ----------
-   Three screens before a run, and each one only exists because the choice on
-   it cannot be made for the player: which game they want (mode), which way
-   their hand thinks "out" is (swipe rule, once per device), and where they
-   want to start. They are separate states rather than one settings sheet
-   because each is drawn on the live arena and answered there. */
-function pickMode(m){
-  if(MODE===m)return;
-  useMode(m);
-  savePref('cometloop:mode',MODE);
-  G.modeFx=1;
-  track('mode_chosen',{run_index:G.runs});   /* play_mode rides on every event */
-  /* the two modes answer in their own register: skill's confirmation is the
-     brighter fifth above chill's, in the pentatonic every other sound in the
-     game speaks through — never a bare frequency */
-  beep(PENT[MODE==='chill'?0:2],0.12,'triangle',0.05,PENT[MODE==='chill'?2:4]);
-}
+   TWO decisions before a run, not three. The mode question is retired with
+   chill, and what is left is the pair that genuinely cannot be answered for
+   the player: which way their hand thinks "out" is (the swipe rule, asked
+   once per device) and where they want to start. They stay separate states
+   rather than one settings sheet because each is drawn on the live arena and
+   answered there.
+   The title screen therefore no longer holds a decision at all — it holds
+   START and the door to the lab. That is a simpler screen than the one that
+   shipped, and the record line goes back under the title where it lived
+   before there were two of them to tell apart. */
 function enterSwipeSel(from){
   G.selFrom=from||null;
   G.state='swipesel';G.lvT=G.t;G.nRings=3;G.ringI=1;G.hopFromI=1;G.hopP=1;
@@ -5782,10 +5928,7 @@ function enterLevelSel(){
    learned or drawn. Nowhere else changes: on any other state this is a no-op,
    which is what the arrow keys already did outside a run. */
 function menuStep(d){
-  if(G.state==='menu'){
-    /* CHILL is drawn left of SKILL, so -1 is left is chill */
-    pickMode(d<0?'chill':'skill');
-  }else if(G.state==='levelsel'){
+  if(G.state==='levelsel'){
     const n=Math.min(LEVEL_MAX,Math.max(1,(G.lvSel||1)+d));
     if(n!==G.lvSel){
       G.lvSel=n;G.lvSelFx=1;
@@ -5983,14 +6126,13 @@ function runSummary(){
      number nobody can place; a shared level is a claim that invites one back
      — "level 2 of 3" is answerable in a way "4300" is not. */
   /* THE SHARED CLAIM HAS TO BE THE CLAIM THAT WAS EARNED. Two things now make
-     a score mean something different: the mode it was played in, and whether
-     the run started at level 1 or was picked into. Both are named, and only
-     when they are not the default — a skill run that began at LIFT OFF shares
-     exactly the text that shipped, because that is still what "Cosmo · LEVEL
-     2/4" has always meant. A chill run announcing itself as an unqualified
-     level 4 would be the share text lying on the player's behalf. */
-  const tag=(MODE==='chill'?' · CHILL':'')+
-    (G.startLevel>1?' · from L'+G.startLevel:'');
+     a score mean something different, and with chill retired there is one
+     left: whether the run started at level 1 or was picked into. It is named
+     only when it is not the default, so an ordinary run shares exactly the
+     text that shipped — which is still what "Cosmo · LEVEL 2/4" has always
+     meant. A picked run announcing itself as an unqualified level 4 would be
+     the share text lying on the player's behalf. */
+  const tag=(G.startLevel>1?' · from L'+G.startLevel:'');
   return 'Cosmo · LEVEL '+G.level+'/'+LEVEL_MAX+tag+'\n'+
     bar+' '+tierLabel()+'\n'+
     G.score+' points · '+G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
@@ -6107,22 +6249,18 @@ cv.addEventListener('pointerdown',function(e){
        e.clientY>=G.swipeRect.y&&e.clientY<=G.swipeRect.y+G.swipeRect.h){
       G.swipeAsked=false;enterSwipeSel('menu');return;
     }
-    /* THE MODE CARDS SELECT, THEY DO NOT START. Two controls on the screen a
-       player taps without reading means one of them will be hit by accident,
-       and the expensive mistake is starting a run in the wrong game rather
-       than looking at a card you did not mean to look at. So a card only ever
-       changes the selection, and the run begins from START — or from anywhere
-       else on the screen, which is the tap this game has always answered. */
+    /* THE TITLE SCREEN ANSWERS A TAP ANYWHERE AGAIN, which is what it did
+       before the mode cards arrived. With the cards gone there is no longer a
+       control here whose job is to change a selection, so nothing on this
+       screen can be hit by accident in a way that costs a run — the one thing
+       the select-don't-start rule existed to prevent.
+       THE LAB BAR IS STILL A DOOR, and still handled first. It answers "not a
+       game at all, show me the orbs", opening another screen with a way back,
+       so reaching it costs a look rather than a run. The menu's `change`
+       swipe control has always worked exactly this way. */
     const mh=G.menuRects.find(function(r){
       return e.clientX>=r.x&&e.clientX<=r.x+r.w&&e.clientY>=r.y&&e.clientY<=r.y+r.h;});
-    /* THE LAB BAR IS A DOOR, NOT A CARD, and that is why it is handled before
-       the cards rather than beside them. A card answers "which game"; the lab
-       answers "not a game at all, show me the orbs" — and it opens another
-       decision screen with a way back, so navigating from it costs a look
-       rather than a run. The menu's own `change` control has always worked
-       exactly this way, which is the precedent this follows. */
     if(mh&&mh.id==='lab'){openLab();beep(523,0.12,'triangle',0.05,784);return;}
-    if(mh&&mh.id!=='start'){pickMode(mh.id);return;}
     leaveMenu();
     return;
   }
@@ -6392,10 +6530,18 @@ window.addEventListener('keydown',function(e){
 });
 
 /* ---------- update ---------- */
+/* THE STAR'S TAIL IS LONGER, and the DECAY is why — not this cap. Measured:
+   an ordinary run holds 29 samples and a star holds 52, because a sample's
+   life is what expires first (1/2.1s ordinarily, 1/1.15s with the star). The
+   cap is never the binding constraint in either case and must not become one:
+   at 50 it would have clipped the star's ribbon by two samples, which is the
+   only reason it moves at all. It is headroom, and calling it the mechanism
+   would be a comment claiming credit for a line that does nothing. */
+function trailCap(){return RM?50:Math.round(50+46*G.hyperGlow);}
 function pushTrail(){
   const p=posPlayer();
   G.trail.push({x:p[0],y:p[1],life:1});
-  if(G.trail.length>50)G.trail.shift();
+  while(G.trail.length>trailCap())G.trail.shift();
 }
 /* THE MENU DEMONSTRATES BOTH VERBS. The title comet was already orbiting the
    real simulation behind the key; now it plays a 12-second scripted loop — a
@@ -6743,19 +6889,23 @@ function update(dt){
     if(p.life<=0)G.pops.splice(i,1);
   }
   for(let i=G.trail.length-1;i>=0;i--){
-    const tr=G.trail[i];tr.life-=pdt*2.1;
+    /* the star's samples live longer, or the raised cap buys nothing: a
+       sample that expires on schedule is gone before the extra length can
+       reach it */
+    const tr=G.trail[i];tr.life-=pdt*(2.1-(RM?0:0.95*G.hyperGlow));
     if(tr.life<=0)G.trail.splice(i,1);
   }
 
   /* dir matters on the menu now: the demo reverses the comet for real */
-  /* THE TITLE SCREEN RUNS AT THE MODE'S PACE. The demo comet is the only
-     moving thing on the menu, so pointing the mode's own speed trim at it
-     makes the choice legible before the player has committed to it: pick
-     CHILL and the screen you are looking at visibly calms down. It is the
-     same multiplier the run uses — not a decoration with its own number. */
+  /* THE TITLE SCREEN RUNS AT THE MODE'S PACE, and keeps doing so with one
+     mode. It was written so a pick was legible before the player committed to
+     it — choose the calmer game and the screen visibly calms down — and with
+     nothing to pick it is now simply the demo running at the game's own
+     speed, off the same multiplier the run uses. Kept wired rather than
+     inlined to 1: MD().demo is a live knob, check.mjs fails on a knob with no
+     call site, and this is its call site. */
   if(G.state==='menu'){
     G.sweep=0;G.angle+=0.8*MD().demo*dt*G.dir;pushTrail();
-    if(G.modeFx>0)G.modeFx=Math.max(0,G.modeFx-dt*2.2);
     menuDemo(dt);return;
   }
   if(G.state==='levelsel'){
@@ -7097,6 +7247,50 @@ function update(dt){
         vx:-hx*rand(40,95)+rand(-30,30),vy:-hy*rand(40,95)+rand(-30,30),
         life:1,dec:rand(2.6,4.0),col:G.sparkN%4===3?COL.ember:'#bef4ff',
         size:rand(1,1.9)*u});
+    }
+    /* THE WHOLE WAKE BURNS, NOT JUST THE HEAD. The shed above fires from one
+       point seven pixels behind the comet, which is right for an idle orbit
+       and wrong for a hot one: the trail already reports the groove by
+       tinting toward warp-violet, and at x6 it is a bright violet ribbon
+       with sparks coming off one end of it. Above the halfway mark the
+       ribbon itself starts throwing embers, picked at a random point along
+       its length and pushed out along the local normal, so the thing that is
+       reporting the streak is visibly the thing that is burning.
+       Gated on the groove, capped hard, and dead under reduced motion — and
+       it spends the DILATED delta, not the raw one, because a spark thrown
+       by a ribbon has to thin out when the ribbon slows down. (The furnace
+       above still meters on dt; its rate is tied to the comet's own heat
+       rather than to how fast the world is running, and changing that is a
+       separate argument from this one.) */
+    G.wakeT-=sdt;
+    /* THE STAR OPENS THE WAKE UNCONDITIONALLY. Ordinarily this is the groove's
+       reward and waits for a chain of four; a hypernova is not a chain and a
+       player who takes one from a cold start would otherwise get the biggest
+       tail in the game with nothing coming off it. The star also raises the
+       particle ceiling, because the ribbon it is shedding from is nearly twice
+       as wide and half again as long. */
+    const star=G.hyperGlow>0.02;
+    if((G.groove>=4||star)&&G.trail.length>6&&G.parts.length<(star?230:150)&&G.wakeT<=0){
+      G.wakeT=rand(0.05,0.11)/(1+0.30*Math.max(0,G.groove-4)+(G.pay>0?1.4:0)+2.2*G.hyperGlow);
+      const n=G.trail.length;
+      /* never the last two samples: that is the head, and the furnace
+         already owns it — two emitters on one point reads as one brighter
+         emitter, which is not what this is for */
+      const i=1+Math.floor(Math.random()*(n-3));
+      const a=G.trail[i+1],b=G.trail[i-1];
+      let tx=a.x-b.x,ty=a.y-b.y;
+      const L=Math.sqrt(tx*tx+ty*ty)||1;
+      tx/=L;ty/=L;
+      const side=Math.random()<0.5?1:-1;
+      const sp3=rand(14,42)*(1+0.12*(G.groove-4));
+      G.parts.push({x:G.trail[i].x,y:G.trail[i].y,
+        vx:-ty*side*sp3+tx*rand(-16,16),vy:tx*side*sp3+ty*rand(-16,16),
+        life:Math.max(0.35,G.trail[i].life),dec:rand(2.2,3.4),
+        /* the star's sparks are its own two colours, so the debris matches the
+           ribbon it came off rather than reporting a groove nobody is on */
+        col:star?(Math.random()<0.45?'#ffffff':(Math.random()<0.5?COL.hyper:COL.ember))
+          :((G.pay>0||G.groove>=7)?'#ffffff':(Math.random()<0.35?COL.ember:COL.warp)),
+        size:rand(0.8,1.6)*u});
     }
   }
 
@@ -7522,6 +7716,22 @@ function drawShardOutline(x,y,r,al,dash,core){
    so this is the same layered finish the embers and shards get, at a fraction
    of what the live shadowBlur cost. Pulse and rotation ride blit()'s args;
    the cores are plain fills, kept out of the pulse so the centre holds still. */
+/* One lamp, at the hub, and everything on the board takes its highlight from
+   it. Falloff is written as a DISTANCE against the outermost radius, never as
+   a ring ordinal: index 0 is the OUTERMOST orbit, so `1-ring/nRings` would
+   light the board backwards and read as plausible in review. */
+function rimLight(x,y,scale,al){
+  if(!SPR.rim||!(al>0.004))return;
+  const dx=x-cx,dy=y-cy,d=Math.sqrt(dx*dx+dy*dy);
+  if(d<1)return;
+  const R0=radiusOf(0)||1;
+  const k=Math.max(0,Math.min(1,1.18-0.86*(d/R0)));
+  if(k<=0.01)return;
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  blit(SPR.rim,x,y,scale,Math.atan2(dy,dx),al*k);
+  ctx.restore();
+}
 function drawPow(x,y,s,al){
   /* orbs breathe on the LANDED beat, not their own clock */
   const pulse=1+(RM?0.10:0.15*G.beat);
@@ -7589,6 +7799,10 @@ function drawPow(x,y,s,al){
     ctx.save();ctx.globalAlpha=al;ctx.fillStyle=COL.nova;
     ctx.beginPath();ctx.arc(x,y,2.5*u,0,TAU);ctx.fill();ctx.restore();
   }
+  /* every orb takes the lamp EXCEPT the black hole, which is the one object
+     in the game that does not emit — giving it a highlight would light the
+     one thing whose whole read is that light goes in and does not come out */
+  if(s.type!=='blackhole')rimLight(x,y,pulse*1.05,al*0.55);
 }
 /* The old stack led with -apple-system, so on the device this actually ships
    to every word was San Francisco: the system UI face, which reads as a
@@ -7713,9 +7927,14 @@ let bloomC=null,bloomG=null,haloC=null,haloG=null,haloWC=null,haloWG=null;
 /* One call site, three discs: the tight blob every caller already asked for,
    and the two that build its halo. Guarded on haloG so the tight pass still
    stands alone if the halo buffers never came up. */
+/* set once per frame by drawBloom, BEFORE the dot loop: false means the GPU
+   is building the halo out of the tight buffer and the two discs per light
+   are dead weight. Decided once rather than per dot so a mid-frame GL
+   failure can never leave half the lights haloed and half not. */
+let bloomHalo=true;
 function bloomDot(g,x,y,r,col){
   g.fillStyle=col;g.beginPath();g.arc(x,y,r,0,TAU);g.fill();
-  if(!haloG)return;
+  if(!haloG||!bloomHalo)return;
   haloG.fillStyle=col;
   haloG.globalAlpha=HALO_W1;
   haloG.beginPath();haloG.arc(x,y,r*HALO_K1,0,TAU);haloG.fill();
@@ -7728,16 +7947,19 @@ function drawBloom(){
     haloC=document.createElement('canvas');haloG=haloC.getContext('2d');
     haloWC=document.createElement('canvas');haloWG=haloWC.getContext('2d');
   }
+  bloomHalo=!FX.on;
   const bw=Math.max(1,Math.ceil(W/BLOOM_DIV)),bh=Math.max(1,Math.ceil(H/BLOOM_DIV));
   if(bloomC.width!==bw||bloomC.height!==bh){bloomC.width=bw;bloomC.height=bh;}
   /* the halo buffer has to be cleared and put in world coordinates BEFORE the
      dot loop below, because bloomDot writes into it as it goes */
   const hw=Math.max(1,Math.ceil(W/HALO_DIV)),hh=Math.max(1,Math.ceil(H/HALO_DIV));
-  if(haloC.width!==hw||haloC.height!==hh){haloC.width=hw;haloC.height=hh;}
-  haloG.setTransform(1,0,0,1,0,0);
-  haloG.clearRect(0,0,hw,hh);
-  haloG.setTransform(1/HALO_DIV,0,0,1/HALO_DIV,0,0);
-  haloG.globalCompositeOperation='lighter';
+  if(bloomHalo){
+    if(haloC.width!==hw||haloC.height!==hh){haloC.width=hw;haloC.height=hh;}
+    haloG.setTransform(1,0,0,1,0,0);
+    haloG.clearRect(0,0,hw,hh);
+    haloG.setTransform(1/HALO_DIV,0,0,1/HALO_DIV,0,0);
+    haloG.globalCompositeOperation='lighter';
+  }
   const g=bloomG,s=1/BLOOM_DIV;
   g.setTransform(1,0,0,1,0,0);
   g.clearRect(0,0,bw,bh);
@@ -7775,27 +7997,41 @@ function drawBloom(){
   /* the hub lamp blooms too, harder while the drop is landing */
   bloomDot(g,cx,cy,(9+9*G.dropFx)*u,'#9db9ff');
   g.setTransform(1,0,0,1,0,0);
-  /* The widest reach comes free: one downsample of the halo buffer that is
-     already drawn. Smoothing has to be asserted every frame, because assigning
-     width RESETS the context and a downscale with it off is a point sample
-     that discards fifteen pixels in sixteen. */
-  haloG.setTransform(1,0,0,1,0,0);
-  haloG.globalAlpha=1;
-  const ww=Math.max(1,Math.ceil(W/HALO_WDIV)),wh=Math.max(1,Math.ceil(H/HALO_WDIV));
-  if(haloWC.width!==ww||haloWC.height!==wh){haloWC.width=ww;haloWC.height=wh;}
-  haloWG.imageSmoothingEnabled=true;
-  haloWG.clearRect(0,0,ww,wh);
-  haloWG.drawImage(haloC,0,0,ww,wh);
+  /* THE GPU PATH, when it is up: two gaussian levels and the lens, off the
+     buffer that was just filled. It can fail on this very frame (a lost
+     context, a driver refusing a framebuffer), and then this frame has no
+     halo at all — because bloomHalo was decided before the dot loop and the
+     discs were never drawn. One frame of a slightly thinner glow on the way
+     into a permanent fallback is the right trade for never drawing both. */
+  const fxOK=bloomHalo?false:fxRender(bloomC,bw,bh);
+  if(bloomHalo){
+    /* The widest reach comes free: one downsample of the halo buffer that is
+       already drawn. Smoothing has to be asserted every frame, because assigning
+       width RESETS the context and a downscale with it off is a point sample
+       that discards fifteen pixels in sixteen. */
+    haloG.setTransform(1,0,0,1,0,0);
+    haloG.globalAlpha=1;
+    const ww=Math.max(1,Math.ceil(W/HALO_WDIV)),wh=Math.max(1,Math.ceil(H/HALO_WDIV));
+    if(haloWC.width!==ww||haloWC.height!==wh){haloWC.width=ww;haloWC.height=wh;}
+    haloWG.imageSmoothingEnabled=true;
+    haloWG.clearRect(0,0,ww,wh);
+    haloWG.drawImage(haloC,0,0,ww,wh);
+  }
   ctx.save();
   ctx.globalCompositeOperation='lighter';
   /* the bloom breathes with the payoff kick — the visual half of the pump */
   const bp=1+((G.pay>0&&!RM)?0.45*G.beat:0);
   /* Additive, so the order buys nothing mathematically; widest first because
      that is the order the light is built in and the one a reader expects. */
-  ctx.globalAlpha=HALO_WA*bp;
-  ctx.drawImage(haloWC,0,0,W,H);
-  ctx.globalAlpha=HALO_A*bp;
-  ctx.drawImage(haloC,0,0,W,H);
+  if(fxOK){
+    ctx.globalAlpha=FX_A*bp;
+    ctx.drawImage(FX.cv,0,0,W,H);
+  }else if(bloomHalo){
+    ctx.globalAlpha=HALO_WA*bp;
+    ctx.drawImage(haloWC,0,0,W,H);
+    ctx.globalAlpha=HALO_A*bp;
+    ctx.drawImage(haloC,0,0,W,H);
+  }
   ctx.globalAlpha=BLOOM_ALPHA*bp;
   ctx.drawImage(bloomC,0,0,W,H);
   ctx.restore();
@@ -7816,12 +8052,24 @@ function drawRingGlow(){
     /* the light under the comet breathes with the landed beat */
     ctx.globalAlpha=L[1]*(RM?1:1+0.30*G.beat);
     ctx.lineWidth=L[2]*u;
-    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,G.angle-L[0],G.angle+L[0]);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,G.angle-L[0],G.angle+L[0]);ctx.stroke();
   }
   ctx.restore();
 }
-function drawTail(){
-  const n=G.trail.length;
+/* THE AFTER-IMAGE. Slow motion reaches the whole visible world now — the
+   sky, the dolly, the debris, the ribbon all ride G.vt — and the result is
+   correct and strangely undersold, because everything slowing down together
+   looks a great deal like nothing happening. What reads as slow motion, in
+   every medium that has ever had to sell it, is one thing SMEARING against
+   another: a second image of the moving object, lagging where it has been.
+   So the ribbon is drawn twice while time is dilated. The ghost is the same
+   ribbon minus its most recent samples, so its head sits where the comet was
+   a moment ago, wider and dimmer and in warp violet — the mode's own colour,
+   the one the slow-mo vignette is already tinted with. It is drawn FIRST, so
+   the live cyan ribbon lies on top of its own past.
+   Costs nothing when time is running: the whole pass is behind the same
+   G.tsCur test the vignette uses, and never runs under reduced motion. */
+function tailRibbon(n,am,ghost){
   if(n<4)return;
   const nx=new Array(n),ny=new Array(n),bw=new Array(n);
   for(let i=0;i<n;i++){
@@ -7831,8 +8079,12 @@ function drawTail(){
     const L=Math.sqrt(tx*tx+ty*ty);
     if(L<1e-4){tx=1;ty=0;}else{tx/=L;ty/=L;}
     nx[i]=-ty;ny[i]=tx;
-    /* width tapers by both age and position, so the head stays fat */
-    bw[i]=8*u*Math.pow(Math.max(p.life,0),0.7)*(0.16+0.84*i/(n-1));
+    /* width tapers by both age and position, so the head stays fat.
+       THE STAR WIDENS THE WHOLE RIBBON. G.hyperGlow rather than G.hyper, so
+       it arrives and leaves on the same envelope the corona does instead of
+       snapping on with the timer. */
+    bw[i]=8*u*Math.pow(Math.max(p.life,0),0.7)*(0.16+0.84*i/(n-1))
+      *(1+(RM?0:0.85*G.hyperGlow));
   }
   /* Width, alpha, colour. The narrow pass runs near-white so the ribbon goes
      hot at its centre and cools outward, the way anything incandescent does.
@@ -7846,7 +8098,33 @@ function drawTail(){
     return 'rgb('+Math.round(a[0]+(b[0]-a[0])*gm)+','+
       Math.round(a[1]+(b[1]-a[1])*gm)+','+Math.round(a[2]+(b[2]-a[2])*gm)+')';
   };
-  const passes=[
+  /* the ghost is two passes, not three: it is an after-image, and giving it
+     the hot white core the live ribbon has would make it read as a second
+     comet rather than as the first one's past */
+  /* THE STAR'S TAIL. "A comet flying through orbit with a brilliant tail" —
+     so during a hypernova the ribbon stops being the groove's scoreboard and
+     becomes the thing itself: five passes instead of three, a wide magenta
+     bloom outside a hot gold body inside a white core, running the length of
+     a ribbon that is also longer and nearly twice as wide. The colours are
+     COL.hyper's magenta and the ember gold, which is what the orb and its
+     popup already are — the tail is the same object as the pickup, not a new
+     palette. Crossfaded on hyperGlow so it arrives and leaves with the
+     corona; at hyperGlow 0 the arithmetic reduces to the ordinary passes. */
+  const hg=RM?0:G.hyperGlow;
+  const hmix=function(base,star){
+    return 'rgb('+Math.round(base[0]+(star[0]-base[0])*hg)+','+
+      Math.round(base[1]+(star[1]-base[1])*hg)+','+
+      Math.round(base[2]+(star[2]-base[2])*hg)+')';
+  };
+  const passes=ghost?[
+    [3.0,0.055,'rgb(150,110,240)'],
+    [1.5,0.10,'rgb(196,166,255)']]:hg>0.02?[
+    /* outermost first, the order light is built in */
+    [4.2,0.055*hg,'rgb(255,79,216)'],
+    [2.5,0.075+0.06*hg,hmix([93,240,255],[255,120,225])],
+    [1.35,0.16+0.10*hg,hmix([142,242,255],[255,200,120])],
+    [0.6,0.34+0.30*hg,hmix([230,253,255],[255,255,255])],
+    [0.26,0.30*hg,'#ffffff']]:[
     [2.5,0.075,mix([93,240,255],[180,139,255])],
     [1.35,0.16,mix([142,242,255],[214,190,255])],
     [0.6,0.34,G.pay>0?'#ffffff':'#e6fdff']];
@@ -7854,7 +8132,7 @@ function drawTail(){
   ctx.globalCompositeOperation='lighter';
   for(let k=0;k<passes.length;k++){
     const m=passes[k][0];
-    ctx.globalAlpha=passes[k][1];
+    ctx.globalAlpha=passes[k][1]*am;
     ctx.fillStyle=passes[k][2];
     ctx.beginPath();
     for(let i=0;i<n;i++){
@@ -7869,6 +8147,18 @@ function drawTail(){
     ctx.closePath();ctx.fill();
   }
   ctx.restore();
+}
+function drawTail(){
+  const n=G.trail.length;
+  if(n<4)return;
+  if(!RM&&G.tsCur<0.98){
+    /* how far behind the ghost sits scales with how deep the dilation is:
+       barely at 0.98, about nine samples at the 0.42 floor. Clamped so the
+       ghost always keeps enough of the ribbon to still be one. */
+    const lag=Math.max(2,Math.min(n-4,Math.round(9*(1-G.tsCur)/0.58)));
+    tailRibbon(n-lag,Math.min(1,(1-G.tsCur)/0.30),true);
+  }
+  tailRibbon(n,1,false);
 }
 
 /* ---------- the visible beat ----------
@@ -7972,6 +8262,27 @@ function musPos(){
    Why a shader at all: the old sky was radial-gradient sprites, which cannot
    express filaments, dust lanes or flow no matter how they are animated. This
    is two-level domain-warped fBm — the structure IS the maths. */
+/* ---------- HOW MUCH OF THE SCENE SURVIVES OVER A LIVE SKY ----------
+   The composed scene — planet, galactic band, cloud field, god rays, fog,
+   motes, grade — was authored to composite over a BAKED gradient: flat, dark,
+   and structureless. It now lands on the shader, which is none of those
+   things. At full strength the scene would veil the very field it is meant to
+   be standing in front of, and the fix is not to drop layers but to weigh
+   them, because the two KINDS of layer fail differently:
+     SKY_OVER  source-over layers VEIL. Whatever alpha they carry is that much
+               of the shader they hide, so they come down the most.
+     SKY_ADD   additive layers (the rays) ADD light rather than hiding any, so
+               they need far less trim — and the drop is the moment they exist
+               for, so over-trimming them would flatten the biggest event in
+               the game.
+     SKY_GRADE the grade is a vignette, and the shader already has one of its
+               own; without a trim the frame would darken twice at the edges.
+   All three apply ONLY when the shader is running: the 2D fallback composites
+   at exactly the weights it always did, so nothing about that path changes.
+   Mutable at runtime, like FX_A and ARENA_PARALLAX, because the last word on
+   how much sky is too much belongs to eyes on a real screen — these are the
+   most eye-dependent numbers in the file and the least measurable. */
+let SKY_OVER=0.62,SKY_ADD=0.80,SKY_GRADE=0.55;
 const GL_SCALE=0.60;   /* render scale. THE perf dial: the field is smooth, so
                           upscaling costs almost nothing visually. Drop toward
                           0.4 if a phone struggles, raise to 1.0 on desktop. */
@@ -7981,10 +8292,14 @@ const GL_COV=0.36, GL_EXP=1.45;   /* void threshold and exposure — see notes *
    in play: the backdrop was competing for attention with an arena the player
    has to watch. Lower is calmer; the structure is unchanged either way. */
 const GL_MOTION=0.42;
+/* GL_SCALE is where the sky STARTS, not where it is stuck: glWatch climbs
+   toward GL_SCALE_MAX on a machine that can hold the frame and latches the
+   ceiling down the first time one cannot. */
+const GL_SCALE_MAX=1.0;
 const GL={on:false,g:null,pr:null,u:{},cv:null,vw:0,vh:0,
   r:[[0,0,-1],[0,0,-1]],slot:0,shear:0,
   flow:0,flowVt:null,   /* the integrated advection clock — see uFlow */
-  scale:GL_SCALE,acc:0,n:0,slow:0};
+  scale:GL_SCALE,cap:GL_SCALE_MAX,acc:0,n:0,slow:0,fast:0};
 const GL_FS=`
 precision highp float;
 uniform vec2 uRes,uCtr; uniform float uTime,uEnergy,uPal,uCov,uExp,uCombo,uBeat,uShr,uMotion,uBH,uPock,uFlow;
@@ -8217,19 +8532,52 @@ function glShear(dir){ if(GL.on&&!RM)GL.shear=0.28*(dir<0?-1:1); }
    scale (the field is smooth, so a smaller buffer upscales almost invisibly),
    and if the cheapest scale is still slow it hands the backdrop back to the
    baked 2D path and never tries again this run. Degrade, never stutter. */
+/* AND IT ONLY EVER WENT DOWN. 0.60 is a compromise struck between a phone
+   that might not cope and a desktop that could render this four times over,
+   and the compromise was permanent in both directions: a machine holding
+   4ms frames all run stayed at 0.60 forever, because nothing here could
+   raise it. The field is smooth, so scale is very nearly a pure quality
+   dial — which makes leaving headroom unspent the same kind of waste as
+   stuttering, just quieter.
+   THE CEILING LATCHES DOWN AND NEVER COMES BACK UP, and that is what makes
+   the climb safe. A dial that can rise and fall on a device sitting near the
+   threshold will oscillate: raise, go slow, drop, look fast, raise again —
+   a visible pulsing of the sky's resolution, which is worse than either end
+   of it. So the moment anything is too slow, GL.cap drops to whatever scale
+   we retreated to, and the raise can never step past the cap again this run.
+   Degrade never, then, is still degrade-once: the run's quality is monotone
+   non-increasing after the first slow second.
+   Raising asks for more evidence than lowering (4 fast seconds against 2
+   slow) and asks at a stricter threshold than the one that triggers a drop,
+   so the two bands cannot both be true. */
 function glWatch(dt){
   if(dt<=0||dt>0.5)return;                 /* ignore tab-switch spikes */
   GL.acc+=dt;GL.n++;
   if(GL.acc<1.0)return;
   const avg=GL.acc/GL.n; GL.acc=0;GL.n=0;
   if(avg>1/45){
+    GL.fast=0;
     GL.slow++;
     if(GL.slow>=2){
       GL.slow=0;
-      if(GL.scale>0.34){GL.scale=Math.max(0.34,GL.scale-0.14);GL.vw=GL.vh=0;}
+      if(GL.scale>0.34){
+        GL.scale=Math.max(0.34,GL.scale-0.14);
+        GL.cap=GL.scale;                   /* the ceiling latches, permanently */
+        GL.vw=GL.vh=0;
+      }
       else GL.on=false;                    /* the 2D backdrop takes over */
     }
-  }else GL.slow=0;
+  }else{
+    GL.slow=0;
+    if(avg<1/58&&GL.scale<GL.cap){
+      GL.fast++;
+      if(GL.fast>=4){
+        GL.fast=0;
+        GL.scale=Math.min(GL.cap,GL.scale+0.10);
+        GL.vw=GL.vh=0;                     /* forces glResize to rebuild */
+      }
+    }else GL.fast=0;
+  }
 }
 function glRender(dt){
   if(!GL.on)return;
@@ -8301,6 +8649,342 @@ try{
     },false);
   }
 }catch(e){}
+/* ================= THE HALO RUNS ON THE GPU =================
+   What moves here is ONLY the blur. drawBloom's bright pass stays exactly
+   where it is, because it is SEMANTIC: it knows which objects are lights, so
+   it never has to threshold a composited frame and can never pick up the
+   rings, the pool or the HUD. Thresholding luminance would be the textbook
+   route and it would be worse — this game draws a lot of bright things that
+   are not light sources.
+   The blur is the part that was wrong, and drawBloom's own comment is the
+   bill of particulars: one buffer carries one radius, a mip cascade sums
+   peaks instead of spreading them, and bilinear upscaling is a separable
+   TENT whose footprint is a cross that changes shape depending on where an
+   object falls on the coarse grid — 80% halo swing as an ember slides across
+   one coarse pixel, on a board where every object is permanently in orbit.
+   Drawing real discs at 2x and 4x the dot radius was the right answer
+   available to a 2D canvas, and it bought roundness at the cost of three
+   arc+fills per light and a falloff made of two stacked steps.
+   A separable gaussian is the answer that was not available. It is a true
+   convolution, so it is round by construction and shift-invariant to within
+   its own grid — and its grid is the /4 bright buffer, four times finer than
+   the /12 the mid halo used to be drawn into and eight times finer than the
+   /32 wide one. The ripple therefore goes DOWN by moving the halo up to the
+   GPU, which is the opposite of what "blur it on a smaller buffer" sounds
+   like it should do.
+   Two levels, because two radii is what the old stack had and what the scene
+   needs: a mid halo blurred at /4 and a wide one blurred at /16. The tight
+   core pass is untouched and still composites straight off bloomC.
+   AND THE GLOW CAN NOW BE BENT. It is a field in a texture rather than a
+   pile of discs, so the composite pass can lens it: radial chromatic
+   aberration that grows with the energy already driving the sky, and — the
+   one that matters — the black hole's pull applied to the arena's own light.
+   The shader has always bent the sky while the arena sat flat on top of it,
+   which is the exact tell this file already documents for the star layer
+   ("the nebula bent and the stars sat still on top of it"). Same bug, one
+   layer up. The sharp arena still does not bend; its light does, and that is
+   the half a screen-space pass can honestly buy.
+   FALLBACK IS THE WHOLE POINT: if any of this fails, FX.on goes false and
+   drawBloom draws the two halo discs per light exactly as it always has. */
+/* THE DIAL, SET AGAINST THE OLD STACK RATHER THAN BY EYE. Every number here
+   was chosen so the halo carries the SAME AMOUNT OF LIGHT it did before —
+   this is a change of filter, not a brightness change, and a glow that
+   arrived 40% hotter would flatter the diff while wrecking the contrast the
+   calm pool exists to buy back. Measured per light on a 390x844 phone, halo
+   term only, reach to 1/255 as the maximum over a full circle:
+     ember  energy 1.04x  reach 54 -> 64px  roundness 0.750 -> 0.867
+     shard  energy 1.07x  reach 56 -> 69px  roundness 0.821 -> 0.883
+     comet  energy 1.06x  reach 79 -> 84px  roundness 0.828 -> 0.935
+     hub    energy 1.02x  reach 51 -> 59px  roundness 0.733 -> 0.881
+   And the crawl, which is the defect the discs were chosen to avoid and the
+   one a finer grid was always going to win: sliding a light across one whole
+   coarse buffer pixel swung the old halo's reach by 8.8% and its peak by
+   5.7%; the gaussian swings 3.5% and 3.2%.
+   FX_A is mutable at runtime for the same reason HALO_A is — the last word
+   on how much glow is too much belongs to eyes on a real screen. */
+let FX_A=0.55;                   /* composite alpha — the runtime dial, as HALO_A is */
+const FX_MIDW=0.62,FX_WIDEW=0.85; /* level weights inside the shader */
+const FX_SPREAD=1.15;            /* blur step, in texels of each level. 1.6 reaches
+                                    further and starts showing the five taps:
+                                    the hub's roundness falls 0.881 -> 0.821 */
+/* RADIAL ABERRATION, quoted as the R-to-B sample separation it actually
+   produces on an 844px-tall screen — a coefficient on its own says nothing:
+     idle        0.00px at the arena centre, 0.57 at 0.25H out, 1.14 at 0.5H
+     running hot 0.00                        1.90                3.80
+     black hole  0.00                        3.80                7.60
+   Zero at the centre by construction, because ab scales with r: the fringe
+   grows out toward the corners and never touches the orbits the player is
+   reading. */
+const FX_AB=0.0045;
+const FX={on:false,g:null,cv:null,prB:null,prC:null,uB:{},uC:{},
+  src:null,rt:[],bw:0,bh:0,cw:0,ch:0};
+const FX_VS='attribute vec2 p;varying vec2 vUv;void main(){vUv=p*0.5+0.5;gl_Position=vec4(p,0.,1.);}';
+/* the five-tap linear-sampled gaussian: nine taps' worth of weight for five
+   fetches, because a bilinear fetch between two texels IS two weighted taps */
+const FX_BLUR=`
+precision mediump float;
+uniform sampler2D uTex; uniform vec2 uStep;
+varying vec2 vUv;
+void main(){
+  vec4 s=texture2D(uTex,vUv)*0.2270270270;
+  vec2 o1=uStep*1.3846153846, o2=uStep*3.2307692308;
+  s+=(texture2D(uTex,vUv+o1)+texture2D(uTex,vUv-o1))*0.3162162162;
+  s+=(texture2D(uTex,vUv+o2)+texture2D(uTex,vUv-o2))*0.0702702703;
+  gl_FragColor=s;
+}`;
+const FX_COMP=`
+precision mediump float;
+uniform sampler2D uMid,uWide;
+uniform vec2 uCtr; uniform float uAsp,uAb,uBH,uMidW,uWideW;
+varying vec2 vUv;
+void main(){
+  vec2 uv=vUv;
+  /* d is measured in units of screen HEIGHT on both axes, the same
+     convention the backdrop shader uses, so a circle here is a circle */
+  vec2 d=vec2((uv.x-uCtr.x)*uAsp,uv.y-uCtr.y);
+  float r=length(d)+1e-5;
+  if(uBH>0.0){
+    /* THIS IS NOT THE BACKDROP'S LENS, AND COPYING IT HERE WAS WRONG.
+       The sky's pull is min(r*0.72, k/(r+c)) — a displacement bounded as a
+       FRACTION of the radius, which is right for a nebula: the whole smooth
+       field compresses toward the hole and there is nothing in it that has
+       to stay anywhere in particular. Measured against the arena's radii it
+       is a catastrophe. The orbits live between r=0.09 and r=0.20 of screen
+       height, and across that band the clamp is the binding term, so the
+       glow is compressed by the full 72% — 120 to 170 pixels of displacement
+       on an 844px screen. Every halo would be dragged clean off the light it
+       belongs to, which is the detached-glow failure this file already
+       records once, when an ember's bloom stayed parked on the ring it
+       started from while the ember flew inward.
+       A halo is not a backdrop. It is attached to an object, and the pull is
+       therefore bounded in ABSOLUTE terms instead: r*exp(-4r) peaks around a
+       hundredth of the screen height, so the light leans and winds toward
+       the hole by seven to nine pixels across the whole play annulus and
+       stays on its source. Monotonic for the same reason as before but more
+       cheaply — the derivative of the pull never approaches 1, so r' cannot
+       fold no matter what uBH does. Measured at full envelope by asking
+       where a light at a given source radius actually lands: 6.2px inward
+       at 0.10 of screen height, 7.8px at 0.15, 8.6px at 0.20, 8.8px at
+       0.30, winding 2.8 degrees at its strongest; smallest step in the
+       sampled radius over a sweep of the whole screen is 9.8e-5, so it
+       never folds. */
+    float fall=exp(-r*4.0);
+    float pull=uBH*0.115*r*fall;
+    float sw=uBH*0.55*r*fall;
+    float cs=cos(sw),sn=sin(sw);
+    /* PLUS, NOT MINUS, AND THE SIGN IS THE WHOLE EFFECT. This is INVERSE
+       sampling: the shader is handed a destination fragment and asked which
+       part of the source to read. Reading from a SMALLER radius magnifies —
+       a light living at source radius s then surfaces at a destination
+       radius LARGER than s, so subtracting the pull shoves every halo away
+       from the singularity while the comment above it says it drags them in.
+       Measured on the first cut: +6.8px at 0.10 of screen height, +8.8px at
+       0.20 — the right magnitude, pointing the wrong way. Reading from a
+       larger radius contracts, which is what a hole does: -6.2px and -8.6px
+       at the same two radii.
+       THIS IS THE THIRD TIME THIS EXACT INVERSION HAS HIT THE BLACK HOLE.
+       The gravity pull that "dragged the comet inward" pushed it outward,
+       the "inner ring 2x" bonus paid on the outer ring, and now this. Every
+       one of them read as correct, because in each case the code and the
+       comment are both true under some reading of which way the number
+       counts. There is no way to catch it by reading; the only thing that
+       works is asking where a specific light ENDS UP, in pixels, and
+       fxcheck.mjs now does exactly that. */
+    d=vec2(d.x*cs-d.y*sn,d.x*sn+d.y*cs)*(1.0+pull/r);
+    r=length(d)+1e-5;
+    uv=vec2(uCtr.x+d.x/uAsp,uCtr.y+d.y);
+  }
+  /* aberration is RADIAL and grows outward: zero at the arena centre, so the
+     thing the player is reading never fringes, widest at the corners */
+  vec2 ab=(d/r)*uAb*r;
+  ab=vec2(ab.x/uAsp,ab.y);
+  vec3 c=vec3(texture2D(uMid,uv+ab).r,texture2D(uMid,uv).g,texture2D(uMid,uv-ab).b)*uMidW;
+  c+=vec3(texture2D(uWide,uv+ab*1.7).r,texture2D(uWide,uv).g,texture2D(uWide,uv-ab*1.7).b)*uWideW;
+  gl_FragColor=vec4(max(c,0.0),1.0);
+}`;
+function fxInit(){
+  try{
+    if(!document||typeof document.createElement!=='function')return false;
+    const cv=document.createElement('canvas');
+    if(!cv||typeof cv.getContext!=='function')return false;
+    /* preserveDrawingBuffer, because this canvas is READ with drawImage
+       rather than composited by the browser: without it the drawing buffer
+       is allowed to be empty by the time anything asks for it */
+    const o={antialias:false,alpha:false,depth:false,stencil:false,preserveDrawingBuffer:true};
+    const g=cv.getContext('webgl',o)||cv.getContext('experimental-webgl',o);
+    /* the stubbed canvas in the harness answers every property with a
+       function, so feature-detection has to check RESULTS, not existence */
+    if(!g||typeof g.createShader!=='function'||typeof g.createFramebuffer!=='function')return false;
+    const mk=function(ty,src){
+      const o2=g.createShader(ty); if(!o2)return null;
+      g.shaderSource(o2,src); g.compileShader(o2);
+      return g.getShaderParameter(o2,g.COMPILE_STATUS)?o2:null;
+    };
+    const link=function(fsrc,names,out){
+      const vs=mk(g.VERTEX_SHADER,FX_VS),fs=mk(g.FRAGMENT_SHADER,fsrc);
+      if(!vs||!fs)return null;
+      const pr=g.createProgram(); if(!pr)return null;
+      g.attachShader(pr,vs);g.attachShader(pr,fs);
+      g.bindAttribLocation(pr,0,'p');   /* pinned, so one enabled array serves both */
+      g.linkProgram(pr);
+      if(!g.getProgramParameter(pr,g.LINK_STATUS))return null;
+      for(const n of names)out[n]=g.getUniformLocation(pr,n);
+      return pr;
+    };
+    const prB=link(FX_BLUR,['uTex','uStep'],FX.uB);
+    const prC=link(FX_COMP,['uMid','uWide','uCtr','uAsp','uAb','uBH','uMidW','uWideW'],FX.uC);
+    if(!prB||!prC)return false;
+    const b=g.createBuffer(); if(!b)return false;
+    g.bindBuffer(g.ARRAY_BUFFER,b);
+    g.bufferData(g.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),g.STATIC_DRAW);
+    g.enableVertexAttribArray(0);g.vertexAttribPointer(0,2,g.FLOAT,false,0,0);
+    const t=g.createTexture(); if(!t)return false;
+    g.bindTexture(g.TEXTURE_2D,t);
+    g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);
+    g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);
+    g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.CLAMP_TO_EDGE);
+    g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.CLAMP_TO_EDGE);
+    g.disable(g.DEPTH_TEST);g.disable(g.BLEND);
+    FX.g=g;FX.cv=cv;FX.prB=prB;FX.prC=prC;FX.src=t;FX.on=true;
+    return true;
+  }catch(e){return false;}
+}
+/* a render target is a texture with a framebuffer bound to it; CLAMP_TO_EDGE
+   on both axes so the blur cannot wrap a bright corner around the screen */
+function fxTarget(w,h){
+  const g=FX.g;
+  const t=g.createTexture(); if(!t)return null;
+  g.bindTexture(g.TEXTURE_2D,t);
+  g.texImage2D(g.TEXTURE_2D,0,g.RGBA,w,h,0,g.RGBA,g.UNSIGNED_BYTE,null);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.CLAMP_TO_EDGE);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.CLAMP_TO_EDGE);
+  const f=g.createFramebuffer(); if(!f)return null;
+  g.bindFramebuffer(g.FRAMEBUFFER,f);
+  g.framebufferTexture2D(g.FRAMEBUFFER,g.COLOR_ATTACHMENT0,g.TEXTURE_2D,t,0);
+  const ok=g.checkFramebufferStatus(g.FRAMEBUFFER)===g.FRAMEBUFFER_COMPLETE;
+  g.bindFramebuffer(g.FRAMEBUFFER,null);
+  return ok?{t:t,f:f,w:w,h:h}:null;
+}
+/* SIX TARGETS, THREE SCALES, AND THE MIDDLE ONE IS NOT DECORATION. The wide
+   level wants to live at /16 — four times coarser than the bright buffer —
+   and the obvious way there is one pass that reads /4 and writes /16. It
+   aliases. A five-tap kernel written in DESTINATION texels reads its
+   neighbours 4.6 source texels apart, and the source is only smooth to about
+   sigma 2, so the kernel steps straight over content it never samples. On a
+   still frame that is a slightly wrong halo; on this board, where every light
+   is permanently in orbit across the sampling grid, it is a halo that
+   shimmers — the same class of defect as the bilinear cross this whole path
+   exists to be rid of.
+   Going /4 -> /8 -> /16 halves every tap spacing to 2.3 source texels, which
+   is inside what a sigma-2 source supports, and each intermediate is itself
+   blurred before it is read down. The two extra passes cost an eighth of the
+   fragments the first pair does. */
+function fxResize(bw,bh){
+  if(FX.bw===bw&&FX.bh===bh&&FX.rt.length===6)return true;
+  const g=FX.g;
+  for(const rt of FX.rt){try{g.deleteTexture(rt.t);g.deleteFramebuffer(rt.f);}catch(e){}}
+  FX.rt=[];
+  const mw=Math.max(1,bw>>1),mh=Math.max(1,bh>>1);
+  const ww=Math.max(1,bw>>2),wh=Math.max(1,bh>>2);
+  const rt=[fxTarget(bw,bh),fxTarget(bw,bh),fxTarget(mw,mh),
+            fxTarget(mw,mh),fxTarget(ww,wh),fxTarget(ww,wh)];
+  for(const t of rt)if(!t)return false;
+  FX.rt=rt;FX.bw=bw;FX.bh=bh;
+  return true;
+}
+/* one separable pass: src texture -> dst target, along uStep */
+function fxBlur(srcTex,dst,dx,dy){
+  const g=FX.g;
+  g.bindFramebuffer(g.FRAMEBUFFER,dst.f);
+  g.viewport(0,0,dst.w,dst.h);
+  g.activeTexture(g.TEXTURE0);
+  g.bindTexture(g.TEXTURE_2D,srcTex);
+  g.uniform1i(FX.uB.uTex,0);
+  g.uniform2f(FX.uB.uStep,dx,dy);
+  g.drawArrays(g.TRIANGLES,0,3);
+}
+/* Builds the halo from the bright buffer drawBloom has just filled and
+   leaves it in FX.cv, ready to composite. Returns false on any failure, and
+   a failure is permanent: the disc path is not worse, it is just older. */
+function fxRender(srcCanvas,bw,bh){
+  if(!FX.on)return false;
+  try{
+    const g=FX.g;
+    /* A LOST CONTEXT DOES NOT THROW, IT GOES QUIET, and quiet is the one
+       failure this pass cannot survive. Every call on a lost context is a
+       silent no-op: fxResize sees its sizes unchanged and returns true,
+       drawArrays does nothing, nothing raises, and fxRender returns TRUE —
+       so drawBloom composites an empty canvas and the halo simply vanishes.
+       And it vanishes with no way back, because bloomHalo was set false
+       before the dot loop, so the discs that exist for exactly this were
+       never drawn either. That is worse than the backdrop's version of this
+       bug, which at least left a baked sky behind; here the glow just stops.
+       checkFramebufferStatus would catch it, but only on a resize.
+       isContextLost is the question actually being asked, so ask it, every
+       frame, before anything else. */
+    if(typeof g.isContextLost==='function'&&g.isContextLost()){FX.on=false;return false;}
+    if(!fxResize(bw,bh)){FX.on=false;return false;}
+    const cw=Math.max(1,Math.ceil(W/2)),ch=Math.max(1,Math.ceil(H/2));
+    if(FX.cw!==cw||FX.ch!==ch){FX.cv.width=cw;FX.cv.height=ch;FX.cw=cw;FX.ch=ch;}
+    /* FLIP ON UPLOAD, and exactly once. A 2D canvas counts rows downward and
+       a GL framebuffer counts them upward; flipping here means the composite
+       lands in FX.cv the same way up as the canvas it came from, so
+       drawImage needs no transform. Flip in neither place and the glow is
+       upside down; flip in both and it is upside down again. */
+    g.bindTexture(g.TEXTURE_2D,FX.src);
+    g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,true);
+    g.texImage2D(g.TEXTURE_2D,0,g.RGBA,g.RGBA,g.UNSIGNED_BYTE,srcCanvas);
+    const A=FX.rt[0],B=FX.rt[1],C=FX.rt[2],D=FX.rt[3],E=FX.rt[4],F=FX.rt[5];
+    g.useProgram(FX.prB);
+    /* mid: blur the bright buffer in place, at /4 */
+    fxBlur(FX.src,A,FX_SPREAD/bw,0);
+    fxBlur(A.t,B,0,FX_SPREAD/bh);
+    /* down to /8, then to /16 — each step reads a source already blurred */
+    fxBlur(B.t,C,FX_SPREAD/C.w,0);
+    fxBlur(C.t,D,0,FX_SPREAD/D.h);
+    fxBlur(D.t,E,FX_SPREAD/E.w,0);
+    fxBlur(E.t,F,0,FX_SPREAD/F.h);
+    /* composite to the FX canvas itself */
+    g.bindFramebuffer(g.FRAMEBUFFER,null);
+    g.viewport(0,0,cw,ch);
+    g.useProgram(FX.prC);
+    g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,B.t);g.uniform1i(FX.uC.uMid,0);
+    g.activeTexture(g.TEXTURE1);g.bindTexture(g.TEXTURE_2D,F.t);g.uniform1i(FX.uC.uWide,1);
+    /* uv counts UP from the bottom after the flip, so the arena centre does too */
+    g.uniform2f(FX.uC.uCtr,W>0?cx/W:0.5,H>0?1-cy/H:0.5);
+    g.uniform1f(FX.uC.uAsp,H>0?W/H:1);
+    const energy=Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow);
+    g.uniform1f(FX.uC.uAb,RM?0:FX_AB*(0.30+0.70*energy)*(1+BH.warp));
+    g.uniform1f(FX.uC.uBH,RM?0:BH.warp);
+    g.uniform1f(FX.uC.uMidW,FX_MIDW);
+    g.uniform1f(FX.uC.uWideW,FX_WIDEW);
+    g.drawArrays(g.TRIANGLES,0,3);
+    return true;
+  }catch(e){FX.on=false;return false;}
+}
+fxInit();
+/* The same pair of listeners the backdrop carries, for the same reason and
+   with one addition: the render targets have to be dropped as well as the
+   flag cleared. A restored context hands back a NEW context object, and
+   every texture, framebuffer and program made against the old one is dead —
+   so FX.rt is emptied and its cached size zeroed, or fxResize would see its
+   dimensions unchanged and happily reuse six destroyed framebuffers.
+   preventDefault is what makes restoration possible at all; without it the
+   default action is to make the context permanently unrecoverable. */
+try{
+  if(FX.cv&&typeof FX.cv.addEventListener==='function'){
+    FX.cv.addEventListener('webglcontextlost',function(ev){
+      try{ev.preventDefault();}catch(e){}
+      FX.on=false;FX.rt=[];FX.bw=FX.bh=0;FX.cw=FX.ch=0;
+    },false);
+    FX.cv.addEventListener('webglcontextrestored',function(){
+      FX.on=false;FX.rt=[];FX.bw=FX.bh=0;FX.cw=FX.ch=0;
+      fxInit();
+    },false);
+  }
+}catch(e){}
 function draw(){
   /* ALWAYS start from a known-good canvas state. A thrown frame leaves the
      transform stack dirty (save without restore, translate still applied)
@@ -8316,11 +9000,34 @@ function draw(){
   /* the ambient clock: the camera dolly, the sky's own drift and every
      background LFO ride this, so they slow with the world — see G.vt */
   const amb=RM?0:G.vt;
-  /* The GPU paints the backdrop; the 2D canvas is cleared to transparent and
-     carries only the arena. BG stays true when WebGL is unavailable, and then
-     every baked layer below draws exactly as it always did. */
+  /* ================= THE SKY IS TWO THINGS, NOT ONE =================
+     When the shader arrived it replaced the ENTIRE 2D backdrop, and that was
+     one decision too broad. It genuinely does replace the base sky — a baked
+     gradient and two star planes cannot express filaments, dust lanes or flow,
+     which is the whole argument for a shader and it is correct. What it does
+     not replace is the SCENE: the planet, the galactic band, the god rays,
+     the drifting cloud field, the fog banks and the dust motes. Those are
+     objects, with depth order and silhouettes, and no amount of fBm is an
+     object. A texture is not a place.
+     The cost of conflating them was that every one of those layers drew only
+     when `BG` was true — that is, only when WebGL had FAILED. The composed
+     scene shipped to the players on the weakest hardware and to nobody else,
+     which is not a trade anyone would make on purpose. It is also exactly the
+     shape of the bug this file already records once, when the arena-scale
+     black hole was gated on the shader having given up.
+     So the gate splits in two. BG still means "no shader": the base sky and
+     its star planes, which really are the shader's job and would paint over
+     it if they drew. SCENE means "draw the objects", which is always — over
+     the shader when there is one, over the baked gradient when there is not.
+     THE ALPHAS WERE TUNED AGAINST A FLAT DARK GRADIENT and are now landing on
+     a live, bright, structured field, so compositing them at full strength
+     would veil the thing they are standing in front of. SKY_OVER is the one
+     dial that trims them, applied only when the shader is running, so the
+     fallback still composites exactly as it always did. */
   const BG=!GL.on;
+  const so=BG?1:SKY_OVER,ao=BG?1:SKY_ADD;
   if(!BG){glRender(Math.min(0.05,Math.max(0,G.t-(GL.last||G.t))));GL.last=G.t;ctx.clearRect(0,0,W,H);}
+  if(BG&&skyBaseBand!==skyI)buildSkyBase();
   if(BG&&SPR.bg)ctx.drawImage(SPR.bg.c,0,0,W,H);
   /* a band change fades from the outgoing sky over 2.5s (RM hard-cuts) */
   if(BG&&G.bgFade>0&&SPR.bgOld){
@@ -8344,6 +9051,13 @@ function draw(){
   /* the camera dolly: the world drifts a few pixels on a long sine so no
      frame is ever static; each plane rides it by its depth */
   const camX=RM?0:Math.sin(amb*0.16)*3*u,camY=RM?0:Math.cos(amb*0.127)*3*u;
+  /* THE ARENA RIDES THE SAME DOLLY, by depth. One camera, not two effects:
+     the sky's planes and the orbit stack are driven by this one pair of
+     sines, so nothing in the scene can drift on a rhythm of its own. Set
+     here, before anything is drawn, because posAt() reads it — update() ran
+     a frame earlier and therefore uses the previous frame's pair, which at
+     half a pixel per second of drift is not a difference anything can see. */
+  paX=camX*PARA_K*ARENA_PARALLAX;paY=camY*PARA_K*ARENA_PARALLAX;
   /* THE SKY KEEPS THE BEAT (playtest: "match large visual impact to large
      audio impact"). One pulse scalar drives the whole backdrop: quiet on an
      idle board, breathing when the player runs hot, doubled through the
@@ -8373,8 +9087,8 @@ function draw(){
   const energy=Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow+0.5*G.pocket);
   const mpulse=RM?0:SKY_SWELL*(0.60*swBar+0.40*swPhrase)*(0.40+0.60*energy);
   /* THE GALACTIC BAND — deepest light in the scene, and it answers the drop */
-  if(BG&&SPR.galaxy){
-    ctx.globalAlpha=0.6*(1+0.30*mpulse);
+  if(SPR.galaxy){
+    ctx.globalAlpha=0.6*so*(1+0.30*mpulse);
     ctx.drawImage(SPR.galaxy.c,-28+sdx*0.2+camX*0.2,-28+sdy*0.2+camY*0.2,SPR.galaxy.w,SPR.galaxy.h);
     ctx.globalAlpha=1;
     if(!RM&&(dropA>0||G.odGlow>0.01)){
@@ -8385,7 +9099,7 @@ function draw(){
     }
   }
   /* the landmark: half the short side now, textured, lit by the arena */
-  if(BG&&SPR.planet){
+  if(SPR.planet){
     const ps=SPR.planet.w;
     ctx.drawImage(SPR.planet.c,-ps*0.55+sdx*0.15+camX*0.15,H-ps*0.42+sdy*0.15+camY*0.15,ps,ps);
   }
@@ -8396,7 +9110,7 @@ function draw(){
      incommensurate rates the field never resolves into a pattern.
      Size breathes on the four-bar phrase rather than the beat, so the sky
      swells with the arrangement instead of ticking with it. */
-  if(BG&&SPR.neb)for(let i=0;i<nebulas.length;i++){
+  if(SPR.neb)for(let i=0;i<nebulas.length;i++){
     const n=nebulas[i];
     const sp=SPR.neb[i%SPR.neb.length];
     const dr=amb*0.011*SKY_RATE*n.sp*n.dir+n.ph;   /* the turning drift basis */
@@ -8408,10 +9122,10 @@ function draw(){
     /* the nebulae swell when the drop lands — the dangling hook, wired */
     const nr=n.r*Math.max(W,H)*0.5*
       (1+(RM?0:0.18*G.dropFx+0.13*swPhrase+0.05*swBar));
-    ctx.globalAlpha=n.a;
+    ctx.globalAlpha=n.a*so;
     ctx.drawImage(sp.c,nx-nr,ny-nr,nr*2,nr*2);
     if(dropA>0&&SPR.neb2){
-      ctx.globalAlpha=dropA*n.a;
+      ctx.globalAlpha=dropA*n.a*so;
       ctx.drawImage(SPR.neb2[i%SPR.neb2.length].c,nx-nr,ny-nr,nr*2,nr*2);
     }
     ctx.globalAlpha=1;
@@ -8420,8 +9134,8 @@ function draw(){
      alpha while the section runs, drains with it. Suppressed under slow-mo
      so it never fights that vignette. */
   const wash=Math.min(0.85,((RM?0:0.45*G.dropFx)+0.30*G.pay)*(G.tsCur<0.98?0.4:1));
-  if(BG&&wash>0.01&&SPR.nebDrop){
-    ctx.globalAlpha=wash;
+  if(wash>0.01&&SPR.nebDrop){
+    ctx.globalAlpha=wash*so;
     const wr=R*2.2;
     ctx.drawImage(SPR.nebDrop.c,cx-wr,cy-wr,wr*2,wr*2);
     ctx.globalAlpha=1;
@@ -8429,21 +9143,21 @@ function draw(){
   /* GOD RAYS. Two counter-rotated passes of the baked fan shimmer against
      each other; the drop throws them wide. Born outside the ring stack —
      the baked inner hole keeps the play annulus clean. */
-  if(BG&&SPR.rays){
+  if(SPR.rays){
     ctx.save();
     ctx.globalCompositeOperation='lighter';
     ctx.translate(cx,cy);
     const rs=SPR.rays.w;
     if(RM){
-      ctx.globalAlpha=0.05;
+      ctx.globalAlpha=0.05*ao;
       ctx.drawImage(SPR.rays.c,-rs/2,-rs/2,rs,rs);
     }else{
       ctx.rotate(amb*0.011);
-      ctx.globalAlpha=Math.min(0.7,0.06+0.55*G.dropFx+0.15*G.pay+0.12*mpulse+0.18*G.odGlow+0.14*G.pocket);
+      ctx.globalAlpha=Math.min(0.7,0.06+0.55*G.dropFx+0.15*G.pay+0.12*mpulse+0.18*G.odGlow+0.14*G.pocket)*ao;
       const s1=1+0.25*G.dropFx;
       ctx.drawImage(SPR.rays.c,-rs/2*s1,-rs/2*s1,rs*s1,rs*s1);
       ctx.rotate(-amb*0.018+1.3);
-      ctx.globalAlpha=Math.min(0.7,0.04+0.32*G.dropFx+0.08*mpulse+0.12*G.odGlow);
+      ctx.globalAlpha=Math.min(0.7,0.04+0.32*G.dropFx+0.08*mpulse+0.12*G.odGlow)*ao;
       const s2=1.06+0.3*G.dropFx;
       ctx.drawImage(SPR.rays.c,-rs/2*s2,-rs/2*s2,rs*s2,rs*s2);
     }
@@ -8455,14 +9169,14 @@ function draw(){
   const pcx=RM?0:-Math.cos(G.angle)*7*u,pcy=RM?0:-Math.sin(G.angle)*7*u;
   const fogAl=0.36*(1-0.5*Math.min(1,G.dropFx+0.6*G.pay))*(G.tsCur<0.98?0.6:1);
   if(BG&&SPR.starsFar)ctx.drawImage(SPR.starsFar.c,-8+sdx*0.3+camX*0.3,-8+sdy*0.3+camY*0.3,SPR.starsFar.w,SPR.starsFar.h);
-  if(BG&&SPR.fogA){
-    ctx.globalAlpha=RM?0.4:fogAl;
+  if(SPR.fogA){
+    ctx.globalAlpha=(RM?0.4:fogAl)*so;
     ctx.drawImage(SPR.fogA.c,-40+sdx*0.6+camX*0.6,-40+sdy*0.6+camY*0.6,SPR.fogA.w,SPR.fogA.h);
     ctx.globalAlpha=1;
   }
   if(BG&&SPR.starsNear)ctx.drawImage(SPR.starsNear.c,-28+sdx+pcx+camX,-28+sdy+pcy+camY,SPR.starsNear.w,SPR.starsNear.h);
-  if(BG&&SPR.fogB&&!RM){
-    ctx.globalAlpha=fogAl*0.8;
+  if(SPR.fogB&&!RM){
+    ctx.globalAlpha=fogAl*0.8*so;
     ctx.drawImage(SPR.fogB.c,-40+sdx*1.4+pcx*1.6+camX*1.4,-40+sdy*1.4+pcy*1.6+camY*1.4,SPR.fogB.w,SPR.fogB.h);
     ctx.globalAlpha=1;
   }
@@ -8485,7 +9199,7 @@ function draw(){
      orbit outside the outer ring, brightens inside the lamp's shell and
      under the sweep of light that leads the comet, and nods on the landed
      beat during the payoff. 44 tiny blits. */
-  if(BG&&SPR.mote){
+  if(SPR.mote){
     const R0=radiusOf(0);
     for(const m of MOTES){
       const a=m.ang+amb*m.sp*0.03;
@@ -8786,7 +9500,9 @@ function draw(){
       const d=sp.s*(RAD_BAKE[i]?RADII[i]/RAD_BAKE[i]:1);
       ctx.save();
       ctx.globalAlpha=(on?1.0:0.6)*(i===3?Math.min(1,RADII[3]/RAD_BH[3]):1);
-      ctx.translate(cx,cy);ctx.scale(1,AY);
+      /* the channel is this orbit's own art, so it rides this orbit's depth —
+         translate BEFORE the y-scale, or the offset gets stretched with it */
+      ctx.translate(ecx(rr),ecy(rr));ctx.scale(1,AY);
       ctx.drawImage(sp.c,-d/2,-d/2,d,d);
       ctx.restore();
     }
@@ -8800,7 +9516,7 @@ function draw(){
     ctx.lineDashOffset=RM?0:-(Math.floor(G.t/(mine?SPB/4:SPB/2))*5*u*(mine?G.dir:1))%(20*u);
     ctx.strokeStyle='rgb('+tn+')';ctx.lineWidth=2*u;
     ctx.globalAlpha=(mine?0.20:0.08)+0.10*G.pay;
-    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,0,TAU);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,0,TAU);ctx.stroke();
     ctx.setLineDash([]);
     if(SPR.pip)for(let k=0;k<8;k++){
       const pp=posAt(k*TAU/8,rr);
@@ -8817,7 +9533,7 @@ function draw(){
       ctx.strokeStyle='rgba('+tn+','+(on?0.46:0.17)+')';
     }
     ctx.lineWidth=1.3;
-    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,0,TAU);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,0,TAU);ctx.stroke();
     ctx.globalAlpha=1;
   }
   /* THE METER IS INVISIBLE NOW (owner: "get rid of the purple build-up
@@ -8849,7 +9565,7 @@ function draw(){
     ctx.globalAlpha=0.55;
     ctx.strokeStyle=G.lapEmbers>=3?COL.ember:(G.lapEmbers>=1?COL.comet:'rgba(170,195,255,0.55)');
     ctx.lineWidth=3;
-    ctx.beginPath();ctx.ellipse(cx,cy,lr,lr*AY,0,a0,a1);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(lr),ecy(lr),lr,lr*AY,0,a0,a1);ctx.stroke();
     ctx.globalAlpha=1;
   }
   /* THE COST OF TURNING BACK, DRAWN. On a committed reverse the discarded
@@ -8865,7 +9581,7 @@ function draw(){
     ctx.globalAlpha=0.5*(1-k);
     ctx.strokeStyle='rgba(255,205,120,0.9)';
     ctx.lineWidth=3;
-    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,b0,b1);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,b0,b1);ctx.stroke();
     ctx.globalAlpha=1;
   }
   /* embers banked this orbit are drawn in the HUD — see drawHUD */
@@ -8879,19 +9595,23 @@ function draw(){
     const ga=teachGuide?G.angle:pd.ang;
     const ca=Math.cos(ga),sa=Math.sin(ga);
     const rIn=Math.max(9*u,radiusOf(G.nRings-1)-17*u),rOut=radiusOf(0)+21*u;
+    /* the guide spans the whole stack, so each END takes its own orbit's
+       depth — one offset for the pair would lean it against the rings it is
+       drawn to line up with */
+    const gIn=[ecx(rIn),ecy(rIn)],gOut=[ecx(rOut),ecy(rOut)];
     ctx.save();
     ctx.globalAlpha=teachGuide?(RM?0.4:0.30+0.16*(0.5+0.5*Math.sin(G.t*3.2))):0.3;
     ctx.strokeStyle=COL.comet;ctx.lineWidth=1.5;
     ctx.setLineDash([5*u,5*u]);
     ctx.beginPath();
-    ctx.moveTo(cx+ca*rIn,cy+sa*rIn);
-    ctx.lineTo(cx+ca*rOut,cy+sa*rOut);
+    ctx.moveTo(gIn[0]+ca*rIn,gIn[1]+sa*rIn);
+    ctx.lineTo(gOut[0]+ca*rOut,gOut[1]+sa*rOut);
     ctx.stroke();
     ctx.setLineDash([]);
     const head=function(rr,facing,al){
       ctx.globalAlpha=al;
       ctx.save();
-      ctx.translate(cx+ca*rr,cy+sa*rr);
+      ctx.translate(ecx(rr)+ca*rr,ecy(rr)+sa*rr);
       ctx.rotate(ga+(facing>0?0:Math.PI));
       ctx.beginPath();
       ctx.moveTo(8*u,0);ctx.lineTo(-4*u,5*u);ctx.lineTo(-4*u,-5*u);ctx.closePath();
@@ -8927,7 +9647,11 @@ function draw(){
     if(!s.born&&s.t<0.3)al=s.t/0.3;
     else if(s.life-s.t<0.8)al=(s.life-s.t)/0.8;
     /* embers pulse on the landed beat — the collectibles keep time too */
-    blit(SPR.ember,p[0],p[1],1+(RM?0.10:0.16*G.beat),s.t*1.5,al);
+    const es=1+(RM?0.10:0.16*G.beat);
+    blit(SPR.ember,p[0],p[1],es,s.t*1.5,al);
+    /* the ember SPINS and its lit limb does not: the highlight is the lamp's,
+       not the object's, so it stays hubward while the star turns under it */
+    rimLight(p[0],p[1],es,al*0.62);
   }
   ctx.globalCompositeOperation='source-over';
   /* power-ups */
@@ -8984,10 +9708,10 @@ function draw(){
         ctx.save();
         ctx.globalAlpha=0.25+0.5*k;
         ctx.strokeStyle=COL.shard;ctx.lineWidth=(RM?3:5.5)*u;
-        ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,0,TAU);ctx.stroke();
+        ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,0,TAU);ctx.stroke();
         if(!RM){
           ctx.globalAlpha=0.16*k;ctx.lineWidth=14*u;
-          ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,0,TAU);ctx.stroke();
+          ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,0,TAU);ctx.stroke();
         }
         ctx.restore();
       }
@@ -9016,6 +9740,10 @@ function draw(){
         }
       }
       ctx.restore();
+      /* the saucer is a hull, not a decal — it takes the lamp like the rest.
+         Outside the rotate, because the highlight belongs to the hub and the
+         hull is already turned to its own heading. */
+      rimLight(p[0],p[1],0.95*(1+0.22*chg),(0.35+0.65*arr)*0.5);
       ctx.globalAlpha=1;
       continue;
     }
@@ -9024,7 +9752,7 @@ function draw(){
       const rr=radiusOf(s.ring),back=-Math.sign(s.va)*0.30;
       ctx.globalAlpha=0.3;ctx.strokeStyle=COL.shard;ctx.lineWidth=2.5;
       ctx.beginPath();
-      ctx.ellipse(cx,cy,rr,rr*AY,0,Math.min(s.a,s.a+back),Math.max(s.a,s.a+back));
+      ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,Math.min(s.a,s.a+back),Math.max(s.a,s.a+back));
       ctx.stroke();ctx.globalAlpha=1;
     }
     if(s.phase===0){
@@ -9091,23 +9819,24 @@ function draw(){
     ctx.strokeStyle=COL.ember;
     ctx.globalAlpha=lf*0.30*L.mag;
     ctx.lineWidth=(3+9*lf)*u*L.mag;
-    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,a0,a1);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,a0,a1);ctx.stroke();
     ctx.globalAlpha=lf*0.62*L.mag;
     ctx.lineWidth=(1.4+3*lf)*u*L.mag;
-    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,a0,a1);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,a0,a1);ctx.stroke();
     if(sweep<TAU){
       const head=L.dir>0?a1:a0,w=0.22;
       ctx.strokeStyle='#fffdf2';
       ctx.globalAlpha=Math.min(1,lf*1.3)*L.mag;
       ctx.lineWidth=(3.5+5*lf)*u*L.mag;
-      ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,head-w*(L.dir>0?1:0),head+w*(L.dir>0?0:1));ctx.stroke();
+      ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,head-w*(L.dir>0?1:0),head+w*(L.dir>0?0:1));ctx.stroke();
     }
   }
   for(const a of G.arcs){
     const lf=Math.max(a.life,0),half=0.09+0.5*(1-lf);
     ctx.globalAlpha=lf*lf*0.75;
     ctx.strokeStyle=a.col;ctx.lineWidth=(1+4*lf)*u;
-    ctx.beginPath();ctx.ellipse(cx,cy,radiusOf(a.ring),radiusOf(a.ring)*AY,0,a.a-half,a.a+half);ctx.stroke();
+    const ar=radiusOf(a.ring);
+    ctx.beginPath();ctx.ellipse(ecx(ar),ecy(ar),ar,ar*AY,0,a.a-half,a.a+half);ctx.stroke();
   }
   /* ripples — the big earned moments carry a fat baked annulus instead of a
      hairline stroke */
@@ -9297,7 +10026,14 @@ function draw(){
   /* THE GRADE: one quarter-res blit of baked photographic finish — corner
      falloff that tames stray bloom, a horizon lift, a band-axis bias. Above
      the game, below the scrim and HUD. */
-  if(BG&&SPR.grade)ctx.drawImage(SPR.grade.c,0,0,W,H);
+  if(SPR.grade){
+    /* the shader vignettes itself, so the grade's own falloff would double up
+       — it goes on at a trim over a live sky and at full strength over the
+       baked one, where it is the only vignette there is */
+    ctx.globalAlpha=BG?1:SKY_GRADE;
+    ctx.drawImage(SPR.grade.c,0,0,W,H);
+    ctx.globalAlpha=1;
+  }
   /* slow-mo tint — baked; this was the file's last per-frame gradient */
   if(G.tsCur<0.98&&SPR.slowTint){
     ctx.globalAlpha=Math.min(1,(1-G.tsCur)/0.45);
@@ -9658,118 +10394,12 @@ function drawLadder(x,y,level,shown){
   }
   ctx.globalAlpha=1;
 }
-/* ---------- the mode cards ----------
-   TWO WORDS DO NOT DESCRIBE TWO GAMES. "chill" and "skill" are the same four
-   letters of promise, and a sentence under each one is read by nobody who is
-   about to tap START — so each card ANIMATES the difference it is selling
-   instead of claiming it. Both draw the same picture with the same code: a
-   comet on an orbit with reds on it. Skill's orbit is fast, tight and carries
-   four shards; chill's is slow, wide and carries one. Whatever the numbers do
-   later, this is what the numbers mean, and it is legible in a second with
-   the sound off.
-
-   The art is driven off the SAME knobs the run is: the dot's angular rate is
-   the mode's speed trim, the shard count its density trim, the trail length
-   its warning trim. A card cannot flatter a mode the game does not deliver,
-   because there is no separate number here to flatter it with.
-
-   Everything is a fraction of the panel, so the card lays out at whatever
-   size the screen left for it — the lesson the upgrade tiles learned when a
-   hardcoded 76u tile came out at 8 physical pixels of description text. */
-function modeArt(m,x,y,w,h,on){
-  const rx=w*0.36,ry=Math.min(h*0.36,rx*0.62);
-  const spd=RM?0:m.speed*1.5;
-  const a0=G.t*spd*(m.id==='chill'?0.8:1.35);
-  ctx.save();
-  ctx.translate(x+w/2,y+h/2);
-  /* the orbit itself: a soft ellipse, brighter on the selected card */
-  ctx.globalAlpha=on?0.55:0.30;
-  ctx.strokeStyle=m.c;ctx.lineWidth=1.2*u;
-  ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,TAU);ctx.stroke();
-  /* the reds: the density trim, counted. cap/gap IS how full a board gets —
-     how many may sit on it over how often one arrives — so the picture counts
-     four on skill and two on chill because that is the ratio, not a number
-     picked to look like a difference. */
-  const nsh=Math.max(1,Math.round(4*m.cap/m.gap));
-  ctx.globalAlpha=on?0.9:0.45;
-  ctx.fillStyle=COL.shard;
-  for(let i=0;i<nsh;i++){
-    const sa=i*TAU/nsh+(m.id==='chill'?a0*0.15:0.4);
-    const sx=Math.cos(sa)*rx,sy=Math.sin(sa)*ry;
-    const sr=2.6*u;
-    ctx.save();ctx.translate(sx,sy);ctx.rotate(Math.PI/4);
-    ctx.fillRect(-sr,-sr,sr*2,sr*2);
-    ctx.restore();
-  }
-  /* the trail: the warning trim, drawn. More reading time is a longer look at
-     where the comet has been, so chill's tail is visibly the generous one. */
-  const tn=Math.round(9*m.warn);
-  for(let i=tn;i>=0;i--){
-    const ta=a0-i*0.052/Math.max(0.2,m.speed);
-    const f=1-i/(tn+1);
-    ctx.globalAlpha=(on?0.85:0.42)*f*f;
-    ctx.fillStyle=m.c;
-    const rr=(1.1+2.6*f)*u;
-    ctx.beginPath();ctx.arc(Math.cos(ta)*rx,Math.sin(ta)*ry,rr,0,TAU);ctx.fill();
-  }
-  /* the head, with a halo built from a gradient rather than shadowBlur —
-     this runs every frame and the file's bloom pass is banned from per-frame
-     shadow work for exactly that reason */
-  const hx=Math.cos(a0)*rx,hy=Math.sin(a0)*ry;
-  const gr=ctx.createRadialGradient(hx,hy,0,hx,hy,11*u);
-  gr.addColorStop(0,m.c);
-  gr.addColorStop(0.35,'rgba(255,255,255,0.55)');
-  gr.addColorStop(1,'rgba(255,255,255,0)');
-  ctx.globalAlpha=on?0.85:0.45;
-  ctx.fillStyle=gr;
-  ctx.beginPath();ctx.arc(hx,hy,11*u,0,TAU);ctx.fill();
-  ctx.globalAlpha=on?1:0.5;
-  ctx.fillStyle='#ffffff';
-  ctx.beginPath();ctx.arc(hx,hy,2.4*u,0,TAU);ctx.fill();
-  ctx.restore();
-  ctx.globalAlpha=1;
-}
-/* One card. Returns nothing — the caller owns the rect it registered. */
-function drawModeCard(m,x,y,w,h,on,pop){
-  const rr=Math.min(14*u,w*0.13);
-  ctx.save();
-  /* the plate. The selected card is lifted out of the backdrop and tinted
-     toward its own colour; the other stays a dark tile, so which one is armed
-     is readable at a glance and without reading a word. */
-  const bg=ctx.createLinearGradient(0,y,0,y+h);
-  if(on){bg.addColorStop(0,'rgba(30,44,74,0.96)');bg.addColorStop(1,'rgba(12,18,34,0.96)');}
-  else{bg.addColorStop(0,'rgba(16,22,38,0.80)');bg.addColorStop(1,'rgba(9,13,25,0.80)');}
-  ctx.fillStyle=bg;
-  ctx.beginPath();ctx.roundRect(x,y,w,h,rr);ctx.fill();
-  /* the selected border breathes; the pop is the confirmation of the tap that
-     just selected it, so switching cards has a moment rather than a jump */
-  ctx.strokeStyle=on?m.c:'rgba(140,170,220,0.28)';
-  ctx.lineWidth=on?2:1.2;
-  ctx.globalAlpha=on?(RM?0.95:0.6+0.4*Math.sin(G.t*(m.id==='chill'?1.8:3.4)))+(pop||0)*0.4:1;
-  ctx.globalAlpha=Math.min(1,ctx.globalAlpha);
-  ctx.beginPath();ctx.roundRect(x+1,y+1,w-2,h-2,rr);ctx.stroke();
-  ctx.globalAlpha=1;
-  ctx.restore();
-  /* art on the top half, type on the bottom — the same split as the draft
-     tiles, so the two card screens in this game read as one idiom */
-  modeArt(m,x,y+h*0.06,w,h*0.44,on);
-  ctx.textAlign='center';
-  const nsz=Math.max(13*u,Math.min(20*u,w*0.19));
-  textFx(m.name,x+w/2,y+h*0.68,fitSz(m.name,nsz,'800',w-14*u,3),'800',
-    on?'#ffffff':'rgba(220,232,255,0.62)',on?m.c:'rgba(150,175,215,0.6)',
-    on?'rgba(255,255,255,0.25)':null,3);
-  const tsz=Math.max(8.5*u,Math.min(10.5*u,w*0.093));
-  text(m.tag,x+w/2,y+h*0.80,fitSz(m.tag,tsz,'600',w-12*u),'600',
-    on?'rgba(206,220,255,0.85)':'rgba(180,198,230,0.45)',0);
-  /* EACH CARD CARRIES ITS OWN RECORD, which is the whole reason the records
-     are stored per mode: one number under the title could only ever belong to
-     one of these two games, and the player would have no way to know which. */
-  const r=REC[m.id]||{best:0,lvlMax:1};
-  const bl=r.best>0?'best · '+r.best:'no runs yet';
-  text(bl,x+w/2,y+h*0.925,fitSz(bl,Math.max(8*u,tsz*0.95),'700',w-12*u,1),'700',
-    r.best>0?(on?'rgba(255,200,87,0.85)':'rgba(255,200,87,0.4)')
-            :(on?'rgba(200,215,255,0.45)':'rgba(200,215,255,0.25)'),1);
-}
+/* The two mode cards and their moving art were deleted with CHILL. They were
+   a good idea for the problem they had — each card animated the mode's own
+   knobs, so it could not flatter a difficulty the game did not deliver — and
+   if a second mode returns, that idea should return with it rather than a
+   static tag line. The reasoning is in the git history at this line; nothing
+   here should be reconstructed from memory. */
 function drawHUD(){
   /* THE LESSON VEIL. While a hard first-encounter lesson holds the world
      near-frozen, the whole board dims and the specimen being explained
@@ -10398,47 +11028,39 @@ function drawHUD(){
        old copy still told players to "tap it to phase through" — a control
        that was removed two releases ago, which is the worst thing an
        instruction can do. */
-    /* THE BEST LINE MOVED ONTO THE CARDS. It used to ride under the title as
-       identity, and it still is identity \u2014 but there are two records now, and
-       one number under one title cannot say which of the two games it belongs
-       to. Each mode card carries its own, which is also what makes an empty
-       one honest: "no runs yet" on the mode you have not tried. */
-    /* THE MODE PICKER. Laid out first and from the room between the title and
-       the key, because it is the only decision on this screen and the key
-       below it is reference material. Two cards, side by side, CHILL on the
-       left so the arrow keys read left-to-right as easier-to-harder. */
+    /* THE BEST LINE COMES BACK UNDER THE TITLE. It rode there as identity
+       until there were two records to tell apart and one number under one
+       title could not say which game it belonged to — so it moved onto the
+       cards. The cards are gone and so is the ambiguity, and this is the
+       line that shipped before either existed. An empty device says "no runs
+       yet" rather than showing a zero — the one thing the cards got right
+       about this line, and worth keeping. */
     G.menuRects=[];
-    const cardTop=ty+16*u;
+    const bestY=ty+26*u;
+    const bl0=G.best>0?('BEST \u00b7 LEVEL '+G.lvlMax+' \u00b7 '+G.best):'no runs yet';
+    text(bl0,cx,bestY,fitSz(bl0,13*u,'600',W-24*u,2),'600','rgba(200,215,255,0.55)',2);
+    const cardTop=bestY+18*u;
     const cardW=Math.min((Math.min(W-28*u,430*u)-12*u)/2,168*u);
-    /* height comes from what is left after the key needs its four rows, and
-       is clamped either side: too short and the art has no room to move in,
-       too tall and it eats the sentences under it */
-    /* 0.40 rather than 0.46: the lab bar below the cards takes its band out of
-       the same box, and taking it out of the KEY instead would have pushed the
-       four rows onto their 15u floor and then through the bottom of a short
-       landscape phone. The cards give the room up because they have it — the
-       clamp above them is what actually sets their height on a tall screen. */
-    const cardH=Math.max(96*u,Math.min(cardW*0.98,(bottomY-30*u-cardTop)*0.40));
     const cardGap=12*u,cardX=cx-(cardW*2+cardGap)/2;
-    const MLIST=[MODES.chill,MODES.skill];
-    for(let i=0;i<MLIST.length;i++){
-      const m=MLIST[i],bx=cardX+i*(cardW+cardGap);
-      G.menuRects.push({x:bx,y:cardTop,w:cardW,h:cardH,id:m.id});
-      drawModeCard(m,bx,cardTop,cardW,cardH,MODE===m.id,MODE===m.id?G.modeFx:0);
-    }
+    /* WHAT THE CARDS USED TO OCCUPY IS NOW EMPTY, and it stays empty rather
+       than being redistributed. The key below still needs its four rows and
+       the lab bar still needs its band; growing either to fill a gap left by
+       a decision that may come back would mean re-tuning this screen twice.
+       The lab bar keeps the pair's width so the layout it was measured
+       against on eight viewports is the layout it still gets. */
+    const cardH=0;
     ctx.textAlign='center';
-    /* THE THIRD OPTION, AND IT IS DELIBERATELY NOT A THIRD CARD. Drawn as one
-       wide bar under the pair rather than as a card beside them, for two
-       reasons that point the same way. It is not the same KIND of thing: the
-       cards answer "which game", each carrying its own record and its own
-       identity colour, and a sandbox that keeps no record and pins the
-       difficulty would be claiming to be a difficulty by sitting in that row.
-       And three cards across a 390px phone is 113u each against the current
-       168u — the art, the name, the tag and the best line all shrink to buy
-       space for a screen nobody reaches for on their way into a run.
-       Violet, not either mode's colour and not red: COL.warp already means
-       "this bends the rules" everywhere else in the game. */
-    const labH=Math.max(28*u,Math.min(38*u,cardH*0.30));
+    /* THE LAB DOOR, still a bar and still not a card. It was drawn this way
+       to keep it out of the row that answered "which game" — a sandbox that
+       keeps no record and pins the difficulty clock had no business sitting
+       among difficulties. That row is gone and the bar stays exactly as it
+       was, because the reasoning that put it here never depended on the
+       cards: it is a door to another screen, drawn the way the swipe
+       chooser's `change` control is drawn, and it is the only thing on this
+       screen that is not START.
+       Violet, and still not red: COL.warp already means "this bends the
+       rules" everywhere else in the game. */
+    const labH=Math.max(28*u,Math.min(38*u,cardW*0.22));
     const labW=cardW*2+cardGap,labX=cardX,labY=cardTop+cardH+9*u;
     G.menuRects.push({x:labX,y:labY,w:labW,h:labH,id:'lab'});
     ctx.save();
@@ -10666,7 +11288,7 @@ function drawHUD(){
       ctx.restore();
       ly+=lh+lgap;
     }
-    /* START, and a way back to the mode cards. The back control is a word
+    /* START, and a way back to the title screen. The back control is a word
        rather than a row: it is the one thing on this screen you reach for by
        mistake, and it must not look like a fifth level. */
     const pw2=Math.min(150*u,W-60*u),px2=cx-pw2/2;
@@ -10840,11 +11462,9 @@ function drawHUD(){
       text(ll,cx,cy+42*u,fitSz(ll,12*u,'700',W-24*u,2),'700','rgba(190,178,235,0.75)',2);
     }
     else{
-      /* WHICH BEST. There are two records now and this line reports whichever
-         mode is selected, so in chill it has to say so \u2014 otherwise a player
-         who switches modes watches their best score appear to collapse. Named
-         only in chill: skill's line is the one that shipped, unchanged. */
-      const bl2=(MODE==='chill'?'CHILL BEST \u00b7 LEVEL ':'BEST \u00b7 LEVEL ')+G.lvlMax+' \u00b7 '+G.best;
+      /* One record, so the line needs no qualifier — this is the line that
+         shipped before chill existed, restored exactly. */
+      const bl2='BEST \u00b7 LEVEL '+G.lvlMax+' \u00b7 '+G.best;
       text(bl2,cx,cy+42*u,fitSz(bl2,13*u,'600',W-24*u,2),'600',
         'rgba(200,215,255,0.5)',2);
     }

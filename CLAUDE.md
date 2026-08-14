@@ -46,13 +46,13 @@ Deployed to GitHub Pages from `main`. The published page is the product.
 | `README.md` | Design record — why the game is the way it is. |
 | `MECHANICS.md` | The mechanics ledger: one row per player-facing mechanic, where it is introduced, every channel that explains it. |
 | `LICENSE` | All-rights-reserved proprietary grant. |
-| `tools/*.mjs` | The five CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
-| `.github/workflows/pages.yml` | Runs all five checks on every PR; only `main` deploys. |
+| `tools/*.mjs` | The six CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
+| `.github/workflows/pages.yml` | Runs all six checks on every PR; only `main` deploys. |
 | `*.png`, `manifest.webmanifest` | Icons, share image, PWA manifest. |
 
 ## The checks
 
-All five run on every pull request and must pass. Run them locally before
+All six run on every pull request and must pass. Run them locally before
 pushing — they are fast and need nothing installed.
 
 ```sh
@@ -61,6 +61,7 @@ node tools/smoke.mjs       # loads and plays the game in a stubbed DOM
 node tools/dropcheck.mjs   # the build meter still delivers beat drops
 node tools/curriculum.mjs  # nothing is left untaught by level 3
 node tools/musiccheck.mjs  # four levels, four songs, each in its own key
+node tools/fxcheck.mjs     # the glow reaches a pixel, with a GPU and without one
 ```
 
 `smoke.mjs` is the one that catches real bugs: it loads the game into a stubbed
@@ -68,20 +69,40 @@ DOM and actually plays it — the three front screens, menu demo, taps, swipes,
 keyboard, minutes of simulated play, resize, tab visibility, death, retry,
 level 2. Audio stays off, which exercises every audio guard.
 
-**Three screens now stand between the menu and a run**, and each publishes its
-controls as rects from its draw pass: the mode cards on the title screen, the
-swipe chooser, then the level picker. None of them answers a tap on its
-background — the cards select rather than start, and the picker is a decision —
-so every harness crosses them by pressing the control it actually drew
-(`passMenu`, `passSwipeChooser`, `passLevelSelect`). A harness that taps a
-fixed point does not fail; it waits there forever, which is how the swipe
+**Two decision screens stand between the menu and a run**, and each publishes
+its controls as rects from its draw pass: the swipe chooser, then the level
+picker. Neither answers a tap on its background, because each is a decision, so
+every harness crosses them by pressing the control it actually drew
+(`passSwipeChooser`, `passLevelSelect`). The title screen answers a tap
+anywhere again now the mode cards are gone, but `passMenu` presses its START
+rect regardless — a helper that presses a real control keeps working when a
+screen gains one, and a harness that taps a fixed point does not fail when it
+meets an unexpected screen, it waits there forever. That is how the swipe
 chooser broke all four harnesses when it arrived. Add a front screen and you
 add a crossing helper to `smoke.mjs`, `dropcheck.mjs` and `curriculum.mjs` in
 the same commit. A fourth screen, the powerup picker, sits off that route —
 it opens only from the title screen's POWERUP TESTING bar — and all three
 harnesses carry `passPowerSelect` anyway, returning untouched. That is not
 redundancy: it was exactly true of the swipe chooser the day before it stalled
-everything, and the helper costs one function.
+everything, and the helper costs one function. `fxcheck.mjs` crosses the front
+too and needs the same treatment — it is a fourth harness on that route.
+
+`fxcheck.mjs` is the only harness that runs the RENDER path, and it is the
+answer to the "not shipped until something proves it reaches a pixel" rule
+below. It stubs WebGL as a RECORDING FAKE instead of removing it: shaders
+compile, framebuffers complete, and it asserts on what was issued. Its most
+important assertion is the uniform-name check — real WebGL returns null from
+`getUniformLocation` for a name the shader does not declare, and a write
+through a null location is a silent no-op, so **one typo removes an effect
+from the game without failing anything else in this repo**. The fake parses
+the shader source it was handed and reproduces that exactly. It also pins the
+glow's draw count and its render-target ladder, checks the y-flip on upload,
+drives the render-scale dial through fast/slow/fast, and then runs the whole
+game again with no WebGL and fails unless the drawn-disc fallback takes over
+with zero GPU calls. **Anything that touches a shader, a uniform, the glow
+chain or the scale dial belongs in this harness.** All of its assertions were
+mutation-tested when it was written; keep that habit — a render check that
+cannot fail is worse than none, because it reads as coverage.
 
 `musiccheck.mjs` is the only harness that runs the arrangement. `smoke.mjs`
 removes WebAudio deliberately and `dropcheck.mjs` never drives past level 2, so
@@ -142,30 +163,45 @@ Breaking one of these is a product regression, not a style question.
   `TIERS.length`. Twelve places in `index.html` still hardcode tier ordinals for
   the sky band, the NEW SOUND ladder and the star instrument — inserting below
   the highest of them shifts every one.
-- **CHILL is a derivative of SKILL, never a second implementation.** The two
-  modes are one game: `MODES` holds a table of multipliers, every difficulty
-  curve reads it, and a balance change made once has to land in both. Two
-  things keep that true and both are enforced by `check.mjs`. **SKILL is the
-  identity mode** — every knob 1, or 0 for the additive shield — so with skill
-  selected every expression reduces to exactly what shipped, and this table can
-  never quietly become the place the real game is tuned. **Every mode has the
-  same knob set**, so no mode can read a value only it has. A knob that is
-  declared and never read fails the build for the same reason a dead upgrade
-  tile does: it is a promise to the player that the game does not keep. If a
-  mode ever needs behaviour a multiplier cannot express, that is the
-  conversation to have first — not a branch on `MODE` in the game code.
-  Chill must not touch the curriculum, the music or the scoring: tiers are
-  keyed on `dl` and orbs on `G.level`, and `curriculum.mjs` fails if a mode
-  moves a tier, a finish line or a level boundary.
+- **ONE MODE SHIPS, AND `MODES` STAYS ANYWAY.** CHILL is retired — the owner's
+  call, one mode until the game is perfected — and the table is kept at a
+  single row on purpose. Do not "finish the job" by deleting it. The table is
+  where the rule lives that **a second difficulty is a derivative and never a
+  second implementation**, and that rule was arrived at rather than obvious.
+  Delete the table and a future mode rediscovers it as a branch on a flag in
+  the game code, which is the thing the table exists to prevent.
+  The guards stay armed and `check.mjs` still enforces them. **The one row is
+  the identity mode** — every knob 1, or 0 for the additive shield — so every
+  expression reduces to exactly what shipped and the table can never quietly
+  become the place the real game is tuned. **A knob declared and never read
+  fails the build**, for the same reason a dead upgrade tile does. **Every mode
+  has the same knob set** is vacuous at one row and stays armed for the row
+  that comes back. `smoke.mjs` is what keeps the wiring honest with nothing
+  shipped on it: it INJECTS a synthetic mode with every knob off neutral and
+  measures every curve through the real functions, so a table wired to nothing
+  cannot pass. Do not delete that test as dead weight — it is the only thing
+  standing between a future second mode and a day spent discovering the
+  plumbing rotted while nobody was looking.
+  If a mode ever needs behaviour a multiplier cannot express, that is the
+  conversation to have first — not a branch on `MODE` in the game code. And a
+  mode must not touch the curriculum, the music or the scoring: tiers are keyed
+  on `dl` and orbs on `G.level`, and `curriculum.mjs` fails if a mode moves a
+  tier, a finish line or a level boundary.
 - **A picked starting level cannot forge a climb.** The level select can start
   any level on any device, including ones never reached — that is what it is
   for. `G.startLevel` is the level the run *opened* on, and the level record
   (`FURTHEST YET`, `cometloop:gl`) only moves when it is 1. Never widen this to
   "the level the run is on": a run that starts at 1 and climbs must keep
   counting across retries, and a run that jumped must never count at all.
-  Records are per mode and the unsuffixed storage keys are SKILL's — writing a
-  chill value under `cometloop:best` redefines every historical value on every
-  device, which is the retired-`cometloop:level` failure exactly.
+  Records are still keyed per mode and **the unsuffixed storage keys are
+  SKILL's**, which is exactly why retiring chill cost no player their history:
+  every value ever written to `cometloop:best` was skill's, because any other
+  mode's went to a suffixed key. Never let `recKey` suffix skill — that
+  silently changes what every stored record on every device means, which is the
+  retired-`cometloop:level` failure exactly. `check.mjs` guards it. The
+  `:chill` keys and `cometloop:mode` are left on disk deliberately and
+  `cometloop:mode` is no longer read: a device that last played chill has
+  `chill` under it, and honouring that selects a mode that does not exist.
 - **A LAB SESSION LEAVES NOTHING BEHIND, and that is the whole feature.**
   POWERUP TESTING is a sandbox reached from the title screen: it forces one
   orb, pins `dl()` to `LAB_DL`, and switches red off by default. Every one of
@@ -262,6 +298,18 @@ Breaking one of these is a product regression, not a style question.
   black hole, where it left 54% of the mix identical either side of an entry
   the pitch describes as the music "immediately cutting out". Any new mode that
   claims to replace the arrangement must have a branch in `bedTick`.
+- **A MOMENT THAT MUST BE IMMEDIATE CANNOT BE A SECTION.** The section machinery
+  changes only at a four-bar seam, which is the right rule for the chorus and
+  the wrong one for anything a player triggers and expects to hear. The
+  hypernova is the case: it is already in the hot-play set that lifts the
+  record into the chorus, but the lift can only land at a seam, and a seam can
+  be most of a loop away against a star that lasts four bars — so the payoff
+  could arrive after the star had ended, or never. THE STAR RUN IS AN OVERLAY
+  instead: a voice added above whatever harmony is already playing, starting on
+  the frame the orb is taken. That is what makes it immediate, and it is also
+  why it cannot collide with the chorus, the payoff or the black hole — it owns
+  no table. Reach for an overlay whenever the answer to "when will the player
+  hear this?" has to be "now"; reach for a section only when it can wait.
 - **Audio is optional everywhere.** The game must be completable with no
   WebAudio at all. Every audio path is guarded; keep it that way.
 - **Two clocks: `G.t` measures, `G.vt` shows.** `G.t` is real seconds and every
@@ -283,9 +331,52 @@ Breaking one of these is a product regression, not a style question.
   build, on the same day. Quote the per-ring figure, say which metric any
   number came from, and be suspicious of a difficulty claim that improves the
   moment a ring is added.
+- **THE SKY IS TWO THINGS AND THE SHADER ONLY REPLACES ONE.** The base sky —
+  a baked gradient and two star planes — really is the shader's job: drawing
+  the gradient over a live shader paints it out, and the star planes double
+  the shader's own three. The SCENE is not: the planet, the galactic band, the
+  god rays, the drifting cloud field, the fog banks and the dust motes are
+  OBJECTS, with silhouettes and depth order, and no amount of fBm is an
+  object. When the shader landed it replaced both, so every one of those
+  layers drew only under `BG` — only when WebGL had FAILED — and the composed
+  scene shipped to the players on the weakest hardware and to nobody else.
+  That is the same shape as the arena-scale black hole being gated on the
+  shader having given up, and it is never the intended trade. Keep the split:
+  `BG` for the base sky, unconditional for the scene, `SKY_OVER`/`SKY_ADD`/
+  `SKY_GRADE` to weigh the scene over a live field it was not authored
+  against. `fxcheck.mjs` records which sprites are actually BLITTED and fails
+  if a scene layer stops drawing on the GPU path — asserting that a sprite
+  merely EXISTS does not catch this and did not, on the first attempt.
+- **A halo belongs to an object; a backdrop belongs to nobody.** These are
+  tuned by opposite rules and the constants do not transfer. The sky's
+  gravitational lens bounds its pull as a FRACTION of the radius, which is
+  right for a smooth field where nothing has to stay anywhere. Copied onto the
+  arena's glow it is a catastrophe: the orbits live between 0.09 and 0.20 of
+  screen height, the clamp binds across that whole band, and the halo is
+  dragged 120-170px off the light it belongs to — the detached-glow failure
+  this file already records once, when an ember's bloom stayed parked on the
+  ring it started from. Anything applied to light that is attached to an
+  object must be bounded in ABSOLUTE terms and the bound quoted in pixels.
+  This was caught by measurement, not by reading: the code was a faithful copy
+  of a shipped, correct lens, and it looked right in review.
+- **A SCREEN-SPACE WARP IS INVERSE SAMPLING, so its sign is the opposite of
+  what it looks like.** The shader is handed a destination fragment and asked
+  which part of the source to read, so reading from a SMALLER radius
+  magnifies and pushes content OUTWARD. The glow's black hole lens shipped
+  subtracting its pull, at the right magnitude, under a comment promising the
+  opposite — halos moved 6.8 to 8.8px away from the singularity. **This is the
+  third time this precise inversion has hit the black hole**: the gravity pull
+  that "dragged the comet inward" pushed it outward, the "inner ring 2x" bonus
+  paid on the outer ring, and now this. The pattern is always the same — code
+  and comment are each true under a different reading of which way the number
+  counts, so review confirms both. Nothing catches it except asking where a
+  specific thing ENDS UP, in pixels, which `fxcheck.mjs` now does by parsing
+  the coefficients out of the shader rather than copying them.
 - **A visual feature is not shipped until something proves it reaches a pixel.**
-  The five harnesses stub the canvas and WebGL, so the entire render path is
-  uncovered by construction, and the black hole spent its life with thirteen
+  `fxcheck.mjs` now covers the GL path specifically — use it, extend it, and
+  do not assume the other harnesses see any of this. They stub the canvas, so
+  the 2D render path is STILL uncovered by construction, and the black hole
+  spent its life with thirteen
   documented visual and audio features of which a playtester could perceive
   one. Each was individually correct at its own site and disabled by something
   elsewhere: the arena-scale art was gated on WebGL having *failed*; the
@@ -364,7 +455,7 @@ finishes it, but it was the only sentence here about merging and so it became
 the rule. It is replaced rather than clarified.
 
 - **Merge your own work.** Open pull requests ready for review, not as drafts.
-  Squash-merge as soon as all five checks are green — that matches the history,
+  Squash-merge as soon as all six checks are green — that matches the history,
   where each commit on `main` carries its `(#N)`. Do not ask first. Do not wait
   for review that was never coming.
 - **Never merge red, and never merge unverified.** The five checks are the gate,
