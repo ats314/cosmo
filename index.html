@@ -3300,79 +3300,76 @@ const LV=[
    clamp against it — it used to sit 1,300 lines further down, which put it in
    its own temporal dead zone for everything that boots first. */
 const LEVEL_MAX=LV.length;
-/* ---------- two modes, one game ----------
-   SKILL is the game. CHILL is not a second game and there is no second
-   implementation of anything below: it is the same code with the difficulty
-   CLOCK turned down and four forgiveness terms scaled. Every field here is a
-   MULTIPLIER over a curve that already exists — dl(), speedAt(), warnTime(),
-   shardCap(), spawnGap() — so a balance change made once lands in both modes
-   and cannot land in only one.
+/* ---------- one mode, and the table that survives it ----------
+   CHILL IS GONE FOR NOW. The owner's call: one mode until the game is
+   perfected, and then a difficulty conversation from a settled baseline
+   rather than alongside one. What is deliberately NOT gone is the mechanism.
 
-   SKILL IS THE IDENTITY. Every one of its knobs is 1 (or 0 for the additive
-   shield), which is what makes the claim above checkable rather than a
-   promise: with skill selected, every expression the knobs appear in reduces
-   to exactly the expression that shipped, so this table cannot quietly become
-   a place where the real game is tuned. check.mjs fails the build if a skill
-   knob stops being the neutral element, and if any knob here is never read.
+   MODES stays, with a single row, and that row is still the IDENTITY: every
+   knob 1, or 0 for the additive shield. So every expression the knobs appear
+   in — dl(), speedAt(), warnTime(), shardCap(), spawnGap(), the shield bank —
+   still reduces to exactly what shipped, and this table still cannot quietly
+   become the place the real game is tuned. check.mjs still fails the build if
+   a knob stops being neutral or is declared without a call site.
 
-   WHY THE CLOCK IS THE MAIN LEVER. Everything that presses on the player —
-   speed, shard cap, arrival rate, warning length, the tier ladder, the finish
-   line — is already keyed off dl(), the difficulty clock. Slowing that one
-   number eases all six together and in the proportions they were tuned in,
-   which is the only way "easier" stays recognisably the same game. The other
-   knobs are trims on top of it, not a second difficulty curve.
+   Keeping it costs one row and buys the thing that was expensive to get
+   right: the rule that a second difficulty is a DERIVATIVE and never a second
+   implementation. That rule was not obvious, it was arrived at, and it is
+   written into the shape of this table and its guards. Deleting the table
+   would delete the rule and leave a future second mode to rediscover it —
+   most likely as a branch on a flag somewhere in the game code, which is
+   exactly what the table exists to prevent. Bringing chill back is adding a
+   row; it is not re-deriving a design.
 
-   WHAT CHILL DELIBERATELY DOES NOT TOUCH: the curriculum, the music and the
-   scoring. Orbs and lessons are gated on G.level, tiers on dl, so a chill run
+   WHY THE CLOCK IS THE MAIN LEVER, kept here because it is the reasoning a
+   second mode will need. Everything that presses on the player — speed, shard
+   cap, arrival rate, warning length, the tier ladder, the finish line — is
+   already keyed off dl(), the difficulty clock. Slowing that one number eases
+   all six together and in the proportions they were tuned in, which is the
+   only way "easier" stays recognisably the same game. The other knobs are
+   trims on top of it, not a second difficulty curve.
+
+   AND WHAT A MODE MUST NEVER TOUCH: the curriculum, the music, the scoring.
+   Orbs and lessons are gated on G.level and tiers on dl, so any future mode
    meets every formation and every orb in the same order at the same points —
-   it just gets there in more seconds. The arrangement is untouched, because a
-   mode is not a key change. And nothing multiplies the score: chill is worth
-   less per minute only because a minute contains less game.
-
-   The tags are read on the menu and have to obey the same rule the lessons
-   do — claim nothing the player cannot check. "slower" and "more room to
-   read" are both literally what the numbers below say. */
+   it just gets there in a different number of seconds. curriculum.mjs fails
+   if a mode moves a tier, a finish line or a level boundary. */
 let MODE='skill';
 const MODES={
   skill:{id:'skill',name:'SKILL',tag:'the game at full pace',
     c:COL.comet,
-    clock:1,speed:1,warn:1,cap:1,gap:1,shields:0,demo:1},
-  /* 0.72 puts level 1's finish line around 2:55 instead of 2:06 — the calm
-     opening is the part of the game chill exists to lengthen, so the extra
-     time lands where the ramp is shallowest rather than being spread evenly.
-     The speed trim is separate and small: the clock alone eases how fast the
-     board FILLS, and a hand that wants a slower game can feel the comet. */
-  /* `c` is the mode's identity colour and the ONLY thing the two cards recolour.
-     Red belongs to the one thing that hurts you and is never borrowed — a chill
-     card drawing its shards in green would teach, on the first screen anybody
-     sees, that the colour of danger is negotiable. */
-  chill:{id:'chill',name:'CHILL',tag:'slower, and room to read it',
-    c:'#a887ff',
-    clock:0.72,speed:0.86,warn:1.3,cap:0.78,gap:1.3,shields:1,demo:0.62}
+    clock:1,speed:1,warn:1,cap:1,gap:1,shields:0,demo:1}
 };
 function MD(){return MODES[MODE]||MODES.skill;}
-/* THE RECORDS ARE PER MODE, and the existing keys stay SKILL's. A chill best
-   written to `cometloop:best` would silently redefine every historical value
-   under it — the same failure the retired `cometloop:level` key exists to
-   remember — so chill gets its own suffixed keys and nothing already on a
-   device changes meaning. G.best and G.lvlMax stay "the selected mode's
-   record" so every reader of them is unchanged; useMode swaps them. */
-const REC={skill:{best:0,lvlMax:1},chill:{best:0,lvlMax:1}};
-function recKey(k,m){return 'cometloop:'+k+((m||MODE)==='chill'?':chill':'');}
+/* THE RECORDS ARE STILL KEYED BY MODE, and the unsuffixed keys are still
+   SKILL's — which is the whole reason removing chill costs no player their
+   history. Every value ever written to `cometloop:best` and `cometloop:gl`
+   was skill's, because chill's went to `:chill`-suffixed keys precisely so
+   that a chill best could never redefine what the plain key meant. So with
+   chill gone the plain keys mean exactly what they always meant, on every
+   device, with nothing to migrate.
+   THE `:chill` KEYS ARE LEFT ON DISK, DELIBERATELY. They cost a few bytes,
+   nothing reads them, and they are somebody's record — if chill comes back
+   it comes back with its history intact. Deleting them would be a one-way
+   door opened for tidiness.
+   recKey keeps its mode argument even though one mode can only produce one
+   answer: it is the seam a second mode returns through, and the guard that
+   the unsuffixed key belongs to skill lives inside it. */
+const REC={skill:{best:0,lvlMax:1}};
+function recKey(k,m){return 'cometloop:'+k+((m||MODE)==='skill'?'':':'+(m||MODE));}
 function useMode(m){
-  MODE=(m==='chill')?'chill':'skill';
+  MODE=MODES[m]?m:'skill';
   G.best=REC[MODE].best;G.lvlMax=REC[MODE].lvlMax;
 }
 /* ---------- the powerup lab ----------
-   A third door on the title screen, beside the two mode cards and deliberately
-   NOT a third mode. MODES is the difficulty table and check.mjs holds it to
-   that: every row the same knobs, skill the identity element, no knob declared
-   without a call site. A sandbox that pins the difficulty clock and forces one
-   orb is not a difficulty, so it is a flag with its own front screen rather
-   than a row — MODES still parses to exactly two modes and every guard on it
-   is untouched. The lab bar is a DOOR, not a card: it navigates the way the
-   menu's `change` swipe control already does, so the rule that mode cards
-   select rather than start survives intact.
+   A door on the title screen, and deliberately NOT a mode. MODES is the
+   difficulty table and check.mjs holds it to that: every row the same knobs,
+   skill the identity element, no knob declared without a call site. A sandbox
+   that pins the difficulty clock and forces one orb is not a difficulty, so
+   it is a flag with its own front screen rather than a row — and that stayed
+   true when CHILL was retired, which is the test of it: the table went to one
+   row and the lab did not become the second one. It navigates the way the
+   swipe chooser's `change` control does.
 
    WHAT IT IS FOR. Six of the seven orbs sit behind a curriculum ladder and the
    seventh is rare on purpose — three blackhole_entered events in the game's
@@ -3777,11 +3774,13 @@ function readLocal(k){
   try{return window.localStorage?localStorage.getItem(k):null;}catch(e){return null;}
 }
 function loadPrefs(){
-  /* Both modes' records are read, and the selected mode's are copied into
-     G.best / G.lvlMax by useMode below. The unsuffixed keys are SKILL's and
-     always were, so a device that has only ever played the one game reads
-     back exactly what it wrote. */
-  for(const mk of ['skill','chill']){
+  /* The record is read per mode and copied into G.best / G.lvlMax by useMode
+     below. There is one mode, so this reads one pair of keys — but it stays a
+     loop over Object.keys(MODES) rather than two hardcoded reads, because
+     that is the difference between adding a mode later and remembering to
+     add a mode HERE later. The unsuffixed keys are SKILL's and always were,
+     so a device reads back exactly what it wrote. */
+  for(const mk of Object.keys(MODES)){
     const b=parseInt(readLocal(recKey('best',mk)),10);
     if(!isNaN(b))REC[mk].best=Math.max(REC[mk].best,b);
     /* `cometloop:level` is retired and deliberately NOT read: it held the
@@ -3792,10 +3791,13 @@ function loadPrefs(){
   }
   const r=parseInt(readLocal('cometloop:runs'),10);
   if(!isNaN(r))G.runs=Math.max(G.runs,r);
-  /* absent means this device has never chosen — SKILL is the default, and
-     the menu is where it changes */
-  const pm=readLocal('cometloop:mode');
-  useMode(pm==='chill'?'chill':'skill');
+  /* `cometloop:mode` is retired: there is one mode and the menu no longer
+     offers a choice. Deliberately NOT read — a device that last played chill
+     has a 'chill' sitting under this key, and honouring it would select a
+     mode that no longer exists. useMode's own fallback would catch that, but
+     the honest fix is not to ask. The key is left on disk with the `:chill`
+     records, for the same reason. */
+  useMode('skill');
   const m=readLocal('cometloop:muted');
   if(m!==null)muted=(m==='1');
   /* absent means this device has never been asked — the chooser is shown once */
@@ -3819,10 +3821,11 @@ function loadPrefs(){
   try{
     if(!window.storage||!window.storage.get)return;
     /* The host store is read per mode too, and into REC rather than straight
-       into G: these land asynchronously, possibly after the player has already
-       switched modes on the menu, and writing a chill arrival into G.best
-       while skill is selected would put the wrong record on the screen. */
-    for(const mk of ['skill','chill']){
+       into G: these land asynchronously, and the MODE check below is what
+       keeps a late arrival for one mode off the screen while another is
+       selected. With one mode that check is always true — it stays because
+       the asynchrony does not go away when the second mode comes back. */
+    for(const mk of Object.keys(MODES)){
       (function(m){
         window.storage.get(recKey('best',m)).then(function(r){
           const v=r&&parseInt(r.value,10);
@@ -3836,9 +3839,6 @@ function loadPrefs(){
         }).catch(function(){});
       })(mk);
     }
-    window.storage.get('cometloop:mode').then(function(r){
-      if(r&&r.value)useMode(r.value==='chill'?'chill':'skill');
-    }).catch(function(){});
     window.storage.get('cometloop:runs').then(function(r){
       const v=r&&parseInt(r.value,10);
       if(v&&!isNaN(v))G.runs=Math.max(G.runs,v);
@@ -4448,7 +4448,7 @@ const G={
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
   newLevel:false, /* did this run reach deeper than any before it */
   swipeAsked:false,selRects:[],selPt:null,selFx:0,selFrom:null,swipeRect:null,
-  menuRects:[],menuPt:null,modeFx:0,          /* the mode picker on the title screen */
+  menuRects:[],menuPt:null,            /* the title screen's controls: START and the lab door */
   lvSel:1,lvSelRects:[],lvSelPt:null,lvSelFx:0,  /* the starting-level picker */
   powSelRects:[],powSelFx:0,   /* the powerup lab's picker */
   labRect:null,                /* the lab's way out, drawn only during a lab run */
@@ -5362,7 +5362,8 @@ function die(){
   pd=null;   /* the gesture died with the run */
   /* THE LAB SCORES NOTHING. Guarded here at the point the record is COMPUTED
      and not merely at the savePref below it: G.best and REC[MODE].best are
-     what the two mode cards print, so a lab score that skipped only the write
+     what the title screen's best line prints, so a lab score that skipped the
+     write alone
      would still have rewritten the menu's best for the rest of the visit and
      then vanished on reload — a number the player watched appear and could
      never reproduce. A board pinned at dl 40 with red switched off is not a
@@ -5605,22 +5606,16 @@ function retry(){
   else startGame();
 }
 /* ---------- the front of the game ----------
-   Three screens before a run, and each one only exists because the choice on
-   it cannot be made for the player: which game they want (mode), which way
-   their hand thinks "out" is (swipe rule, once per device), and where they
-   want to start. They are separate states rather than one settings sheet
-   because each is drawn on the live arena and answered there. */
-function pickMode(m){
-  if(MODE===m)return;
-  useMode(m);
-  savePref('cometloop:mode',MODE);
-  G.modeFx=1;
-  track('mode_chosen',{run_index:G.runs});   /* play_mode rides on every event */
-  /* the two modes answer in their own register: skill's confirmation is the
-     brighter fifth above chill's, in the pentatonic every other sound in the
-     game speaks through — never a bare frequency */
-  beep(PENT[MODE==='chill'?0:2],0.12,'triangle',0.05,PENT[MODE==='chill'?2:4]);
-}
+   TWO decisions before a run, not three. The mode question is retired with
+   chill, and what is left is the pair that genuinely cannot be answered for
+   the player: which way their hand thinks "out" is (the swipe rule, asked
+   once per device) and where they want to start. They stay separate states
+   rather than one settings sheet because each is drawn on the live arena and
+   answered there.
+   The title screen therefore no longer holds a decision at all — it holds
+   START and the door to the lab. That is a simpler screen than the one that
+   shipped, and the record line goes back under the title where it lived
+   before there were two of them to tell apart. */
 function enterSwipeSel(from){
   G.selFrom=from||null;
   G.state='swipesel';G.lvT=G.t;G.nRings=3;G.ringI=1;G.hopFromI=1;G.hopP=1;
@@ -5705,10 +5700,7 @@ function enterLevelSel(){
    learned or drawn. Nowhere else changes: on any other state this is a no-op,
    which is what the arrow keys already did outside a run. */
 function menuStep(d){
-  if(G.state==='menu'){
-    /* CHILL is drawn left of SKILL, so -1 is left is chill */
-    pickMode(d<0?'chill':'skill');
-  }else if(G.state==='levelsel'){
+  if(G.state==='levelsel'){
     const n=Math.min(LEVEL_MAX,Math.max(1,(G.lvSel||1)+d));
     if(n!==G.lvSel){
       G.lvSel=n;G.lvSelFx=1;
@@ -5906,14 +5898,13 @@ function runSummary(){
      number nobody can place; a shared level is a claim that invites one back
      — "level 2 of 3" is answerable in a way "4300" is not. */
   /* THE SHARED CLAIM HAS TO BE THE CLAIM THAT WAS EARNED. Two things now make
-     a score mean something different: the mode it was played in, and whether
-     the run started at level 1 or was picked into. Both are named, and only
-     when they are not the default — a skill run that began at LIFT OFF shares
-     exactly the text that shipped, because that is still what "Cosmo · LEVEL
-     2/4" has always meant. A chill run announcing itself as an unqualified
-     level 4 would be the share text lying on the player's behalf. */
-  const tag=(MODE==='chill'?' · CHILL':'')+
-    (G.startLevel>1?' · from L'+G.startLevel:'');
+     a score mean something different, and with chill retired there is one
+     left: whether the run started at level 1 or was picked into. It is named
+     only when it is not the default, so an ordinary run shares exactly the
+     text that shipped — which is still what "Cosmo · LEVEL 2/4" has always
+     meant. A picked run announcing itself as an unqualified level 4 would be
+     the share text lying on the player's behalf. */
+  const tag=(G.startLevel>1?' · from L'+G.startLevel:'');
   return 'Cosmo · LEVEL '+G.level+'/'+LEVEL_MAX+tag+'\n'+
     bar+' '+tierLabel()+'\n'+
     G.score+' points · '+G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
@@ -6030,22 +6021,18 @@ cv.addEventListener('pointerdown',function(e){
        e.clientY>=G.swipeRect.y&&e.clientY<=G.swipeRect.y+G.swipeRect.h){
       G.swipeAsked=false;enterSwipeSel('menu');return;
     }
-    /* THE MODE CARDS SELECT, THEY DO NOT START. Two controls on the screen a
-       player taps without reading means one of them will be hit by accident,
-       and the expensive mistake is starting a run in the wrong game rather
-       than looking at a card you did not mean to look at. So a card only ever
-       changes the selection, and the run begins from START — or from anywhere
-       else on the screen, which is the tap this game has always answered. */
+    /* THE TITLE SCREEN ANSWERS A TAP ANYWHERE AGAIN, which is what it did
+       before the mode cards arrived. With the cards gone there is no longer a
+       control here whose job is to change a selection, so nothing on this
+       screen can be hit by accident in a way that costs a run — the one thing
+       the select-don't-start rule existed to prevent.
+       THE LAB BAR IS STILL A DOOR, and still handled first. It answers "not a
+       game at all, show me the orbs", opening another screen with a way back,
+       so reaching it costs a look rather than a run. The menu's `change`
+       swipe control has always worked exactly this way. */
     const mh=G.menuRects.find(function(r){
       return e.clientX>=r.x&&e.clientX<=r.x+r.w&&e.clientY>=r.y&&e.clientY<=r.y+r.h;});
-    /* THE LAB BAR IS A DOOR, NOT A CARD, and that is why it is handled before
-       the cards rather than beside them. A card answers "which game"; the lab
-       answers "not a game at all, show me the orbs" — and it opens another
-       decision screen with a way back, so navigating from it costs a look
-       rather than a run. The menu's own `change` control has always worked
-       exactly this way, which is the precedent this follows. */
     if(mh&&mh.id==='lab'){openLab();beep(523,0.12,'triangle',0.05,784);return;}
-    if(mh&&mh.id!=='start'){pickMode(mh.id);return;}
     leaveMenu();
     return;
   }
@@ -6662,14 +6649,15 @@ function update(dt){
   }
 
   /* dir matters on the menu now: the demo reverses the comet for real */
-  /* THE TITLE SCREEN RUNS AT THE MODE'S PACE. The demo comet is the only
-     moving thing on the menu, so pointing the mode's own speed trim at it
-     makes the choice legible before the player has committed to it: pick
-     CHILL and the screen you are looking at visibly calms down. It is the
-     same multiplier the run uses — not a decoration with its own number. */
+  /* THE TITLE SCREEN RUNS AT THE MODE'S PACE, and keeps doing so with one
+     mode. It was written so a pick was legible before the player committed to
+     it — choose the calmer game and the screen visibly calms down — and with
+     nothing to pick it is now simply the demo running at the game's own
+     speed, off the same multiplier the run uses. Kept wired rather than
+     inlined to 1: MD().demo is a live knob, check.mjs fails on a knob with no
+     call site, and this is its call site. */
   if(G.state==='menu'){
     G.sweep=0;G.angle+=0.8*MD().demo*dt*G.dir;pushTrail();
-    if(G.modeFx>0)G.modeFx=Math.max(0,G.modeFx-dt*2.2);
     menuDemo(dt);return;
   }
   if(G.state==='levelsel'){
@@ -9529,118 +9517,12 @@ function drawLadder(x,y,level,shown){
   }
   ctx.globalAlpha=1;
 }
-/* ---------- the mode cards ----------
-   TWO WORDS DO NOT DESCRIBE TWO GAMES. "chill" and "skill" are the same four
-   letters of promise, and a sentence under each one is read by nobody who is
-   about to tap START — so each card ANIMATES the difference it is selling
-   instead of claiming it. Both draw the same picture with the same code: a
-   comet on an orbit with reds on it. Skill's orbit is fast, tight and carries
-   four shards; chill's is slow, wide and carries one. Whatever the numbers do
-   later, this is what the numbers mean, and it is legible in a second with
-   the sound off.
-
-   The art is driven off the SAME knobs the run is: the dot's angular rate is
-   the mode's speed trim, the shard count its density trim, the trail length
-   its warning trim. A card cannot flatter a mode the game does not deliver,
-   because there is no separate number here to flatter it with.
-
-   Everything is a fraction of the panel, so the card lays out at whatever
-   size the screen left for it — the lesson the upgrade tiles learned when a
-   hardcoded 76u tile came out at 8 physical pixels of description text. */
-function modeArt(m,x,y,w,h,on){
-  const rx=w*0.36,ry=Math.min(h*0.36,rx*0.62);
-  const spd=RM?0:m.speed*1.5;
-  const a0=G.t*spd*(m.id==='chill'?0.8:1.35);
-  ctx.save();
-  ctx.translate(x+w/2,y+h/2);
-  /* the orbit itself: a soft ellipse, brighter on the selected card */
-  ctx.globalAlpha=on?0.55:0.30;
-  ctx.strokeStyle=m.c;ctx.lineWidth=1.2*u;
-  ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,TAU);ctx.stroke();
-  /* the reds: the density trim, counted. cap/gap IS how full a board gets —
-     how many may sit on it over how often one arrives — so the picture counts
-     four on skill and two on chill because that is the ratio, not a number
-     picked to look like a difference. */
-  const nsh=Math.max(1,Math.round(4*m.cap/m.gap));
-  ctx.globalAlpha=on?0.9:0.45;
-  ctx.fillStyle=COL.shard;
-  for(let i=0;i<nsh;i++){
-    const sa=i*TAU/nsh+(m.id==='chill'?a0*0.15:0.4);
-    const sx=Math.cos(sa)*rx,sy=Math.sin(sa)*ry;
-    const sr=2.6*u;
-    ctx.save();ctx.translate(sx,sy);ctx.rotate(Math.PI/4);
-    ctx.fillRect(-sr,-sr,sr*2,sr*2);
-    ctx.restore();
-  }
-  /* the trail: the warning trim, drawn. More reading time is a longer look at
-     where the comet has been, so chill's tail is visibly the generous one. */
-  const tn=Math.round(9*m.warn);
-  for(let i=tn;i>=0;i--){
-    const ta=a0-i*0.052/Math.max(0.2,m.speed);
-    const f=1-i/(tn+1);
-    ctx.globalAlpha=(on?0.85:0.42)*f*f;
-    ctx.fillStyle=m.c;
-    const rr=(1.1+2.6*f)*u;
-    ctx.beginPath();ctx.arc(Math.cos(ta)*rx,Math.sin(ta)*ry,rr,0,TAU);ctx.fill();
-  }
-  /* the head, with a halo built from a gradient rather than shadowBlur —
-     this runs every frame and the file's bloom pass is banned from per-frame
-     shadow work for exactly that reason */
-  const hx=Math.cos(a0)*rx,hy=Math.sin(a0)*ry;
-  const gr=ctx.createRadialGradient(hx,hy,0,hx,hy,11*u);
-  gr.addColorStop(0,m.c);
-  gr.addColorStop(0.35,'rgba(255,255,255,0.55)');
-  gr.addColorStop(1,'rgba(255,255,255,0)');
-  ctx.globalAlpha=on?0.85:0.45;
-  ctx.fillStyle=gr;
-  ctx.beginPath();ctx.arc(hx,hy,11*u,0,TAU);ctx.fill();
-  ctx.globalAlpha=on?1:0.5;
-  ctx.fillStyle='#ffffff';
-  ctx.beginPath();ctx.arc(hx,hy,2.4*u,0,TAU);ctx.fill();
-  ctx.restore();
-  ctx.globalAlpha=1;
-}
-/* One card. Returns nothing — the caller owns the rect it registered. */
-function drawModeCard(m,x,y,w,h,on,pop){
-  const rr=Math.min(14*u,w*0.13);
-  ctx.save();
-  /* the plate. The selected card is lifted out of the backdrop and tinted
-     toward its own colour; the other stays a dark tile, so which one is armed
-     is readable at a glance and without reading a word. */
-  const bg=ctx.createLinearGradient(0,y,0,y+h);
-  if(on){bg.addColorStop(0,'rgba(30,44,74,0.96)');bg.addColorStop(1,'rgba(12,18,34,0.96)');}
-  else{bg.addColorStop(0,'rgba(16,22,38,0.80)');bg.addColorStop(1,'rgba(9,13,25,0.80)');}
-  ctx.fillStyle=bg;
-  ctx.beginPath();ctx.roundRect(x,y,w,h,rr);ctx.fill();
-  /* the selected border breathes; the pop is the confirmation of the tap that
-     just selected it, so switching cards has a moment rather than a jump */
-  ctx.strokeStyle=on?m.c:'rgba(140,170,220,0.28)';
-  ctx.lineWidth=on?2:1.2;
-  ctx.globalAlpha=on?(RM?0.95:0.6+0.4*Math.sin(G.t*(m.id==='chill'?1.8:3.4)))+(pop||0)*0.4:1;
-  ctx.globalAlpha=Math.min(1,ctx.globalAlpha);
-  ctx.beginPath();ctx.roundRect(x+1,y+1,w-2,h-2,rr);ctx.stroke();
-  ctx.globalAlpha=1;
-  ctx.restore();
-  /* art on the top half, type on the bottom — the same split as the draft
-     tiles, so the two card screens in this game read as one idiom */
-  modeArt(m,x,y+h*0.06,w,h*0.44,on);
-  ctx.textAlign='center';
-  const nsz=Math.max(13*u,Math.min(20*u,w*0.19));
-  textFx(m.name,x+w/2,y+h*0.68,fitSz(m.name,nsz,'800',w-14*u,3),'800',
-    on?'#ffffff':'rgba(220,232,255,0.62)',on?m.c:'rgba(150,175,215,0.6)',
-    on?'rgba(255,255,255,0.25)':null,3);
-  const tsz=Math.max(8.5*u,Math.min(10.5*u,w*0.093));
-  text(m.tag,x+w/2,y+h*0.80,fitSz(m.tag,tsz,'600',w-12*u),'600',
-    on?'rgba(206,220,255,0.85)':'rgba(180,198,230,0.45)',0);
-  /* EACH CARD CARRIES ITS OWN RECORD, which is the whole reason the records
-     are stored per mode: one number under the title could only ever belong to
-     one of these two games, and the player would have no way to know which. */
-  const r=REC[m.id]||{best:0,lvlMax:1};
-  const bl=r.best>0?'best · '+r.best:'no runs yet';
-  text(bl,x+w/2,y+h*0.925,fitSz(bl,Math.max(8*u,tsz*0.95),'700',w-12*u,1),'700',
-    r.best>0?(on?'rgba(255,200,87,0.85)':'rgba(255,200,87,0.4)')
-            :(on?'rgba(200,215,255,0.45)':'rgba(200,215,255,0.25)'),1);
-}
+/* The two mode cards and their moving art were deleted with CHILL. They were
+   a good idea for the problem they had — each card animated the mode's own
+   knobs, so it could not flatter a difficulty the game did not deliver — and
+   if a second mode returns, that idea should return with it rather than a
+   static tag line. The reasoning is in the git history at this line; nothing
+   here should be reconstructed from memory. */
 function drawHUD(){
   /* THE LESSON VEIL. While a hard first-encounter lesson holds the world
      near-frozen, the whole board dims and the specimen being explained
@@ -10269,47 +10151,39 @@ function drawHUD(){
        old copy still told players to "tap it to phase through" — a control
        that was removed two releases ago, which is the worst thing an
        instruction can do. */
-    /* THE BEST LINE MOVED ONTO THE CARDS. It used to ride under the title as
-       identity, and it still is identity \u2014 but there are two records now, and
-       one number under one title cannot say which of the two games it belongs
-       to. Each mode card carries its own, which is also what makes an empty
-       one honest: "no runs yet" on the mode you have not tried. */
-    /* THE MODE PICKER. Laid out first and from the room between the title and
-       the key, because it is the only decision on this screen and the key
-       below it is reference material. Two cards, side by side, CHILL on the
-       left so the arrow keys read left-to-right as easier-to-harder. */
+    /* THE BEST LINE COMES BACK UNDER THE TITLE. It rode there as identity
+       until there were two records to tell apart and one number under one
+       title could not say which game it belonged to — so it moved onto the
+       cards. The cards are gone and so is the ambiguity, and this is the
+       line that shipped before either existed. An empty device says "no runs
+       yet" rather than showing a zero — the one thing the cards got right
+       about this line, and worth keeping. */
     G.menuRects=[];
-    const cardTop=ty+16*u;
+    const bestY=ty+26*u;
+    const bl0=G.best>0?('BEST \u00b7 LEVEL '+G.lvlMax+' \u00b7 '+G.best):'no runs yet';
+    text(bl0,cx,bestY,fitSz(bl0,13*u,'600',W-24*u,2),'600','rgba(200,215,255,0.55)',2);
+    const cardTop=bestY+18*u;
     const cardW=Math.min((Math.min(W-28*u,430*u)-12*u)/2,168*u);
-    /* height comes from what is left after the key needs its four rows, and
-       is clamped either side: too short and the art has no room to move in,
-       too tall and it eats the sentences under it */
-    /* 0.40 rather than 0.46: the lab bar below the cards takes its band out of
-       the same box, and taking it out of the KEY instead would have pushed the
-       four rows onto their 15u floor and then through the bottom of a short
-       landscape phone. The cards give the room up because they have it — the
-       clamp above them is what actually sets their height on a tall screen. */
-    const cardH=Math.max(96*u,Math.min(cardW*0.98,(bottomY-30*u-cardTop)*0.40));
     const cardGap=12*u,cardX=cx-(cardW*2+cardGap)/2;
-    const MLIST=[MODES.chill,MODES.skill];
-    for(let i=0;i<MLIST.length;i++){
-      const m=MLIST[i],bx=cardX+i*(cardW+cardGap);
-      G.menuRects.push({x:bx,y:cardTop,w:cardW,h:cardH,id:m.id});
-      drawModeCard(m,bx,cardTop,cardW,cardH,MODE===m.id,MODE===m.id?G.modeFx:0);
-    }
+    /* WHAT THE CARDS USED TO OCCUPY IS NOW EMPTY, and it stays empty rather
+       than being redistributed. The key below still needs its four rows and
+       the lab bar still needs its band; growing either to fill a gap left by
+       a decision that may come back would mean re-tuning this screen twice.
+       The lab bar keeps the pair's width so the layout it was measured
+       against on eight viewports is the layout it still gets. */
+    const cardH=0;
     ctx.textAlign='center';
-    /* THE THIRD OPTION, AND IT IS DELIBERATELY NOT A THIRD CARD. Drawn as one
-       wide bar under the pair rather than as a card beside them, for two
-       reasons that point the same way. It is not the same KIND of thing: the
-       cards answer "which game", each carrying its own record and its own
-       identity colour, and a sandbox that keeps no record and pins the
-       difficulty would be claiming to be a difficulty by sitting in that row.
-       And three cards across a 390px phone is 113u each against the current
-       168u — the art, the name, the tag and the best line all shrink to buy
-       space for a screen nobody reaches for on their way into a run.
-       Violet, not either mode's colour and not red: COL.warp already means
-       "this bends the rules" everywhere else in the game. */
-    const labH=Math.max(28*u,Math.min(38*u,cardH*0.30));
+    /* THE LAB DOOR, still a bar and still not a card. It was drawn this way
+       to keep it out of the row that answered "which game" — a sandbox that
+       keeps no record and pins the difficulty clock had no business sitting
+       among difficulties. That row is gone and the bar stays exactly as it
+       was, because the reasoning that put it here never depended on the
+       cards: it is a door to another screen, drawn the way the swipe
+       chooser's `change` control is drawn, and it is the only thing on this
+       screen that is not START.
+       Violet, and still not red: COL.warp already means "this bends the
+       rules" everywhere else in the game. */
+    const labH=Math.max(28*u,Math.min(38*u,cardW*0.22));
     const labW=cardW*2+cardGap,labX=cardX,labY=cardTop+cardH+9*u;
     G.menuRects.push({x:labX,y:labY,w:labW,h:labH,id:'lab'});
     ctx.save();
@@ -10537,7 +10411,7 @@ function drawHUD(){
       ctx.restore();
       ly+=lh+lgap;
     }
-    /* START, and a way back to the mode cards. The back control is a word
+    /* START, and a way back to the title screen. The back control is a word
        rather than a row: it is the one thing on this screen you reach for by
        mistake, and it must not look like a fifth level. */
     const pw2=Math.min(150*u,W-60*u),px2=cx-pw2/2;
@@ -10711,11 +10585,9 @@ function drawHUD(){
       text(ll,cx,cy+42*u,fitSz(ll,12*u,'700',W-24*u,2),'700','rgba(190,178,235,0.75)',2);
     }
     else{
-      /* WHICH BEST. There are two records now and this line reports whichever
-         mode is selected, so in chill it has to say so \u2014 otherwise a player
-         who switches modes watches their best score appear to collapse. Named
-         only in chill: skill's line is the one that shipped, unchanged. */
-      const bl2=(MODE==='chill'?'CHILL BEST \u00b7 LEVEL ':'BEST \u00b7 LEVEL ')+G.lvlMax+' \u00b7 '+G.best;
+      /* One record, so the line needs no qualifier — this is the line that
+         shipped before chill existed, restored exactly. */
+      const bl2='BEST \u00b7 LEVEL '+G.lvlMax+' \u00b7 '+G.best;
       text(bl2,cx,cy+42*u,fitSz(bl2,13*u,'600',W-24*u,2),'600',
         'rgba(200,215,255,0.5)',2);
     }

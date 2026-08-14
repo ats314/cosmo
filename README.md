@@ -68,51 +68,67 @@ threat arrives alone (the shard cap starts at one), early warning pulses run
 almost half a second longer, and spawns open at 2.6s apart instead of 2.1 —
 all of it converging on the same late game, none of it touching the ceiling.
 
-### CHILL and SKILL
+### One mode, and the table that survives it
 
-Two modes, and only one implementation of the game. SKILL is Cosmo as
-balanced. CHILL is the same code with **the clock turned down** and four
-forgiveness terms scaled: `MODES` is a table of multipliers, every difficulty
-curve reads it, and a balance change made once lands in both.
+**CHILL is retired for now.** The owner's call: one mode until the game is
+perfected, and then a difficulty conversation from a settled baseline rather
+than alongside one. What is *not* retired is the mechanism.
 
-The clock is the main lever on purpose. Everything that presses on the player
-— speed, shard cap, arrival rate, warning length, the tier ladder, the finish
-line — is already keyed off `dl()`, so slowing that one number eases all six
-together *and in the proportions they were tuned in*, which is the only way
-"easier" stays recognisably the same game rather than a differently-broken
-one. Chill runs it at 0.72, and trims the comet's speed (×0.86), the telegraph
-(×1.3), the shard cap (×0.78) and the spawn gap (×1.3) on top, and starts you
-one shield deeper.
+`MODES` stays, with a single row, and that row is still the **identity**:
+every knob 1, or 0 for the additive shield. So every expression the knobs
+appear in — `dl()`, `speedAt()`, `warnTime()`, `shardCap()`, `spawnGap()`, the
+shield bank — still reduces to exactly what shipped, and the table still
+cannot quietly become the place the real game is tuned.
 
-SKILL is the **identity mode**: every one of its knobs is 1, or 0 for the
-additive shield. That is not tidiness — it is what makes the claim checkable.
-With skill selected, every expression the knobs appear in reduces to exactly
-the expression that shipped, so this table can never quietly become the place
-the real game is tuned. `check.mjs` fails the build if a skill knob stops being
-the neutral element, if one mode grows a knob the others lack, or if any knob
-is declared and never read; `smoke.mjs` measures every term through the real
-functions in both modes, at the same difficulty second, so a table of
-multipliers wired to nothing cannot pass for a mode.
+Keeping it costs one row and buys the thing that was expensive to get right:
+the rule that a second difficulty is a **derivative** and never a second
+implementation. That rule was arrived at, not obvious, and it is written into
+the shape of the table and its guards. Deleting the table would delete the
+rule and leave a future second mode to rediscover it — most likely as a branch
+on a flag somewhere in the game code, which is exactly what the table exists
+to prevent. Bringing chill back is adding a row, not re-deriving a design.
 
-Chill deliberately touches nothing else. The curriculum is gated on `dl` and
-on the level ordinal, so a chill run meets every formation and every orb in
-the same order at the same points — it takes more seconds to get there, which
-is the entire difference. The music is untouched: a mode is not a key change.
-And nothing multiplies the score, so a chill minute is worth less only because
-it contains less game.
+The clock stays the intended main lever, and the reasoning is kept because a
+second mode will need it. Everything that presses on the player — speed, shard
+cap, arrival rate, warning length, the tier ladder, the finish line — is
+already keyed off `dl()`, so slowing that one number eases all six together
+*and in the proportions they were tuned in*, which is the only way "easier"
+stays recognisably the same game rather than a differently-broken one. The
+other knobs are trims on top of it, never a second difficulty curve. And a
+mode must never touch the curriculum, the music or the scoring: orbs and
+lessons are gated on `G.level` and tiers on `dl`, so any mode meets every
+formation in the same order at the same points and merely takes a different
+number of seconds to get there.
 
-The records are kept per mode. An easier mode writing to `cometloop:best`
-would redefine every value already sitting on every device — the same failure
-the retired `cometloop:level` key exists to remember — so the unsuffixed keys
-stay SKILL's and chill gets its own. Each mode card on the title screen carries
-its own best, the death screen names the mode when it reports chill's record,
-and the share text appends `· CHILL` so a shared claim is the claim that was
-earned.
+The guards stay armed. `check.mjs` still fails the build if the row stops
+being the neutral element, if any knob is declared and never read, or if a
+future second row grows a knob skill lacks. `smoke.mjs` goes further and is
+the reason this is more than a comment: it **injects a synthetic mode** with
+every knob off neutral and measures every curve through the real functions, at
+the same difficulty second, so a table of multipliers wired to nothing cannot
+pass. Deleting that test along with chill would have meant discovering the
+plumbing was dead on the day someone added a row — the worst possible day.
+
+**No player loses a record.** Every value ever written to `cometloop:best` and
+`cometloop:gl` was SKILL's, because chill's went to `:chill`-suffixed keys
+precisely so an easier mode could never redefine what the plain key meant (the
+failure the retired `cometloop:level` key is remembered for). So the plain
+keys mean exactly what they always meant, on every device, with nothing to
+migrate. The `:chill` keys are **left on disk deliberately** — they cost a few
+bytes, nothing reads them, and they are somebody's record. `cometloop:mode` is
+likewise left but no longer read: a device that last played chill has `chill`
+sitting under it, and honouring that would select a mode that no longer
+exists.
+
+The title screen loses its cards and gets its best line back under the title,
+where it lived before there were two records to tell apart. It answers a tap
+anywhere again — with no selection on the screen, there is nothing a stray tap
+can cost you, which is the only thing the select-don't-start rule existed to
+prevent. The lab door stays exactly as it was; it was never a card.
 
 ### Where you start
 
-The title screen is the mode picker, and the screen after it picks the
-starting level. All four are selectable on any device, including levels never
+The screen after the title picks the starting level. All four are selectable on any device, including levels never
 reached — the screen exists so a level can be reached without playing to it,
 which is what makes testing level 4 possible at all. Rows the device has
 actually got to are marked *reached*, so picked and earned stay visibly
@@ -1592,7 +1608,7 @@ holding `tier + 1` while `level_cleared` sent `level` holding 1–3 — one
 property name, two scales, two events. The ambiguous name is retired rather
 than redefined, so no historical row silently changes meaning; `tier` carried
 the same number all along. The two difficulty modes ride on every event as
-`play_mode` — without it, chill and skill deaths average into one unreadable
+`play_mode` — with a second mode, deaths would otherwise average into one unreadable
 completion rate, exactly as the two swipe rules would — and it is deliberately
 **not** called `mode`, because `swipe_mode_chosen` has always carried the swipe
 rule under that name and reusing it would rewrite what every historical row of
