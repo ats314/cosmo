@@ -5071,8 +5071,15 @@ function startGame(){
   /* EVERY RUN STARTS UNPAUSED AND WITH THE BUTTON ARMED. Cleared here rather
      than at each exit, so no path — retry, level card, a picked level, a lab
      restart — can begin a run behind a panel or inside a countdown left over
-     from the last one. The counters are per RUN because that is the unit
-     run_ended reports on. */
+     from the last one.
+     THE COUNTERS ARE THEREFORE PER LEVEL, not per run — startGame() runs at
+     every level boundary, not only at a fresh run. That is deliberate and
+     matches `seconds`, which has always been this level's clock on both
+     telemetry events; it is also why `level_cleared` has to carry the pair,
+     since run_ended fires only on death and would otherwise be the sole
+     reporter of a number this line had already reset. This comment claimed
+     "per RUN" when it was written, which was wrong the moment it was written
+     and is exactly the kind of stale claim that makes a careful reader wrong. */
   PAUSE.on=false;PAUSE.resumeT=0;PAUSE.cool=0;PAUSE.n=0;PAUSE.total=0;PAUSE.at=0;
   G.pauseBtn=null;
   BEATQ.length=0;DROPQ.length=0;
