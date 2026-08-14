@@ -293,37 +293,31 @@ function crossFront(st, frame, fire, pid) {
   }
   note.push(`GPU path: ${perFrame.toFixed(1)} draws/frame, ${got.length} targets, flip on upload`);
 
-  /* THE SCALE DIAL CLIMBS IN PLAY, AND THE LADDER SHEDS IN ORDER OF
-     IDENTITY: glow first, resolution second, the sky itself dead last. The
-     watch measures the whole frame and cannot tell whose cost it is, so what
-     it retires first has to be the thing whose loss a player is least likely
-     to notice — and the glow is tuned to carry the same light as the disc
-     fallback, so retiring it is nearly invisible AND refunds the cost most
-     likely to be the problem. The sky swapping to the 2D backdrop mid-run is
-     the single worst degrade the game can perform, and it must be the last
-     resort, not the first response. */
-  const s0 = Number(st('GL.scale'));
-  for (let i = 0; i < 60 * 8; i++) frame(8);       // 125fps, in play: climbs
-  const s1 = Number(st('GL.scale'));
-  if (!(s1 > s0)) fail.push(`GL.scale did not climb on a fast device in play (${s0} -> ${s1})`);
-  if (st('FX.on') !== true) fail.push('the glow should still be running before any slow stretch');
-  /* one action window of slow frames: the glow dies, the sky is untouched */
-  for (let i = 0; i < 75; i++) frame(40);          // 25fps for ~3s: one ladder action
-  if (st('FX.on') !== false) fail.push('slow frames did not retire the GLOW first — the ladder is billing the sky for costs it can shed cheaper');
-  const sAfterFx = Number(st('GL.scale'));
-  if (Math.abs(sAfterFx - s1) > 1e-9) {
-    fail.push(`the sky's resolution moved (${s1} -> ${sAfterFx}) before the glow was retired — the ladder is out of order`);
+  /* NOTHING DEGRADES ANY MORE, AND THAT IS THE ASSERTION.
+     This block used to pin a degrade ladder: on a slow stretch the glow was
+     retired, then the sky's resolution stepped down with the ceiling latching
+     permanently, then the shader was switched off and the baked 2D backdrop
+     swapped in mid-run. It was tested carefully and in the wrong direction.
+     The ladder is deleted. The owner's target is iPhone 12 and up on the web,
+     and the instruction is verbatim: "a struggling device should struggle" —
+     "if someones phone cant handle my game, they cant fucking play it, end of
+     story". A device in trouble drops frames; it does not get a different
+     game. The field report the ladder produced — "it looks good for the
+     opening and then 5 seconds in, it changes to the old shit" — was this
+     mechanism working exactly as designed.
+     So the test is inverted: drive a long slow stretch, far past what used to
+     trigger every rung, and assert that NOTHING moved. */
+  const fxBefore = st('FX.on'), glBefore = st('GL.on');
+  const vpBefore = JSON.stringify(log.vp);
+  for (let i = 0; i < 60 * 10; i++) frame(40);      // 25fps for ten seconds
+  if (st('FX.on') !== fxBefore) fail.push('a slow stretch retired the GLOW — the degrade ladder is back');
+  if (st('GL.on') !== glBefore) fail.push('a slow stretch killed the SKY — the degrade ladder is back');
+  if (JSON.stringify(log.vp) !== vpBefore) {
+    fail.push(`a slow stretch changed the backdrop's resolution (${vpBefore} -> ${JSON.stringify(log.vp)}) — the degrade ladder is back`);
   }
-  /* continued slow: NOW the resolution steps, and the cap latches */
-  for (let i = 0; i < 40 * 4; i++) frame(40);
-  const s2 = Number(st('GL.scale')), cap = Number(st('GL.cap'));
-  if (!(s2 < s1)) fail.push(`GL.scale did not fall once the glow was gone (${s1} -> ${s2})`);
-  if (cap > s2 + 1e-9) fail.push(`the ceiling did not latch to the retreat (cap ${cap} > scale ${s2})`);
-  if (st('GL.on') !== true) fail.push('the slow stretch killed the sky entirely — it must be the last resort');
-  for (let i = 0; i < 60 * 12; i++) frame(8);      // fast again: must not exceed the cap
-  const s3 = Number(st('GL.scale'));
-  if (s3 > cap + 1e-9) fail.push(`GL.scale climbed past its latched ceiling (${s3} > ${cap})`);
-  note.push(`ladder: climbed ${s0} -> ${s1} in play, glow retired first, then ${s2}, capped ${cap}, held ${s3}`);
+  if (/\bglWatch\b/.test(src)) fail.push('glWatch is back — the degrade ladder was deleted on purpose');
+  if (/GL\.(scale|cap)\b/.test(src)) fail.push('GL.scale/GL.cap are back — the render scale is a constant now, not a dial');
+  note.push(`ten seconds at 25fps changed nothing: glow ${st('FX.on')}, sky ${st('GL.on')}, viewport ${JSON.stringify(log.vp)}`);
 }
 
 /* ============ 1a-ii. THE ORBIT ACTUALLY REACHES THE SKY ============

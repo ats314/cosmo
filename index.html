@@ -8418,9 +8418,25 @@ function musPos(){
    Why a shader at all: the old sky was radial-gradient sprites, which cannot
    express filaments, dust lanes or flow no matter how they are animated. This
    is two-level domain-warped fBm — the structure IS the maths. */
-const GL_SCALE=0.60;   /* render scale. THE perf dial: the field is smooth, so
-                          upscaling costs almost nothing visually. Drop toward
-                          0.4 if a phone struggles, raise to 1.0 on desktop. */
+/* RENDER SCALE, AND IT STARTS AT FULL NOW. This was 0.60 — the backdrop drew
+   at 36% of the screen's pixels and was upscaled 1.67x to fill it, on every
+   device, every run — under a comment calling it "a compromise struck between
+   a phone that might not cope and a desktop that could render this four times
+   over". THE PHONE THAT MIGHT NOT COPE IS NOT IN THE PLAYER BASE. The owner's
+   target is iPhone 12 and up, which was never written down anywhere in this
+   repository, so every session inherited a compromise struck for a device
+   nobody plays on.
+   It is not a free compromise either, and the previous comment was wrong that
+   it costs "almost nothing visually". The field is smooth at low frequencies
+   and the sky is NOT only low frequencies: the ridged filament network, the
+   dust lanes and the three star layers all carry detail at the pixel scale,
+   and a 1.67x upscale is exactly where that detail goes. The first read of
+   these worlds rendered at 0.60 was "soft and blurry, low-frequency mush, no
+   fine detail", and that was blamed on the noise field.
+   The ladder below is unchanged and is now what it should always have been:
+   a safety net that catches a device in trouble, rather than the default
+   everyone lives in. */
+const GL_SCALE=1.0;
 const GL_COV=0.36, GL_EXP=1.45;   /* void threshold and exposure — see notes */
 /* HOW FAST THE SKY MOVES. One master dial over every drifting term — flow
    advection, palette walk, star twinkle — now multiplied by the world's own
@@ -8440,15 +8456,11 @@ const GL_COV=0.36, GL_EXP=1.45;   /* void threshold and exposure — see notes *
    which is half of what "they are too similar" was about: four skies that all
    drift at one rate are four skies with one mood. */
 const GL_MOTION=0.72;
-/* GL_SCALE is where the sky STARTS, not where it is stuck: glWatch climbs
-   toward GL_SCALE_MAX on a machine that can hold the frame and latches the
-   ceiling down the first time one cannot. */
-const GL_SCALE_MAX=1.0;
 const GL={on:false,g:null,pr:null,u:{},cv:null,vw:0,vh:0,
   r:[[0,0,-1],[0,0,-1]],slot:0,shear:0,
   flow:0,flowVt:null,   /* the integrated advection clock — see uFlow */
   tw:0,                 /* the integrated world clock — see uTime */
-  scale:GL_SCALE,cap:GL_SCALE_MAX,acc:0,n:0,slow:0,fast:0};
+};
 const GL_FS=`
 precision highp float;
 uniform vec2 uRes,uCtr; uniform float uTime,uEnergy,uPal,uCov,uExp,uCombo,uBeat,uShr,uMotion,uBH,uPock,uFlow;
@@ -8900,7 +8912,7 @@ function glInit(){
 function glResize(){
   if(!GL.on)return;
   try{
-    const s=Math.min(DPR,2)*GL.scale;
+    const s=Math.min(DPR,2)*GL_SCALE;
     const w=Math.max(1,Math.round(W*s)),h=Math.max(1,Math.round(H*s));
     if(w===GL.vw&&h===GL.vh)return;
     GL.vw=w;GL.vh=h;GL.cv.width=w;GL.cv.height=h;GL.g.viewport(0,0,w,h);
@@ -8919,87 +8931,25 @@ function glRipple(){
   }catch(e){}
 }
 function glShear(dir){ if(GL.on&&!RM)GL.shear=0.28*(dir<0?-1:1); }
-/* THE BACKDROP MUST NEVER COST THE GAME ITS FRAME RATE. This shader is the
-   most expensive thing in the file and it is running on hardware nobody can
-   enumerate. So it watches itself: sustained slow frames drop the render
-   scale (the field is smooth, so a smaller buffer upscales almost invisibly),
-   and if the cheapest scale is still slow it hands the backdrop back to the
-   baked 2D path and never tries again this run. Degrade, never stutter. */
-/* AND IT ONLY EVER WENT DOWN. 0.60 is a compromise struck between a phone
-   that might not cope and a desktop that could render this four times over,
-   and the compromise was permanent in both directions: a machine holding
-   4ms frames all run stayed at 0.60 forever, because nothing here could
-   raise it. The field is smooth, so scale is very nearly a pure quality
-   dial — which makes leaving headroom unspent the same kind of waste as
-   stuttering, just quieter.
-   THE CEILING LATCHES DOWN AND NEVER COMES BACK UP, and that is what makes
-   the climb safe. A dial that can rise and fall on a device sitting near the
-   threshold will oscillate: raise, go slow, drop, look fast, raise again —
-   a visible pulsing of the sky's resolution, which is worse than either end
-   of it. So the moment anything is too slow, GL.cap drops to whatever scale
-   we retreated to, and the raise can never step past the cap again this run.
-   Raising asks for more evidence than lowering (4 fast seconds against 2
-   slow) and asks at a stricter threshold than the one that triggers a drop,
-   so the two bands cannot both be true.
-
-   THE LADDER SHEDS IN ORDER OF IDENTITY, AND THE SKY DIES LAST. This watch
-   measures the WHOLE frame — it cannot tell the backdrop's cost from the
-   glow's, the arena's, or a phone throttling itself at 3% battery — and its
-   only levers used to be the backdrop's. So any slowness anywhere was billed
-   to the sky: scale down, scale down, then GL.on=false and the baked 2D
-   backdrop swapping in MID-RUN, permanently. That is the single worst
-   degrade the game can perform: the sky is the game's face, the swap is a
-   whole-scene replacement a player reads as the game breaking, and it
-   executed the one layer that was framed for a bill the GLOW was running up
-   — the FX pass costs a texture upload and a WebGL-canvas drawImage every
-   frame, which is real money on exactly the phones that are near the
-   threshold. Field report, verbatim: "it looks good for the opening and then
-   5 seconds in, it changes to the old shit." Five seconds is this ladder
-   bottoming out on schedule.
-   So the ladder now sheds the cheapest identity first:
-     1. the GLOW — FX.on false, the disc halo returns. Tuned to carry the
-        same light, so this is nearly invisible; and on a throttled phone it
-        refunds the exact cost that was likely the problem.
-     2. the sky's RESOLUTION, stepped as before, cap latching each time.
-     3. the sky ITSELF — only when the cheapest scale with no glow is still
-        too slow, which is a phone that genuinely cannot run any of it.
-
-   AND THE RAISE ONLY MEASURES GAMEPLAY. It used to count any fast second,
-   and the menu is nothing but fast seconds — an empty board, no glow work,
-   no simulation — so every run began at a resolution the menu had bid up
-   and the run could not afford, handing the ladder a guaranteed walk-down
-   that ended in the swap above. A raise fed by unrepresentative frames is
-   not headroom, it is a debt the next screen inherits. */
-function glWatch(dt){
-  if(dt<=0||dt>0.5)return;                 /* ignore tab-switch spikes */
-  GL.acc+=dt;GL.n++;
-  if(GL.acc<1.0)return;
-  const avg=GL.acc/GL.n; GL.acc=0;GL.n=0;
-  if(avg>1/45){
-    GL.fast=0;
-    GL.slow++;
-    if(GL.slow>=2){
-      GL.slow=0;
-      if(FX.on)FX.on=false;                /* 1. the glow yields first */
-      else if(GL.scale>0.34){
-        GL.scale=Math.max(0.34,GL.scale-0.14);   /* 2. then resolution */
-        GL.cap=GL.scale;                   /* the ceiling latches, permanently */
-        GL.vw=GL.vh=0;
-      }
-      else GL.on=false;                    /* 3. the sky itself, dead last */
-    }
-  }else{
-    GL.slow=0;
-    if(avg<1/58&&GL.scale<GL.cap&&G.state==='playing'){
-      GL.fast++;
-      if(GL.fast>=4){
-        GL.fast=0;
-        GL.scale=Math.min(GL.cap,GL.scale+0.10);
-        GL.vw=GL.vh=0;                     /* forces glResize to rebuild */
-      }
-    }else GL.fast=0;
-  }
-}
+/* THE DEGRADE LADDER IS GONE, AND THAT IS THE OWNER'S CALL.
+   There used to be a watcher here that measured the frame time and, on a slow
+   stretch, retired the glow, then stepped the sky's resolution down to 0.34
+   with the ceiling latching permanently, then switched the shader off entirely
+   and swapped in the baked 2D backdrop mid-run. It existed to protect a phone
+   that could not hold the frame.
+   THAT PHONE IS NOT IN THE PLAYER BASE. The target is iPhone 12 and up, on the
+   web, and the owner's instruction is verbatim: "a struggling device should
+   struggle" — "if someones phone cant handle my game, they cant fucking play
+   it, end of story". A device in trouble drops frames now. It does not change
+   what the game looks like.
+   The ladder was never free. It produced the field report "it looks good for
+   the opening and then 5 seconds in, it changes to the old shit" — that was
+   this code bottoming out on schedule, and the response at the time was to
+   reorder which thing it destroyed first rather than to ask whether it should
+   destroy anything. It also made the glow/disc brightness mismatch a visible
+   mid-run event, because it swapped between two paths carrying different
+   amounts of light. Deleting it removes a whole class of "the game changed
+   while I was playing" without costing any player who is actually playing. */
 /* ================= THE SKY'S OWN STATE =================
    Where you are in the journey, how wound up the sky is, and what is crossing
    it. All of it advances in skyStep(), called once from glRender, so the
@@ -9125,8 +9075,6 @@ function skyStep(dt){
   }
 }
 function glRender(dt){
-  if(!GL.on)return;
-  glWatch(dt);
   if(!GL.on)return;
   try{
     const g=GL.g;
