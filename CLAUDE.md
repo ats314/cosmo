@@ -97,9 +97,11 @@ through a null location is a silent no-op, so **one typo removes an effect
 from the game without failing anything else in this repo**. The fake parses
 the shader source it was handed and reproduces that exactly. It also pins the
 glow's draw count and its render-target ladder, checks the y-flip on upload,
-drives the render-scale dial through fast/slow/fast, and then runs the whole
-game again with no WebGL and fails unless the drawn-disc fallback takes over
-with zero GPU calls. **Anything that touches a shader, a uniform, the glow
+drives the render-scale dial through fast/slow/fast — asserting the degrade
+ladder retires the GLOW before it touches the sky's resolution, keeps the sky
+itself alive as the last resort, and that the raise ignores menu frames — and
+then runs the whole game again with no WebGL and fails unless the drawn-disc
+fallback takes over with zero GPU calls. **Anything that touches a shader, a uniform, the glow
 chain or the scale dial belongs in this harness.** All of its assertions were
 mutation-tested when it was written; keep that habit — a render check that
 cannot fail is worse than none, because it reads as coverage.
