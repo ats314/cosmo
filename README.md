@@ -1865,12 +1865,92 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   the ember and the comet — impossible, since the two run through the same
   filter chain and their discs differ by 7u. Two objects cannot differ in reach
   by less than their radii do; that contradiction is what caught it.
+- **And then the halo moved to the GPU, which is where it always belonged.**
+  The bright pass stays on the CPU and stays semantic — it knows which objects
+  are lights, so it never thresholds a composited frame and can never pick up
+  the rings, the pool or the HUD. Only the *blur* moved. Drawn discs bought
+  roundness at the price of three arc+fills per light and a falloff made of
+  two stacked steps; a separable gaussian is a true convolution, round by
+  construction, and its grid is the ¼ bright buffer — four times finer than
+  the ¹⁄₁₂ the mid halo was drawn into. So the crawl goes *down* by moving the
+  halo to a smaller buffer, which is the opposite of how that sounds.
+  Two levels, ¼ and ¹⁄₁₆, reached by way of ⅛: a single 4:1 read undersamples
+  a source only smooth to σ≈2 and the halo shimmers as lights orbit across the
+  sampling grid. Weighted so the halo carries the **same light it did before**
+  — this is a change of filter, not a brightness change. Per light, halo term
+  only, on a 390×844 phone: ember energy 1.04×, reach 54→64px, roundness
+  0.750→0.867; shard 1.07×, 56→69px, 0.821→0.883; comet 1.06×, 79→84px,
+  0.828→0.935; hub 1.02×, 51→59px, 0.733→0.881. Sliding a light across one
+  whole coarse pixel swung the old halo's reach 8.8% and its peak 5.7%; the
+  gaussian swings 3.5% and 3.2%. If any of it fails, `FX.on` goes false and
+  the two discs per light come straight back.
+- **The glow can be bent, because it is a field now and not a pile of discs.**
+  Radial chromatic aberration scaled by the same energy that drives the sky —
+  zero at the arena centre by construction, 0.57px of R/B separation a quarter
+  of the way out when idle, 3.80px running hot, 7.60px in a black hole — and
+  the hole's own pull applied to the arena's light. The shader has always bent
+  the sky while the arena sat flat on top of it, which is exactly the tell this
+  file already records for the star layer. The sharp arena still does not bend;
+  its light does. **The lens had to be re-derived rather than copied**: the
+  sky's pull is bounded as a *fraction* of the radius, which is right for a
+  nebula and catastrophic for a halo. The orbits live between 0.09 and 0.20 of
+  screen height, and across that band the sky's clamp binds at the full 72% —
+  120 to 170px of displacement, tearing every halo off the light it belongs to,
+  which is the detached-glow failure this project has already shipped once.
+  Bounded in absolute terms instead: 4–9px of lean and 2.8° of wind across the
+  play annulus, 11% peak compression, and a sweep of the whole screen against
+  the whole envelope confirms r′ never folds.
+- **The render scale climbs as well as falls.** `GL_SCALE` is 0.60 — a
+  compromise struck between a phone that might not cope and a desktop that
+  could render the sky four times over — and it used to be permanent in both
+  directions. It now rises toward 1.0 on a machine holding its frame. The
+  ceiling *latches down* the first time anything is slow and never comes back
+  up, because a dial that can rise and fall near the threshold oscillates, and
+  a visibly pulsing sky resolution is worse than either end of it. Raising asks
+  for more evidence than lowering (four fast seconds against two slow) at a
+  stricter threshold, so the two bands can never both be true.
+- **The hub lamp finally lights something.** `SPR.core` is the light source the
+  whole scene is described as answering to, and exactly one object answered it:
+  the shard, whose baked bright face is rotated hubward at draw time. Embers,
+  orbs and the saucer now take a rim highlight the same way, falling off with
+  distance from the lamp — written as a *distance* against the outermost
+  radius, never as a ring ordinal, because index 0 is the outermost orbit and
+  the two read opposite. Rotated by the **screen** direction rather than the
+  parametric ring angle: with `AY` above 1 the arena is a stretched circle and
+  the two differ by up to 11° at the diagonals. The black hole orb is the one
+  thing left unlit — it is the only object in the game that does not emit.
+- **The orbit stack has depth.** Five backdrop planes already rode the camera
+  dolly by their own depth while the four orbits sat on one plane, dead still,
+  which read as rings printed on glass in front of a world. The offset is a
+  function of the *radius alone*, so `posAt()` hands every object exactly the
+  offset its orbit gets and a shard cannot come unstuck from its track. Same
+  LFO as the dolly, scaled — one camera moving, not two effects agreeing — and
+  the hub is depth 0, which is what makes the differential visible.
+  `ARENA_PARALLAX = 0` restores the flat stack exactly.
 - **The comet lights its own ring** — a short arc centred on it, falling off
   both ways. Decorative, but it also makes "which ring am I on" readable
   without looking away from the comet.
 - **The trail runs hot at its core.** Three additive passes of one flat cyan
   read as paint; the narrow pass now runs near-white so the ribbon cools
   outward the way anything incandescent does.
+- **The whole wake burns, not just the head.** The furnace sheds sparks from
+  one point seven pixels behind the comet, which is right for an idle orbit
+  and wrong for a hot one: the ribbon already reports the groove by tinting
+  toward warp-violet, so at ×6 it was a bright violet ribbon with sparks
+  coming off one end. Above groove 4 the ribbon itself throws embers, picked
+  at a random point along its length and pushed out along the local normal —
+  never the last two samples, because the furnace owns the head and two
+  emitters on one point read as one brighter emitter. Metered on the *dilated*
+  delta, so a spark thrown by a ribbon thins out when the ribbon slows.
+- **Slow motion smears.** Dilation reaches the whole visible world now, and the
+  result is correct and strangely undersold — everything slowing down together
+  looks a great deal like nothing happening. What reads as slow motion is one
+  thing smearing against another, so while time is dilated the ribbon is drawn
+  twice: an after-image lagging by up to nine samples, wider and dimmer and in
+  the warp violet the slow-mo vignette is already tinted with, drawn first so
+  the live cyan ribbon lies on top of its own past. Two passes rather than
+  three — giving the ghost the hot white core would make it read as a second
+  comet instead of the first one's past.
 - **Particles stretch along their velocity.** Burst speed drives the
   elongation, and since velocity damps at `0.15^dt` the streak collapses to a
   round spark on its own within a few frames — the shape carries the motion,
@@ -1896,9 +1976,10 @@ node tools/smoke.mjs       # loads and plays the game headlessly
 node tools/dropcheck.mjs   # the build meter still delivers drops
 node tools/curriculum.mjs  # nothing is left untaught by level 3
 node tools/musiccheck.mjs  # four levels, four songs, all in their own key
+node tools/fxcheck.mjs     # the glow actually reaches a pixel, on a GPU and without one
 ```
 
-All five run on every pull request; only `main` goes on to publish.
+All six run on every pull request; only `main` goes on to publish.
 
 `check.mjs` confirms the inline script still parses, that the elements it
 looks up by ID are still in the document, and that the teaching tables have
@@ -1976,6 +2057,39 @@ slot carrying two snare bodies, asserts the star dive's first bar opens on
 the verse chord (the section revert has to reach the oscillators, not just
 the tables), and holds `chorus_bars` still through a black hole and a
 payoff, where the section flag is frozen but the chorus is not sounding.
+
+`fxcheck.mjs` is the one that runs the *render* path, and it exists for the
+same reason `musiccheck.mjs` does: the other five stub the canvas and WebGL
+away, so the entire draw layer was uncovered by construction. That is not a
+theoretical gap — it is how thirteen black hole features shipped with one of
+them perceptible.
+
+So this one stubs WebGL as a *recording fake* rather than removing it. Shaders
+compile, programs link, framebuffers complete, and every call is written down;
+then it asserts on what was actually issued. The most valuable assertion by
+far is the uniform-name check. In real WebGL `getUniformLocation` returns null
+for a name the shader does not declare, and `uniform1f(null, x)` is a silent
+no-op — so a single typo does not throw, does not warn, and fails no other
+check in this repo. It just quietly removes an effect from the game. The fake
+reproduces that exactly, parsing the uniform declarations out of the shader
+source it was handed and returning null for anything else, and the harness
+fails if any location came back null or any write went to one.
+
+It also holds the glow to eight GPU draws a frame (one backdrop, six blur, one
+composite), pins the render-target ladder to ¼–¼–⅛–⅛–¹⁄₁₆–¹⁄₁₆ so nobody
+collapses the chained downsample back into one aliasing 4:1 read, and checks
+that the bright buffer is uploaded with `UNPACK_FLIP_Y_WEBGL` — a canvas
+counts rows down and a framebuffer counts them up, so flipping in neither
+place or in both renders the glow upside down, which nothing else here could
+notice. It drives the render-scale dial through a fast stretch, a slow one and
+a fast one again, and fails if the ceiling does not latch. Then it runs the
+whole game a second time with no WebGL at all and fails unless the drawn-disc
+halo takes over and not one GPU call is issued — a fallback nobody runs is a
+fallback nobody knows is broken.
+
+All five of those assertions were mutation-tested: renaming a uniform,
+deleting the y-flip, collapsing the downsample chain, removing the scale raise
+and removing the ceiling latch each fail the harness with the right message.
 
 ## License
 

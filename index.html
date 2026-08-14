@@ -778,6 +778,24 @@ function buildSprites(bandOnly){
     g.fillStyle='rgba(190,215,255,0.9)';
     g.beginPath();g.arc(0,0,1.7*u,0,TAU);g.fill();
   });
+  /* THE LIT LIMB. SPR.core is commented as "the hub lamp the whole scene is
+     lit by" and until now exactly one object answered it: the shard, whose
+     baked bright face is rotated hubward at draw time. That trick is right,
+     and it generalises — everything else on the board is a decal that glows
+     the same on all sides no matter where it is standing, which is why a
+     dense board reads as stickers on glass rather than objects in a room.
+     Baked facing -x and rotated by the SCREEN direction out from the hub, so
+     the lit edge always faces the lamp. Screen direction, not the parametric
+     ring angle: with AY above 1 the arena is a stretched circle and the two
+     differ by up to eleven degrees at the diagonals, which is a highlight
+     visibly off-centre on exactly the objects nearest the player's eye. */
+  SPR.rim=makeSprite(13*u+10,function(g){
+    g.lineCap='round';
+    g.shadowColor='rgba(180,215,255,0.85)';g.shadowBlur=6;
+    g.strokeStyle='rgba(214,234,255,0.95)';
+    g.lineWidth=2.2*u;
+    g.beginPath();g.arc(0,0,9*u,Math.PI*0.72,Math.PI*1.28);g.stroke();
+  });
 }
 
 function resize(){
@@ -850,7 +868,42 @@ function radiusOf(i){return R*RADII[i];}
    The mechanic is gone and so is the free radius. There is nothing left to
    disagree about: radiusOf(s.ring) is the only radius an ember has. Anything
    that reintroduces a per-object radius reintroduces this whole bug class. */
-function posAt(a,r){return[cx+Math.cos(a)*r,cy+Math.sin(a)*r*AY];}
+/* ---------- THE ORBIT STACK HAS DEPTH ----------
+   The backdrop already parallaxes: five baked planes ride the camera dolly by
+   their own depth, which is why the sky reads as far away. The arena did not.
+   Four orbits, one plane, pinned dead still while everything behind them
+   moved — so the stack read as rings printed on the glass in front of a
+   world, rather than as a machine standing in one.
+   The offset is a function of the RADIUS ALONE. That is the whole reason this
+   is safe: posAt() takes the radius as an argument, so every object standing
+   on an orbit gets exactly the offset that orbit gets, without anything
+   having to be told which ring it is on. A shard cannot come unstuck from its
+   track because the two are computed from the same number.
+   It rides the SAME LFO as the backdrop dolly, scaled — one camera moving,
+   not two effects agreeing. The hub is depth 0 and never moves, which is
+   what makes the differential visible at all: the outer orbit swings against
+   a fixed lamp.
+   KNOWN APPROXIMATION, and it is the only one: a few positions are STORED
+   rather than recomputed — the nova front's centre, the trail's points, a
+   particle's birthplace — so they carry the offset that was live when they
+   were taken. The dolly moves about half a pixel over a second at this
+   amplitude, against a nova front that grows to hundreds of pixels and a
+   trail that is three pixels wide. Nothing here is a hit test on a tolerance
+   that small; the real hit tests are all on angles and radii, which this
+   never touches.
+   ARENA_PARALLAX is the A/B dial: 0 restores the flat stack exactly. */
+let ARENA_PARALLAX=1.0;
+const PARA_K=1.15;          /* the arena's swing as a multiple of the dolly's */
+let paX=0,paY=0;            /* set once per frame in draw(), from camX/camY */
+function depthOf(r){return R>0?Math.min(1.35,r/R):0;}
+function posAt(a,r){
+  const d=depthOf(r);
+  return[cx+paX*d+Math.cos(a)*r,cy+paY*d+Math.sin(a)*r*AY];
+}
+/* the same offset for anything drawn as an arc about the hub rather than as a
+   point on one — ring strokes, lap arcs, ignition heads, the saucer's beam */
+function ecx(r){return cx+paX*depthOf(r);}
+function ecy(r){return cy+paY*depthOf(r);}
 
 /* ---------- audio ----------
    Everything is synthesised; there are no audio files. The layout is a fixed
@@ -5239,7 +5292,7 @@ function startGame(){
   if(!carried)G.saidChor=false;
   G.teach=0;G.teachKind=null;G.teachHint=null;G.campT=0;G.holdD=0;G.hopHintT=0;G.coach=null;
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
-  G.sparkT=0;G.sparkN=0;
+  G.sparkT=0;G.sparkN=0;G.wakeT=0;
   G.od=0;G.odT=0;G.odCool=0;G.odBrk=false;G.odGlow=0;G.brkGlow=0;G.finGlow=0;G.spotGlow=0;
   G.spot=0;G.spotD=0;G.lastTapAt=-9;G.finEnd=0;G.hyper=0;G.hyperD=0;G.hyperGlow=0;
   FIN.on=false;FIN.pend=false;FIN.done=false;FIN.step=0;FIN.score=0;FIN.got=0;FIN.voices=0;FIN.t0=0;FIN.trail.length=0;
@@ -7000,6 +7053,40 @@ function update(dt){
         life:1,dec:rand(2.6,4.0),col:G.sparkN%4===3?COL.ember:'#bef4ff',
         size:rand(1,1.9)*u});
     }
+    /* THE WHOLE WAKE BURNS, NOT JUST THE HEAD. The shed above fires from one
+       point seven pixels behind the comet, which is right for an idle orbit
+       and wrong for a hot one: the trail already reports the groove by
+       tinting toward warp-violet, and at x6 it is a bright violet ribbon
+       with sparks coming off one end of it. Above the halfway mark the
+       ribbon itself starts throwing embers, picked at a random point along
+       its length and pushed out along the local normal, so the thing that is
+       reporting the streak is visibly the thing that is burning.
+       Gated on the groove, capped hard, and dead under reduced motion — and
+       it spends the DILATED delta, not the raw one, because a spark thrown
+       by a ribbon has to thin out when the ribbon slows down. (The furnace
+       above still meters on dt; its rate is tied to the comet's own heat
+       rather than to how fast the world is running, and changing that is a
+       separate argument from this one.) */
+    G.wakeT-=sdt;
+    if(G.groove>=4&&G.trail.length>6&&G.parts.length<150&&G.wakeT<=0){
+      G.wakeT=rand(0.05,0.11)/(1+0.30*(G.groove-4)+(G.pay>0?1.4:0));
+      const n=G.trail.length;
+      /* never the last two samples: that is the head, and the furnace
+         already owns it — two emitters on one point reads as one brighter
+         emitter, which is not what this is for */
+      const i=1+Math.floor(Math.random()*(n-3));
+      const a=G.trail[i+1],b=G.trail[i-1];
+      let tx=a.x-b.x,ty=a.y-b.y;
+      const L=Math.sqrt(tx*tx+ty*ty)||1;
+      tx/=L;ty/=L;
+      const side=Math.random()<0.5?1:-1;
+      const sp3=rand(14,42)*(1+0.12*(G.groove-4));
+      G.parts.push({x:G.trail[i].x,y:G.trail[i].y,
+        vx:-ty*side*sp3+tx*rand(-16,16),vy:tx*side*sp3+ty*rand(-16,16),
+        life:Math.max(0.35,G.trail[i].life),dec:rand(2.2,3.4),
+        col:(G.pay>0||G.groove>=7)?'#ffffff':(Math.random()<0.35?COL.ember:COL.warp),
+        size:rand(0.8,1.6)*u});
+    }
   }
 
   /* full orbit: 360 degrees of travel without reversing (hops allowed).
@@ -7424,6 +7511,22 @@ function drawShardOutline(x,y,r,al,dash,core){
    so this is the same layered finish the embers and shards get, at a fraction
    of what the live shadowBlur cost. Pulse and rotation ride blit()'s args;
    the cores are plain fills, kept out of the pulse so the centre holds still. */
+/* One lamp, at the hub, and everything on the board takes its highlight from
+   it. Falloff is written as a DISTANCE against the outermost radius, never as
+   a ring ordinal: index 0 is the OUTERMOST orbit, so `1-ring/nRings` would
+   light the board backwards and read as plausible in review. */
+function rimLight(x,y,scale,al){
+  if(!SPR.rim||!(al>0.004))return;
+  const dx=x-cx,dy=y-cy,d=Math.sqrt(dx*dx+dy*dy);
+  if(d<1)return;
+  const R0=radiusOf(0)||1;
+  const k=Math.max(0,Math.min(1,1.18-0.86*(d/R0)));
+  if(k<=0.01)return;
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  blit(SPR.rim,x,y,scale,Math.atan2(dy,dx),al*k);
+  ctx.restore();
+}
 function drawPow(x,y,s,al){
   /* orbs breathe on the LANDED beat, not their own clock */
   const pulse=1+(RM?0.10:0.15*G.beat);
@@ -7491,6 +7594,10 @@ function drawPow(x,y,s,al){
     ctx.save();ctx.globalAlpha=al;ctx.fillStyle=COL.nova;
     ctx.beginPath();ctx.arc(x,y,2.5*u,0,TAU);ctx.fill();ctx.restore();
   }
+  /* every orb takes the lamp EXCEPT the black hole, which is the one object
+     in the game that does not emit — giving it a highlight would light the
+     one thing whose whole read is that light goes in and does not come out */
+  if(s.type!=='blackhole')rimLight(x,y,pulse*1.05,al*0.55);
 }
 /* The old stack led with -apple-system, so on the device this actually ships
    to every word was San Francisco: the system UI face, which reads as a
@@ -7615,9 +7722,14 @@ let bloomC=null,bloomG=null,haloC=null,haloG=null,haloWC=null,haloWG=null;
 /* One call site, three discs: the tight blob every caller already asked for,
    and the two that build its halo. Guarded on haloG so the tight pass still
    stands alone if the halo buffers never came up. */
+/* set once per frame by drawBloom, BEFORE the dot loop: false means the GPU
+   is building the halo out of the tight buffer and the two discs per light
+   are dead weight. Decided once rather than per dot so a mid-frame GL
+   failure can never leave half the lights haloed and half not. */
+let bloomHalo=true;
 function bloomDot(g,x,y,r,col){
   g.fillStyle=col;g.beginPath();g.arc(x,y,r,0,TAU);g.fill();
-  if(!haloG)return;
+  if(!haloG||!bloomHalo)return;
   haloG.fillStyle=col;
   haloG.globalAlpha=HALO_W1;
   haloG.beginPath();haloG.arc(x,y,r*HALO_K1,0,TAU);haloG.fill();
@@ -7630,16 +7742,19 @@ function drawBloom(){
     haloC=document.createElement('canvas');haloG=haloC.getContext('2d');
     haloWC=document.createElement('canvas');haloWG=haloWC.getContext('2d');
   }
+  bloomHalo=!FX.on;
   const bw=Math.max(1,Math.ceil(W/BLOOM_DIV)),bh=Math.max(1,Math.ceil(H/BLOOM_DIV));
   if(bloomC.width!==bw||bloomC.height!==bh){bloomC.width=bw;bloomC.height=bh;}
   /* the halo buffer has to be cleared and put in world coordinates BEFORE the
      dot loop below, because bloomDot writes into it as it goes */
   const hw=Math.max(1,Math.ceil(W/HALO_DIV)),hh=Math.max(1,Math.ceil(H/HALO_DIV));
-  if(haloC.width!==hw||haloC.height!==hh){haloC.width=hw;haloC.height=hh;}
-  haloG.setTransform(1,0,0,1,0,0);
-  haloG.clearRect(0,0,hw,hh);
-  haloG.setTransform(1/HALO_DIV,0,0,1/HALO_DIV,0,0);
-  haloG.globalCompositeOperation='lighter';
+  if(bloomHalo){
+    if(haloC.width!==hw||haloC.height!==hh){haloC.width=hw;haloC.height=hh;}
+    haloG.setTransform(1,0,0,1,0,0);
+    haloG.clearRect(0,0,hw,hh);
+    haloG.setTransform(1/HALO_DIV,0,0,1/HALO_DIV,0,0);
+    haloG.globalCompositeOperation='lighter';
+  }
   const g=bloomG,s=1/BLOOM_DIV;
   g.setTransform(1,0,0,1,0,0);
   g.clearRect(0,0,bw,bh);
@@ -7677,27 +7792,41 @@ function drawBloom(){
   /* the hub lamp blooms too, harder while the drop is landing */
   bloomDot(g,cx,cy,(9+9*G.dropFx)*u,'#9db9ff');
   g.setTransform(1,0,0,1,0,0);
-  /* The widest reach comes free: one downsample of the halo buffer that is
-     already drawn. Smoothing has to be asserted every frame, because assigning
-     width RESETS the context and a downscale with it off is a point sample
-     that discards fifteen pixels in sixteen. */
-  haloG.setTransform(1,0,0,1,0,0);
-  haloG.globalAlpha=1;
-  const ww=Math.max(1,Math.ceil(W/HALO_WDIV)),wh=Math.max(1,Math.ceil(H/HALO_WDIV));
-  if(haloWC.width!==ww||haloWC.height!==wh){haloWC.width=ww;haloWC.height=wh;}
-  haloWG.imageSmoothingEnabled=true;
-  haloWG.clearRect(0,0,ww,wh);
-  haloWG.drawImage(haloC,0,0,ww,wh);
+  /* THE GPU PATH, when it is up: two gaussian levels and the lens, off the
+     buffer that was just filled. It can fail on this very frame (a lost
+     context, a driver refusing a framebuffer), and then this frame has no
+     halo at all — because bloomHalo was decided before the dot loop and the
+     discs were never drawn. One frame of a slightly thinner glow on the way
+     into a permanent fallback is the right trade for never drawing both. */
+  const fxOK=bloomHalo?false:fxRender(bloomC,bw,bh);
+  if(bloomHalo){
+    /* The widest reach comes free: one downsample of the halo buffer that is
+       already drawn. Smoothing has to be asserted every frame, because assigning
+       width RESETS the context and a downscale with it off is a point sample
+       that discards fifteen pixels in sixteen. */
+    haloG.setTransform(1,0,0,1,0,0);
+    haloG.globalAlpha=1;
+    const ww=Math.max(1,Math.ceil(W/HALO_WDIV)),wh=Math.max(1,Math.ceil(H/HALO_WDIV));
+    if(haloWC.width!==ww||haloWC.height!==wh){haloWC.width=ww;haloWC.height=wh;}
+    haloWG.imageSmoothingEnabled=true;
+    haloWG.clearRect(0,0,ww,wh);
+    haloWG.drawImage(haloC,0,0,ww,wh);
+  }
   ctx.save();
   ctx.globalCompositeOperation='lighter';
   /* the bloom breathes with the payoff kick — the visual half of the pump */
   const bp=1+((G.pay>0&&!RM)?0.45*G.beat:0);
   /* Additive, so the order buys nothing mathematically; widest first because
      that is the order the light is built in and the one a reader expects. */
-  ctx.globalAlpha=HALO_WA*bp;
-  ctx.drawImage(haloWC,0,0,W,H);
-  ctx.globalAlpha=HALO_A*bp;
-  ctx.drawImage(haloC,0,0,W,H);
+  if(fxOK){
+    ctx.globalAlpha=FX_A*bp;
+    ctx.drawImage(FX.cv,0,0,W,H);
+  }else if(bloomHalo){
+    ctx.globalAlpha=HALO_WA*bp;
+    ctx.drawImage(haloWC,0,0,W,H);
+    ctx.globalAlpha=HALO_A*bp;
+    ctx.drawImage(haloC,0,0,W,H);
+  }
   ctx.globalAlpha=BLOOM_ALPHA*bp;
   ctx.drawImage(bloomC,0,0,W,H);
   ctx.restore();
@@ -7718,12 +7847,24 @@ function drawRingGlow(){
     /* the light under the comet breathes with the landed beat */
     ctx.globalAlpha=L[1]*(RM?1:1+0.30*G.beat);
     ctx.lineWidth=L[2]*u;
-    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,G.angle-L[0],G.angle+L[0]);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,G.angle-L[0],G.angle+L[0]);ctx.stroke();
   }
   ctx.restore();
 }
-function drawTail(){
-  const n=G.trail.length;
+/* THE AFTER-IMAGE. Slow motion reaches the whole visible world now — the
+   sky, the dolly, the debris, the ribbon all ride G.vt — and the result is
+   correct and strangely undersold, because everything slowing down together
+   looks a great deal like nothing happening. What reads as slow motion, in
+   every medium that has ever had to sell it, is one thing SMEARING against
+   another: a second image of the moving object, lagging where it has been.
+   So the ribbon is drawn twice while time is dilated. The ghost is the same
+   ribbon minus its most recent samples, so its head sits where the comet was
+   a moment ago, wider and dimmer and in warp violet — the mode's own colour,
+   the one the slow-mo vignette is already tinted with. It is drawn FIRST, so
+   the live cyan ribbon lies on top of its own past.
+   Costs nothing when time is running: the whole pass is behind the same
+   G.tsCur test the vignette uses, and never runs under reduced motion. */
+function tailRibbon(n,am,ghost){
   if(n<4)return;
   const nx=new Array(n),ny=new Array(n),bw=new Array(n);
   for(let i=0;i<n;i++){
@@ -7746,7 +7887,12 @@ function drawTail(){
     return 'rgb('+Math.round(a[0]+(b[0]-a[0])*gm)+','+
       Math.round(a[1]+(b[1]-a[1])*gm)+','+Math.round(a[2]+(b[2]-a[2])*gm)+')';
   };
-  const passes=[
+  /* the ghost is two passes, not three: it is an after-image, and giving it
+     the hot white core the live ribbon has would make it read as a second
+     comet rather than as the first one's past */
+  const passes=ghost?[
+    [3.0,0.055,'rgb(150,110,240)'],
+    [1.5,0.10,'rgb(196,166,255)']]:[
     [2.5,0.075,mix([93,240,255],[180,139,255])],
     [1.35,0.16,mix([142,242,255],[214,190,255])],
     [0.6,0.34,G.pay>0?'#ffffff':'#e6fdff']];
@@ -7754,7 +7900,7 @@ function drawTail(){
   ctx.globalCompositeOperation='lighter';
   for(let k=0;k<passes.length;k++){
     const m=passes[k][0];
-    ctx.globalAlpha=passes[k][1];
+    ctx.globalAlpha=passes[k][1]*am;
     ctx.fillStyle=passes[k][2];
     ctx.beginPath();
     for(let i=0;i<n;i++){
@@ -7769,6 +7915,18 @@ function drawTail(){
     ctx.closePath();ctx.fill();
   }
   ctx.restore();
+}
+function drawTail(){
+  const n=G.trail.length;
+  if(n<4)return;
+  if(!RM&&G.tsCur<0.98){
+    /* how far behind the ghost sits scales with how deep the dilation is:
+       barely at 0.98, about nine samples at the 0.42 floor. Clamped so the
+       ghost always keeps enough of the ribbon to still be one. */
+    const lag=Math.max(2,Math.min(n-4,Math.round(9*(1-G.tsCur)/0.58)));
+    tailRibbon(n-lag,Math.min(1,(1-G.tsCur)/0.30),true);
+  }
+  tailRibbon(n,1,false);
 }
 
 /* ---------- the visible beat ----------
@@ -7866,9 +8024,13 @@ const GL_COV=0.36, GL_EXP=1.45;   /* void threshold and exposure — see notes *
    in play: the backdrop was competing for attention with an arena the player
    has to watch. Lower is calmer; the structure is unchanged either way. */
 const GL_MOTION=0.42;
+/* GL_SCALE is where the sky STARTS, not where it is stuck: glWatch climbs
+   toward GL_SCALE_MAX on a machine that can hold the frame and latches the
+   ceiling down the first time one cannot. */
+const GL_SCALE_MAX=1.0;
 const GL={on:false,g:null,pr:null,u:{},cv:null,vw:0,vh:0,
   r:[[0,0,-1],[0,0,-1]],slot:0,shear:0,
-  scale:GL_SCALE,acc:0,n:0,slow:0};
+  scale:GL_SCALE,cap:GL_SCALE_MAX,acc:0,n:0,slow:0,fast:0};
 const GL_FS=`
 precision highp float;
 uniform vec2 uRes,uCtr; uniform float uTime,uEnergy,uPal,uCov,uExp,uCombo,uBeat,uShr,uMotion,uBH;
@@ -8087,19 +8249,52 @@ function glShear(dir){ if(GL.on&&!RM)GL.shear=0.28*(dir<0?-1:1); }
    scale (the field is smooth, so a smaller buffer upscales almost invisibly),
    and if the cheapest scale is still slow it hands the backdrop back to the
    baked 2D path and never tries again this run. Degrade, never stutter. */
+/* AND IT ONLY EVER WENT DOWN. 0.60 is a compromise struck between a phone
+   that might not cope and a desktop that could render this four times over,
+   and the compromise was permanent in both directions: a machine holding
+   4ms frames all run stayed at 0.60 forever, because nothing here could
+   raise it. The field is smooth, so scale is very nearly a pure quality
+   dial — which makes leaving headroom unspent the same kind of waste as
+   stuttering, just quieter.
+   THE CEILING LATCHES DOWN AND NEVER COMES BACK UP, and that is what makes
+   the climb safe. A dial that can rise and fall on a device sitting near the
+   threshold will oscillate: raise, go slow, drop, look fast, raise again —
+   a visible pulsing of the sky's resolution, which is worse than either end
+   of it. So the moment anything is too slow, GL.cap drops to whatever scale
+   we retreated to, and the raise can never step past the cap again this run.
+   Degrade never, then, is still degrade-once: the run's quality is monotone
+   non-increasing after the first slow second.
+   Raising asks for more evidence than lowering (4 fast seconds against 2
+   slow) and asks at a stricter threshold than the one that triggers a drop,
+   so the two bands cannot both be true. */
 function glWatch(dt){
   if(dt<=0||dt>0.5)return;                 /* ignore tab-switch spikes */
   GL.acc+=dt;GL.n++;
   if(GL.acc<1.0)return;
   const avg=GL.acc/GL.n; GL.acc=0;GL.n=0;
   if(avg>1/45){
+    GL.fast=0;
     GL.slow++;
     if(GL.slow>=2){
       GL.slow=0;
-      if(GL.scale>0.34){GL.scale=Math.max(0.34,GL.scale-0.14);GL.vw=GL.vh=0;}
+      if(GL.scale>0.34){
+        GL.scale=Math.max(0.34,GL.scale-0.14);
+        GL.cap=GL.scale;                   /* the ceiling latches, permanently */
+        GL.vw=GL.vh=0;
+      }
       else GL.on=false;                    /* the 2D backdrop takes over */
     }
-  }else GL.slow=0;
+  }else{
+    GL.slow=0;
+    if(avg<1/58&&GL.scale<GL.cap){
+      GL.fast++;
+      if(GL.fast>=4){
+        GL.fast=0;
+        GL.scale=Math.min(GL.cap,GL.scale+0.10);
+        GL.vw=GL.vh=0;                     /* forces glResize to rebuild */
+      }
+    }else GL.fast=0;
+  }
 }
 function glRender(dt){
   if(!GL.on)return;
@@ -8162,6 +8357,291 @@ try{
     },false);
   }
 }catch(e){}
+/* ================= THE HALO RUNS ON THE GPU =================
+   What moves here is ONLY the blur. drawBloom's bright pass stays exactly
+   where it is, because it is SEMANTIC: it knows which objects are lights, so
+   it never has to threshold a composited frame and can never pick up the
+   rings, the pool or the HUD. Thresholding luminance would be the textbook
+   route and it would be worse — this game draws a lot of bright things that
+   are not light sources.
+   The blur is the part that was wrong, and drawBloom's own comment is the
+   bill of particulars: one buffer carries one radius, a mip cascade sums
+   peaks instead of spreading them, and bilinear upscaling is a separable
+   TENT whose footprint is a cross that changes shape depending on where an
+   object falls on the coarse grid — 80% halo swing as an ember slides across
+   one coarse pixel, on a board where every object is permanently in orbit.
+   Drawing real discs at 2x and 4x the dot radius was the right answer
+   available to a 2D canvas, and it bought roundness at the cost of three
+   arc+fills per light and a falloff made of two stacked steps.
+   A separable gaussian is the answer that was not available. It is a true
+   convolution, so it is round by construction and shift-invariant to within
+   its own grid — and its grid is the /4 bright buffer, four times finer than
+   the /12 the mid halo used to be drawn into and eight times finer than the
+   /32 wide one. The ripple therefore goes DOWN by moving the halo up to the
+   GPU, which is the opposite of what "blur it on a smaller buffer" sounds
+   like it should do.
+   Two levels, because two radii is what the old stack had and what the scene
+   needs: a mid halo blurred at /4 and a wide one blurred at /16. The tight
+   core pass is untouched and still composites straight off bloomC.
+   AND THE GLOW CAN NOW BE BENT. It is a field in a texture rather than a
+   pile of discs, so the composite pass can lens it: radial chromatic
+   aberration that grows with the energy already driving the sky, and — the
+   one that matters — the black hole's pull applied to the arena's own light.
+   The shader has always bent the sky while the arena sat flat on top of it,
+   which is the exact tell this file already documents for the star layer
+   ("the nebula bent and the stars sat still on top of it"). Same bug, one
+   layer up. The sharp arena still does not bend; its light does, and that is
+   the half a screen-space pass can honestly buy.
+   FALLBACK IS THE WHOLE POINT: if any of this fails, FX.on goes false and
+   drawBloom draws the two halo discs per light exactly as it always has. */
+/* THE DIAL, SET AGAINST THE OLD STACK RATHER THAN BY EYE. Every number here
+   was chosen so the halo carries the SAME AMOUNT OF LIGHT it did before —
+   this is a change of filter, not a brightness change, and a glow that
+   arrived 40% hotter would flatter the diff while wrecking the contrast the
+   calm pool exists to buy back. Measured per light on a 390x844 phone, halo
+   term only, reach to 1/255 as the maximum over a full circle:
+     ember  energy 1.04x  reach 54 -> 64px  roundness 0.750 -> 0.867
+     shard  energy 1.07x  reach 56 -> 69px  roundness 0.821 -> 0.883
+     comet  energy 1.06x  reach 79 -> 84px  roundness 0.828 -> 0.935
+     hub    energy 1.02x  reach 51 -> 59px  roundness 0.733 -> 0.881
+   And the crawl, which is the defect the discs were chosen to avoid and the
+   one a finer grid was always going to win: sliding a light across one whole
+   coarse buffer pixel swung the old halo's reach by 8.8% and its peak by
+   5.7%; the gaussian swings 3.5% and 3.2%.
+   FX_A is mutable at runtime for the same reason HALO_A is — the last word
+   on how much glow is too much belongs to eyes on a real screen. */
+let FX_A=0.55;                   /* composite alpha — the runtime dial, as HALO_A is */
+const FX_MIDW=0.62,FX_WIDEW=0.85; /* level weights inside the shader */
+const FX_SPREAD=1.15;            /* blur step, in texels of each level. 1.6 reaches
+                                    further and starts showing the five taps:
+                                    the hub's roundness falls 0.881 -> 0.821 */
+/* RADIAL ABERRATION, quoted as the R-to-B sample separation it actually
+   produces on an 844px-tall screen — a coefficient on its own says nothing:
+     idle        0.00px at the arena centre, 0.57 at 0.25H out, 1.14 at 0.5H
+     running hot 0.00                        1.90                3.80
+     black hole  0.00                        3.80                7.60
+   Zero at the centre by construction, because ab scales with r: the fringe
+   grows out toward the corners and never touches the orbits the player is
+   reading. */
+const FX_AB=0.0045;
+const FX={on:false,g:null,cv:null,prB:null,prC:null,uB:{},uC:{},
+  src:null,rt:[],bw:0,bh:0,cw:0,ch:0};
+const FX_VS='attribute vec2 p;varying vec2 vUv;void main(){vUv=p*0.5+0.5;gl_Position=vec4(p,0.,1.);}';
+/* the five-tap linear-sampled gaussian: nine taps' worth of weight for five
+   fetches, because a bilinear fetch between two texels IS two weighted taps */
+const FX_BLUR=`
+precision mediump float;
+uniform sampler2D uTex; uniform vec2 uStep;
+varying vec2 vUv;
+void main(){
+  vec4 s=texture2D(uTex,vUv)*0.2270270270;
+  vec2 o1=uStep*1.3846153846, o2=uStep*3.2307692308;
+  s+=(texture2D(uTex,vUv+o1)+texture2D(uTex,vUv-o1))*0.3162162162;
+  s+=(texture2D(uTex,vUv+o2)+texture2D(uTex,vUv-o2))*0.0702702703;
+  gl_FragColor=s;
+}`;
+const FX_COMP=`
+precision mediump float;
+uniform sampler2D uMid,uWide;
+uniform vec2 uCtr; uniform float uAsp,uAb,uBH,uMidW,uWideW;
+varying vec2 vUv;
+void main(){
+  vec2 uv=vUv;
+  /* d is measured in units of screen HEIGHT on both axes, the same
+     convention the backdrop shader uses, so a circle here is a circle */
+  vec2 d=vec2((uv.x-uCtr.x)*uAsp,uv.y-uCtr.y);
+  float r=length(d)+1e-5;
+  if(uBH>0.0){
+    /* THIS IS NOT THE BACKDROP'S LENS, AND COPYING IT HERE WAS WRONG.
+       The sky's pull is min(r*0.72, k/(r+c)) — a displacement bounded as a
+       FRACTION of the radius, which is right for a nebula: the whole smooth
+       field compresses toward the hole and there is nothing in it that has
+       to stay anywhere in particular. Measured against the arena's radii it
+       is a catastrophe. The orbits live between r=0.09 and r=0.20 of screen
+       height, and across that band the clamp is the binding term, so the
+       glow is compressed by the full 72% — 120 to 170 pixels of displacement
+       on an 844px screen. Every halo would be dragged clean off the light it
+       belongs to, which is the detached-glow failure this file already
+       records once, when an ember's bloom stayed parked on the ring it
+       started from while the ember flew inward.
+       A halo is not a backdrop. It is attached to an object, and the pull is
+       therefore bounded in ABSOLUTE terms instead: r*exp(-4r) peaks around a
+       hundredth of the screen height, so the light leans and winds toward
+       the hole by seven to nine pixels across the whole play annulus and
+       stays on its source. Monotonic for the same reason as before but more
+       cheaply — the derivative of the pull never approaches 1, so r' cannot
+       fold no matter what uBH does. Measured at full envelope: the glow
+       moves 4.0px inward at 0.05H from the centre, 8.7px at 0.20H, 6.6px at
+       0.50H, winding 2.8 degrees at its strongest; peak compression 11% of
+       the radius against the sky lens's 72%; smallest step in r' over a
+       sweep of the whole screen and the whole envelope is 4.4e-4, so it
+       never folds. */
+    float fall=exp(-r*4.0);
+    float pull=uBH*0.115*r*fall;
+    float sw=uBH*0.55*r*fall;
+    float cs=cos(sw),sn=sin(sw);
+    d=vec2(d.x*cs-d.y*sn,d.x*sn+d.y*cs)*(1.0-pull/r);
+    r=length(d)+1e-5;
+    uv=vec2(uCtr.x+d.x/uAsp,uCtr.y+d.y);
+  }
+  /* aberration is RADIAL and grows outward: zero at the arena centre, so the
+     thing the player is reading never fringes, widest at the corners */
+  vec2 ab=(d/r)*uAb*r;
+  ab=vec2(ab.x/uAsp,ab.y);
+  vec3 c=vec3(texture2D(uMid,uv+ab).r,texture2D(uMid,uv).g,texture2D(uMid,uv-ab).b)*uMidW;
+  c+=vec3(texture2D(uWide,uv+ab*1.7).r,texture2D(uWide,uv).g,texture2D(uWide,uv-ab*1.7).b)*uWideW;
+  gl_FragColor=vec4(max(c,0.0),1.0);
+}`;
+function fxInit(){
+  try{
+    if(!document||typeof document.createElement!=='function')return false;
+    const cv=document.createElement('canvas');
+    if(!cv||typeof cv.getContext!=='function')return false;
+    /* preserveDrawingBuffer, because this canvas is READ with drawImage
+       rather than composited by the browser: without it the drawing buffer
+       is allowed to be empty by the time anything asks for it */
+    const o={antialias:false,alpha:false,depth:false,stencil:false,preserveDrawingBuffer:true};
+    const g=cv.getContext('webgl',o)||cv.getContext('experimental-webgl',o);
+    /* the stubbed canvas in the harness answers every property with a
+       function, so feature-detection has to check RESULTS, not existence */
+    if(!g||typeof g.createShader!=='function'||typeof g.createFramebuffer!=='function')return false;
+    const mk=function(ty,src){
+      const o2=g.createShader(ty); if(!o2)return null;
+      g.shaderSource(o2,src); g.compileShader(o2);
+      return g.getShaderParameter(o2,g.COMPILE_STATUS)?o2:null;
+    };
+    const link=function(fsrc,names,out){
+      const vs=mk(g.VERTEX_SHADER,FX_VS),fs=mk(g.FRAGMENT_SHADER,fsrc);
+      if(!vs||!fs)return null;
+      const pr=g.createProgram(); if(!pr)return null;
+      g.attachShader(pr,vs);g.attachShader(pr,fs);
+      g.bindAttribLocation(pr,0,'p');   /* pinned, so one enabled array serves both */
+      g.linkProgram(pr);
+      if(!g.getProgramParameter(pr,g.LINK_STATUS))return null;
+      for(const n of names)out[n]=g.getUniformLocation(pr,n);
+      return pr;
+    };
+    const prB=link(FX_BLUR,['uTex','uStep'],FX.uB);
+    const prC=link(FX_COMP,['uMid','uWide','uCtr','uAsp','uAb','uBH','uMidW','uWideW'],FX.uC);
+    if(!prB||!prC)return false;
+    const b=g.createBuffer(); if(!b)return false;
+    g.bindBuffer(g.ARRAY_BUFFER,b);
+    g.bufferData(g.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),g.STATIC_DRAW);
+    g.enableVertexAttribArray(0);g.vertexAttribPointer(0,2,g.FLOAT,false,0,0);
+    const t=g.createTexture(); if(!t)return false;
+    g.bindTexture(g.TEXTURE_2D,t);
+    g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);
+    g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);
+    g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.CLAMP_TO_EDGE);
+    g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.CLAMP_TO_EDGE);
+    g.disable(g.DEPTH_TEST);g.disable(g.BLEND);
+    FX.g=g;FX.cv=cv;FX.prB=prB;FX.prC=prC;FX.src=t;FX.on=true;
+    return true;
+  }catch(e){return false;}
+}
+/* a render target is a texture with a framebuffer bound to it; CLAMP_TO_EDGE
+   on both axes so the blur cannot wrap a bright corner around the screen */
+function fxTarget(w,h){
+  const g=FX.g;
+  const t=g.createTexture(); if(!t)return null;
+  g.bindTexture(g.TEXTURE_2D,t);
+  g.texImage2D(g.TEXTURE_2D,0,g.RGBA,w,h,0,g.RGBA,g.UNSIGNED_BYTE,null);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.CLAMP_TO_EDGE);
+  g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.CLAMP_TO_EDGE);
+  const f=g.createFramebuffer(); if(!f)return null;
+  g.bindFramebuffer(g.FRAMEBUFFER,f);
+  g.framebufferTexture2D(g.FRAMEBUFFER,g.COLOR_ATTACHMENT0,g.TEXTURE_2D,t,0);
+  const ok=g.checkFramebufferStatus(g.FRAMEBUFFER)===g.FRAMEBUFFER_COMPLETE;
+  g.bindFramebuffer(g.FRAMEBUFFER,null);
+  return ok?{t:t,f:f,w:w,h:h}:null;
+}
+/* SIX TARGETS, THREE SCALES, AND THE MIDDLE ONE IS NOT DECORATION. The wide
+   level wants to live at /16 — four times coarser than the bright buffer —
+   and the obvious way there is one pass that reads /4 and writes /16. It
+   aliases. A five-tap kernel written in DESTINATION texels reads its
+   neighbours 4.6 source texels apart, and the source is only smooth to about
+   sigma 2, so the kernel steps straight over content it never samples. On a
+   still frame that is a slightly wrong halo; on this board, where every light
+   is permanently in orbit across the sampling grid, it is a halo that
+   shimmers — the same class of defect as the bilinear cross this whole path
+   exists to be rid of.
+   Going /4 -> /8 -> /16 halves every tap spacing to 2.3 source texels, which
+   is inside what a sigma-2 source supports, and each intermediate is itself
+   blurred before it is read down. The two extra passes cost an eighth of the
+   fragments the first pair does. */
+function fxResize(bw,bh){
+  if(FX.bw===bw&&FX.bh===bh&&FX.rt.length===6)return true;
+  const g=FX.g;
+  for(const rt of FX.rt){try{g.deleteTexture(rt.t);g.deleteFramebuffer(rt.f);}catch(e){}}
+  FX.rt=[];
+  const mw=Math.max(1,bw>>1),mh=Math.max(1,bh>>1);
+  const ww=Math.max(1,bw>>2),wh=Math.max(1,bh>>2);
+  const rt=[fxTarget(bw,bh),fxTarget(bw,bh),fxTarget(mw,mh),
+            fxTarget(mw,mh),fxTarget(ww,wh),fxTarget(ww,wh)];
+  for(const t of rt)if(!t)return false;
+  FX.rt=rt;FX.bw=bw;FX.bh=bh;
+  return true;
+}
+/* one separable pass: src texture -> dst target, along uStep */
+function fxBlur(srcTex,dst,dx,dy){
+  const g=FX.g;
+  g.bindFramebuffer(g.FRAMEBUFFER,dst.f);
+  g.viewport(0,0,dst.w,dst.h);
+  g.activeTexture(g.TEXTURE0);
+  g.bindTexture(g.TEXTURE_2D,srcTex);
+  g.uniform1i(FX.uB.uTex,0);
+  g.uniform2f(FX.uB.uStep,dx,dy);
+  g.drawArrays(g.TRIANGLES,0,3);
+}
+/* Builds the halo from the bright buffer drawBloom has just filled and
+   leaves it in FX.cv, ready to composite. Returns false on any failure, and
+   a failure is permanent: the disc path is not worse, it is just older. */
+function fxRender(srcCanvas,bw,bh){
+  if(!FX.on)return false;
+  try{
+    const g=FX.g;
+    if(!fxResize(bw,bh)){FX.on=false;return false;}
+    const cw=Math.max(1,Math.ceil(W/2)),ch=Math.max(1,Math.ceil(H/2));
+    if(FX.cw!==cw||FX.ch!==ch){FX.cv.width=cw;FX.cv.height=ch;FX.cw=cw;FX.ch=ch;}
+    /* FLIP ON UPLOAD, and exactly once. A 2D canvas counts rows downward and
+       a GL framebuffer counts them upward; flipping here means the composite
+       lands in FX.cv the same way up as the canvas it came from, so
+       drawImage needs no transform. Flip in neither place and the glow is
+       upside down; flip in both and it is upside down again. */
+    g.bindTexture(g.TEXTURE_2D,FX.src);
+    g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,true);
+    g.texImage2D(g.TEXTURE_2D,0,g.RGBA,g.RGBA,g.UNSIGNED_BYTE,srcCanvas);
+    const A=FX.rt[0],B=FX.rt[1],C=FX.rt[2],D=FX.rt[3],E=FX.rt[4],F=FX.rt[5];
+    g.useProgram(FX.prB);
+    /* mid: blur the bright buffer in place, at /4 */
+    fxBlur(FX.src,A,FX_SPREAD/bw,0);
+    fxBlur(A.t,B,0,FX_SPREAD/bh);
+    /* down to /8, then to /16 — each step reads a source already blurred */
+    fxBlur(B.t,C,FX_SPREAD/C.w,0);
+    fxBlur(C.t,D,0,FX_SPREAD/D.h);
+    fxBlur(D.t,E,FX_SPREAD/E.w,0);
+    fxBlur(E.t,F,0,FX_SPREAD/F.h);
+    /* composite to the FX canvas itself */
+    g.bindFramebuffer(g.FRAMEBUFFER,null);
+    g.viewport(0,0,cw,ch);
+    g.useProgram(FX.prC);
+    g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,B.t);g.uniform1i(FX.uC.uMid,0);
+    g.activeTexture(g.TEXTURE1);g.bindTexture(g.TEXTURE_2D,F.t);g.uniform1i(FX.uC.uWide,1);
+    /* uv counts UP from the bottom after the flip, so the arena centre does too */
+    g.uniform2f(FX.uC.uCtr,W>0?cx/W:0.5,H>0?1-cy/H:0.5);
+    g.uniform1f(FX.uC.uAsp,H>0?W/H:1);
+    const energy=Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow);
+    g.uniform1f(FX.uC.uAb,RM?0:FX_AB*(0.30+0.70*energy)*(1+BH.warp));
+    g.uniform1f(FX.uC.uBH,RM?0:BH.warp);
+    g.uniform1f(FX.uC.uMidW,FX_MIDW);
+    g.uniform1f(FX.uC.uWideW,FX_WIDEW);
+    g.drawArrays(g.TRIANGLES,0,3);
+    return true;
+  }catch(e){FX.on=false;return false;}
+}
+fxInit();
 function draw(){
   /* ALWAYS start from a known-good canvas state. A thrown frame leaves the
      transform stack dirty (save without restore, translate still applied)
@@ -8205,6 +8685,13 @@ function draw(){
   /* the camera dolly: the world drifts a few pixels on a long sine so no
      frame is ever static; each plane rides it by its depth */
   const camX=RM?0:Math.sin(amb*0.16)*3*u,camY=RM?0:Math.cos(amb*0.127)*3*u;
+  /* THE ARENA RIDES THE SAME DOLLY, by depth. One camera, not two effects:
+     the sky's planes and the orbit stack are driven by this one pair of
+     sines, so nothing in the scene can drift on a rhythm of its own. Set
+     here, before anything is drawn, because posAt() reads it — update() ran
+     a frame earlier and therefore uses the previous frame's pair, which at
+     half a pixel per second of drift is not a difference anything can see. */
+  paX=camX*PARA_K*ARENA_PARALLAX;paY=camY*PARA_K*ARENA_PARALLAX;
   /* THE SKY KEEPS THE BEAT (playtest: "match large visual impact to large
      audio impact"). One pulse scalar drives the whole backdrop: quiet on an
      idle board, breathing when the player runs hot, doubled through the
@@ -8645,7 +9132,9 @@ function draw(){
       const d=sp.s*(RAD_BAKE[i]?RADII[i]/RAD_BAKE[i]:1);
       ctx.save();
       ctx.globalAlpha=(on?1.0:0.6)*(i===3?Math.min(1,RADII[3]/RAD_BH[3]):1);
-      ctx.translate(cx,cy);ctx.scale(1,AY);
+      /* the channel is this orbit's own art, so it rides this orbit's depth —
+         translate BEFORE the y-scale, or the offset gets stretched with it */
+      ctx.translate(ecx(rr),ecy(rr));ctx.scale(1,AY);
       ctx.drawImage(sp.c,-d/2,-d/2,d,d);
       ctx.restore();
     }
@@ -8659,7 +9148,7 @@ function draw(){
     ctx.lineDashOffset=RM?0:-(Math.floor(G.t/(mine?SPB/4:SPB/2))*5*u*(mine?G.dir:1))%(20*u);
     ctx.strokeStyle='rgb('+tn+')';ctx.lineWidth=2*u;
     ctx.globalAlpha=(mine?0.20:0.08)+0.10*G.pay;
-    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,0,TAU);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,0,TAU);ctx.stroke();
     ctx.setLineDash([]);
     if(SPR.pip)for(let k=0;k<8;k++){
       const pp=posAt(k*TAU/8,rr);
@@ -8676,7 +9165,7 @@ function draw(){
       ctx.strokeStyle='rgba('+tn+','+(on?0.46:0.17)+')';
     }
     ctx.lineWidth=1.3;
-    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,0,TAU);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,0,TAU);ctx.stroke();
     ctx.globalAlpha=1;
   }
   /* THE METER IS INVISIBLE NOW (owner: "get rid of the purple build-up
@@ -8708,7 +9197,7 @@ function draw(){
     ctx.globalAlpha=0.55;
     ctx.strokeStyle=G.lapEmbers>=3?COL.ember:(G.lapEmbers>=1?COL.comet:'rgba(170,195,255,0.55)');
     ctx.lineWidth=3;
-    ctx.beginPath();ctx.ellipse(cx,cy,lr,lr*AY,0,a0,a1);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(lr),ecy(lr),lr,lr*AY,0,a0,a1);ctx.stroke();
     ctx.globalAlpha=1;
   }
   /* THE COST OF TURNING BACK, DRAWN. On a committed reverse the discarded
@@ -8724,7 +9213,7 @@ function draw(){
     ctx.globalAlpha=0.5*(1-k);
     ctx.strokeStyle='rgba(255,205,120,0.9)';
     ctx.lineWidth=3;
-    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,b0,b1);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,b0,b1);ctx.stroke();
     ctx.globalAlpha=1;
   }
   /* embers banked this orbit are drawn in the HUD — see drawHUD */
@@ -8738,19 +9227,23 @@ function draw(){
     const ga=teachGuide?G.angle:pd.ang;
     const ca=Math.cos(ga),sa=Math.sin(ga);
     const rIn=Math.max(9*u,radiusOf(G.nRings-1)-17*u),rOut=radiusOf(0)+21*u;
+    /* the guide spans the whole stack, so each END takes its own orbit's
+       depth — one offset for the pair would lean it against the rings it is
+       drawn to line up with */
+    const gIn=[ecx(rIn),ecy(rIn)],gOut=[ecx(rOut),ecy(rOut)];
     ctx.save();
     ctx.globalAlpha=teachGuide?(RM?0.4:0.30+0.16*(0.5+0.5*Math.sin(G.t*3.2))):0.3;
     ctx.strokeStyle=COL.comet;ctx.lineWidth=1.5;
     ctx.setLineDash([5*u,5*u]);
     ctx.beginPath();
-    ctx.moveTo(cx+ca*rIn,cy+sa*rIn);
-    ctx.lineTo(cx+ca*rOut,cy+sa*rOut);
+    ctx.moveTo(gIn[0]+ca*rIn,gIn[1]+sa*rIn);
+    ctx.lineTo(gOut[0]+ca*rOut,gOut[1]+sa*rOut);
     ctx.stroke();
     ctx.setLineDash([]);
     const head=function(rr,facing,al){
       ctx.globalAlpha=al;
       ctx.save();
-      ctx.translate(cx+ca*rr,cy+sa*rr);
+      ctx.translate(ecx(rr)+ca*rr,ecy(rr)+sa*rr);
       ctx.rotate(ga+(facing>0?0:Math.PI));
       ctx.beginPath();
       ctx.moveTo(8*u,0);ctx.lineTo(-4*u,5*u);ctx.lineTo(-4*u,-5*u);ctx.closePath();
@@ -8786,7 +9279,11 @@ function draw(){
     if(!s.born&&s.t<0.3)al=s.t/0.3;
     else if(s.life-s.t<0.8)al=(s.life-s.t)/0.8;
     /* embers pulse on the landed beat — the collectibles keep time too */
-    blit(SPR.ember,p[0],p[1],1+(RM?0.10:0.16*G.beat),s.t*1.5,al);
+    const es=1+(RM?0.10:0.16*G.beat);
+    blit(SPR.ember,p[0],p[1],es,s.t*1.5,al);
+    /* the ember SPINS and its lit limb does not: the highlight is the lamp's,
+       not the object's, so it stays hubward while the star turns under it */
+    rimLight(p[0],p[1],es,al*0.62);
   }
   ctx.globalCompositeOperation='source-over';
   /* power-ups */
@@ -8843,10 +9340,10 @@ function draw(){
         ctx.save();
         ctx.globalAlpha=0.25+0.5*k;
         ctx.strokeStyle=COL.shard;ctx.lineWidth=(RM?3:5.5)*u;
-        ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,0,TAU);ctx.stroke();
+        ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,0,TAU);ctx.stroke();
         if(!RM){
           ctx.globalAlpha=0.16*k;ctx.lineWidth=14*u;
-          ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,0,TAU);ctx.stroke();
+          ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,0,TAU);ctx.stroke();
         }
         ctx.restore();
       }
@@ -8875,6 +9372,10 @@ function draw(){
         }
       }
       ctx.restore();
+      /* the saucer is a hull, not a decal — it takes the lamp like the rest.
+         Outside the rotate, because the highlight belongs to the hub and the
+         hull is already turned to its own heading. */
+      rimLight(p[0],p[1],0.95*(1+0.22*chg),(0.35+0.65*arr)*0.5);
       ctx.globalAlpha=1;
       continue;
     }
@@ -8883,7 +9384,7 @@ function draw(){
       const rr=radiusOf(s.ring),back=-Math.sign(s.va)*0.30;
       ctx.globalAlpha=0.3;ctx.strokeStyle=COL.shard;ctx.lineWidth=2.5;
       ctx.beginPath();
-      ctx.ellipse(cx,cy,rr,rr*AY,0,Math.min(s.a,s.a+back),Math.max(s.a,s.a+back));
+      ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,Math.min(s.a,s.a+back),Math.max(s.a,s.a+back));
       ctx.stroke();ctx.globalAlpha=1;
     }
     if(s.phase===0){
@@ -8950,23 +9451,24 @@ function draw(){
     ctx.strokeStyle=COL.ember;
     ctx.globalAlpha=lf*0.30*L.mag;
     ctx.lineWidth=(3+9*lf)*u*L.mag;
-    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,a0,a1);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,a0,a1);ctx.stroke();
     ctx.globalAlpha=lf*0.62*L.mag;
     ctx.lineWidth=(1.4+3*lf)*u*L.mag;
-    ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,a0,a1);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,a0,a1);ctx.stroke();
     if(sweep<TAU){
       const head=L.dir>0?a1:a0,w=0.22;
       ctx.strokeStyle='#fffdf2';
       ctx.globalAlpha=Math.min(1,lf*1.3)*L.mag;
       ctx.lineWidth=(3.5+5*lf)*u*L.mag;
-      ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*AY,0,head-w*(L.dir>0?1:0),head+w*(L.dir>0?0:1));ctx.stroke();
+      ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,head-w*(L.dir>0?1:0),head+w*(L.dir>0?0:1));ctx.stroke();
     }
   }
   for(const a of G.arcs){
     const lf=Math.max(a.life,0),half=0.09+0.5*(1-lf);
     ctx.globalAlpha=lf*lf*0.75;
     ctx.strokeStyle=a.col;ctx.lineWidth=(1+4*lf)*u;
-    ctx.beginPath();ctx.ellipse(cx,cy,radiusOf(a.ring),radiusOf(a.ring)*AY,0,a.a-half,a.a+half);ctx.stroke();
+    const ar=radiusOf(a.ring);
+    ctx.beginPath();ctx.ellipse(ecx(ar),ecy(ar),ar,ar*AY,0,a.a-half,a.a+half);ctx.stroke();
   }
   /* ripples — the big earned moments carry a fat baked annulus instead of a
      hairline stroke */
