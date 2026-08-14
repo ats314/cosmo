@@ -1,8 +1,10 @@
+/* @lane full */
 /* Headless smoke test: stub enough DOM/canvas to LOAD the game script, run
    frames, and drive input through the real handlers. Catches TDZ, load-order,
    null-deref and typo errors that a parse check cannot. */
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { seededMath, seedLine } from './lib/rng.mjs';
 
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const src = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i)[1];
@@ -52,7 +54,7 @@ const sandbox = {
   getComputedStyle: () => ({ paddingTop: '0', paddingBottom: '0' }),
   location: { origin: 'https://x.test', pathname: '/', search: '', replace(u) { this.__replaced = u; } },
   console,
-  Math, JSON, Date, Array, Object, Number, String, Boolean, Float32Array, Infinity, NaN,
+  Math: seededMath(), JSON, Date, Array, Object, Number, String, Boolean, Float32Array, Infinity, NaN,
   isNaN, parseInt, parseFloat, setTimeout: () => {}, TAU: undefined,
 };
 sandbox.window = new Proxy(sandbox, {
@@ -79,6 +81,7 @@ try {
   process.exit(1);
 }
 console.log('load ok');
+console.log(seedLine('smoke'));
 
 function frame(ms) {
   nowMs += ms;

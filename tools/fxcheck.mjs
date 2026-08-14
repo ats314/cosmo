@@ -1,3 +1,4 @@
+/* @lane fast */
 /* THE RENDER PATH HAS NO COVERAGE, BY CONSTRUCTION — and this is the harness
    that gives a piece of it some.
 
@@ -21,6 +22,7 @@
    shader source it was handed and returns null for anything else. */
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { seededMath, seedLine } from './lib/rng.mjs';
 
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const src = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i)[1];
@@ -135,7 +137,7 @@ function build({ webgl }) {
     getComputedStyle: () => ({ paddingTop: '0', paddingBottom: '0' }),
     location: { origin: 'https://x.test', pathname: '/' },
     console: { log() {}, warn() {}, error() {} },
-    Math, JSON, Date, Array, Object, Number, String, Boolean, Float32Array, Infinity, NaN,
+    Math: seededMath(), JSON, Date, Array, Object, Number, String, Boolean, Float32Array, Infinity, NaN,
     isNaN, parseInt, parseFloat, setTimeout: () => {},
   };
   sandbox.window = new Proxy(sandbox, {

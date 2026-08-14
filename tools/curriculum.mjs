@@ -1,3 +1,4 @@
+/* @lane full */
 /* The curriculum rule, executed: every mechanic is introduced and explained
    by the end of level 3 — by the start of level 4 the player has met every
    formation, seen every lesson, and had every orb placed. This drives the
@@ -6,6 +7,7 @@
    build if level 4 opens with anything left untaught. */
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { seededMath, seedLine } from './lib/rng.mjs';
 
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const src = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i)[1];
@@ -55,7 +57,7 @@ const sandbox = {
   getComputedStyle: () => ({ paddingTop: '0', paddingBottom: '0' }),
   location: { origin: 'https://x.test', pathname: '/' },
   console,
-  Math, JSON, Date, Array, Object, Number, String, Boolean, Float32Array, Infinity, NaN,
+  Math: seededMath(), JSON, Date, Array, Object, Number, String, Boolean, Float32Array, Infinity, NaN,
   isNaN, parseInt, parseFloat, setTimeout: () => {}, TAU: undefined,
 };
 sandbox.window = new Proxy(sandbox, {

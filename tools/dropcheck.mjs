@@ -1,8 +1,10 @@
+/* @lane full */
 /* Drop-pipeline smoke: same DOM stub as tools/smoke.mjs but WITH a stubbed
    AudioContext, so MU/BED/A exist and the full build -> arm -> rise -> fire ->
    payoff -> cooldown cycle runs. Reproduces the "build meter broken" report. */
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { seededMath, seedLine } from './lib/rng.mjs';
 
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const src = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i)[1];
@@ -74,7 +76,7 @@ const sandbox = {
   matchMedia: () => ({ matches: false }),
   getComputedStyle: () => ({ paddingTop: '0', paddingBottom: '0' }),
   location: { origin: 'https://x.test', pathname: '/' },
-  console, Math, JSON, Date, Array, Object, Number, String, Boolean, Float32Array,
+  console, Math: seededMath(), JSON, Date, Array, Object, Number, String, Boolean, Float32Array,
   Infinity, NaN, isNaN, parseInt, parseFloat, setTimeout: () => {},
 };
 sandbox.window = new Proxy(sandbox, {

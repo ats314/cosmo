@@ -1784,7 +1784,7 @@ request, and publishes `main` to GitHub Pages.
 `index.html`, the icons, the manifest, `og.png` and `LICENSE` into `_site/` and
 publishes that. It was `path: .` for most of the project's life, which served
 the entire checkout from the Pages URL — `CLAUDE.md`, this file, `MECHANICS.md`
-and all six harnesses among them, each at its own public address. Repository
+and every harness among them, each at its own public address. Repository
 visibility never covered it: Pages serves the artifact rather than the repo, so
 turning the repository private would have left every one of those documents
 readable exactly where they were. `check.mjs` now fails the build on any file at
@@ -2158,9 +2158,10 @@ node tools/dropcheck.mjs   # the build meter still delivers drops
 node tools/curriculum.mjs  # nothing is left untaught by level 3
 node tools/musiccheck.mjs  # four levels, four songs, all in their own key
 node tools/fxcheck.mjs     # the glow actually reaches a pixel, on a GPU and without one
+node tools/drawcheck.mjs   # every 2D draw call is one a real canvas would honour
 ```
 
-All six run on every pull request; only `main` goes on to publish.
+All seven run on every pull request; only `main` goes on to publish.
 
 `all.mjs` is a runner, not a seventh check, and it holds no list of its own: it
 parses `pages.yml` and runs exactly the harnesses CI runs, in CI's order. A list

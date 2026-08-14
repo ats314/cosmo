@@ -1,3 +1,4 @@
+/* @lane fast */
 /* Sanity check for index.html.
    The whole game is one inline script with no test suite, so the cheapest
    useful guard is: does it still parse, and are the pieces the script needs
@@ -321,6 +322,19 @@ for (const f of present) {
 }
 for (const f of wired) {
   if (!present.includes(f)) fail.push(`pages.yml runs tools/${f}, which is not in tools/`);
+}
+/* EVERY HARNESS DECLARES ITS LANE. `all.mjs --fast` is only worth having if it
+   is honest about what it skipped, and the way it stops being honest is a new
+   slow harness that never says so and lands in the fast lane by default. The
+   declaration lives in the harness because that is the file whose author knows
+   whether it plays a whole game. */
+for (const f of present) {
+  const body = await readFile(new URL(`tools/${f}`, root), 'utf8');
+  if (!/@lane\s+(fast|full)/.test(body)) {
+    fail.push(`tools/${f} declares no @lane — add `
+      + `\`/* @lane fast */\` (static or targeted, under ~3s) or \`/* @lane full */\` `
+      + '(plays a whole game) at the top, so `all.mjs --fast` knows whether it may skip it');
+  }
 }
 
 /* THE PUBLISHED SITE IS AN ALLOWLIST, AND THIS IS WHAT KEEPS IT ONE.
