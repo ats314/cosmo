@@ -176,10 +176,45 @@ the rule. It is replaced rather than clarified.
   with explicit permission — but splitting unrelated work onto its own branch is
   usually the right instinct, so ask for it rather than shipping a pull request
   that does two things.
-- **Say what you could not verify.** The thing genuinely worth escalating is
-  never the merge; it is judgement the agent does not have. You cannot hear the
-  audio or see the screen. Ship the work and name what needs the owner's ears
-  and eyes, rather than holding the work hostage to it.
+- **LOOK AT THE GAME. YOU CAN SEE THE SCREEN.** This line used to say the
+  opposite — "you cannot hear the audio or see the screen" — and it was false,
+  and it cost a whole session. An agent read it, believed it, shipped a
+  complete backdrop overhaul verified only against the harnesses, and the
+  owner's first look found a screen-edge artifact and a scene rendering at
+  less than half the brightness of the path it replaced. Neither was subtle.
+  Both were one screenshot away. The instruction that produced that was
+  written by an earlier session in this same file, which is the whole reason
+  it is being replaced rather than quietly corrected: **a false claim about
+  your own capabilities in CLAUDE.md is the most expensive kind of wrong
+  thing to write here, because every future session will believe it without
+  checking.** Do not add another one. If you are about to write that you
+  cannot do something, test it first.
+
+  The loop, which takes about twenty seconds:
+
+  ```sh
+  # chromium + playwright are installed; index.html needs no server
+  /opt/pw-browsers/chromium-1194/chrome-linux/chrome   # --enable-unsafe-swiftshader
+  # playwright: /opt/node22/lib/node_modules/playwright   (ESM: import by full path)
+  # page.goto('file:///path/to/index.html') then screenshot
+  ```
+
+  WebGL works under SwiftShader, so `GL.on` comes up true and the real
+  backdrop shader runs — not the 2D fallback. You can drive a run
+  (`startGame()`), read any global (`G`, `SKY`, `GL`, `FX`), pull the
+  shader's own output with `readPixels` in the same task as `glRender`, and
+  isolate layers by hiding `#c` or `#bg`. Numbers out of a screenshot beat
+  every argument about what a shader "should" look like.
+
+  **Anything visual gets looked at before it is merged.** The harnesses are
+  necessary and they are not sufficient: they stub the canvas, so they can
+  prove a uniform was written and cannot prove the frame is not ruined. That
+  gap is exactly where the thirteen invisible black hole features lived.
+- **Say what you could not verify.** What genuinely wants the owner is TASTE —
+  whether a sky reads as dangerous, whether a mix is too busy — and the audio,
+  which really is beyond reach here. Ship the work and name those, rather than
+  holding the work hostage to them. Do not put anything on that list that a
+  screenshot would have answered.
 - Commit messages in this repo are substantive: what changed, and *why* it was
   wrong before. Match that register.
 - Update `README.md` when behaviour changes, `MECHANICS.md` when a mechanic
