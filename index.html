@@ -240,6 +240,107 @@ const SKY_BANDS=[
    this may ever let the backdrop compete with a shard for "danger". ---- */
 const SKY_SWELL=0.62,SKY_FLOW=0.055,SKY_RATE=1;
 let skyI=0;
+/* ================= THE SKY IS A PLACE, AND ORBITS ARE HOW YOU TRAVEL =======
+   THE COMPLAINT THIS TABLE ANSWERS, verbatim: the backdrops are "too similar,
+   not lively enough, not fun and exciting, not integrated with gameplay".
+   All four halves of that were one defect. `SKY_BANDS` above changes the sky's
+   COLOUR four times a run and nothing else: the geometry underneath — two-level
+   domain-warped fBm, ridged dust, three star layers, one vignette — was
+   identical in every band, so the four skies were one picture recoloured, and
+   the recolour was gated on ladder milestones most runs never reach. A palette
+   swap is not a place.
+
+   A WORLD IS A SET OF WEIGHTS OVER FIELDS THE SHADER ALREADY EVALUATES.
+   This is the whole trick, and it is the same one the pocket's crystallize
+   used: `ridged()` was already paid for by the dust lanes, so re-entering it
+   as LIGHT cost nothing. Four *structures* are recovered from the two fBm
+   fields and the ridged field that the chain computes anyway —
+
+     bill   soft billows          smoothstep over the warped 6-octave field
+     broad  large-scale mass      smoothstep over the 4-octave field
+     cont   strata and curtains   CONTOURS of those fields: sin() of a scalar
+                                  field is a level set, and level sets of fBm
+                                  are curtains. Zero noise evaluations.
+     fil    filament network      the ridged field as light, at a per-world
+                                  sharpness — the pocket's recipe, at rest
+
+   — and a world is which of them it is made of. That is why these differ
+   structurally rather than tonally, and why the difference is free: the
+   fragment cost is a handful of multiplies over evaluations already spent.
+   `lane` then carves the ridged field back out as darkness and `cov` says how
+   much void the coverage gate is allowed to open.
+
+   THE WEIGHTS ARE LERPED ON THE CPU, so the shader never branches on a world
+   and never evaluates two of them. `skyUni()` hands it ONE set of numbers;
+   morphing between two worlds is morphing that set, which reads as filaments
+   dissolving into billows rather than as a crossfade between two pictures.
+   It also keeps the reachable set CLOSED — the invariant the blackout bug was
+   paid for — because the sky is now (drift orbit) x (adjacent world pair), and
+   `fxcheck.mjs` sweeps that whole product rather than one corner of it.
+
+   THE RED BAN IS LIFTED HERE, and it was a deliberate call by the owner
+   against a stated risk: shard red is the game's word for "danger" and the
+   sky was kept out of the family so it could never say it by accident. What
+   replaces the ban is narrower and keeps the contract where it is actually
+   read — `SKY_ARENA_CALM` holds the CONTRAST down in the annulus the orbits
+   occupy, so EMBERFALL can burn at the edges of the screen while the band a
+   shard is read against stays quiet. Hue is free; local contrast behind the
+   arena is not. Set it to 0 for the unmoderated look.
+
+   `motion` is per-world and is the other half of "too similar": four skies
+   that all drift at one rate are four skies with one temperament. DUSTLANE
+   broods at 0.6 and VEIL storms at 1.3 against the same master dial.
+
+   Palette is the cosine form `a+b*cos(TAU*(c*t+d))` — the same generator the
+   four hardcoded branches used, lifted into data so it can be interpolated. */
+const WORLDS=[
+  /* DRIFT — the opening, and the one that had to stay: this is the look the
+     screenshots playtesting loved, expressed in the new weights. */
+  {n:'DRIFT',   bill:0.79,broad:0.21,cont:0.00,fil:0.00,
+   contF:1.0,contY:0.0,contK:1.0,filK:6.0,lane:0.66,cov:1.00,star:1.00,motion:0.85,gain:1.00,
+   pa:[0.30,0.14,0.42],pb:[0.46,0.24,0.44],pc:[1.00,1.00,1.00],pd:[0.52,0.62,0.78]},
+  /* TIDE — curtains. cont dominates and contY stretches the level sets along
+     y, which is what turns contours into an aurora rather than a marble. */
+  {n:'TIDE',    bill:0.26,broad:0.24,cont:0.50,fil:0.00,
+   contF:1.60,contY:2.40,contK:1.60,filK:6.0,lane:0.35,cov:0.74,star:1.15,motion:1.00,gain:0.80,
+   pa:[0.14,0.34,0.36],pb:[0.30,0.42,0.40],pc:[1.00,0.96,0.88],pd:[0.16,0.44,0.70]},
+  /* GLASS — a sharp filament lattice with the coverage gate opened wide, so
+     most of the frame is void and stars. The quietest world, and the one that
+     proves darkness is composition rather than absence. */
+  {n:'GLASS',   bill:0.18,broad:0.10,cont:0.16,fil:0.56,
+   contF:2.20,contY:0.00,contK:2.60,filK:5.5,lane:0.30,cov:1.00,star:1.40,motion:0.70,gain:1.78,
+   pa:[0.30,0.30,0.46],pb:[0.40,0.36,0.46],pc:[1.00,1.00,1.02],pd:[0.60,0.66,0.82]},
+  /* EMBERFALL — the world the red ban forbade. Filaments as light over deep
+     lanes: embers falling through smoke. */
+  {n:'EMBERFALL',bill:0.20,broad:0.12,cont:0.10,fil:0.58,
+   contF:1.10,contY:0.40,contK:1.20,filK:3.4,lane:0.78,cov:1.00,star:0.80,motion:1.15,gain:2.00,
+   pa:[0.40,0.17,0.12],pb:[0.48,0.27,0.16],pc:[1.00,0.90,0.72],pd:[0.02,0.14,0.30]},
+  /* DUSTLANE — mass everywhere, cut to ribbons by the deepest lanes in the
+     table. Warm grey and amber; the stars do the work. */
+  {n:'DUSTLANE',bill:0.55,broad:0.30,cont:0.05,fil:0.10,
+   contF:0.80,contY:0.00,contK:1.00,filK:6.0,lane:0.92,cov:0.88,star:1.50,motion:0.60,gain:1.08,
+   pa:[0.30,0.22,0.16],pb:[0.42,0.30,0.22],pc:[1.00,0.94,0.80],pd:[0.06,0.18,0.38]},
+  /* VEIL — broad violet storm, the fastest thing in the table. */
+  {n:'VEIL',    bill:0.30,broad:0.48,cont:0.12,fil:0.10,
+   contF:1.30,contY:1.10,contK:1.40,filK:4.6,lane:0.50,cov:0.86,star:0.90,motion:1.30,gain:0.92,
+   pa:[0.34,0.14,0.36],pb:[0.46,0.22,0.44],pc:[1.00,0.92,1.00],pd:[0.34,0.10,0.62]}];
+/* HOW MANY ORBITS BUY A NEW WORLD. The owner's brief, verbatim: "players
+   should want to get orbits, and they should be rewarded with a cool
+   background change" — and, separately, "many people have complained they
+   didnt even know they were supposed to do orbits". Those are the same bug.
+   An orbit paid points into a number in the corner; nothing in the world the
+   player was looking at moved because of it, so the mechanic was invisible
+   and therefore optional. Orbits now BUY the journey: seven of them arrive
+   somewhere new, and at a fed orbit every ~9s that is a new sky roughly every
+   minute of clean play.
+   ORB_WORLD_SECS is the trickle underneath it and exists so the sky is never
+   frozen for a player who is struggling — 150s of any play advances one world
+   on its own. It is deliberately far slower than the orbit route: the point
+   is that orbiting is how you travel, not one of two ways. */
+const ORB_PER_WORLD=7, ORB_WORLD_SECS=150;
+/* Contrast moderation in the annulus the orbits occupy — see the red-ban note
+   above. 0 disables it and gives the unmoderated sky. */
+const SKY_ARENA_CALM=0.34;
 function makeCanvas(w,h,fn){
   const c=document.createElement('canvas');
   c.width=Math.max(1,Math.ceil(w*DPR));c.height=Math.max(1,Math.ceil(h*DPR));
@@ -4690,6 +4791,7 @@ const G={
   carryOrbits:0,carryStreak:0,carryTime:0,carryLands:0,carryGroove:0, /* the three-level structure,
     and the deepest level ever reached — the only level record there is */
   combo:0,comboT:0,lapAcc:0,lapStreak:0,lapEmbers:0,
+  skyW:0,   /* the journey, in worlds. Orbits buy it; see ORB_PER_WORLD. */
   orbits:0,bestStreak:0,shareFx:0, /* run summary, for the death screen and share */
   groove:0,grooveT:0,grooveFx:0,bestGroove:0,beat:0,dropFx:0, /* rhythm */
   pocket:0,missFx:null,               /* held ×8 envelope; early/late arc */
@@ -5104,6 +5206,11 @@ const MEET={
   blackhole:{t:'black hole — everything slows, the reds pile up',g:'warp'},
   /* not a spawned object: fired by the first reversal that discards most of
      an orbit — the one rule of the scoring economy nothing else teaches */
+  /* fired by the FIRST completed lap. The orbit was the game's biggest
+     unnamed mechanic: the payout popup is suppressed above speed 2.6 unless a
+     streak is already building, so a player who found their rhythm early
+     could orbit for a whole run and never see the word. */
+  orbit: {t:'a full lap without turning back — the sky moves with you',g:'star',soft:1},
   lapcost:{t:'turning back restarts the orbit — stars stay banked',g:'star',soft:1},
   /* THE MUSICAL CURRICULUM (playtest: "combos are never explained, timing
      beats is never explained, the music responding to your beats is never
@@ -5455,6 +5562,9 @@ function startGame(){
      caption is once per RUN, not once per level card */
   G.bandCap=G.layerN>0;
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
+  /* every run opens in DRIFT and travels out from there — the journey is the
+     run's, not the device's, so arriving somewhere is always earned again */
+  G.skyW=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
   G.pocket=0;G.missFx=null;
@@ -7304,11 +7414,29 @@ function update(dt){
      Payout scales with the embers gathered during it, so a bare orbit is
      worth almost nothing and the two scoring systems feed each other. */
   G.lapAcc+=G.speed*sdt;
+  /* THE TRICKLE UNDER THE JOURNEY. Orbits are how you travel — see
+     ORB_PER_WORLD — but a player who is struggling must not be parked in one
+     sky watching nothing change, so any play at all advances it, roughly
+     twenty times slower than orbiting does. */
+  G.skyW+=sdt/ORB_WORLD_SECS;
   if(G.lapAcc>=TAU){
     G.lapAcc-=TAU;
     const fed=G.lapEmbers>0;
     if(fed)G.lapStreak++;else G.lapStreak=0;
     G.orbits++;G.bestStreak=Math.max(G.bestStreak,G.lapStreak);
+    /* THE ORBIT BUYS THE JOURNEY. Every lap counts toward it, fed or not:
+       the payout already prices how well the lap was fed, and making the sky
+       do it again would mean a player learning the mechanic gets no travel
+       out of the laps they are learning it with. */
+    G.skyW+=1/ORB_PER_WORLD;
+    skyWake(G.lapStreak);
+    /* THE ONE SENTENCE THE MECHANIC NEVER HAD. "many people have complained
+       they didnt even know they were supposed to do orbits" — and until now
+       nothing in the game said the word before the first payout popped, which
+       at speed is suppressed. Fired on the first lap of the first run, soft,
+       so it reads like a hint rather than stopping the world. It names only
+       verbs the game has: going round, and turning back. */
+    firstMeet('orbit');
     const base=6+13*Math.min(G.lapEmbers,LAP_EMB_MAX);
     const streakBonus=fed?Math.min(7*(G.lapStreak-1),28):0;
     const bonus=base+streakBonus;
@@ -8272,11 +8400,24 @@ const GL_SCALE=0.60;   /* render scale. THE perf dial: the field is smooth, so
                           upscaling costs almost nothing visually. Drop toward
                           0.4 if a phone struggles, raise to 1.0 on desktop. */
 const GL_COV=0.36, GL_EXP=1.45;   /* void threshold and exposure — see notes */
-/* HOW FAST THE SKY MOVES. One dial over every drifting term — flow advection,
-   palette walk, star twinkle. 1.0 was the first pass and read as distracting
-   in play: the backdrop was competing for attention with an arena the player
-   has to watch. Lower is calmer; the structure is unchanged either way. */
-const GL_MOTION=0.42;
+/* HOW FAST THE SKY MOVES. One master dial over every drifting term — flow
+   advection, palette walk, star twinkle — now multiplied by the world's own
+   `motion`, so this is the centre of a range rather than the whole answer.
+   THE HISTORY MATTERS HERE, because this number went down for a good reason
+   and is going back up for a different one. 1.0 was the first pass and read
+   as distracting in play: the backdrop was competing for attention with an
+   arena the player has to watch, and 0.42 was the retreat. But the motion
+   that was competing was UNDIRECTED — a uniform drift of the whole field,
+   everywhere, meaning nothing. What is being sped up now is a sky that has
+   somewhere to be: it turns because you are orbiting, it surges because a lap
+   closed, and things cross it and leave. The owner's call, against the stated
+   readability risk, was to loosen this globally.
+   0.72 against the world range 0.60-1.30 puts the effective dial between 0.43
+   and 0.94 — DUSTLANE still broods slower than the old constant and VEIL runs
+   at more than twice it. THE SKY'S TEMPERAMENT IS NOW PART OF WHERE YOU ARE,
+   which is half of what "they are too similar" was about: four skies that all
+   drift at one rate are four skies with one mood. */
+const GL_MOTION=0.72;
 /* GL_SCALE is where the sky STARTS, not where it is stuck: glWatch climbs
    toward GL_SCALE_MAX on a machine that can hold the frame and latches the
    ceiling down the first time one cannot. */
@@ -8284,11 +8425,42 @@ const GL_SCALE_MAX=1.0;
 const GL={on:false,g:null,pr:null,u:{},cv:null,vw:0,vh:0,
   r:[[0,0,-1],[0,0,-1]],slot:0,shear:0,
   flow:0,flowVt:null,   /* the integrated advection clock — see uFlow */
+  tw:0,                 /* the integrated world clock — see uTime */
   scale:GL_SCALE,cap:GL_SCALE_MAX,acc:0,n:0,slow:0,fast:0};
 const GL_FS=`
 precision highp float;
 uniform vec2 uRes,uCtr; uniform float uTime,uEnergy,uPal,uCov,uExp,uCombo,uBeat,uShr,uMotion,uBH,uPock,uFlow;
 uniform vec3 uR1,uR2;
+/* THE WORLD, AS NUMBERS. Every one of these is lerped between two rows of
+   WORLDS on the CPU, so the shader has no idea worlds exist and never pays
+   for the one it is not in. See the table for what each weight means.
+   uWA  (bill, broad, cont, fil)      which structures this world is made of
+   uWB  (contF, contY, contK, filK)   how the contour and filament terms bite
+   uWC  (lane, cov, star, motion)     dust depth, void, star gain, temperament
+   uPA..uPD                           the cosine palette's four coefficients */
+uniform vec4 uWA,uWB,uWC;
+uniform vec3 uPA,uPB,uPC,uPD;
+/* THE ORBIT, AS NUMBERS.
+   uOrb  (charge, spin, wake, wind)
+     charge 0..1  the lap streak, eased — how hard the sky is wound up
+     spin         the APPARENT rotation of the sky, radians, in uv space.
+                  Sampling negates it; see the note at the rotation itself.
+     wake   -1..1 the closing ring's phase; <0 is idle
+     wind   0..1  how much of this lap is done — the swept sector
+   uOrb2 (head, dirSign, wakeAmt, arenaCalm)
+     head         the comet's angle in UV SPACE (y-up), which is -G.angle
+     dirSign      travel direction in uv space, which is -G.dir
+     wakeAmt      how big the closing ring is, from the streak it closed on
+     arenaCalm    SKY_ARENA_CALM — contrast moderation over the orbit band */
+uniform vec4 uOrb,uOrb2;
+/* THINGS THAT ARRIVE, CROSS AND LEAVE. Nothing in the backdrop ever used to
+   happen — every layer was a continuous field being multiplied by a gain, and
+   a gain is not an event. Each of these is idle at a negative life.
+   uMetA/uMetB (x0,y0,angle,life)  meteors
+   uFlare      (x,y,life,strength) a distant star flaring
+   uBody       (x,y,radius,lightAngle) the passing body — an OBJECT, with a
+               silhouette that occludes the nebula rather than veiling it */
+uniform vec4 uMetA,uMetB,uFlare,uBody;
 float hash21(vec2 p){ p=fract(p*vec2(123.34,345.45)); p+=dot(p,p+34.345); return fract(p.x*p.y); }
 float vnoise(vec2 p){ vec2 i=floor(p),f=fract(p); vec2 u=f*f*(3.0-2.0*f);
   return mix(mix(hash21(i),hash21(i+vec2(1,0)),u.x),mix(hash21(i+vec2(0,1)),hash21(i+vec2(1,1)),u.x),u.y); }
@@ -8297,13 +8469,31 @@ float fbm(vec2 p){ float v=0.,a=.5; for(int i=0;i<6;i++){ v+=a*vnoise(p); p=M*p;
 float fbm4(vec2 p){ float v=0.,a=.5; for(int i=0;i<4;i++){ v+=a*vnoise(p); p=M*p; a*=.5;} return v; }
 float ridged(vec2 p){ float v=0.,a=.5; for(int i=0;i<5;i++){ float n=1.-abs(vnoise(p)*2.-1.); v+=a*n*n; p=M*p; a*=.5;} return v; }
 vec3 pcos(float t,vec3 a,vec3 b,vec3 c,vec3 d){ return a+b*cos(6.28318*(c*t+d)); }
-vec3 palette(float t){
-  if(uPal<0.5) return pcos(t,vec3(.30,.14,.42),vec3(.46,.24,.44),vec3(1.,1.,1.),vec3(.52,.62,.78));
-  if(uPal<1.5) return pcos(t,vec3(.16,.32,.35),vec3(.42,.40,.36),vec3(1.,.96,.88),vec3(.18,.42,.70));
-  if(uPal<2.5) return pcos(t,vec3(.34,.18,.20),vec3(.50,.34,.26),vec3(1.,.92,.76),vec3(.02,.16,.44));
-  /* EVENT HORIZON: crimson falling into violet, the coldest and least
-     welcoming of the four — the sky past the point of return */
-  return pcos(t,vec3(.34,.12,.30),vec3(.46,.20,.40),vec3(1.,.88,1.),vec3(.34,.08,.62));
+/* THE PALETTE IS DATA NOW. It was four hardcoded branches on uPal, which is
+   why a "new sky" could only ever be one of four and why interpolating
+   between two of them was impossible. The generator is unchanged — the four
+   original branches are rows 0-3 of WORLDS, to the digit — but the
+   coefficients arrive as uniforms, so the CPU can hand down any point on the
+   line between two worlds and the shader cannot tell the difference between
+   an arrival and a journey. EVENT HORIZON stays hardcoded at its own site in
+   the black hole block: it belongs to the mode, not to the journey. */
+vec3 palette(float t){ return pcos(t,uPA,uPB,uPC,uPD); }
+/* A METEOR. A head, a tail that only exists behind it, and a life that fades
+   in and out at both ends so nothing ever pops. Analytic — no noise, no
+   texture, and it costs about what one star layer costs. */
+float meteor(vec2 uvv,vec4 m){
+  if(m.w<0.0) return 0.0;
+  vec2 d=vec2(cos(m.z),sin(m.z));
+  vec2 head=m.xy+d*(m.w*2.30);
+  vec2 rel=uvv-head;
+  float along=dot(rel,-d);
+  float perp=dot(rel,vec2(-d.y,d.x));
+  /* the tail is one-sided: max(along,0) is 0 ahead of the head, so nothing
+     is ever drawn in front of a meteor */
+  float tail=exp(-max(along,0.0)*7.0);
+  float core=exp(-perp*perp*2200.0)*tail;
+  float glow=exp(-dot(rel,rel)*260.0);
+  return (core+glow*0.55)*sin(m.w*3.14159);
 }
 vec3 starLayer(vec2 frag,float dens,float thr,float t,float sizek,float spikek){
   vec2 su=frag/uRes.y*dens; vec2 sc=floor(su),sf=fract(su)-0.5;
@@ -8368,21 +8558,54 @@ void main(){
      mean 0.149 vs 0.142, peaks 0.241 vs 0.268, dips 0.038 vs 0.028 — the
      look playtesting loved, minus only the blackouts. One lap is ~24
      minutes; fxcheck.mjs sweeps all of it and now pins BOTH directions. */
-  vec2 p=uv*1.35; float drA=uFlow*0.0105;
+  /* ---- THE ORBIT SPINS THE SKY ------------------------------------------
+     The reward the owner asked for, and the reason it is a rotation rather
+     than a brightness: consecutive orbits had to accumulate into something
+     the player can SEE accumulating, and a gain has no memory. uOrb.y is an
+     angle integrated on the CPU at a rate set by the lap streak, so the sky
+     is wound up by clean laps and — because a reverse zeroes the streak —
+     visibly stalls and unwinds when you turn around. The cost of turning
+     back, which used to be a number, is now the whole backdrop slowing down.
+
+     THE SIGN. This is inverse sampling — the fragment asks which part of the
+     source to read — so a sample rotated by +a makes the image appear to
+     rotate by -a. uOrb.y carries the APPARENT rotation the sky should have,
+     already in uv space (y-up, so it is -G.dir's direction), and the sample
+     is rotated by its negative. Stated as the invariant demands, in terms of
+     where a thing ends up: a feature drawn at uv angle A appears at angle
+     A + uOrb.y. fxcheck.mjs asserts exactly that sentence, because this
+     precise inversion has shipped backwards three times on the black hole. */
+  vec2 sv=uv-uCtr;
+  float spinC=cos(-uOrb.y),spinS=sin(-uOrb.y);
+  vec2 nuv=uCtr+vec2(sv.x*spinC-sv.y*spinS,sv.x*spinS+sv.y*spinC);
+  /* polar about the ARENA, unspun: the lap sector and the closing ring are
+     events in the player's frame, not in the drifting field's */
+  float ar=length(sv);
+  vec2 p=nuv*1.35; float drA=uFlow*0.0105;
   vec2 dr=vec2(2.0+sin(drA)*1.5,6.0+cos(drA)*1.035);
   vec2 q=vec2(fbm(p+dr),fbm(p+vec2(5.2,1.3)-dr));
   vec2 r=vec2(fbm(p+3.2*q+vec2(1.7,9.2)+dr*1.7),fbm(p+3.2*q+vec2(8.3,2.8)-dr*1.3));
   float f=fbm(p+3.0*r+dr*0.6);
-  vec2 p2=uv*0.62+vec2(3.7,1.1);
+  vec2 p2=nuv*0.62+vec2(3.7,1.1);
   vec2 q2=vec2(fbm4(p2-dr*0.5),fbm4(p2+vec2(2.1,7.4)+dr*0.4));
   float f2=fbm4(p2+2.4*q2);
   float rg=ridged(p*1.6+r*1.2+dr);
   float dust=pow(rg,2.2);
-  float band=smoothstep(0.32,0.68,f)*0.82+smoothstep(0.26,0.97,f)*0.18;
-  band=mix(band,band*0.52+smoothstep(0.36,0.76,f2)*0.48,0.44);
-  band*=(1.0-0.66*dust*(1.0-0.80*uPock));
-  float covA=fbm4(uv*0.75+vec2(9.1,4.4)+dr*0.35);
-  float covB=fbm4(uv*1.9+vec2(2.7,8.8)-dr*0.5);
+  /* ---- THE FOUR STRUCTURES, AND THE WORLD IS WHICH ONES IT IS MADE OF ----
+     Not one of these costs a noise evaluation. f, f2 and rg are already on
+     the books; cont is a LEVEL SET of the first two, which is the whole
+     reason a world can be curtains instead of clouds for free. See WORLDS. */
+  float bill=smoothstep(0.32,0.68,f)*0.82+smoothstep(0.26,0.97,f)*0.18;
+  float broad=smoothstep(0.36,0.76,f2);
+  float cont=pow(abs(sin((f*2.4+f2*1.1)*3.14159*uWB.x+nuv.y*uWB.y)),uWB.z);
+  float fil=pow(rg,uWB.w);
+  /* the weights sum to 1 in every row of WORLDS and a lerp of two such rows
+     still sums to 1, so this is a blend and never a gain — check.mjs pins it */
+  float band=bill*uWA.x+broad*uWA.y+cont*uWA.z+fil*uWA.w;
+  band*=uWC.w;
+  band*=(1.0-uWC.x*dust*(1.0-0.80*uPock));
+  float covA=fbm4(nuv*0.75+vec2(9.1,4.4)+dr*0.35);
+  float covB=fbm4(nuv*1.9+vec2(2.7,8.8)-dr*0.5);
   /* THE GATE IS FLOORED: it sculpts the clouds, it no longer owns their
      existence. The coverage field is sampled at uv*0.75, so a phone screen
      spans about a QUARTER of one noise cell — the whole sky rides a single
@@ -8392,9 +8615,30 @@ void main(){
      under the m^1.45 exposure a floored void renders near-black, which is
      what the beloved screenshots actually contain — real darkness is part of
      the composition, and a floor high enough to abolish it (the first cut
-     used 0.42) trades the blackout bug for a milky sky that never rests. */
-  band*=(0.10+0.90*smoothstep(uCov,uCov+0.20,covA-0.18*(covB-0.5)));
+     used 0.42) trades the blackout bug for a milky sky that never rests.
+     THE WORLD SCALES THE GATE, IT CANNOT REMOVE IT. uWC.y is how much void
+     a world is allowed — GLASS opens wide at 0.58, DUSTLANE keeps its mass
+     at 1.00 — and it enters through a mix TOWARD the gate from 1.0, so a
+     lower weight makes the sky fuller and can only ever raise the floor
+     above 0.10. There is no value of any world weight that reintroduces the
+     blackout, which is the property the ellipse and this floor were bought
+     to guarantee. check.mjs pins uWC.y to 0..1 so that stays true. */
+  float gate=(0.10+0.90*smoothstep(uCov,uCov+0.20,covA-0.18*(covB-0.5)));
+  band*=mix(1.0,gate,uWC.y);
   float m=clamp(band,0.0,1.0);
+  /* ---- THE LAP CLOSES AND A WAVE GOES OUT ----
+     Fired the instant an orbit completes, and deliberately a surge in the
+     NEBULA's own mass rather than a drawn ring: the sky swells as the wave
+     passes and settles behind it. Frequent — every few seconds of clean play
+     — so it is wide, slow and low-contrast by construction. uOrb2.z carries
+     the streak it closed on, so the tenth consecutive lap sends a bigger
+     wave than the first without any of them being startling. */
+  float wake=0.0;
+  if(uOrb.z>=0.0){
+    float wq=(ar-(0.04+uOrb.z*1.05))/(0.05+0.13*uOrb.z);
+    wake=exp(-wq*wq)*(1.0-uOrb.z)*uOrb2.z;
+    m=clamp(m*(1.0+wake*1.35),0.0,1.0);
+  }
   /* THE POCKET CRYSTALLIZES THE SKY. The same ridged field that carves the
      dust lanes re-enters as LIGHT: its creases become a sharp filament
      network laid through the clouds — and through the coverage voids, which
@@ -8403,7 +8647,12 @@ void main(){
      change in the geometry, not a gain change: same field, opposite sign.
      Costs nothing — the ridged() eval was already paid for by the dust. */
   m=clamp(max(m,pow(rg,7.0-2.6*uBeat)*0.85*uPock),0.0,1.0);
-  float ph=dot(r,vec2(0.9,0.7))+f*0.55+f2*0.30+t*0.010+uCombo*0.42+0.16*uPock*uBeat;
+  /* uPal — the ladder band — survives as a HUE BIAS rather than as the whole
+     palette. The run's depth still recolours the sky, but it now recolours
+     whichever world you are in instead of being the only thing that changes.
+     It is still the value that flavours the drum kit, and musiccheck still
+     owns that end of it: nothing here touches skyI's meaning. */
+  float ph=dot(r,vec2(0.9,0.7))+f*0.55+f2*0.30+t*0.010+uCombo*0.42+0.16*uPock*uBeat+uPal*0.085;
   m=pow(m,mix(1.0,0.72,uCombo));
   float ca=0.022+0.05*rd;
   /* ---- BLACK HOLE: chromatic aberration — gravity disperses light ---- */
@@ -8412,7 +8661,30 @@ void main(){
   col*=pow(m,uExp);
   col+=pow(m,3.2)*vec3(0.92,0.86,1.00)*0.62;
   col+=pow(m,7.5)*vec3(1.0,0.97,0.92)*0.85;
-  col*=(0.74+0.52*uEnergy)*(1.0+0.30*uCombo);
+  /* ---- THE LAP IN PROGRESS, PAINTED ACROSS THE SKY ----
+     THE FIX FOR "many people have complained they didnt even know they were
+     supposed to do orbits". The arena has carried a lap arc on the ring for a
+     long time and it did not teach: it is three pixels of stroke inside the
+     busiest part of the screen, at the exact radius the player is scanning
+     for shards. So the lap is drawn where there is nothing else to look at.
+     The sector of sky BEHIND the comet — everything swept since the lap began
+     — lifts, with a soft bright seam riding at the comet's own angle, and the
+     wedge closes as the orbit completes. The far term holds it off the arena:
+     it starts outside the orbit band and grows toward the rim, so it can
+     teach without ever adding light to the annulus a shard is read against. */
+  if(uOrb.w>0.0){
+    float fa=atan(sv.y,sv.x);
+    float rel=mod((uOrb2.x-fa)*uOrb2.y,6.28318);
+    float inArc=smoothstep(0.0,0.30,uOrb.w*6.28318-rel);
+    float far=smoothstep(0.17,0.55,ar);
+    float seam=exp(-rel*rel*42.0)*far;
+    float lit=inArc*far*(0.34+0.42*uOrb.x);
+    col+=col*lit+palette(ph+0.30)*(lit*0.035+seam*0.055);
+  }
+  if(wake>0.0) col+=palette(ph+0.35)*wake*0.30;
+  /* the streak's other half. Small on purpose: the ROTATION is what carries
+     the reward, and light is the thing the luminance band polices. */
+  col*=(0.74+0.52*uEnergy)*(1.0+0.30*uCombo)*(1.0+0.12*uOrb.x);
   col*=(1.0+0.06*uBeat);
   /* ---- FRAME DRAGGING: the whole sky turns into the hole ----
      The star layers sample screen space, so they were the one part of the
@@ -8424,21 +8696,76 @@ void main(){
      clock, so over seventeen seconds the inner sky turns about half a
      revolution. Purely a sampling transform: no star moves in any coordinate
      the game reads, and nothing outside this shader knows it happened. */
-  vec2 sfrag=frag;
+  /* THE STARS TURN WITH THE SKY, for exactly the reason recorded above: a
+     field that bends under stars that do not is the tell that nothing is
+     really moving. Same sign discipline as the field rotation — sample by the
+     negative of the apparent turn — and composed with the frame dragging
+     below rather than competing with it. Computed unconditionally: at
+     uOrb.y 0 this is cos 1 / sin 0 and costs less than the branch would. */
+  vec2 fc=uCtr*uRes.y+0.5*uRes;
+  vec2 dv0=frag-fc;
+  vec2 sfrag=fc+vec2(dv0.x*spinC-dv0.y*spinS,dv0.x*spinS+dv0.y*spinC);
   if(uBH>0.0){
-    vec2 fc=uCtr*uRes.y+0.5*uRes;
-    vec2 dv3=frag-fc; float dl3=length(dv3)+1e-5;
+    vec2 dv3=sfrag-fc; float dl3=length(dv3)+1e-5;
     float fall=1.0/(1.0+dl3/(uRes.y*0.38));
     float swirl=uBH*(0.55+t*0.22)*fall;
     float pull=uBH*0.26*fall;
     float cs=cos(swirl),sn=sin(swirl);
     sfrag=fc+vec2(dv3.x*cs-dv3.y*sn,dv3.x*sn+dv3.y*cs)*(1.0-pull);
   }
-  col+=starLayer(sfrag,7.0,0.880,t,520.0,0.55)*(1.0+1.1*uPock*uBeat);
-  col+=starLayer(sfrag,17.0,0.905,t,1500.0,0.14);
-  col+=starLayer(sfrag,38.0,0.930,t,5200.0,0.0);
-  col*=clamp(1.0-0.62*pow(length(uv*vec2(0.88,0.66)),1.9),0.0,1.0);
+  /* uWC.z is the world's star gain. GLASS gates hard, which opens real void,
+     and turns the stars up to fill it; DUSTLANE keeps its mass and lets the
+     lanes do the carving, so its stars read through cloud. Same three layers,
+     weighted like everything else in a world. */
+  col+=starLayer(sfrag,7.0,0.880,t,520.0,0.55)*(1.0+1.1*uPock*uBeat)*uWC.z;
+  col+=starLayer(sfrag,17.0,0.905,t,1500.0,0.14)*uWC.z;
+  col+=starLayer(sfrag,38.0,0.930,t,5200.0,0.0)*uWC.z;
+  float vig=clamp(1.0-0.62*pow(length(uv*vec2(0.88,0.66)),1.9),0.0,1.0);
+  col*=vig;
   col+=vec3(0.010,0.013,0.032);
+  /* ================= THINGS THAT ARRIVE, CROSS AND LEAVE =================
+     The backdrop had no events at all — every layer was a continuous field
+     multiplied by a gain, and a gain is not an event. Nothing ever happened.
+     These are scheduled on the CPU (skyEvents) and idle at a negative life,
+     so a quiet sky costs three compares and a couple of multiplies.
+     evOut holds all of them off the arena, and it is a gameplay rule rather
+     than a taste one: a bright fast streak crossing the orbits is a thing a
+     player will try to dodge, and this game has no aimed input to dodge with.
+     Events belong to the sky, and the sky starts outside the rings. */
+  float evOut=smoothstep(0.15,0.40,ar)*mix(1.0,vig,0.55);
+  col+=(meteor(uv,uMetA)+meteor(uv,uMetB))*vec3(0.86,0.92,1.00)*0.85*evOut;
+  /* a distant star flares: a core, two diffraction spikes, and a wash that
+     lights the nebula it is standing in — the wash is what makes it depth
+     rather than a sprite */
+  if(uFlare.z>=0.0){
+    vec2 fd=uv-uFlare.xy; float fl=length(fd);
+    float fe=sin(uFlare.z*3.14159)*uFlare.w;
+    float fspk=exp(-abs(fd.x)*54.0-abs(fd.y)*880.0)+exp(-abs(fd.y)*54.0-abs(fd.x)*880.0);
+    col+=(exp(-fl*fl*1400.0)*1.6+fspk*0.30)*vec3(1.00,0.96,0.90)*fe*evOut;
+    col+=exp(-fl*2.1)*palette(ph+0.5)*fe*0.16*evOut;
+  }
+  /* ---- THE PASSING BODY: the sky gets an OBJECT ----
+     #98 argued, correctly, that "no amount of fBm is an object — a texture is
+     not a place", and tried to fix it by compositing the old baked 2D scene
+     back on top of the shader. That was reverted for veiling 69% of it. The
+     argument outlived the implementation: what the sky was missing was a
+     silhouette and a depth order, and both are cheap HERE, inside the field,
+     where the body OCCLUDES the nebula instead of being laid over it. A
+     terminator, a rim, and a wash of the world's own palette, so it reads as
+     somewhere rather than as a decal. */
+  if(uBody.z>0.0){
+    vec2 bd=uv-uBody.xy; float bl=length(bd); float R=uBody.z;
+    vec2 L=vec2(cos(uBody.w),sin(uBody.w));
+    float inside=smoothstep(R,R*0.985,bl);
+    if(inside>0.0){
+      /* the z of the surface normal at this pixel: a sphere, not a disc */
+      vec3 nrm=vec3(bd/R,sqrt(max(0.0,R*R-bl*bl))/R);
+      float ndl=max(0.0,dot(nrm,normalize(vec3(L,0.42))));
+      col=mix(col,(palette(ph+0.62)*0.30+vec3(0.010,0.010,0.020))*(0.10+1.45*ndl*ndl),inside);
+    }
+    col+=exp(-abs(bl-R)*140.0)*palette(ph+0.62)*0.55*evOut
+        *smoothstep(0.0,0.40,dot(normalize(bd+vec2(1e-5,1e-5)),L));
+  }
   /* ---- BLACK HOLE: gravity well, accretion disc, photon ring, palette shift ---- */
   if(uBH>0.0){
     /* EVERY BLACK HOLE TERM IS MEASURED FROM THE ARENA CENTRE, not the screen
@@ -8484,6 +8811,22 @@ void main(){
     vec3 evh=pcos(phShift,vec3(.34,.12,.30),vec3(.46,.20,.40),vec3(1.,.88,1.),vec3(.34,.08,.62));
     col=mix(col,col*evh*2.2,uBH*0.35);
   }
+  /* ---- THE RED BAN IS GONE, AND THIS IS WHAT REPLACES IT ----
+     The sky was kept out of the red family entirely because red is this
+     game's word for "danger" and a backdrop that says it by accident costs a
+     life. The owner lifted that so worlds like EMBERFALL could exist, against
+     the stated risk. What holds the contract now is narrower and sits where
+     the contract is actually read: local contrast is compressed in the
+     ANNULUS THE ORBITS OCCUPY — 0.09 to 0.20 of screen height, hence 0.145
+     +/- 0.115 here — so a hot sky can burn at the rim while the band a shard
+     is read against stays quiet. Hue is free everywhere. Brightness and
+     contrast directly behind the rings are not. uOrb2.w is SKY_ARENA_CALM;
+     set it to 0 for the unmoderated sky. */
+  {
+    float aq=(ar-0.145)/0.115;
+    float inBand=exp(-aq*aq)*uOrb2.w;
+    col=mix(col,mix(col,vec3(dot(col,vec3(0.299,0.587,0.114))),0.40)*0.74,inBand);
+  }
   col+=(hash21(frag)-0.5)*0.016;   /* static: kills banding without crawling */
   gl_FragColor=vec4(max(col,0.0),1.0);
 }`;
@@ -8512,7 +8855,8 @@ function glInit(){
     g.bufferData(g.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),g.STATIC_DRAW);
     const loc=g.getAttribLocation(pr,'p');
     g.enableVertexAttribArray(loc);g.vertexAttribPointer(loc,2,g.FLOAT,false,0,0);
-    for(const n of ['uRes','uCtr','uTime','uEnergy','uPal','uCov','uExp','uCombo','uBeat','uShr','uMotion','uBH','uPock','uFlow','uR1','uR2'])
+    for(const n of ['uRes','uCtr','uTime','uEnergy','uPal','uCov','uExp','uCombo','uBeat','uShr','uMotion','uBH','uPock','uFlow','uR1','uR2',
+                    'uWA','uWB','uWC','uPA','uPB','uPC','uPD','uOrb','uOrb2','uMetA','uMetB','uFlare','uBody'])
       GL.u[n]=g.getUniformLocation(pr,n);
     GL.g=g;GL.cv=cv;GL.pr=pr;GL.on=true;
     return true;
@@ -8621,6 +8965,130 @@ function glWatch(dt){
     }else GL.fast=0;
   }
 }
+/* ================= THE SKY'S OWN STATE =================
+   Where you are in the journey, how wound up the sky is, and what is crossing
+   it. All of it advances in skyStep(), called once from glRender, so the
+   backdrop has exactly one owner of its clock.
+   EVERY CLOCK HERE IS INTEGRATED, and that is the lesson from #96 rather than
+   a style: scaling a raw time by a factor that varies teleports the field by
+   (session length x the factor's change) the instant the factor moves. The
+   world's `motion` varies continuously as one world morphs into the next, so
+   it may only ever be applied to a DELTA.
+   THE 2D FALLBACK READS NONE OF THIS — it is baked sprites and cannot. The
+   orbit's teaching therefore does not live here alone: the arena-side lap arc
+   and the ORBIT lesson carry it on a device with no WebGL. */
+const SKY={
+  w:0,          /* continuous world position; the integer part is the world */
+  spin:0,       /* apparent rotation of the sky, radians, uv space, wrapped */
+  rate:0,       /* eased spin rate — the streak's visible memory */
+  charge:0,     /* eased lap streak, 0..1 */
+  wake:-1,      /* the closing ring's phase 0..1; <0 is idle */
+  wakeAmt:0,
+  met:[[0,0,0,-1],[0,0,0,-1]],metT:4,
+  flare:[0,0,-1,0],flareT:12,
+  body:[0,0,0,0],bodyT:40,
+  vt:null,motion:1};
+/* THE SPIN THE STREAK BUYS, in radians per second of APPARENT rotation.
+   SKY_SPIN_BASE is what an idle sky does. It is deliberately not zero: a sky
+   that turns only while you are on a streak reads as broken the rest of the
+   time, and the reward has to be a change of rate rather than the difference
+   between moving and dead. At full charge the sky turns about a fifth of a
+   revolution every ten seconds — clearly visible, never startling, which is
+   the brief for something that fires every few seconds. */
+const SKY_SPIN_BASE=0.014, SKY_SPIN_STREAK=0.115;
+function lerp3(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];}
+/* WHICH WORLD, AND HOW FAR INTO ARRIVING AT THE NEXT. A world is HELD for the
+   first four fifths of its span and morphs over the last fifth. Interpolating
+   the whole way would mean the sky is never actually anywhere — the failure
+   mode of every crossfade — and the point of the table is that these are
+   places. smoothstep on the morph so neither end has a corner. */
+function skyMix(){
+  const n=WORLDS.length;
+  const wf=Math.max(0,SKY.w),i=Math.floor(wf),fr=wf-i;
+  const A=WORLDS[i%n],B=WORLDS[(i+1)%n];
+  const x=Math.max(0,Math.min(1,(fr-0.80)/0.20)),t=x*x*(3-2*x);
+  const L=function(k){return A[k]+(B[k]-A[k])*t;};
+  return {wa:[L('bill'),L('broad'),L('cont'),L('fil')],
+          wb:[L('contF'),L('contY'),L('contK'),L('filK')],
+          wc:[L('lane'),L('cov'),L('star'),L('gain')],
+          pa:lerp3(A.pa,B.pa,t),pb:lerp3(A.pb,B.pb,t),
+          pc:lerp3(A.pc,B.pc,t),pd:lerp3(A.pd,B.pd,t),motion:L('motion')};
+}
+/* A LAP CLOSED. Called from the orbit block in update() — the sky's half of
+   the payout, beside the popup and the arpeggio. */
+function skyWake(streak){
+  if(RM)return;
+  SKY.wake=0;
+  SKY.wakeAmt=0.55+0.45*Math.min(1,Math.max(0,(streak-1)/4));
+}
+function skyStep(dt){
+  const vt=RM?12:G.vt;
+  const dv=SKY.vt===null?0:Math.max(0,vt-SKY.vt);
+  SKY.vt=vt;
+  const play=G.state==='playing';
+  SKY.w=G.skyW||0;
+  const M=skyMix();SKY.motion=M.motion;SKY.mix=M;
+  /* THE STREAK, EASED. G.lapStreak is an integer that jumps and the sky must
+     not. k saturates at streak 5 — the same curve the payout uses, min(1,
+     (streak-1)/4) — so the sky and the score agree about what a big streak
+     is. Rising faster than it falls: earning it should feel immediate, losing
+     it should be something you watch happen. */
+  const tgt=play?Math.min(1,Math.max(0,(G.lapStreak-1)/4)):0;
+  SKY.charge+=(tgt-SKY.charge)*Math.min(1,dt*(tgt>SKY.charge?1.6:0.85));
+  /* THE SPIN FOLLOWS TRAVEL. G.dir is negated because uv is y-up while the
+     game's angle is y-down, so a comet travelling "clockwise" on screen must
+     wind the sky the same way on screen. The rate EASES, which is the whole
+     mechanism: a reverse zeroes the streak, the target rate collapses and
+     flips, and the sky spends a couple of seconds stalling and turning back.
+     Turning around used to cost a number in the corner. It now costs the
+     motion of the entire backdrop, in front of you, every time. */
+  const want=(RM||!play)?0:(-(G.dir||1))*(SKY_SPIN_BASE+SKY_SPIN_STREAK*SKY.charge);
+  SKY.rate+=(want-SKY.rate)*Math.min(1,dt*0.85);
+  /* wrapped, or highp runs out of mantissa on a long session and the sky
+     starts stepping */
+  SKY.spin=(SKY.spin+SKY.rate*dv)%TAU;
+  if(SKY.wake>=0){SKY.wake+=dv*0.62;if(SKY.wake>1)SKY.wake=-1;}
+  /* ---- the event scheduler. Reduced motion gets a sky where nothing
+     arrives, for the same reason it gets a still one. ---- */
+  if(RM||!play){SKY.met[0][3]=SKY.met[1][3]=-1;SKY.flare[2]=-1;SKY.body[2]=0;return;}
+  for(let i=0;i<2;i++){const m=SKY.met[i];if(m[3]>=0){m[3]+=dv*0.55;if(m[3]>1)m[3]=-1;}}
+  SKY.metT-=dv;
+  if(SKY.metT<=0){
+    SKY.metT=rand(3.5,11);
+    const s=SKY.met[0][3]<0?0:(SKY.met[1][3]<0?1:-1);
+    if(s>=0){
+      /* enters from off-frame and crosses: start on a circle wider than any
+         viewport, aimed back across it with a little jitter */
+      const a0=Math.random()*TAU,m=SKY.met[s];
+      m[0]=Math.cos(a0)*1.15;m[1]=Math.sin(a0)*1.15;
+      m[2]=Math.atan2(-m[1],-m[0])+rand(-0.45,0.45);m[3]=0;
+    }
+  }
+  if(SKY.flare[2]>=0){SKY.flare[2]+=dv*0.42;if(SKY.flare[2]>1)SKY.flare[2]=-1;}
+  else{
+    SKY.flareT-=dv;
+    if(SKY.flareT<=0){
+      SKY.flareT=rand(17,44);
+      const a=Math.random()*TAU,rr=rand(0.34,0.62);
+      SKY.flare[0]=Math.cos(a)*rr;SKY.flare[1]=Math.sin(a)*rr;
+      SKY.flare[2]=0;SKY.flare[3]=rand(0.5,1.0);
+    }
+  }
+  if(SKY.body[2]>0){
+    SKY.body[0]+=dv*0.016;                    /* about three minutes to cross */
+    if(SKY.body[0]>1.5)SKY.body[2]=0;
+  }else{
+    SKY.bodyT-=dv;
+    if(SKY.bodyT<=0){
+      SKY.bodyT=rand(95,210);
+      SKY.body[0]=-1.4;
+      /* kept off the arena's own latitude — a lit crescent directly behind
+         the rings is exactly the light the calm band exists to prevent */
+      SKY.body[1]=(0.24+Math.random()*0.22)*(Math.random()<0.5?1:-1);
+      SKY.body[2]=rand(0.055,0.135);SKY.body[3]=Math.random()*TAU;
+    }
+  }
+}
 function glRender(dt){
   if(!GL.on)return;
   glWatch(dt);
@@ -8635,14 +9103,23 @@ function glRender(dt){
     /* the backdrop is the largest moving object on the screen and it ignored
        the dilation completely — the sky drifted at full speed behind an arena
        running at 0.42x, which is most of why the slow motion did not read */
-    g.uniform1f(GL.u.uTime,RM?12:G.vt);
-    /* the integrated flow clock: at pocket 0 it advances at exactly the old
-       uTime*uMotion rate; in the pocket the advection runs 3.2x — the calm
-       GL_MOTION bought at rest is spent as the reward for holding the beat.
-       Under RM vt is pinned, the delta is 0 and the field stays still. */
+    skyStep(dt);
+    const SM=SKY.mix;
+    /* BOTH SKY CLOCKS ARE INTEGRATED NOW, and uTime joined uFlow for the same
+       reason uFlow was integrated in the first place: the world's `motion`
+       varies continuously through a morph, and `uTime*variable` teleports the
+       whole field by (session length x the change) the instant the variable
+       moves. uTime used to be raw G.vt scaled in the shader by the constant
+       uMotion, which was safe only because the factor was a constant. It is
+       not one any more — DUSTLANE broods at 0.60 and VEIL storms at 1.30 —
+       so the scaling moved to the delta, where a varying factor is harmless.
+       uMotion keeps exactly one job: the reduced-motion switch, 0 or 1. */
     {const fvt=RM?12:G.vt;
-     GL.flow+=Math.max(0,fvt-(GL.flowVt===null?fvt:GL.flowVt))*GL_MOTION*(1+2.2*(RM?0:G.pocket));
-     GL.flowVt=fvt;}
+     const d=Math.max(0,fvt-(GL.flowVt===null?fvt:GL.flowVt));
+     GL.flowVt=fvt;
+     GL.tw+=d*GL_MOTION*SKY.motion;
+     GL.flow+=d*GL_MOTION*SKY.motion*(1+2.2*(RM?0:G.pocket));}
+    g.uniform1f(GL.u.uTime,GL.tw);
     g.uniform1f(GL.u.uFlow,GL.flow);
     g.uniform1f(GL.u.uPock,RM?0:G.pocket);
     g.uniform1f(GL.u.uEnergy,Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow+0.35*G.pocket));
@@ -8652,7 +9129,25 @@ function glRender(dt){
     g.uniform1f(GL.u.uCov,GL_COV);
     g.uniform1f(GL.u.uExp,GL_EXP);
     g.uniform1f(GL.u.uShr,RM?0:GL.shear);
-    g.uniform1f(GL.u.uMotion,RM?0:GL_MOTION);
+    g.uniform1f(GL.u.uMotion,RM?0:1);
+    /* ---- the world, lerped on the CPU so the shader never branches ---- */
+    g.uniform4f(GL.u.uWA,SM.wa[0],SM.wa[1],SM.wa[2],SM.wa[3]);
+    g.uniform4f(GL.u.uWB,SM.wb[0],SM.wb[1],SM.wb[2],SM.wb[3]);
+    g.uniform4f(GL.u.uWC,SM.wc[0],SM.wc[1],SM.wc[2],SM.wc[3]);
+    g.uniform3f(GL.u.uPA,SM.pa[0],SM.pa[1],SM.pa[2]);
+    g.uniform3f(GL.u.uPB,SM.pb[0],SM.pb[1],SM.pb[2]);
+    g.uniform3f(GL.u.uPC,SM.pc[0],SM.pc[1],SM.pc[2]);
+    g.uniform3f(GL.u.uPD,SM.pd[0],SM.pd[1],SM.pd[2]);
+    /* ---- the orbit. uOrb2.x/.y convert the game's y-down angle and travel
+       direction into the shader's y-up frame; getting that pair wrong points
+       the lap sector at the half of the sky the comet has NOT swept. ---- */
+    const lw=(G.state==='playing'&&!RM)?Math.min(1,(G.lapAcc||0)/TAU):0;
+    g.uniform4f(GL.u.uOrb,SKY.charge,SKY.spin,SKY.wake,lw);
+    g.uniform4f(GL.u.uOrb2,-(G.angle||0),-(G.dir||1),SKY.wakeAmt,SKY_ARENA_CALM);
+    g.uniform4f(GL.u.uMetA,SKY.met[0][0],SKY.met[0][1],SKY.met[0][2],SKY.met[0][3]);
+    g.uniform4f(GL.u.uMetB,SKY.met[1][0],SKY.met[1][1],SKY.met[1][2],SKY.met[1][3]);
+    g.uniform4f(GL.u.uFlare,SKY.flare[0],SKY.flare[1],SKY.flare[2],SKY.flare[3]);
+    g.uniform4f(GL.u.uBody,SKY.body[0],SKY.body[1],SKY.body[2],SKY.body[3]);
     /* THE BACKDROP RAMPS WITH THE MODE. uBH was pinned at 1.0 for all
        seventeen seconds while the density climbed 1.5x to 3.5x and the piece
        built to a crescendo — the one channel that could show the hole growing
@@ -9593,9 +10088,17 @@ function draw(){
     let a0,a1;
     if(G.dir===1){a0=G.angle-G.lapAcc;a1=G.angle;}
     else{a0=G.angle;a1=G.angle+G.lapAcc;}
-    ctx.globalAlpha=0.55;
+    /* THE ARC CLOSES VISIBLY NOW. It was one flat stroke at 0.55 alpha and 3px
+       for the whole lap, which reports "something is being counted" and never
+       "this is nearly done" — and a progress reading that does not tighten
+       toward its end is not read as progress at all. That is part of why the
+       mechanic went unnoticed: the one channel that showed a lap in flight
+       looked identical at 5% and at 95%. Both alpha and width now climb with
+       the lap, so closing one has a visible approach as well as a payout. */
+    const lk=G.lapAcc/TAU;
+    ctx.globalAlpha=0.40+0.45*lk;
     ctx.strokeStyle=G.lapEmbers>=3?COL.ember:(G.lapEmbers>=1?COL.comet:'rgba(170,195,255,0.55)');
-    ctx.lineWidth=3;
+    ctx.lineWidth=2.4+2.4*lk;
     ctx.beginPath();ctx.ellipse(ecx(lr),ecy(lr),lr,lr*AY,0,a0,a1);ctx.stroke();
     ctx.globalAlpha=1;
   }

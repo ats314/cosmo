@@ -2045,6 +2045,110 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   anything else, and the lost/restored listeners drop the six render targets —
   a restored context hands back a new context object and every texture,
   framebuffer and program made against the old one is dead.
+- **The backdrops were one picture recoloured four times, and orbits were the
+  game's biggest unnamed mechanic. Those turned out to be one problem.** The
+  owner's brief, verbatim: the backgrounds are *"too similar, not lively
+  enough, not fun and exciting, not integrated with gameplay"*, and separately
+  *"many people have complained they didnt even know they were supposed to do
+  orbits"*.
+
+  The diagnosis for the first was that `SKY_BANDS` only ever changed the
+  sky's **palette**. The geometry underneath — two-level domain-warped fBm,
+  ridged dust, three star layers, one vignette — was identical in all four
+  bands, and the recolour was gated on ladder milestones most runs never
+  reach. There were also no *events* anywhere in the backdrop: every layer was
+  a continuous field multiplied by a gain, and a gain is not an event. Nothing
+  ever arrived, crossed, or left. And the gameplay coupling that did exist was
+  all gain too — brightness up, hue walk, a small ripple — which is precisely
+  the kind of change a player never notices they caused.
+
+  **A world is a set of weights over structures the shader already computes.**
+  This is the whole trick and it is borrowed from the pocket's crystallize,
+  where `ridged()` had already been paid for by the dust lanes so re-entering
+  it as *light* cost nothing. Four structures are recovered from the two fBm
+  fields and the ridged field the chain evaluates anyway: soft **billows**
+  (smoothstep over the warped field), large-scale **mass** (the 4-octave
+  field), **contours** — `sin()` of a scalar field is a level set, and level
+  sets of fBm are curtains, so an aurora world costs zero noise evaluations —
+  and the **filament** network (the ridged field as light, at a per-world
+  sharpness). `WORLDS` says which of them a world is made of, plus its dust
+  depth, void, star gain, temperament and palette. Six of them: DRIFT, TIDE,
+  GLASS, EMBERFALL, DUSTLANE, VEIL.
+
+  The weights are **lerped on the CPU**, so the shader never branches on a
+  world and never evaluates two. A transition is therefore filaments
+  dissolving into billows rather than a crossfade between two pictures, and it
+  costs nothing. A world is *held* for the first four fifths of its span and
+  morphs over the last fifth — interpolating the whole way would mean the sky
+  is never actually anywhere, which is the failure mode of every crossfade and
+  the opposite of the point.
+
+  **Orbits are how you travel.** Every completed lap buys a seventh of the way
+  to the next world; the lap streak winds the entire backdrop into a rotation
+  that follows your direction of travel; closing a lap surges the nebula's own
+  mass outward in a slow wide ring; and the wedge of sky *behind* the comet
+  lifts as you sweep it, closing as the orbit completes. That last one is the
+  answer to the discoverability complaint: the arena has carried a lap arc for
+  a long time and it did not teach, because it is three pixels of stroke at
+  the exact radius the player is scanning for shards. The lap is now drawn
+  where there is nothing else to look at. A first-lap `orbit` lesson names it
+  once; the arena arc now thickens and brightens as it closes, where before it
+  looked identical at 5% and 95%.
+
+  **And turning around takes it back, visibly.** A reverse zeroes the streak,
+  the spin's target rate collapses and flips, and the sky spends a couple of
+  seconds stalling and unwinding. The cost of a reverse used to be a number in
+  the corner; it is now the motion of the entire screen.
+
+  **Things happen now.** Meteors cross every 3.5–11s, a distant star flares
+  every 17–44s with a wash that lights the nebula it stands in, and a
+  **passing body** drifts through every 95–210s — an object with a silhouette,
+  a terminator and a rim, which *occludes* the nebula rather than being laid
+  over it. That last one settles an argument: [#98](../../pull/98) was right
+  that *"no amount of fBm is an object — a texture is not a place"*, and wrong
+  to fix it by compositing the old baked 2D scene back on top of the shader,
+  which was reverted for veiling 69% of it. The argument outlived the
+  implementation. Everything is held off the arena by one shared term: this
+  game has no aimed input, so nothing crossing the rings may look like
+  something to dodge.
+
+  **The red ban is gone, and `GL_MOTION` went back up.** Both were the owner's
+  call against a stated risk. What replaces the ban is narrower and sits where
+  the "red means danger" contract is actually read — `SKY_ARENA_CALM`
+  compresses contrast in the annulus the orbits occupy, so EMBERFALL burns at
+  the rim while the band a shard is read against stays quiet. Hue is free;
+  contrast behind the rings is not. `GL_MOTION` 0.42 → 0.72, now multiplied by
+  a per-world `motion` of 0.60–1.30, so the effective dial runs 0.43–0.94 and
+  DUSTLANE still broods slower than the old constant while VEIL runs at more
+  than twice it. The motion that failed playtesting at 1.0 was *undirected* —
+  a uniform drift of everything, meaning nothing. What is faster now is a sky
+  that has somewhere to be.
+
+  **What was measured, since "it is in the source" is not evidence.** All 24
+  reachable states (6 worlds x 3 samples along every morph) swept over the
+  full drift orbit: mean 0.140–0.199, darkest 0.047–0.100. DRIFT is unchanged
+  to four decimals against the sky that shipped — 0.1490 mean, 0.0374 darkest,
+  against its recorded 0.149/0.038 — because the opening sky had to survive
+  the overhaul. Driven through the real game against a recording GL: streak 5
+  winds the sky's charge 0.00 → 0.98 and spins it at 0.102 rad/s *opposite*
+  `G.dir` (uv counts y up, the game's angle counts it down), a completed lap
+  fires the wave and advances the journey by 0.143 of a world, and losing the
+  streak unwinds the charge to 0.03. Eight mutations were run against the new
+  guards — a world that blacks out, one that floods, the spin sign inverted,
+  the gate floor bypassed, weights that stop summing to 1, a uniform looked up
+  but never written, and both halves of the y-flip dropped — and all eight
+  fail the build.
+
+  **Three holes in `fxcheck.mjs` were found by doing this and are now closed.**
+  The recording GL had no `uniform4f` at all, and its absence failed in the
+  worst possible shape: the backdrop's first vec4 write threw, `glRender`'s own
+  catch swallowed it into `GL.on=false`, and the harness reported *"the
+  backdrop shader did not come up against a working GL"* — a message about the
+  shader, for a hole in the harness. `GL.u` was not in the "declared but never
+  written" loop, so a backdrop uniform looked up and never fed was invisible;
+  it is now, which matters more with 29 uniforms than it did with 16. And the
+  fake now records the *values* written to each uniform, not only the names,
+  so a check can assert what actually reached the GPU.
 - **The sky had blackouts built in, and now provably cannot.** The coverage
   gate that carves the nebula into clouds is sampled at `uv*0.75` — a phone
   screen spans about a *quarter of one coverage cell*, so the whole sky rides
@@ -2056,13 +2160,27 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   same-build screenshots taken four hours apart, one vivid and one black, and
   confirmed by a numeric port of the chain (mean luminance 0.0000 across the
   epoch a phone had parked in). The drift is now an **ellipse** at the same
-  tangential speed — one ~95-minute lap is every sky the game can ever show —
-  and the gate is **floored**, so a barren stretch reads quiet rather than
-  black. Because the reachable skies are now a closed set, `fxcheck.mjs`
-  sweeps the entire orbit through a line-for-line port and pins the darkest
-  point (measured: 0.069 against a mean of 0.218; the assertion floor is
-  0.04), with the orbit and floor constants parsed from the shader so a retune
-  retunes the check.
+  tangential speed — one lap (~14 minutes at the current `GL_MOTION`) is every
+  drift the game can ever show — and the gate is **floored** at
+  `0.10 + 0.90*smoothstep`, so a barren stretch reads quiet rather than black.
+  Because the reachable skies are a closed set, `fxcheck.mjs` sweeps the
+  entire orbit through a line-for-line port and pins **both** directions of
+  the band, with the orbit, gate, structure and spin constants parsed from the
+  shader so a retune retunes the check. *(This paragraph carried the retired
+  0.42 floor and a ~95-minute lap for two commits after they were superseded —
+  both are the numbers from before the orbit's territory was re-chosen. The
+  same stale pair was in `docs/invariants.md`. Fixed in the backdrop
+  overhaul.)*
+  **The set is now a product**, because there are six worlds rather than one
+  structure: (drift orbit) x (adjacent world pair). It stays sweepable because
+  every world's structure weights sum to 1, its coverage weight is a mix
+  factor that can only raise the never-black floor, and its exponents are >= 1
+  — all three checked rather than trusted. The sweep covers all six worlds and
+  three points along every morph between neighbours, which the midpoint alone
+  did not: the first cut found a transition at 0.238 mean against 0.166 and
+  0.164 at its two ends. Measured after balancing: **mean 0.140–0.199,
+  darkest 0.047–0.100 across all 24 states**, with DRIFT held to the
+  historical 0.1490/0.0374.
 - **The render scale climbs as well as falls — but only on gameplay frames,
   and the degrade ladder sheds in order of identity.** `GL_SCALE` is 0.60 and
   rises toward 1.0 on a machine holding its frame; the ceiling *latches down*

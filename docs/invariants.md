@@ -355,16 +355,73 @@ render-scale dial.*
   as the game being broken, not as weather. It shipped that way from the
   shader's first day and was found from two same-build screenshots hours
   apart: one vivid, one black. Two rules now hold. The drift is an ELLIPSE, so
-  one ~95-minute lap is every sky the game can ever show, and a closed set can
-  be verified end to end. The gate is FLOORED (0.42 + 0.58*smoothstep), so a
-  barren stretch reads quiet, never black. `fxcheck.mjs` carries a
-  line-for-line port of the nebula chain, parses the orbit and floor constants
-  from the shader source, sweeps the full orbit, and fails if the darkest
-  point drops under 0.04 mean luminance — and its fake GL asserts every
-  uniform component is FINITE, because a NaN reaching a uniform renders as
-  black on a real GPU and throws nowhere. If you retune the sky, the port
-  retunes with you; if you restructure the chain, update the port in the same
-  commit or the parse tripwires fail loudly.
+  one lap (~14 minutes at the current `GL_MOTION`) is every drift the game can
+  ever show, and a closed set can be verified end to end. The gate is FLOORED
+  (`0.10 + 0.90*smoothstep`), so a barren stretch reads quiet, never black.
+  **These two numbers were wrong here for two commits** — this entry quoted the
+  retired `0.42 + 0.58` floor and a ~95-minute lap, both superseded when the
+  orbit's territory was re-chosen to match the historical look. `README.md`
+  carried the same pair. That is the exact failure the curriculum entry above
+  warns about: a constraint that disagrees with its own enforcement costs more
+  than a missing one, because it makes the careful reader wrong.
+
+  **THE CLOSED SET IS NOW A PRODUCT, AND THE WORLD TABLE IS WHY IT IS STILL
+  CLOSED.** "One lap is every sky" was true when there was one structure.
+  There are six now — `WORLDS` — and the reachable set is (drift orbit) x
+  (adjacent world pair). It stays finite and sweepable because of three
+  properties, and all three are enforced in `fxcheck.mjs` rather than trusted:
+  every row's four structure weights SUM TO 1, so a world is a blend and never
+  a gain, and a lerp between two such rows still sums to 1; `cov` is a mix
+  factor in 0..1 and the gate enters as `mix(1.0, gate, cov)`, which can only
+  ever RAISE the never-black floor and never lower it; and the exponents are
+  >= 1, because `pow(0.0, 0.0)` is undefined in GLSL ES and both of those
+  bases reach 0. `fxcheck.mjs` sweeps all six worlds AND three points along
+  each morph between neighbours over the full drift orbit — the midpoint alone
+  was not enough, because the first cut of this found a transition measuring
+  0.238 mean against 0.166 and 0.164 at its two ends: **a blend of two safe
+  worlds is not automatically a safe world.**
+
+  `fxcheck.mjs` carries a line-for-line port of the nebula chain, parses the
+  orbit, gate, structure-blend and spin constants out of the shader source,
+  reads `WORLDS` out of `index.html` rather than copying it, and pins both
+  directions of the luminance band — and its fake GL asserts every uniform
+  component is FINITE, because a NaN reaching a uniform renders as black on a
+  real GPU and throws nowhere. **DRIFT is the anchor and is held to the
+  historical numbers to four decimals** (0.1490 mean, 0.0374 darkest, against
+  the measured 0.149/0.038 of the sky that shipped); the other five are held
+  only to "does not black out, does not flood, does not stop resting", because
+  a world brighter or fuller than DRIFT is a world rather than a regression.
+  If you retune the sky, the port retunes with you; if you restructure the
+  chain, update the port in the same commit or the parse tripwires fail loudly.
+
+- **THE RED BAN IS LIFTED, AND WHAT REPLACED IT IS NARROWER RATHER THAN
+  ABSENT.** The sky was kept out of the red family and under the opening
+  band's luminance so it could never compete with a shard for the word
+  "danger". The owner lifted both, deliberately and against a stated risk, so
+  that worlds like EMBERFALL could exist and the backdrop could stop being
+  four recolours of one picture. The contract is now held where it is actually
+  read: `SKY_ARENA_CALM` compresses local contrast in the annulus the orbits
+  occupy (0.09–0.20 of screen height), so a hot sky burns at the rim while the
+  band a shard is read against stays quiet. **Hue is free everywhere;
+  brightness and contrast directly behind the rings are not.** If a playtest
+  ever reports mistaking backdrop for hazard, that dial is the first thing to
+  move and 0 gives the unmoderated sky — do not reintroduce a hue ban without
+  asking, it was a decision and not an oversight.
+
+- **A SCREEN-SPACE ROTATION IS THE SAME TRAP AS A SCREEN-SPACE WARP.** The
+  orbit spin turns the sky by rotating the SAMPLE coordinate, so its sign is
+  the opposite of its intent, exactly like the lens below. It is stated in the
+  code as a sentence about where a thing ends up — "a feature drawn at uv
+  angle A appears at angle A + uOrb.y" — and `fxcheck.mjs` asserts that
+  sentence numerically by running the parsed transform, because this precise
+  inversion has shipped backwards three times in this file. The second frame
+  conversion beside it is just as easy to get wrong and just as invisible:
+  `uOrb2.x/.y` carry the comet's angle and direction from the game's y-DOWN
+  frame into the shader's y-UP one, and inverting that pair lights the half of
+  the sky the comet has NOT swept — which animates convincingly and teaches
+  the player the opposite of the mechanic. Also asserted, the same way.
+  **Anything new that rotates, sweeps or sweeps-behind gets the same
+  treatment: follow one point through both frames and assert where it lands.**
 
 - **A visual feature is not shipped until something proves it reaches a pixel.**
   `fxcheck.mjs` now covers the GL path specifically — use it, extend it, and
