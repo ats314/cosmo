@@ -1972,6 +1972,18 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   whole coarse pixel swung the old halo's reach 8.8% and its peak 5.7%; the
   gaussian swings 3.5% and 3.2%. If any of it fails, `FX.on` goes false and
   the two discs per light come straight back.
+- **The glow falls off the screen edge instead of reflecting.** WebGL1 has no
+  `CLAMP_TO_BORDER`, so a blur tap past the texture edge reads the edge texel
+  back — light that should slide off-screen was reflected into the outermost
+  band, a thin bright frame at the border whenever the comet or its sparks
+  passed near it, compounded by every pass of the chain. Measured with the
+  shipped kernel: **1.82×** the physical level at the border; a playtester
+  photographed it. Out-of-bounds taps now contribute nothing, so the border
+  reads 0.55× — the energy genuinely leaves the screen, as it would at a
+  window's edge — and interior fragments are bit-identical, since all their
+  taps are in bounds. `fxcheck.mjs` parses the kernel out of the shader,
+  simulates the chain with whichever sampling semantics the source actually
+  has, and fails at 1.05× border gain.
 - **The glow can be bent, because it is a field now and not a pile of discs.**
   Radial chromatic aberration scaled by the same energy that drives the sky —
   zero at the arena centre by construction, 0.57px of R/B separation a quarter

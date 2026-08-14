@@ -8709,15 +8709,27 @@ const FX={on:false,g:null,cv:null,prB:null,prC:null,uB:{},uC:{},
 const FX_VS='attribute vec2 p;varying vec2 vUv;void main(){vUv=p*0.5+0.5;gl_Position=vec4(p,0.,1.);}';
 /* the five-tap linear-sampled gaussian: nine taps' worth of weight for five
    fetches, because a bilinear fetch between two texels IS two weighted taps */
+/* OUT-OF-BOUNDS TAPS CONTRIBUTE NOTHING, and the border is why. WebGL1 has
+   no CLAMP_TO_BORDER, so a tap past the texture edge reads the edge texel
+   back — light that should have slid off the screen is REFLECTED into the
+   outermost band instead, and every pass of the chain compounds it. Modelled
+   with this exact kernel: a light one texel from the border glowed 1.82x
+   brighter at the screen edge than the same light does mid-screen — a thin
+   bright frame hugging the border whenever the comet or its sparks pass
+   near it, which a playtester photographed. Zero-weighting the out-of-bounds
+   taps loses that energy off-screen, which is what physically happens to a
+   glow at a window's edge: measured border level drops to 0.55x. Interior
+   fragments have every tap in bounds and are bit-identical either way. */
 const FX_BLUR=`
 precision mediump float;
 uniform sampler2D uTex; uniform vec2 uStep;
 varying vec2 vUv;
+float inb(vec2 p){return step(0.0,p.x)*step(p.x,1.0)*step(0.0,p.y)*step(p.y,1.0);}
 void main(){
   vec4 s=texture2D(uTex,vUv)*0.2270270270;
   vec2 o1=uStep*1.3846153846, o2=uStep*3.2307692308;
-  s+=(texture2D(uTex,vUv+o1)+texture2D(uTex,vUv-o1))*0.3162162162;
-  s+=(texture2D(uTex,vUv+o2)+texture2D(uTex,vUv-o2))*0.0702702703;
+  s+=(texture2D(uTex,vUv+o1)*inb(vUv+o1)+texture2D(uTex,vUv-o1)*inb(vUv-o1))*0.3162162162;
+  s+=(texture2D(uTex,vUv+o2)*inb(vUv+o2)+texture2D(uTex,vUv-o2)*inb(vUv-o2))*0.0702702703;
   gl_FragColor=s;
 }`;
 const FX_COMP=`

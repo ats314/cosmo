@@ -398,6 +398,60 @@ function crossFront(st, frame, fire, pid) {
   note.push('lost context: glow stood down, discs took over');
 }
 
+/* ================= 1c2. THE GLOW FALLS OFF THE SCREEN EDGE =================
+   WebGL1 has no CLAMP_TO_BORDER: a blur tap past the texture edge reads the
+   edge texel back, so light that should slide off-screen is REFLECTED into
+   the outermost band — a thin bright frame at the screen border whenever a
+   light passes near it, compounded by every pass of the chain. Measured with
+   the shipped kernel: 1.82x at the border against the physical level. The
+   fix zero-weights out-of-bounds taps (the inb() factor in FX_BLUR).
+   Checked BEHAVIORALLY: the kernel constants are parsed from the shader and
+   the 1-D chain is simulated with the sampling semantics the source actually
+   has — guarded if inb() is applied to the taps, clamped if not — and the
+   border gain must stay at or under the physical level. Removing the guard
+   flips the simulation to clamped sampling and fails at 1.8x. */
+{
+  const fsB = src.match(/const FX_BLUR=`([\s\S]*?)`;/);
+  if (!fsB) fail.push('FX_BLUR not found — the edge-pileup check cannot run');
+  else {
+    const body = fsB[1];
+    const kc = body.match(/texture2D\(uTex,vUv\)\*([\d.]+)/);
+    const k1 = body.match(/\)\)\*([\d.]+);\s*\n\s*s\+=/);
+    const k2 = body.match(/\)\)\*([\d.]+);\s*\n\s*gl_FragColor/);
+    const o1 = body.match(/o1=uStep\*([\d.]+)/), o2 = body.match(/o2=uStep\*([\d.]+)/);
+    const guarded = /texture2D\(uTex,vUv\+o1\)\*inb\(vUv\+o1\)/.test(body) &&
+                    /texture2D\(uTex,vUv-o2\)\*inb\(vUv-o2\)/.test(body);
+    const spread = src.match(/const FX_SPREAD=([\d.]+)/);
+    if (!(kc && k1 && k2 && o1 && o2 && spread)) {
+      fail.push('FX_BLUR kernel no longer parses — the edge-pileup check cannot run; update it with the shader');
+    } else {
+      const KC = +kc[1], K1 = +k1[1], K2 = +k2[1], O1 = +o1[1] * +spread[1], O2 = +o2[1] * +spread[1];
+      const clamp1 = (a, x) => { const n = a.length, xx = Math.min(n - 1, Math.max(0, x)); const i = Math.floor(xx), f = xx - i, j = Math.min(n - 1, i + 1); return a[i] * (1 - f) + a[j] * f; };
+      const S = guarded ? (a, x) => (x < -0.5 || x > a.length - 0.5) ? 0 : clamp1(a, x)
+                        : clamp1;
+      const blur = a => a.map((_, i) => S(a, i) * KC + (S(a, i + O1) + S(a, i - O1)) * K1 + (S(a, i + O2) + S(a, i - O2)) * K2);
+      const down2 = a => Array.from({ length: a.length >> 1 }, (_, i) => S(a, i * 2 + 0.5));
+      const N = 98;
+      const run = pos => {
+        let a = new Array(N).fill(0);
+        for (let k = -2; k <= 2; k++) { const i = pos + k; if (i >= 0 && i < N) a[i] = 1 - Math.abs(k) * 0.3; }
+        let b = blur(blur(a)); let c = blur(blur(down2(b))); let d = blur(blur(down2(c)));
+        const upv = (arr, i) => clamp1(arr, (i + 0.5) * arr.length / N - 0.5);
+        return i => 0.62 * upv(b, i) + 0.85 * upv(d, i);
+      };
+      const border = run(1)(0);
+      const physical = run(49)(48);
+      const gain = border / physical;
+      if (gain > 1.05) {
+        fail.push(`the glow piles up at the screen border: ${gain.toFixed(2)}x the physical level `
+          + '— out-of-bounds blur taps are reading the clamped edge texel back instead of contributing nothing');
+      } else {
+        note.push(`glow at the screen border: ${gain.toFixed(2)}x physical — light falls off the edge, no rim`);
+      }
+    }
+  }
+}
+
 /* ================= 1d. THE SKY CAN NEVER GO BLACK =================
    Field failure, measured after the fact: the nebula's coverage gate rode a
    SINGLE sample of a noise field (the screen spans a quarter of one coverage
