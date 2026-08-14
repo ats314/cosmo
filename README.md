@@ -1098,6 +1098,58 @@ entered three times in the game's whole recorded history.
   invulnerability grace after it fades, so the star never dumps you at
   double speed into an armed shard. Everything pays double while it burns.
 
+  **And the song gets a star tune**, which is what the playtest was really
+  asking for. Doubling the kit is a *texture* change — the same song, busier.
+  What a star does in the game everyone means by that comparison is melodic: a
+  different tune arrives, instantly, and it is unmistakably the invincibility
+  tune. So `STARRUN` is sixteen sixteenths that climb and wrap — four ascending
+  four-note cells, each starting a degree higher than the last, so the line
+  spirals upward and never resolves — restated every bar for as long as you are
+  untouchable, over a driving eighth-note bass on the live chord's root, with
+  the band's pad opening 1.22× underneath rather than stepping back.
+
+  It is an **overlay, not a section**, and both halves of that are deliberate.
+  The star already lifts the record into the chorus (hypernova is in the
+  hot-play set) — but that lift can only land at a four-bar seam, and a seam
+  can be most of a loop away against a star that lasts four bars, so a player
+  could take the orb, hear nothing change, and have it expire before the
+  section arrived. The one thing this moment cannot be is late. And a third
+  *section* was not available: `applySect` is the only writer of `CH`/`ARP`,
+  sections change only at a four-bar seam, and a star that swapped the harmony
+  mid-bar would break the rule the payoff, rise, black hole and star dive
+  exceptions exist to protect. An overlay adds a voice above whatever harmony
+  is already playing, so it is immediate and cannot collide with anything.
+  Written as pentatonic degrees 4–10 — an interval over the level's own tonic,
+  never a frequency — so it transposes with the key and stays consonant against
+  every chord in either section, and it sits above the band's degree-4 arp
+  ceiling because it is the one voice meant to be *on top* of the arrangement.
+  A black hole outranks it. `musiccheck.mjs` holds all of that: every degree
+  sounded on every level, the density (2 voices in that register cold against
+  66 with the star), silence through a black hole, and — the one that has
+  shipped wrong twice in this file — that `bedTick` actually lifts the pad,
+  because it is the only writer of `BED.g` and scheduling extra voices alone
+  cannot make a band louder.
+
+  **And the tail becomes the comet.** "A comet flying through orbit with a
+  brilliant tail" is the other half of the ask, so during a star the ribbon
+  stops being the groove's scoreboard and becomes the thing itself: five
+  passes instead of three — a wide magenta bloom outside a hot gold body
+  inside a white core, in the orb's own two colours rather than a new palette
+  — 1.85× wider, and *longer*, because the per-sample decay eases off (the
+  sample cap is only headroom; it was never the binding constraint, and saying
+  otherwise would be a comment taking credit for a line that does nothing).
+  Sparks shed off it unconditionally rather than waiting for a groove chain,
+  in the star's colours, at a raised particle ceiling. Measured on a 390×844
+  phone, ordinary run → hypernova, repeated across runs: **trail samples held
+  29→53, arc length 143→428px (3.00×), widest point 15→28px (1.85×), filled
+  area 5.31×.** Particles are quoted as a *range* — 4.3× to 11.5× the debris in
+  the air — because a point read of `G.parts.length` is whatever the decay left
+  standing on that frame, and the first version of this measurement disagreed
+  with itself threefold and once reported the star shedding *less*. Averaged
+  over a hundred frames it is proportional to spawn rate × lifetime, which is
+  the number that means something; the spread is the game's unseeded
+  `Math.random`, not the effect.
+
 The musical orbs join the spawn rotation after the intro curriculum
 (shield → slow-mo → nova) has run, each named by a first-encounter hint.
 On level 2 and up the FIRST placement after the curriculum is the
