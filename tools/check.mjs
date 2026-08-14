@@ -3,10 +3,11 @@
    useful guard is: does it still parse, and are the pieces the script needs
    still in the document? vm.Script compiles without executing, so this is a
    pure syntax check — no DOM, no dependencies. */
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import vm from 'node:vm';
 
-const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const root = new URL('../', import.meta.url);
+const html = await readFile(new URL('index.html', root), 'utf8');
 const fail = [];
 
 const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
@@ -256,9 +257,17 @@ for (const k of ['best', 'gl']) {
   }
 }
 
-/* the curriculum rule: every tier unlocks by level 2's finish line, so
-   level 3 introduces nothing — see MECHANICS.md. The finish line is read
-   from the LV table itself so lengthening a level cannot break the guard. */
+/* THE FORMATION HALF of the curriculum rule: every tier unlocks by level 3's
+   finish line, so level 4 — the exam — introduces no new shape. See
+   docs/invariants.md and MECHANICS.md. The finish line is read from the LV
+   table itself so lengthening a level cannot break the guard.
+
+   This comment said "level 2's finish line, so level 3 introduces nothing"
+   for as long as the code below read ends[2], which is level 3's. Level 4
+   moved the exam when it was added and the prose never followed; the guard
+   was right and its own explanation was a level out, which is worse than no
+   explanation — a reader who trusts it goes looking for room to add a shape
+   in the wrong place. The code was already correct and is untouched. */
 const tiers = src.match(/const TIERS=\[([\s\S]*?)\];/);
 const lv = src.match(/const LV=\[([\s\S]*?)\];/);
 if (!tiers || !lv) fail.push('TIERS or LV table not found');
@@ -278,8 +287,96 @@ else {
   }
 }
 
+/* ------------------------------------------------------------------------
+   Repository tripwires. Everything above this line asks whether the GAME is
+   sound; what follows asks whether the REPOSITORY still tells the truth about
+   itself. Both failures ship to players — one as a bug, one as a check that
+   silently stopped running or a document that silently became public.
+   ------------------------------------------------------------------------ */
+const wf = await readFile(new URL('.github/workflows/pages.yml', root), 'utf8');
+
+/* EVERY HARNESS IN tools/ RUNS IN CI. A harness that exists in the tree but is
+   not wired into the workflow is the worst kind of dead code: it reads as
+   coverage to anyone listing the directory, it passes when someone runs it by
+   hand, and it never once runs on a pull request. That is the same failure as
+   a guard that cannot fail, which this repository has already been bitten by
+   twice — and it arrives most naturally by adding the file and forgetting the
+   YAML, because nothing anywhere else notices.
+   The complement lives in tools/all.mjs, which runs the workflow's list rather
+   than a list of its own: together, a harness cannot be in the tree without
+   running in CI, and cannot run in CI without running locally. */
+const wired = new Set(
+  [...wf.matchAll(/^[ \t]*-[ \t]+run:[ \t]+node[ \t]+tools\/([\w.-]+\.mjs)[ \t]*$/gm)].map(m => m[1]));
+const present = (await readdir(new URL('tools/', root)))
+  .filter(f => f.endsWith('.mjs') && f !== 'all.mjs');   /* all.mjs is the runner, not a check */
+if (!wired.size) {
+  fail.push('no `node tools/*.mjs` steps found in pages.yml — the harness-wiring guard cannot run');
+}
+for (const f of present) {
+  if (!wired.has(f)) {
+    fail.push(`tools/${f} exists but pages.yml never runs it — add a `
+      + `\`- run: node tools/${f}\` step, or delete the harness. A check that does not `
+      + 'run on a pull request is not a check.');
+  }
+}
+for (const f of wired) {
+  if (!present.includes(f)) fail.push(`pages.yml runs tools/${f}, which is not in tools/`);
+}
+
+/* THE PUBLISHED SITE IS AN ALLOWLIST, AND THIS IS WHAT KEEPS IT ONE.
+   The deploy used to upload `path: .`, so every file in the repository was
+   served from the Pages URL — CLAUDE.md, README.md, MECHANICS.md and all six
+   harnesses among them. Repository visibility never covered that: Pages serves
+   the artifact, so turning the repo private would have left the operating doc
+   and the design record readable at their public URLs, which is the opposite
+   of what anyone would have assumed.
+
+   The workflow now copies a named list into _site. A named list has its own
+   failure mode in each direction, and both are silent, so both are checked
+   here rather than trusted:
+     - a new ASSET that nobody adds to the list 404s on the live site, and
+       nothing in this repository loads the live site to notice;
+     - a new INTERNAL document is published the moment somebody widens the list
+       or reverts to `path: .`, which is exactly the bug being fixed.
+   So every entry at the repository root must be classified. A file in neither
+   list fails the build with the question attached, which turns "what happens
+   to this file" into a decision somebody makes on purpose. */
+const cp = wf.match(/\bcp\s+([\s\S]*?)\s+_site\//);
+if (!cp) {
+  fail.push('the `cp … _site/` staging step is gone from pages.yml — either the deploy '
+    + 'publishes something other than an allowlist now, or the guard below cannot run. '
+    + 'If the site is back to `path: .`, every internal document is public again.');
+} else {
+  const published = cp[1].split(/[\s\\]+/).filter(Boolean);
+  /* Not published, and each for a stated reason. `docs/` and the three
+     markdown files are how this game gets built, not part of it; `tools/` is
+     the test suite; the dotfiles are machinery. LICENSE is deliberately on the
+     PUBLISHED side instead — the terms of an all-rights-reserved work should be
+     reachable from the artifact that carries them. */
+  const internal = ['.git', '.github', '.gitignore', 'node_modules', '_site',
+                    'AGENTS.md', 'CLAUDE.md', 'MECHANICS.md', 'README.md', 'docs', 'tools'];
+  const known = new Set([...published, ...internal]);
+  for (const entry of await readdir(root)) {
+    if (!known.has(entry)) {
+      fail.push(`'${entry}' sits at the repository root and is neither published nor internal — `
+        + 'decide which it is: add it to the `cp … _site/` list in pages.yml if the game needs '
+        + 'it at runtime, or to `internal` in check.mjs if it does not. An asset left out 404s '
+        + 'on the live site; a document left in becomes a public URL.');
+    }
+  }
+  for (const f of published) {
+    try {
+      await readFile(new URL(f, root));
+    } catch {
+      fail.push(`pages.yml publishes '${f}', which does not exist — the deploy will fail, `
+        + 'or worse, publish a site missing a file the game asks for');
+    }
+  }
+}
+
 if (fail.length) {
   for (const f of fail) console.error(`FAIL  ${f}`);
   process.exit(1);
 }
-console.log('OK  index.html parses and has the elements the script needs');
+console.log('OK  index.html parses, has the elements the script needs, '
+  + 'and the repository still describes itself accurately');

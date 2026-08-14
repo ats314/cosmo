@@ -69,6 +69,27 @@ jobs:
       # title screen and readable as window.COSMO_BUILD, which ends the
       # unanswerable argument about which version a screenshot came from.
       - run: sed -i "s/const BUILD='dev'/const BUILD='${GITHUB_SHA:0:7}'/" index.html
+      # THE SITE IS AN ALLOWLIST, NOT THE REPOSITORY. This used to be `path: .`,
+      # which handed the whole checkout to Pages: CLAUDE.md, README.md,
+      # MECHANICS.md and all six harnesses were served at the site root, so the
+      # operating doc and the design record were public documents whether or not
+      # anyone meant them to be. Repository visibility never covered this —
+      # turning the repo private would have left every one of those files
+      # readable at its Pages URL, because Pages serves the artifact, not the
+      # repo. index.html is the distributed artifact and always was; this makes
+      # the deploy say so.
+      #
+      # The list below is guarded: check.mjs fails the build if a tracked file
+      # at the repository root is in neither this list nor its internal list, so
+      # a new asset cannot silently 404 on the live site and a new internal
+      # document cannot silently become public. Adding a file is a decision
+      # somebody is asked about, which is the only version of this that holds.
+      - name: Stage the published site
+        run: |
+          mkdir -p _site
+          cp index.html manifest.webmanifest og.png \
+             apple-touch-icon.png icon-192.png icon-512.png \
+             LICENSE _site/
       # enablement turns Pages on via the API if it is not already, so a
       # fresh clone of this repo deploys without anyone visiting Settings.
       - uses: actions/configure-pages@v5
@@ -76,6 +97,6 @@ jobs:
           enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
       - id: deploy
         uses: actions/deploy-pages@v4
