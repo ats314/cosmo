@@ -341,6 +341,28 @@ for (const f of wired) {
    So every entry at the repository root must be classified. A file in neither
    list fails the build with the question attached, which turns "what happens
    to this file" into a decision somebody makes on purpose. */
+/* THE STAGING STEP AND THE UPLOAD PATH ARE TWO HALVES, AND CHECKING ONE IS
+   CHECKING NEITHER. The first version of this guard only looked for the
+   `cp … _site/` command, which reads as sufficient and is not: flip
+   `path: _site` back to `path: .` and the staging step still sits there,
+   still copying files into a directory nobody uploads, while the deploy
+   publishes the entire repository again. Every internal document goes public
+   and this file says OK — the precise regression the guard was written to
+   prevent, waved through by the guard.
+   It was missed because the mutation test that "covered" it changed the
+   staging step and the path together, so the two were never separated. Mutate
+   one thing at a time, or a mutation test agrees with whatever it is shown. */
+const up = wf.match(/upload-pages-artifact@[\w.]+\s*\n\s*with:\s*\n\s*path:\s*(\S+)/);
+if (!up) {
+  fail.push('could not read the upload-pages-artifact `path:` from pages.yml — the guard that '
+    + 'keeps the published site down to an allowlist cannot run');
+} else if (up[1] !== '_site') {
+  fail.push(`the deploy uploads '${up[1]}', not the staged '_site' directory. If this is `
+    + '`.`, every file in the repository is published again — CLAUDE.md, README.md, '
+    + 'MECHANICS.md and every harness, each at its own public URL, and repository '
+    + 'visibility does not cover it because Pages serves the artifact, not the repo.');
+}
+
 const cp = wf.match(/\bcp\s+([\s\S]*?)\s+_site\//);
 if (!cp) {
   fail.push('the `cp … _site/` staging step is gone from pages.yml — either the deploy '
@@ -356,7 +378,32 @@ if (!cp) {
   const internal = ['.git', '.github', '.gitignore', 'node_modules', '_site',
                     'AGENTS.md', 'CLAUDE.md', 'MECHANICS.md', 'README.md', 'docs', 'tools'];
   const known = new Set([...published, ...internal]);
+  /* WHAT GIT IGNORES, THIS IGNORES. The classifier reads the working directory
+     rather than the index, so without this it fails on files that are not part
+     of the repository at all — a stray .DS_Store or a *.log at the root turns
+     the required local check red for a reason that has nothing to do with the
+     change being made, on a machine where the fix is "delete a file macOS will
+     recreate". A check that cries wolf on a clean tree is a check people learn
+     to run with their eyes closed, which costs more than the guard is worth.
+     Ignored files cannot reach the site in any case: the deploy copies named
+     files, so an untracked one was never a candidate for publication.
+     This understands the two pattern forms this repository's .gitignore uses —
+     a plain name and a `*.ext` suffix. Anything more exotic is simply not
+     matched, so the classifier stays STRICT and asks about the file rather than
+     going quiet, which is the correct direction to fail in. The one accepted
+     cost: a tracked file that also matches an ignore pattern is skipped. */
+  /* No .gitignore means nothing is ignored, which leaves the classifier asking
+     about every file — strict, and the safe direction. Reading it with a throw
+     instead crashed the whole check with a stack trace for a missing optional
+     file: still a non-zero exit, so CI stayed honest, but the operator is told
+     'ENOENT' when the answer is 'that file is optional'. */
+  const patterns = (await readFile(new URL('.gitignore', root), 'utf8').catch(() => ''))
+    .split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'))
+    .map(l => l.replace(/\/$/, ''));
+  const gitIgnored = name => patterns.some(p =>
+    p.startsWith('*.') ? name.endsWith(p.slice(1)) : name === p);
   for (const entry of await readdir(root)) {
+    if (gitIgnored(entry)) continue;
     if (!known.has(entry)) {
       fail.push(`'${entry}' sits at the repository root and is neither published nor internal — `
         + 'decide which it is: add it to the `cp … _site/` list in pages.yml if the game needs '

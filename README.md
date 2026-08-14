@@ -2148,7 +2148,7 @@ Scores persist to `localStorage`.
 ## Checks
 
 ```sh
-node tools/all.mjs         # every check below, in CI's order, stopping at the first failure
+node tools/all.mjs         # every check below, in CI's order, first failure stops it
 ```
 
 ```sh

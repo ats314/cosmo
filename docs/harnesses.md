@@ -4,7 +4,7 @@ All six run on every pull request and must pass. Run them locally before
 pushing — they are fast and need nothing installed.
 
 ```sh
-node tools/all.mjs         # every check below, in CI's order, stopping at the first failure
+node tools/all.mjs         # every check below, in CI's order, first failure stops it
 ```
 
 `all.mjs` is not a seventh check and holds no list of its own. It **parses the
@@ -14,7 +14,7 @@ usual way that pair rots is a list maintained in two places. Run the individual
 harness while you are iterating on it; run `all.mjs` before you push.
 
 ```sh
-node tools/check.mjs       # parses; required elements; teaching + mode-table drift; repo tripwires
+node tools/check.mjs       # parses; elements; teaching + mode drift; repo tripwires
 node tools/smoke.mjs       # loads and plays the game in a stubbed DOM
 node tools/dropcheck.mjs   # the build meter still delivers beat drops
 node tools/curriculum.mjs  # nothing is left untaught by level 3

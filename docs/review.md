@@ -4,7 +4,7 @@ A review here has two halves. Earlier reviews did only the first, and missed a
 public repository sitting with no licence for its whole life as a result.
 
 **1. Correctness and clarity** — bugs, dead code, drift between the code and
-`README.md` / `MECHANICS.md`, invariants above.
+`README.md` / `MECHANICS.md`, and the rules in `invariants.md` beside this file.
 
 **2. Repository and product hygiene** — do this half explicitly, every time:
 

@@ -9,7 +9,8 @@ Nothing has been shortened — only sorted.
 
 ## Curriculum, teaching and the ledger
 
-*You are adding or moving a formation, an orb, a level boundary, a lesson, or any player-facing sentence.*
+*You are adding or moving a formation, an orb, a level boundary, a lesson, or
+any player-facing sentence.*
 
 - **The curriculum rule, as the owner revised it.** The rule used to end
   teaching at level 4's floor. The owner's call, verbatim: *"We are going to
@@ -42,7 +43,7 @@ Nothing has been shortened — only sorted.
   THE EYE but never appended after it. If you move a tier, all three must pass.
   This entry said "the end of level 2 · level 3 introduces nothing" until a
   session went looking for room to add a shape and found the code, the ladder
-  table and all three harnesses saying level 3 while this file, `README.md` and
+  table and all three harnesses saying level 3 while `CLAUDE.md`, `README.md` and
   one comment in `check.mjs` said level 2. Level 4 moved the exam when it was
   added; the rule was never updated to follow it. A constraint that disagrees
   with its own enforcement costs more than a missing one — it makes the careful
@@ -75,7 +76,8 @@ Nothing has been shortened — only sorted.
 
 ## Modes, records and the powerup lab
 
-*You are touching MODES, the level select, a stored record, or anything reachable from POWERUP TESTING.*
+*You are touching MODES, the level select, a stored record, or anything
+reachable from POWERUP TESTING.*
 
 - **ONE MODE SHIPS, AND `MODES` STAYS ANYWAY.** CHILL is retired — the owner's
   call, one mode until the game is perfected — and the table is kept at a
@@ -161,7 +163,8 @@ Nothing has been shortened — only sorted.
 
 ## Simulation, state and telemetry
 
-*You are touching pause, the clocks, ring geometry, difficulty numbers, or any event property.*
+*You are touching pause, the clocks, ring geometry, difficulty numbers, or
+any event property.*
 
 - **Pause is a FLAG, and the freeze is one line ABOVE `G.t+=dt`.** Both halves
   are load-bearing. It cannot be a `G.state`, because `draw()` dispatches on the
@@ -237,7 +240,8 @@ Nothing has been shortened — only sorted.
 
 ## Audio and the arrangement
 
-*You are touching PROG, PROGB, a voice, a kit, the pad, or any pitch in the audio path.*
+*You are touching PROG, PROGB, a voice, a kit, the pad, or any pitch in the
+audio path.*
 
 - **Silencing the scheduler is not silencing the band.** The pad is a bank of
   eight continuously running oscillators whose gain is written every frame by
@@ -302,7 +306,8 @@ Nothing has been shortened — only sorted.
 
 ## Graphics, shaders and the sky
 
-*You are touching a draw pass, a shader, a uniform, the glow chain or the render-scale dial.*
+*You are touching a draw pass, a shader, a uniform, the glow chain or the
+render-scale dial.*
 
 - **A halo belongs to an object; a backdrop belongs to nobody.** These are
   tuned by opposite rules and the constants do not transfer. The sky's
@@ -311,9 +316,10 @@ Nothing has been shortened — only sorted.
   arena's glow it is a catastrophe: the orbits live between 0.09 and 0.20 of
   screen height, the clamp binds across that whole band, and the halo is
   dragged 120-170px off the light it belongs to — the detached-glow failure
-  this file already records once, when an ember's bloom stayed parked on the
-  ring it started from. Anything applied to light that is attached to an
-  object must be bounded in ABSOLUTE terms and the bound quoted in pixels.
+  recorded at length in `check.mjs`'s free-radius guard, when an ember's bloom
+  stayed parked on the ring it started from. Anything applied to light that is
+  attached to an object must be bounded in ABSOLUTE terms and the bound quoted
+  in pixels.
   This was caught by measurement, not by reading: the code was a faithful copy
   of a shipped, correct lens, and it looked right in review.
 
