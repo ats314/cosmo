@@ -155,6 +155,21 @@ the rule. It is replaced rather than clarified.
   nothing: the merge condition is "checks green", which GitHub already
   evaluates. Arm it and go. Only fall back to merging by hand when auto-merge
   cannot be armed — and then say so, rather than quietly starting a poll loop.
+- **A VISUAL CHANGE DOES NOT AUTO-MERGE. It gets a screenshot in the pull
+  request first.** This is the one exception to the rule above and it was paid
+  for at full price. `main` publishes to the live page on merge, and for
+  anything touching a shader, a draw call, a uniform or the glow, "checks
+  green" says nothing at all about the frame: every harness but `rendercheck`
+  stubs the canvas, so a `drawImage` at the wrong translate is a valid call
+  with finite arguments and a correct count. A build shipped to real
+  playtesters carrying a hairline rim down every screen edge, every halo
+  oscillating off its own light, and half the intended brightness — with all
+  the checks passing, armed and merged in seconds, exactly as this file said
+  to. **A day of a playtest cycle is not recoverable; testers do not come
+  back.** So: render it, look at it, put the before and after in the pull
+  request body, then merge. It costs about twenty seconds against a loop that
+  is already written down above. Everything non-visual keeps the fast path —
+  the speed this rule protects is real and only the frame needs the eyes.
 - **Never merge red, and never merge unverified.** The checks are the gate,
   and `main` publishes to the live page on merge, so a red merge is a broken
   product for real players. If a check fails, fix it or say plainly why you are

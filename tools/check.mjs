@@ -390,6 +390,31 @@ for (const f of present) {
       + `\`/* @lane fast */\` (static or targeted, under ~3s) or \`/* @lane full */\` `
       + '(plays a whole game) at the top, so `all.mjs --fast` knows whether it may skip it');
   }
+  /* A HARNESS THAT SEEDS ITS RNG MUST PRINT THE SEED, and this guard exists
+     because four of them did not. CI rotates the seed per run so coverage
+     keeps moving, which is only survivable if each failure carries the seed
+     that produced it — otherwise a red CI is a one-off nobody can reproduce.
+     curriculum, dropcheck, fxcheck and musiccheck all IMPORTED seedLine and
+     never called it, for four sessions, while CLAUDE.md and harnesses.md both
+     stated the opposite in as many words. The claim was prose; nothing
+     executed it. It is an assertion now. */
+  if (/\bseededMath\b/.test(body) && !/console\.log\(\s*seedLine\(/.test(body)) {
+    fail.push(`tools/${f} seeds its RNG but never prints the seed — add `
+      + '`console.log(seedLine(\'name\'))` near the top, BEFORE any assertion can exit. '
+      + 'CI rotates SEED per run, so a failure without it cannot be reproduced');
+  }
+}
+/* THE ONE HARNESS WITH A DEPENDENCY MUST HAVE IT INSTALLED IN CI. rendercheck
+   skips when no browser is present, which is right on a developer's machine
+   and fatal in the build: a guard that can quietly not run is not a guard, and
+   this is the only guard in the repo that can see a pixel. If the install step
+   is ever dropped from the workflow, the render check would go on reporting
+   SKIP and success forever, and the class of bug it exists for — a rim, a
+   detached halo, a buried palette — would be invisible again with eight
+   checks green. */
+if (wired.has('rendercheck.mjs') && !/playwright[^\n]*install/i.test(wf)) {
+  fail.push('pages.yml runs tools/rendercheck.mjs but never installs a browser — it will SKIP in CI '
+    + 'and report success, which silently removes the only check in this repo that looks at a pixel');
 }
 
 /* THE PUBLISHED SITE IS AN ALLOWLIST, AND THIS IS WHAT KEEPS IT ONE.
@@ -486,6 +511,45 @@ if (!cp) {
     } catch {
       fail.push(`pages.yml publishes '${f}', which does not exist — the deploy will fail, `
         + 'or worse, publish a site missing a file the game asks for');
+    }
+  }
+}
+
+/* ================= A DOC THAT NAMES A CONSTANT MUST KNOW ITS VALUE =========
+   Two of the numbers in docs/invariants.md and README.md were stale for two
+   commits: both described the nebula's coverage gate as floored at
+   "0.42 + 0.58*smoothstep" and its drift lap as "~95 minutes", after the
+   commit that re-chose the orbit's territory made them 0.10/0.90 and ~24
+   minutes. A constraint that disagrees with its own enforcement makes the
+   careful reader wrong, which is worse than a missing one — and this file
+   already enforces that principle for the mechanics ledger.
+
+   THE CHECK IS FOR STALENESS, NOT FOR AGREEMENT, and that distinction is the
+   whole design. These documents are historical: they say "1.0 was the first
+   pass and read as distracting", "0.42 was the retreat", "the first cut used
+   0.42". Demanding that every number near a constant's name match the source
+   would fail on all of that, and a guard that fires on correct prose gets
+   deleted within a week. So the rule is weaker and survivable: if a document
+   discusses a constant at all, the constant's CURRENT value must appear in
+   that document somewhere. History may stay; ignorance may not. */
+{
+  const src = await readFile(new URL('index.html', root), 'utf8');
+  const consts = new Map();
+  for (const m of src.matchAll(/\bconst\s+([A-Z][A-Z0-9_]{4,})\s*=\s*(-?\d+\.?\d*)\s*[;,]/g)) {
+    consts.set(m[1], m[2]);
+  }
+  for (const doc of ['CLAUDE.md', 'README.md', 'docs/invariants.md', 'docs/harnesses.md', 'MECHANICS.md']) {
+    let body;
+    try { body = await readFile(new URL(doc, root), 'utf8'); } catch { continue; }
+    for (const [name, val] of consts) {
+      if (!body.includes(name)) continue;
+      /* the value as written, and without a trailing zero, since prose says
+         0.6 where the source says 0.60 */
+      const forms = new Set([val, String(Number(val))]);
+      if ([...forms].some(f => body.includes(f))) continue;
+      fail.push(`${doc} discusses ${name} but never mentions its current value (${val}) — `
+        + 'the document has gone stale against the source. Quoting the old value as history is fine; '
+        + 'describing the constant without ever naming what it is now is how a reader ends up wrong');
     }
   }
 }

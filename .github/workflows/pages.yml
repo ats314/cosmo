@@ -71,6 +71,20 @@ jobs:
       # stubbing and validates every call the way a browser would. It found a
       # live HUD bug on its first run.
       - run: node tools/drawcheck.mjs
+      # THE ONLY HARNESS THAT LOOKS AT A PIXEL. Every check above stubs the
+      # canvas: fxcheck asserts on the WebGL calls that were issued, drawcheck
+      # validates every 2D call the way a browser would, and neither can see a
+      # frame. A drawImage at the wrong translate is indistinguishable from one
+      # at the right translate. That blind spot hid a hairline rim down every
+      # screen edge, every halo oscillating off its own light, and six world
+      # palettes buried into three -- with all six checks above green.
+      # This one launches real Chromium, runs the real shader under
+      # SwiftShader, and asserts on the framebuffer. It needs a browser, which
+      # is the only dependency in tools/ and the reason it is last: nothing
+      # else here installs anything.
+      - name: Install a browser for the render harness
+        run: npx --yes playwright@1.56.1 install --with-deps chromium
+      - run: node tools/rendercheck.mjs
 
   deploy:
     # Only main publishes; pull requests get the check alone.

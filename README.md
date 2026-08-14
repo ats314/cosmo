@@ -2114,7 +2114,7 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
 
   **The red ban is gone, and `GL_MOTION` went back up.** Both were the owner's
   call against a stated risk. What replaces the ban is narrower and sits where
-  the "red means danger" contract is actually read — `SKY_ARENA_CALM`
+  the "red means danger" contract is actually read — `SKY_ARENA_CALM` (0.34)
   compresses contrast in the annulus the orbits occupy, so EMBERFALL burns at
   the rim while the band a shard is read against stays quiet. Hue is free;
   contrast behind the rings is not. `GL_MOTION` 0.42 → 0.72, now multiplied by
