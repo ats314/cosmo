@@ -312,6 +312,18 @@ Breaking one of these is a product regression, not a style question.
   why it cannot collide with the chorus, the payoff or the black hole — it owns
   no table. Reach for an overlay whenever the answer to "when will the player
   hear this?" has to be "now"; reach for a section only when it can wait.
+- **THE PLAY LINK IS A CONTRACT: the plain URL serves the newest build.**
+  GitHub Pages caches `index.html` for ten minutes and its CDN keys on the
+  exact URL, so on a multi-release day the front door hands back stale copies
+  — which turned a full day of "it's fixed, go look" into arguments, because
+  the tester was replaying the previous build through the button that had
+  always been trustworthy. The page checks its own freshness at boot
+  (`freshCheck`): it fetches its first bytes past the CDN, reads the BUILD
+  stamp, and swaps a stale title screen to the newer build — once. The guards
+  ARE the feature: never from a live run, never a second hop from a `?u=`
+  URL, and every failure is silence. `smoke.mjs` asserts all of it; the
+  deploy workflow stamps `BUILD` with the commit sha, and the title screen
+  shows it, so a screenshot proves which build it came from.
 - **Audio is optional everywhere.** The game must be completable with no
   WebAudio at all. Every audio path is guarded; keep it that way.
 - **Two clocks: `G.t` measures, `G.vt` shows.** `G.t` is real seconds and every

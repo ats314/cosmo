@@ -50,7 +50,7 @@ const sandbox = {
   requestAnimationFrame: fn => { calls.raf.push(fn); },
   matchMedia: () => ({ matches: false }),
   getComputedStyle: () => ({ paddingTop: '0', paddingBottom: '0' }),
-  location: { origin: 'https://x.test', pathname: '/' },
+  location: { origin: 'https://x.test', pathname: '/', search: '', replace(u) { this.__replaced = u; } },
   console,
   Math, JSON, Date, Array, Object, Number, String, Boolean, Float32Array, Infinity, NaN,
   isNaN, parseInt, parseFloat, setTimeout: () => {}, TAU: undefined,
@@ -1348,4 +1348,38 @@ try {
   console.error('RUNTIME FAILED:', e.stack.split('\n').slice(0, 6).join('\n'));
   process.exit(1);
 }
-console.log('SMOKE OK');
+  // ---- THE PLAY LINK SELF-HEALS, AND ONLY WHEN IT IS SAFE TO ----
+  // The plain URL is the product's front door and GitHub Pages caches it for
+  // ten minutes, so a stale copy must detect a newer BUILD stamp and swap to
+  // it — but ONLY from the title screen (reloading a live run is vandalism),
+  // and only ONE hop (a URL already carrying ?u= must never redirect again,
+  // or two mismatched cached copies bounce forever). Both guards are the
+  // feature; both are asserted.
+  {
+    const st = expr => vm.runInContext(expr, sandbox);
+    let fetched = null;
+    sandbox.fetch = (url) => {
+      fetched = url;
+      return Promise.resolve({ text: () => Promise.resolve("const BUILD='abc1234'") });
+    };
+    const tick = () => new Promise(r => setTimeout(r, 0));
+    // mid-run: a newer build exists and the game is being PLAYED — no swap
+    st("G.state='playing';location.__replaced=undefined;location.search='';freshCheck(true)");
+    await tick(); await tick();
+    if (st('location.__replaced') !== undefined) throw new Error('the freshness swap reloaded a live run');
+    // on the menu: the stale copy swaps to the newer build, exactly one hop
+    st("G.state='menu';freshCheck(true)");
+    await tick(); await tick();
+    const r = st('location.__replaced');
+    if (r !== '/?u=abc1234') throw new Error('a stale title screen did not swap to the newer build: ' + r);
+    if (!/[?&]chk=\d+/.test(String(fetched))) throw new Error('the freshness fetch does not carry its own cache key: ' + fetched);
+    // already swapped once: a ?u= URL must never redirect again, even stale
+    st("location.__replaced=undefined;location.search='?u=abc1234';freshCheck(true)");
+    await tick(); await tick();
+    if (st('location.__replaced') !== undefined) throw new Error('a ?u= URL redirected again — two mismatched caches would loop forever');
+    delete sandbox.fetch;
+    st("location.search=''");
+    console.log('play-link self-heal ok: swaps on the menu, never mid-run, never twice');
+  }
+
+  console.log('SMOKE OK');
