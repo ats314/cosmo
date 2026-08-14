@@ -62,6 +62,13 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # Stamp the deployed page with the commit it was built from. The source
+      # says 'dev'; only the published artifact carries the sha, so the game
+      # itself stays a single hand-written file with no build step — this is
+      # a label on the box, not a compiler. The stamp is drawn faintly on the
+      # title screen and readable as window.COSMO_BUILD, which ends the
+      # unanswerable argument about which version a screenshot came from.
+      - run: sed -i "s/const BUILD='dev'/const BUILD='${GITHUB_SHA:0:7}'/" index.html
       # enablement turns Pages on via the API if it is not already, so a
       # fresh clone of this repo deploys without anyone visiting Settings.
       - uses: actions/configure-pages@v5
