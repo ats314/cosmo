@@ -74,6 +74,27 @@ chain or the scale dial belongs in this harness.** All of its assertions were
 mutation-tested when it was written; keep that habit — a render check that
 cannot fail is worse than none, because it reads as coverage.
 
+It also owns **the sky as a set rather than as a picture**. It reads `WORLDS`
+out of `index.html` instead of copying it, validates the properties that keep
+the set closed (weights summing to 1, a coverage weight that can only raise
+the never-black floor, exponents >= 1 because `pow(0.0,0.0)` is undefined),
+and sweeps all six worlds plus three points along every morph between
+neighbours over the full drift orbit, pinning both directions of the luminance
+band. Sampling only the midpoint of a morph is not enough and that is
+measured, not cautious: the first cut found a transition at 0.238 mean against
+0.166 and 0.164 at its two ends. It asks the **where does it end up** question
+of both frame conversions the orbit coupling needs — the spin's sample
+rotation and the lap sector's y-down-to-y-up flip — by running the parsed
+transforms, and it drives the real game to prove a lap streak reaches the
+uniform rather than only the variable behind it. The fake records uniform
+*values* as well as names, which is what makes that last check possible.
+A harness note worth keeping: a fake that is MISSING a call does not fail the
+check it is missing. It had no `uniform4f`, the backdrop's first vec4 write
+threw into `glRender`'s catch, and the reported failure was "the backdrop
+shader did not come up against a working GL" — a plausible message, about the
+wrong thing. When a render assertion fails in a way that does not match the
+change you made, suspect the fake before the game.
+
 `musiccheck.mjs` is the only harness that runs the arrangement. `smoke.mjs`
 removes WebAudio deliberately and `dropcheck.mjs` never drives past level 2, so
 before it existed the per-level songs had no coverage: deleting level 4's riff
