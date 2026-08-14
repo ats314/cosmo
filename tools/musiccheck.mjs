@@ -704,6 +704,72 @@ console.log('--- the lift itself is measured, not just the harmony ---');
   }
 }
 
+console.log('--- the chain is a timing detector, not a mash detector ---');
+/* The playtest, verbatim: "feels like you can just tap randomly anytime and
+   get chains". It was right — the chain climbed on any sixteenth-tight hit
+   (~44% of random taps at ±32ms against a 144ms grid) and a miss cost one
+   rung, a random walk that visited x8 by accident. The chain now climbs only
+   on the QUARTER — the beat the ring contracts onto — a sixteenth-tight tap
+   holds, the rest slip, and the bias learner is slew-limited so it can no
+   longer chase a masher's wandering cadence. Both directions are asserted:
+   mashing must stay low, and a player with a consistent device latency —
+   the case the bias EMA exists for — must calibrate in and max quickly.
+   The mash profiles here are the two that simulation (500 trials each)
+   never saw reach x8; the near-tempo metronomic driller who CAN grind there
+   in ~18s of unbroken 7Hz drumming is deliberately not asserted against —
+   that one is rhythm skill, merely not this song's. */
+{
+  startLevel(1, 0.5);
+  tick(1, 30);
+  vm.runInContext('G.groove = 0; G.said8 = false; PLAY.bias = 0; PLAY.biasN = 0;', ctx);
+  /* mash A: frantic renewal tapping, 100-190ms intervals — the phase
+     random-walks across the whole grid. mash B: scattered taps around an
+     off-grid lattice. 300 judged taps each. */
+  let peakA = 0;
+  for (let i = 0; i < 300; i++) {
+    AUDIO_T += 0.100 + Math.random() * 0.09;
+    vm.runInContext('musicTick(); judgeTiming(0, 0);', ctx);
+    peakA = Math.max(peakA, $('G').groove);
+  }
+  vm.runInContext('G.groove = 0; PLAY.bias = 0; PLAY.biasN = 0;', ctx);
+  let peakB = 0, base = AUDIO_T;
+  for (let i = 0; i < 300; i++) {
+    AUDIO_T = base + i * 0.131 + Math.random() * 0.05;
+    vm.runInContext('musicTick(); judgeTiming(0, 0);', ctx);
+    peakB = Math.max(peakB, $('G').groove);
+  }
+  if (peakA >= 8 || peakB >= 8) fail(`mashing reached ON BEAT x${Math.max(peakA, peakB)} — the chain is a mash detector again`);
+  else ok(`600 mashed taps peaked at x${peakA}/x${peakB} — mashing cannot max the chain`);
+
+  /* intent: every tap on the QUARTER the beat ring draws, every tap 40ms
+     late — a real phone's touch latency. The bias must learn the device and
+     the chain must climb; simulation says ~12 taps to x8. The quarter
+     boundary is derived from MU.next the same way beatPhase derives it. */
+  vm.runInContext('G.groove = 0; PLAY.bias = 0; PLAY.biasN = 0;', ctx);
+  let taps = 0;
+  for (let i = 0; i < 40 && $('G').groove < 8; i++) {
+    vm.runInContext('musicTick();', ctx);
+    AUDIO_T = $('MU').next + ($('MU').step % 2 ? $('SPB') / 2 : 0) + 0.040;
+    vm.runInContext('judgeTiming(0, 0);', ctx);
+    taps++;
+  }
+  if ($('G').groove < 8) fail(`40 on-beat taps at a constant 40ms latency never reached x8 (got x${$('G').groove}) — the bias is not calibrating`);
+  else ok(`a consistent 40ms-late device reached x8 in ${taps} on-beat taps`);
+
+  /* hold: dead on an odd sixteenth — in the song's subdivisions but off the
+     beat. The chain must neither climb nor slip: playing to live in the
+     fills keeps what you brought, and only the beat climbs. */
+  vm.runInContext('G.groove = 5; G.grooveT = G.t + 99; PLAY.bias = 0;', ctx);
+  for (let i = 0; i < 10; i++) {
+    vm.runInContext('musicTick();', ctx);
+    AUDIO_T = $('MU').next - ($('SPB') / 4) * 3;
+    vm.runInContext('judgeTiming(0, 0);', ctx);
+  }
+  const held = $('G').groove;
+  if (held !== 5) fail(`10 odd-sixteenth taps took a x5 chain to x${held} — the hold tier is ${held > 5 ? 'climbing' : 'slipping'}`);
+  else ok('odd-sixteenth taps hold the chain: no climb, no slip');
+}
+
 console.log('--- the chorus is named and counted when it arrives ---');
 /* The say line, chorus_entries and chorus_bars were all deletable while
    green — and those counters are the commit's own answer to "are the

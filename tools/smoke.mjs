@@ -954,6 +954,39 @@ try {
       'panel answers only RESUME, count-in holds then releases, cooldown blocks farming');
   }
 
+  // ---- the pocket ----
+  // Held x8 drives G.pocket, the envelope every pocket visual reads (the
+  // shader's crystallized filaments, the beat-locked sky ripples, the trail's
+  // last 0.3). smoke has no AC, so judgeTiming can never climb the chain here
+  // — the envelope is driven by setting G.groove directly, which is also the
+  // point: it must follow G.groove alone. Attack ~a bar (2.31s), x7 sustains
+  // (one slip of grace, matching the one rung a miss costs), below that it
+  // drains. And these are audio-less frames with GL stubbed off: a full
+  // pocket must not cost a single frame its guard.
+  {
+    st("G.state='menu';G.swipeAsked=true;G.runs=5;G.lvSel=1;G.t+=1;LAB.on=false");
+    for (let i = 0; i < 30; i++) frame(16.7);
+    let kpid = passMenu(st, frame, fire, pev, 1900);
+    kpid = passLevelSelect(st, frame, fire, pev, kpid, 1);
+    if (st('G.state') === 'lvend') {
+      for (let i = 0; i < 60; i++) frame(16.7);
+      fire('pointerdown', pev(kpid, 200, 400, 'pointerdown'));
+      fire('pointerup', pev(kpid++, 200, 400, 'pointerup'));
+    }
+    if (st('G.state') !== 'playing') throw new Error('pocket test could not reach a run, state=' + st('G.state'));
+    if (st('G.pocket') !== 0) throw new Error('a fresh run started inside the pocket');
+    for (let i = 0; i < 90; i++) { frame(16.7); st('G.shields=3;G.groove=8;G.grooveT=G.t+99'); }
+    const p1 = st('G.pocket');
+    if (!(p1 > 0.55)) throw new Error(`held x8 for 1.5s and the pocket only reached ${p1} — the attack is broken`);
+    for (let i = 0; i < 90; i++) { frame(16.7); st('G.shields=3;G.groove=8;G.grooveT=G.t+99'); }
+    if (st('G.pocket') < 0.99) throw new Error('held x8 for 3s and the pocket never filled');
+    for (let i = 0; i < 30; i++) { frame(16.7); st('G.shields=3;G.groove=7;G.grooveT=G.t+99'); }
+    if (st('G.pocket') < 0.99) throw new Error('x7 released the pocket — one slip must be grace, not a reset');
+    for (let i = 0; i < 150; i++) { frame(16.7); st('G.shields=3;G.groove=0'); }
+    if (st('G.pocket') > 0.02) throw new Error('the chain let go and the pocket did not drain');
+    console.log('pocket ok: fills over ~a bar at x8, x7 sustains, drains on release, audio-less frames survive it full');
+  }
+
   // ---- the powerup lab ----
   // Two claims to prove and they fail in opposite directions. The lab must
   // DO something — hand you the orb you picked, over and over, on a board that
