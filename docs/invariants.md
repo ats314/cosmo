@@ -317,7 +317,7 @@ audio path.*
 ## Graphics, shaders and the sky
 
 *You are touching a draw pass, a shader, a uniform, the glow chain or the
-render-scale dial.*
+render scale.*
 
 - **A halo belongs to an object; a backdrop belongs to nobody.** These are
   tuned by opposite rules and the constants do not transfer. The sky's
