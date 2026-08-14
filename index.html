@@ -8488,11 +8488,38 @@ function glShear(dir){ if(GL.on&&!RM)GL.shear=0.28*(dir<0?-1:1); }
    a visible pulsing of the sky's resolution, which is worse than either end
    of it. So the moment anything is too slow, GL.cap drops to whatever scale
    we retreated to, and the raise can never step past the cap again this run.
-   Degrade never, then, is still degrade-once: the run's quality is monotone
-   non-increasing after the first slow second.
    Raising asks for more evidence than lowering (4 fast seconds against 2
    slow) and asks at a stricter threshold than the one that triggers a drop,
-   so the two bands cannot both be true. */
+   so the two bands cannot both be true.
+
+   THE LADDER SHEDS IN ORDER OF IDENTITY, AND THE SKY DIES LAST. This watch
+   measures the WHOLE frame — it cannot tell the backdrop's cost from the
+   glow's, the arena's, or a phone throttling itself at 3% battery — and its
+   only levers used to be the backdrop's. So any slowness anywhere was billed
+   to the sky: scale down, scale down, then GL.on=false and the baked 2D
+   backdrop swapping in MID-RUN, permanently. That is the single worst
+   degrade the game can perform: the sky is the game's face, the swap is a
+   whole-scene replacement a player reads as the game breaking, and it
+   executed the one layer that was framed for a bill the GLOW was running up
+   — the FX pass costs a texture upload and a WebGL-canvas drawImage every
+   frame, which is real money on exactly the phones that are near the
+   threshold. Field report, verbatim: "it looks good for the opening and then
+   5 seconds in, it changes to the old shit." Five seconds is this ladder
+   bottoming out on schedule.
+   So the ladder now sheds the cheapest identity first:
+     1. the GLOW — FX.on false, the disc halo returns. Tuned to carry the
+        same light, so this is nearly invisible; and on a throttled phone it
+        refunds the exact cost that was likely the problem.
+     2. the sky's RESOLUTION, stepped as before, cap latching each time.
+     3. the sky ITSELF — only when the cheapest scale with no glow is still
+        too slow, which is a phone that genuinely cannot run any of it.
+
+   AND THE RAISE ONLY MEASURES GAMEPLAY. It used to count any fast second,
+   and the menu is nothing but fast seconds — an empty board, no glow work,
+   no simulation — so every run began at a resolution the menu had bid up
+   and the run could not afford, handing the ladder a guaranteed walk-down
+   that ended in the swap above. A raise fed by unrepresentative frames is
+   not headroom, it is a debt the next screen inherits. */
 function glWatch(dt){
   if(dt<=0||dt>0.5)return;                 /* ignore tab-switch spikes */
   GL.acc+=dt;GL.n++;
@@ -8503,16 +8530,17 @@ function glWatch(dt){
     GL.slow++;
     if(GL.slow>=2){
       GL.slow=0;
-      if(GL.scale>0.34){
-        GL.scale=Math.max(0.34,GL.scale-0.14);
+      if(FX.on)FX.on=false;                /* 1. the glow yields first */
+      else if(GL.scale>0.34){
+        GL.scale=Math.max(0.34,GL.scale-0.14);   /* 2. then resolution */
         GL.cap=GL.scale;                   /* the ceiling latches, permanently */
         GL.vw=GL.vh=0;
       }
-      else GL.on=false;                    /* the 2D backdrop takes over */
+      else GL.on=false;                    /* 3. the sky itself, dead last */
     }
   }else{
     GL.slow=0;
-    if(avg<1/58&&GL.scale<GL.cap){
+    if(avg<1/58&&GL.scale<GL.cap&&G.state==='playing'){
       GL.fast++;
       if(GL.fast>=4){
         GL.fast=0;

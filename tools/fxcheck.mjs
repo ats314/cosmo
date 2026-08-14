@@ -200,6 +200,19 @@ function crossFront(st, frame, fire, pid) {
   const { log, frame, fire, st } = build({ webgl: true });
   let pid = 1;
   for (let i = 0; i < 60; i++) frame(16.7);
+  /* THE RAISE MUST NOT COUNT MENU FRAMES. The title screen is nothing but
+     fast seconds — an empty board, no glow work, no simulation — so a raise
+     that listens here bids the resolution up to a price the RUN cannot pay,
+     and hands the ladder a guaranteed walk-down that ends with the 2D
+     backdrop swapping in mid-run. That is the shipped bug, verbatim from the
+     field: "looks good for the opening and then 5 seconds in, it changes". */
+  const sMenu0 = Number(st('GL.scale'));
+  for (let i = 0; i < 60 * 8; i++) frame(8);       // 125fps on the title screen
+  const sMenu1 = Number(st('GL.scale'));
+  if (sMenu1 > sMenu0 + 1e-9) {
+    fail.push(`the render scale climbed on the MENU (${sMenu0} -> ${sMenu1}) — menu frames are `
+      + 'unrepresentative, and a menu-bid resolution is a debt the run inherits');
+  }
   pid = crossFront(st, frame, fire, pid);
   if (st('G.state') !== 'playing') fail.push(`could not reach a run (stuck in ${st('G.state')})`);
   const before = log.draws.length;
@@ -255,20 +268,37 @@ function crossFront(st, frame, fire, pid) {
   }
   note.push(`GPU path: ${perFrame.toFixed(1)} draws/frame, ${got.length} targets, flip on upload`);
 
-  /* THE SCALE DIAL CLIMBS AND ITS CEILING LATCHES. Fast seconds raise it;
-     one slow stretch drops it and pins the cap there for the rest of the run. */
+  /* THE SCALE DIAL CLIMBS IN PLAY, AND THE LADDER SHEDS IN ORDER OF
+     IDENTITY: glow first, resolution second, the sky itself dead last. The
+     watch measures the whole frame and cannot tell whose cost it is, so what
+     it retires first has to be the thing whose loss a player is least likely
+     to notice — and the glow is tuned to carry the same light as the disc
+     fallback, so retiring it is nearly invisible AND refunds the cost most
+     likely to be the problem. The sky swapping to the 2D backdrop mid-run is
+     the single worst degrade the game can perform, and it must be the last
+     resort, not the first response. */
   const s0 = Number(st('GL.scale'));
-  for (let i = 0; i < 60 * 8; i++) frame(8);       // 125fps: comfortably fast
+  for (let i = 0; i < 60 * 8; i++) frame(8);       // 125fps, in play: climbs
   const s1 = Number(st('GL.scale'));
-  if (!(s1 > s0)) fail.push(`GL.scale did not climb on a fast device (${s0} -> ${s1})`);
-  for (let i = 0; i < 40 * 4; i++) frame(40);      // 25fps: slow
+  if (!(s1 > s0)) fail.push(`GL.scale did not climb on a fast device in play (${s0} -> ${s1})`);
+  if (st('FX.on') !== true) fail.push('the glow should still be running before any slow stretch');
+  /* one action window of slow frames: the glow dies, the sky is untouched */
+  for (let i = 0; i < 75; i++) frame(40);          // 25fps for ~3s: one ladder action
+  if (st('FX.on') !== false) fail.push('slow frames did not retire the GLOW first — the ladder is billing the sky for costs it can shed cheaper');
+  const sAfterFx = Number(st('GL.scale'));
+  if (Math.abs(sAfterFx - s1) > 1e-9) {
+    fail.push(`the sky's resolution moved (${s1} -> ${sAfterFx}) before the glow was retired — the ladder is out of order`);
+  }
+  /* continued slow: NOW the resolution steps, and the cap latches */
+  for (let i = 0; i < 40 * 4; i++) frame(40);
   const s2 = Number(st('GL.scale')), cap = Number(st('GL.cap'));
-  if (!(s2 < s1)) fail.push(`GL.scale did not fall on a slow device (${s1} -> ${s2})`);
+  if (!(s2 < s1)) fail.push(`GL.scale did not fall once the glow was gone (${s1} -> ${s2})`);
   if (cap > s2 + 1e-9) fail.push(`the ceiling did not latch to the retreat (cap ${cap} > scale ${s2})`);
+  if (st('GL.on') !== true) fail.push('the slow stretch killed the sky entirely — it must be the last resort');
   for (let i = 0; i < 60 * 12; i++) frame(8);      // fast again: must not exceed the cap
   const s3 = Number(st('GL.scale'));
   if (s3 > cap + 1e-9) fail.push(`GL.scale climbed past its latched ceiling (${s3} > ${cap})`);
-  note.push(`scale dial: ${s0} -> ${s1} climbed, -> ${s2} retreated, capped ${cap}, held ${s3}`);
+  note.push(`ladder: climbed ${s0} -> ${s1} in play, glow retired first, then ${s2}, capped ${cap}, held ${s3}`);
 }
 
 /* ================= 1b. THE LENS POINTS THE RIGHT WAY =================

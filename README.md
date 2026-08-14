@@ -2010,15 +2010,29 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   anything else, and the lost/restored listeners drop the six render targets —
   a restored context hands back a new context object and every texture,
   framebuffer and program made against the old one is dead.
-- **The render scale climbs as well as falls.** `GL_SCALE` is 0.60 — a
-  compromise struck between a phone that might not cope and a desktop that
-  could render the sky four times over — and it used to be permanent in both
-  directions. It now rises toward 1.0 on a machine holding its frame. The
-  ceiling *latches down* the first time anything is slow and never comes back
-  up, because a dial that can rise and fall near the threshold oscillates, and
-  a visibly pulsing sky resolution is worse than either end of it. Raising asks
-  for more evidence than lowering (four fast seconds against two slow) at a
-  stricter threshold, so the two bands can never both be true.
+- **The render scale climbs as well as falls — but only on gameplay frames,
+  and the degrade ladder sheds in order of identity.** `GL_SCALE` is 0.60 and
+  rises toward 1.0 on a machine holding its frame; the ceiling *latches down*
+  on the first slow stretch so the dial can never oscillate. Two hard lessons
+  are now built into it, both from the same field report ("looks good for the
+  opening and then 5 seconds in, it changes to the old shit"):
+  **The raise only counts frames from a live run.** The title screen is
+  nothing but fast seconds — empty board, no glow work, no simulation — so a
+  raise that listened there bid the resolution up to a price the run could not
+  pay, and handed the ladder a guaranteed walk-down. A raise fed by
+  unrepresentative frames is not headroom, it is a debt the next screen
+  inherits.
+  **The sky dies last.** The watch measures the whole frame and cannot tell
+  the backdrop's cost from the glow's or a phone throttling itself at 3%
+  battery, and its only levers used to be the backdrop's — so any slowness
+  anywhere was billed to the sky, ending in `GL.on=false` and the baked 2D
+  backdrop swapping in mid-run, permanently. That is the worst degrade the
+  game can perform, and it was being triggered by the glow's own per-frame
+  cost. The ladder now sheds the glow first (nearly invisible — the disc
+  fallback is tuned to carry the same light — and it refunds the likeliest
+  bill), then steps the sky's resolution, and only kills the sky when the
+  cheapest scale with no glow is still too slow. `fxcheck.mjs` asserts the
+  order and fails if the resolution moves while the glow still runs.
 - **The hub lamp finally lights something.** `SPR.core` is the light source the
   whole scene is described as answering to, and exactly one object answered it:
   the shard, whose baked bright face is rotated hubward at draw time. Embers,
