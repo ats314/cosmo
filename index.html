@@ -488,38 +488,6 @@ function bakeGrade(band){
   g.restore();
   return {c:c,w:W,h:H};
 }
-/* ---------- THE BASE SKY, BAKED ONLY IF IT WILL BE SEEN ----------
-   A baked gradient and two star planes: the one part of the sky the shader
-   really does replace, because drawing the gradient over a live shader would
-   paint it out completely and the star planes would double its own three.
-   Measured on a 390x844 phone at DPR 2 they are 5.65 Mpx — about 22MB of
-   canvas, four times the visible game canvas — and on any device with a
-   working GPU not one pixel of it is ever drawn.
-   THE BAKE CANNOT SIMPLY BE GATED ON GL.on, because glInit() runs long after
-   the first resize(): at the moment buildSprites first runs, GL.on is false
-   on every device, so a naive guard would bake the whole set anyway and then
-   only skip it on later resizes. Baking on FIRST USE is the version that
-   works, and it has the property that matters — it is also correct when a
-   context is lost mid-run and the fallback takes over for real.
-   There is one deliberate loss: a band change on a fallback device that has
-   never drawn the base sky has no outgoing bake to crossfade from, so the
-   first band it ever draws arrives without the 2.5s fade. That is the frame a
-   GPU has just died on; a hard cut is the least of what the player is seeing. */
-let skyBaseBand=-2;
-function buildSkyBase(){
-  const band=SKY_BANDS[skyI];
-  SPR.bg=bakeBackdrop(band.bg);
-  if(!SPR.bg2){
-    /* band-independent, so it survives a band change and is built once */
-    SPR.bg2=bakeBackdrop(['#231b3f','#151030','#0b081c','#05040e']);
-    /* TWO DEPTH PLANES, so orbiting actually parallaxes the sky: the dim small
-       stars barely move (and bake soft — the far plane is out of focus) while
-       the bright haloed ones ride a comet-coupled offset, pin sharp. */
-    SPR.starsFar=bakeStars(8,[0],true,true);
-    SPR.starsNear=bakeStars(28,[1,2]);
-  }
-  skyBaseBand=skyI;
-}
 function buildSprites(bandOnly){
   buildStarField();
   const band=SKY_BANDS[skyI];
@@ -528,11 +496,7 @@ function buildSprites(bandOnly){
      to rebake together on the banner frame. The nebulae bake from the BAND's
      tints now (they used to bake from the fixed seed colours, so the palette
      bands never actually recoloured them — dead data, found in review). */
-  /* THE BASE SKY IS NOT BAKED HERE ANY MORE — see buildSkyBase. It is the
-     only part of the sprite cache the shader genuinely replaces, so on a
-     working GPU it is 22MB of canvas that is painted, held, and never drawn.
-     Invalidated here and baked on first use, which on most devices is never. */
-  skyBaseBand=-2;
+  SPR.bg=bakeBackdrop(band.bg);
   SPR.neb=band.neb.map(function(c){return bakeNebula(c);});
   SPR.galaxy=bakeGalaxy(band);
   SPR.planet=bakePlanet(band);
@@ -545,14 +509,17 @@ function buildSprites(bandOnly){
   /* The payoff section owns a second sky. Baked here, drawn only while a
      section plays — the drop flips the world into a state that LASTS, rather
      than a one-second flash over the ordinary screen. */
+  SPR.bg2=bakeBackdrop(['#231b3f','#151030','#0b081c','#05040e']);
   SPR.neb2=nebulas.map(function(n,i){
     return bakeNebula(['150,110,255','90,80,220','190,90,200'][i%3]);
   });
   /* The wash that blooms behind the arena when the drop lands. */
   SPR.nebDrop=bakeNebula('180,139,255');
-  /* the two star planes moved to buildSkyBase with the gradient: the shader
-     draws its own three star layers, so these are fallback-only too */
-  SPR.starsFar=null;SPR.starsNear=null;SPR.bg2=null;
+  /* TWO DEPTH PLANES, so orbiting actually parallaxes the sky: the dim small
+     stars barely move (and bake soft — the far plane is out of focus) while
+     the bright haloed ones ride a comet-coupled offset, pin sharp. */
+  SPR.starsFar=bakeStars(8,[0],true,true);
+  SPR.starsNear=bakeStars(28,[1,2]);
   SPR.ember=makeSprite(9*u+24,function(g){
     const hr=22*u;
     const gr=g.createRadialGradient(0,0,0,0,0,hr);
@@ -873,9 +840,6 @@ function resize(){
        cannot, because the old bake is the wrong size. The 1-2ms rebake lands
        on the same frame as the tier banner, where a long frame is invisible. */
     const bandOnly=sprU===u&&sprDPR===DPR&&sprW===W&&sprH===H&&sprBand!==-1;
-    /* a real resize invalidates the band-INDEPENDENT base as well: those
-       bakes are sized to the viewport and cannot survive it changing */
-    if(!bandOnly){SPR.bg2=null;SPR.starsFar=null;SPR.starsNear=null;}
     const old=bandOnly?SPR.bg:null;
     buildSprites(bandOnly);
     if(old){SPR.bgOld=old;G.bgFade=RM?0:1;}
@@ -8262,27 +8226,6 @@ function musPos(){
    Why a shader at all: the old sky was radial-gradient sprites, which cannot
    express filaments, dust lanes or flow no matter how they are animated. This
    is two-level domain-warped fBm — the structure IS the maths. */
-/* ---------- HOW MUCH OF THE SCENE SURVIVES OVER A LIVE SKY ----------
-   The composed scene — planet, galactic band, cloud field, god rays, fog,
-   motes, grade — was authored to composite over a BAKED gradient: flat, dark,
-   and structureless. It now lands on the shader, which is none of those
-   things. At full strength the scene would veil the very field it is meant to
-   be standing in front of, and the fix is not to drop layers but to weigh
-   them, because the two KINDS of layer fail differently:
-     SKY_OVER  source-over layers VEIL. Whatever alpha they carry is that much
-               of the shader they hide, so they come down the most.
-     SKY_ADD   additive layers (the rays) ADD light rather than hiding any, so
-               they need far less trim — and the drop is the moment they exist
-               for, so over-trimming them would flatten the biggest event in
-               the game.
-     SKY_GRADE the grade is a vignette, and the shader already has one of its
-               own; without a trim the frame would darken twice at the edges.
-   All three apply ONLY when the shader is running: the 2D fallback composites
-   at exactly the weights it always did, so nothing about that path changes.
-   Mutable at runtime, like FX_A and ARENA_PARALLAX, because the last word on
-   how much sky is too much belongs to eyes on a real screen — these are the
-   most eye-dependent numbers in the file and the least measurable. */
-let SKY_OVER=0.62,SKY_ADD=0.80,SKY_GRADE=0.55;
 const GL_SCALE=0.60;   /* render scale. THE perf dial: the field is smooth, so
                           upscaling costs almost nothing visually. Drop toward
                           0.4 if a phone struggles, raise to 1.0 on desktop. */
@@ -9000,34 +8943,11 @@ function draw(){
   /* the ambient clock: the camera dolly, the sky's own drift and every
      background LFO ride this, so they slow with the world — see G.vt */
   const amb=RM?0:G.vt;
-  /* ================= THE SKY IS TWO THINGS, NOT ONE =================
-     When the shader arrived it replaced the ENTIRE 2D backdrop, and that was
-     one decision too broad. It genuinely does replace the base sky — a baked
-     gradient and two star planes cannot express filaments, dust lanes or flow,
-     which is the whole argument for a shader and it is correct. What it does
-     not replace is the SCENE: the planet, the galactic band, the god rays,
-     the drifting cloud field, the fog banks and the dust motes. Those are
-     objects, with depth order and silhouettes, and no amount of fBm is an
-     object. A texture is not a place.
-     The cost of conflating them was that every one of those layers drew only
-     when `BG` was true — that is, only when WebGL had FAILED. The composed
-     scene shipped to the players on the weakest hardware and to nobody else,
-     which is not a trade anyone would make on purpose. It is also exactly the
-     shape of the bug this file already records once, when the arena-scale
-     black hole was gated on the shader having given up.
-     So the gate splits in two. BG still means "no shader": the base sky and
-     its star planes, which really are the shader's job and would paint over
-     it if they drew. SCENE means "draw the objects", which is always — over
-     the shader when there is one, over the baked gradient when there is not.
-     THE ALPHAS WERE TUNED AGAINST A FLAT DARK GRADIENT and are now landing on
-     a live, bright, structured field, so compositing them at full strength
-     would veil the thing they are standing in front of. SKY_OVER is the one
-     dial that trims them, applied only when the shader is running, so the
-     fallback still composites exactly as it always did. */
+  /* The GPU paints the backdrop; the 2D canvas is cleared to transparent and
+     carries only the arena. BG stays true when WebGL is unavailable, and then
+     every baked layer below draws exactly as it always did. */
   const BG=!GL.on;
-  const so=BG?1:SKY_OVER,ao=BG?1:SKY_ADD;
   if(!BG){glRender(Math.min(0.05,Math.max(0,G.t-(GL.last||G.t))));GL.last=G.t;ctx.clearRect(0,0,W,H);}
-  if(BG&&skyBaseBand!==skyI)buildSkyBase();
   if(BG&&SPR.bg)ctx.drawImage(SPR.bg.c,0,0,W,H);
   /* a band change fades from the outgoing sky over 2.5s (RM hard-cuts) */
   if(BG&&G.bgFade>0&&SPR.bgOld){
@@ -9087,8 +9007,8 @@ function draw(){
   const energy=Math.min(1,PLAY.heat+0.6*G.pay+G.odGlow+0.5*G.pocket);
   const mpulse=RM?0:SKY_SWELL*(0.60*swBar+0.40*swPhrase)*(0.40+0.60*energy);
   /* THE GALACTIC BAND — deepest light in the scene, and it answers the drop */
-  if(SPR.galaxy){
-    ctx.globalAlpha=0.6*so*(1+0.30*mpulse);
+  if(BG&&SPR.galaxy){
+    ctx.globalAlpha=0.6*(1+0.30*mpulse);
     ctx.drawImage(SPR.galaxy.c,-28+sdx*0.2+camX*0.2,-28+sdy*0.2+camY*0.2,SPR.galaxy.w,SPR.galaxy.h);
     ctx.globalAlpha=1;
     if(!RM&&(dropA>0||G.odGlow>0.01)){
@@ -9099,7 +9019,7 @@ function draw(){
     }
   }
   /* the landmark: half the short side now, textured, lit by the arena */
-  if(SPR.planet){
+  if(BG&&SPR.planet){
     const ps=SPR.planet.w;
     ctx.drawImage(SPR.planet.c,-ps*0.55+sdx*0.15+camX*0.15,H-ps*0.42+sdy*0.15+camY*0.15,ps,ps);
   }
@@ -9110,7 +9030,7 @@ function draw(){
      incommensurate rates the field never resolves into a pattern.
      Size breathes on the four-bar phrase rather than the beat, so the sky
      swells with the arrangement instead of ticking with it. */
-  if(SPR.neb)for(let i=0;i<nebulas.length;i++){
+  if(BG&&SPR.neb)for(let i=0;i<nebulas.length;i++){
     const n=nebulas[i];
     const sp=SPR.neb[i%SPR.neb.length];
     const dr=amb*0.011*SKY_RATE*n.sp*n.dir+n.ph;   /* the turning drift basis */
@@ -9122,10 +9042,10 @@ function draw(){
     /* the nebulae swell when the drop lands — the dangling hook, wired */
     const nr=n.r*Math.max(W,H)*0.5*
       (1+(RM?0:0.18*G.dropFx+0.13*swPhrase+0.05*swBar));
-    ctx.globalAlpha=n.a*so;
+    ctx.globalAlpha=n.a;
     ctx.drawImage(sp.c,nx-nr,ny-nr,nr*2,nr*2);
     if(dropA>0&&SPR.neb2){
-      ctx.globalAlpha=dropA*n.a*so;
+      ctx.globalAlpha=dropA*n.a;
       ctx.drawImage(SPR.neb2[i%SPR.neb2.length].c,nx-nr,ny-nr,nr*2,nr*2);
     }
     ctx.globalAlpha=1;
@@ -9134,8 +9054,8 @@ function draw(){
      alpha while the section runs, drains with it. Suppressed under slow-mo
      so it never fights that vignette. */
   const wash=Math.min(0.85,((RM?0:0.45*G.dropFx)+0.30*G.pay)*(G.tsCur<0.98?0.4:1));
-  if(wash>0.01&&SPR.nebDrop){
-    ctx.globalAlpha=wash*so;
+  if(BG&&wash>0.01&&SPR.nebDrop){
+    ctx.globalAlpha=wash;
     const wr=R*2.2;
     ctx.drawImage(SPR.nebDrop.c,cx-wr,cy-wr,wr*2,wr*2);
     ctx.globalAlpha=1;
@@ -9143,21 +9063,21 @@ function draw(){
   /* GOD RAYS. Two counter-rotated passes of the baked fan shimmer against
      each other; the drop throws them wide. Born outside the ring stack —
      the baked inner hole keeps the play annulus clean. */
-  if(SPR.rays){
+  if(BG&&SPR.rays){
     ctx.save();
     ctx.globalCompositeOperation='lighter';
     ctx.translate(cx,cy);
     const rs=SPR.rays.w;
     if(RM){
-      ctx.globalAlpha=0.05*ao;
+      ctx.globalAlpha=0.05;
       ctx.drawImage(SPR.rays.c,-rs/2,-rs/2,rs,rs);
     }else{
       ctx.rotate(amb*0.011);
-      ctx.globalAlpha=Math.min(0.7,0.06+0.55*G.dropFx+0.15*G.pay+0.12*mpulse+0.18*G.odGlow+0.14*G.pocket)*ao;
+      ctx.globalAlpha=Math.min(0.7,0.06+0.55*G.dropFx+0.15*G.pay+0.12*mpulse+0.18*G.odGlow+0.14*G.pocket);
       const s1=1+0.25*G.dropFx;
       ctx.drawImage(SPR.rays.c,-rs/2*s1,-rs/2*s1,rs*s1,rs*s1);
       ctx.rotate(-amb*0.018+1.3);
-      ctx.globalAlpha=Math.min(0.7,0.04+0.32*G.dropFx+0.08*mpulse+0.12*G.odGlow)*ao;
+      ctx.globalAlpha=Math.min(0.7,0.04+0.32*G.dropFx+0.08*mpulse+0.12*G.odGlow);
       const s2=1.06+0.3*G.dropFx;
       ctx.drawImage(SPR.rays.c,-rs/2*s2,-rs/2*s2,rs*s2,rs*s2);
     }
@@ -9169,14 +9089,14 @@ function draw(){
   const pcx=RM?0:-Math.cos(G.angle)*7*u,pcy=RM?0:-Math.sin(G.angle)*7*u;
   const fogAl=0.36*(1-0.5*Math.min(1,G.dropFx+0.6*G.pay))*(G.tsCur<0.98?0.6:1);
   if(BG&&SPR.starsFar)ctx.drawImage(SPR.starsFar.c,-8+sdx*0.3+camX*0.3,-8+sdy*0.3+camY*0.3,SPR.starsFar.w,SPR.starsFar.h);
-  if(SPR.fogA){
-    ctx.globalAlpha=(RM?0.4:fogAl)*so;
+  if(BG&&SPR.fogA){
+    ctx.globalAlpha=RM?0.4:fogAl;
     ctx.drawImage(SPR.fogA.c,-40+sdx*0.6+camX*0.6,-40+sdy*0.6+camY*0.6,SPR.fogA.w,SPR.fogA.h);
     ctx.globalAlpha=1;
   }
   if(BG&&SPR.starsNear)ctx.drawImage(SPR.starsNear.c,-28+sdx+pcx+camX,-28+sdy+pcy+camY,SPR.starsNear.w,SPR.starsNear.h);
-  if(SPR.fogB&&!RM){
-    ctx.globalAlpha=fogAl*0.8*so;
+  if(BG&&SPR.fogB&&!RM){
+    ctx.globalAlpha=fogAl*0.8;
     ctx.drawImage(SPR.fogB.c,-40+sdx*1.4+pcx*1.6+camX*1.4,-40+sdy*1.4+pcy*1.6+camY*1.4,SPR.fogB.w,SPR.fogB.h);
     ctx.globalAlpha=1;
   }
@@ -9199,7 +9119,7 @@ function draw(){
      orbit outside the outer ring, brightens inside the lamp's shell and
      under the sweep of light that leads the comet, and nods on the landed
      beat during the payoff. 44 tiny blits. */
-  if(SPR.mote){
+  if(BG&&SPR.mote){
     const R0=radiusOf(0);
     for(const m of MOTES){
       const a=m.ang+amb*m.sp*0.03;
@@ -10026,14 +9946,7 @@ function draw(){
   /* THE GRADE: one quarter-res blit of baked photographic finish — corner
      falloff that tames stray bloom, a horizon lift, a band-axis bias. Above
      the game, below the scrim and HUD. */
-  if(SPR.grade){
-    /* the shader vignettes itself, so the grade's own falloff would double up
-       — it goes on at a trim over a live sky and at full strength over the
-       baked one, where it is the only vignette there is */
-    ctx.globalAlpha=BG?1:SKY_GRADE;
-    ctx.drawImage(SPR.grade.c,0,0,W,H);
-    ctx.globalAlpha=1;
-  }
+  if(BG&&SPR.grade)ctx.drawImage(SPR.grade.c,0,0,W,H);
   /* slow-mo tint — baked; this was the file's last per-frame gradient */
   if(G.tsCur<0.98&&SPR.slowTint){
     ctx.globalAlpha=Math.min(1,(1-G.tsCur)/0.45);

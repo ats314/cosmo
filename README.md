@@ -2010,34 +2010,6 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   anything else, and the lost/restored listeners drop the six render targets —
   a restored context hands back a new context object and every texture,
   framebuffer and program made against the old one is dead.
-- **The composed scene was only reaching players whose GPU had failed.** When
-  the shader arrived it replaced the *entire* 2D backdrop, and that was one
-  decision too broad. It genuinely does replace the base sky — a baked gradient
-  and two star planes cannot express filaments, dust lanes or flow, which is
-  the whole argument for a shader. It does not replace the **scene**: the
-  planet, the galactic band, the god rays, the six drifting cloud sprites, the
-  fog banks and the dust motes. Those are objects, with silhouettes and depth
-  order, and no amount of fBm is an object — a texture is not a place. All of
-  them were gated on `BG`, i.e. on WebGL having *failed*, so the only people
-  who ever saw them were the ones on the weakest hardware. The gate is split
-  now: `BG` still covers the base sky and its star planes, and the scene draws
-  over the shader. Their alphas were authored against a flat dark gradient and
-  are now landing on a live structured field, so `SKY_OVER` (source-over layers,
-  which *veil*), `SKY_ADD` (the additive rays, which only *add*) and
-  `SKY_GRADE` (against a shader that already vignettes) weigh them down — but
-  only when the shader is running; the fallback composites exactly as before.
-  All three are runtime-mutable, because they are the most eye-dependent and
-  least measurable numbers in the file.
-- **The base sky is baked only if it will be seen.** It is 5.65 Mpx — about
-  22MB of canvas, four times the visible game canvas — and on a working GPU
-  not one pixel of it is ever drawn. It cannot simply be gated on `GL.on`,
-  because `glInit()` runs long after the first `resize()`: at the moment
-  `buildSprites` first runs, `GL.on` is false on *every* device. Baking on
-  first use is the version that works, and it is also correct when a context is
-  lost mid-run and the fallback takes over for real. There is one deliberate
-  loss — a band change on a device that has never drawn the base sky has no
-  outgoing bake to crossfade from — and that is the frame a GPU has just died
-  on, where a hard cut is the least of what the player is seeing.
 - **The render scale climbs as well as falls.** `GL_SCALE` is 0.60 — a
   compromise struck between a phone that might not cope and a desktop that
   could render the sky four times over — and it used to be permanent in both

@@ -331,22 +331,6 @@ Breaking one of these is a product regression, not a style question.
   build, on the same day. Quote the per-ring figure, say which metric any
   number came from, and be suspicious of a difficulty claim that improves the
   moment a ring is added.
-- **THE SKY IS TWO THINGS AND THE SHADER ONLY REPLACES ONE.** The base sky —
-  a baked gradient and two star planes — really is the shader's job: drawing
-  the gradient over a live shader paints it out, and the star planes double
-  the shader's own three. The SCENE is not: the planet, the galactic band, the
-  god rays, the drifting cloud field, the fog banks and the dust motes are
-  OBJECTS, with silhouettes and depth order, and no amount of fBm is an
-  object. When the shader landed it replaced both, so every one of those
-  layers drew only under `BG` — only when WebGL had FAILED — and the composed
-  scene shipped to the players on the weakest hardware and to nobody else.
-  That is the same shape as the arena-scale black hole being gated on the
-  shader having given up, and it is never the intended trade. Keep the split:
-  `BG` for the base sky, unconditional for the scene, `SKY_OVER`/`SKY_ADD`/
-  `SKY_GRADE` to weigh the scene over a live field it was not authored
-  against. `fxcheck.mjs` records which sprites are actually BLITTED and fails
-  if a scene layer stops drawing on the GPU path — asserting that a sprite
-  merely EXISTS does not catch this and did not, on the first attempt.
 - **A halo belongs to an object; a backdrop belongs to nobody.** These are
   tuned by opposite rules and the constants do not transfer. The sky's
   gravitational lens bounds its pull as a FRACTION of the radius, which is
