@@ -135,6 +135,43 @@ prints no FURTHEST YET and writes nothing. A run that started at level 1 and
 climbed keeps counting, including across the retries that put it on a later
 level, because `startLevel` is where the run opened and not where it is now.
 
+### Pause
+
+Players asked for it. A small icon top-left, mirroring mute top-right at the
+same size and inset. Small and inset is the whole placement argument: the arena
+answers a tap *anywhere* with a reversal, so every pixel given to a pause
+control is a pixel where a reversal silently becomes a pause — and in a
+reaction game that is a death.
+
+The freeze itself is one early return in `update()`, placed before `G.t+=dt`.
+Every deadline in the game is written against that one clock, so stopping it
+stops all of them in step: invulnerability, spawn timers, cooldowns, lesson
+spacing, the tier ladder, the difficulty clock, and the black hole's own tick.
+It is the same argument the difficulty modes make for using `dl()` as their
+lever — one number, so nothing drifts out of step with anything else. Paused
+seconds also leave the reported run time for free, because run time is measured
+on the same clock.
+
+**The board is hidden while paused, and that is a balance decision rather than
+a style one.** Shards telegraph for between one and 2.35 seconds. A button that
+freezes a warning mid-flight and lets you read the board at leisure is a
+difficulty change wearing a convenience label, so the panel is opaque: you
+cannot study what is not drawn. Resuming brings the frozen board back for a
+three-second count-in — enough to find the comet again — and only then does
+time restart. Pause re-arms five seconds later, because without a cooldown
+pause–resume–pause is an unlimited supply of three-second frozen looks at a
+live board, which is the hidden board's protection reassembled out of its own
+escape hatch.
+
+Nothing is done to the audio context. `musicTick` already survives an arbitrary
+gap — it notices the schedule falling behind, abandons the section rather than
+replaying it compressed, and restarts on the next grid line — which is the path
+a backgrounded tab has always taken. Pause does what the visibility handler
+does and no more. The one thing it *must* do is take the pad down explicitly:
+the pad is eight continuously running oscillators whose gain is written every
+frame, so freezing the update loop does not silence it, it freezes it, droning
+one chord for as long as the panel is up.
+
 ### POWERUP TESTING
 
 Under the two mode cards is a third option, and it is deliberately not a third

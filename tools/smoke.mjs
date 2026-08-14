@@ -776,6 +776,110 @@ try {
       'share text names mode and picked start');
   }
 
+  // ---- pause ----
+  // Pause is one early return in update(), which is what makes it cheap and
+  // also what makes it easy to get subtly wrong: the freeze either covers
+  // EVERYTHING keyed off G.t or it is a difficulty change. So the test freezes
+  // a live board mid-run and asserts the whole world stopped, not just the
+  // clock — and then that it starts again.
+  {
+    st("G.state='menu';G.swipeAsked=true;G.runs=5;G.lvSel=1;G.t+=1;LAB.on=false");
+    for (let i = 0; i < 30; i++) frame(16.7);
+    let ppid = passMenu(st, frame, fire, pev, 1600);
+    ppid = passLevelSelect(st, frame, fire, pev, ppid, 1);
+    if (st('G.state') === 'lvend') {
+      for (let i = 0; i < 60; i++) frame(16.7);
+      fire('pointerdown', pev(ppid, 200, 400, 'pointerdown'));
+      fire('pointerup', pev(ppid++, 200, 400, 'pointerup'));
+    }
+    if (st('G.state') !== 'playing') throw new Error('pause test could not reach a run, state=' + st('G.state'));
+    // Play far enough in that there is a real board to freeze — shards, stars,
+    // maybe an orb. The bank is topped up through the warm-up because the point
+    // here is the freeze, not survival: without it the run reliably died before
+    // the button was ever pressed, and the failure read as "pause is broken".
+    // Run until there is actually a shard on the board, rather than for a fixed
+    // number of frames and hoping. The harnesses are not deterministic — shards
+    // expire and respawn on unseeded rolls, so sampling at one instant found an
+    // empty board about half the time and reported it as pause being broken.
+    // The bank is topped up because the point here is the freeze, not survival.
+    let armed = false;
+    for (let i = 0; i < 3600 && !armed; i++) {
+      frame(16.7);
+      if (i % 30 === 0) st('G.shields=3');
+      if (st('G.state') !== 'playing') throw new Error('the run died before pause could be tested');
+      if (st('G.spikes.length') > 0 && st('G.t') - st('G.started') > 20) armed = true;
+    }
+    if (!armed) throw new Error('no shard ever reached the board — the freeze would prove nothing');
+    st('PAUSE.cool=0');
+    for (let i = 0; i < 5; i++) frame(16.7);
+    const btn = JSON.parse(st('JSON.stringify(pauseRect())'));
+    const mute = JSON.parse(st('JSON.stringify(muteRect())'));
+    if (btn.x < 0 || btn.y < 0 || btn.x + btn.w > vw) throw new Error('the pause button is off screen');
+    if (btn.x < mute.x + mute.w && btn.x + btn.w > mute.x
+     && btn.y < mute.y + mute.h && btn.y + btn.h > mute.y) throw new Error('the pause button overlaps mute');
+    // press it
+    const bx = btn.x + btn.w / 2, by = btn.y + btn.h / 2;
+    fire('pointerdown', pev(ppid, bx, by, 'pointerdown'));
+    fire('pointerup', pev(ppid++, bx, by, 'pointerup'));
+    if (!st('PAUSE.on')) throw new Error('pressing the pause button did not pause');
+    if (st('G.state') !== 'playing') throw new Error('pause changed G.state — draw() would render the death screen over a live run');
+
+    // THE WHOLE WORLD IS FROZEN, not merely the clock. Each of these is keyed
+    // off G.t somewhere and each would be a live difficulty change if the
+    // freeze missed it.
+    const snap = () => JSON.parse(st(`JSON.stringify({t:G.t,vt:G.vt,dl:dl(),ang:G.angle,tier:G.tier,
+      spikes:G.spikes.length,pos:G.spikes.map(s=>s.a+':'+s.t+':'+s.phase).join(','),
+      stars:G.stars.length,pows:G.pows.length,score:G.score,shields:G.shields,
+      bh:BH.phase,bht:BH.t,spikeT:G.spikeT,powT:G.powT,starT:G.starT})`));
+    const a = snap();
+    for (let i = 0; i < 600; i++) frame(16.7);      // ten seconds of paused frames
+    const b = snap();
+    for (const k of Object.keys(a)) {
+      if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) {
+        throw new Error(`pause did not freeze ${k}: ${JSON.stringify(a[k])} -> ${JSON.stringify(b[k])}`);
+      }
+    }
+    if (!(st('PAUSE.total') > 9)) throw new Error('paused time was not accumulating for telemetry');
+    // the panel answers RESUME and nothing else: a tap on the background must
+    // not resume, and must certainly not fall through to reverse()
+    const dir0 = st('G.dir');
+    fire('pointerdown', pev(ppid, 5, vh - 5, 'pointerdown'));
+    fire('pointerup', pev(ppid++, 5, vh - 5, 'pointerup'));
+    if (!st('PAUSE.on')) throw new Error('a tap on the paused background resumed the run');
+    if (st('G.dir') !== dir0) throw new Error('a tap while paused reversed the comet');
+    // ...and neither does the keyboard play the game through the panel
+    fire('doc:keydown', { code: 'ArrowUp', repeat: false, preventDefault() {} });
+    if (st('G.dir') !== dir0 || st('G.hopP') < 1) throw new Error('the keyboard hopped while paused');
+
+    const rs = JSON.parse(st('JSON.stringify(G.pauseBtn)') || 'null');
+    if (!rs) throw new Error('the paused panel drew no RESUME control');
+    fire('pointerdown', pev(ppid, rs.x + rs.w / 2, rs.y + rs.h / 2, 'pointerdown'));
+    fire('pointerup', pev(ppid++, rs.x + rs.w / 2, rs.y + rs.h / 2, 'pointerup'));
+    if (st('PAUSE.on')) throw new Error('RESUME did not close the panel');
+    if (!(st('PAUSE.resumeT') > 0)) throw new Error('RESUME did not start the count-in');
+    // the count-in is still frozen, and still takes no input
+    const c = snap();
+    for (let i = 0; i < 60; i++) frame(16.7);
+    if (st('G.t') !== c.t) throw new Error('the world moved during the count-in');
+    if (!st('frozen()')) throw new Error('the count-in is not reported as frozen');
+    // ...and then it really does start again
+    for (let i = 0; i < 200; i++) frame(16.7);
+    if (st('frozen()')) throw new Error('the count-in never ended');
+    if (!(st('G.t') > c.t)) throw new Error('the clock did not restart after the count-in');
+    // re-pausing is on a cooldown, or pause-resume-pause is an unlimited
+    // supply of three-second frozen looks at a live board
+    if (st('canPause()')) throw new Error('pause re-armed immediately — the count-in can be farmed');
+    for (let i = 0; i < 400; i++) frame(16.7);
+    if (!st('canPause()')) throw new Error('pause never re-armed after its cooldown');
+    // and it is a RUN control: no pausing a menu or a death screen
+    st('die()');
+    if (st('canPause()')) throw new Error('the death screen offered a pause');
+    st('enterMenu()');
+    if (st('canPause()')) throw new Error('the title screen offered a pause');
+    console.log('pause ok: world frozen for 10s (clock, board, spawns, black hole),',
+      'panel answers only RESUME, count-in holds then releases, cooldown blocks farming');
+  }
+
   // ---- the powerup lab ----
   // Two claims to prove and they fail in opposite directions. The lab must
   // DO something — hand you the orb you picked, over and over, on a board that
@@ -1103,6 +1207,18 @@ try {
         }
       }
       if (orbs[1].y === orbs[0].y) folded.push(`${w}x${h}`);
+      // THE PAUSE ICON TOOK THE LAB DOOR'S CORNER. Both are drawn in the same
+      // band at the top of a lab run, and the door is offset by the icon's
+      // footprint rather than by a guess — so the pair has to be checked on a
+      // narrow screen, where the door's width is what gives way.
+      st('LAB.on=true;startLab()');
+      for (let i = 0; i < 5; i++) frame(16.7);
+      const door = JSON.parse(st('JSON.stringify(G.labRect)') || 'null');
+      const pb = JSON.parse(st('JSON.stringify(pauseRect())'));
+      if (!door) throw new Error(`${w}x${h}: a lab run drew no door`);
+      if (ov(door, pb)) throw new Error(`${w}x${h}: the lab door overlaps the pause button`);
+      if (door.x + door.w > w) throw new Error(`${w}x${h}: the lab door runs off the right edge (${(door.x + door.w).toFixed(0)}>${w})`);
+      if (door.w < 60) throw new Error(`${w}x${h}: the lab door squeezed to ${door.w.toFixed(0)}px making room for pause`);
       st('enterMenu()');
       for (let i = 0; i < 5; i++) frame(16.7);
     }
