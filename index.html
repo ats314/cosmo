@@ -298,32 +298,32 @@ const WORLDS=[
      screenshots playtesting loved, expressed in the new weights. */
   {n:'DRIFT',   bill:0.79,broad:0.21,cont:0.00,fil:0.00,
    contF:1.0,contY:0.0,contK:1.0,filK:6.0,lane:0.66,cov:1.00,star:1.00,motion:0.85,gain:1.00,
-   pa:[0.30,0.14,0.42],pb:[0.46,0.24,0.44],pc:[1.00,1.00,1.00],pd:[0.52,0.62,0.78]},
+   pa:[0.34,0.20,0.44],pb:[0.30,0.16,0.26],pc:[1.00,1.00,1.00],pd:[0.52,0.62,0.78]},
   /* TIDE — curtains. cont dominates and contY stretches the level sets along
      y, which is what turns contours into an aurora rather than a marble. */
   {n:'TIDE',    bill:0.26,broad:0.24,cont:0.50,fil:0.00,
    contF:1.60,contY:2.40,contK:1.60,filK:6.0,lane:0.35,cov:0.74,star:1.15,motion:1.00,gain:0.80,
-   pa:[0.14,0.34,0.36],pb:[0.30,0.42,0.40],pc:[1.00,0.96,0.88],pd:[0.16,0.44,0.70]},
+   pa:[0.16,0.44,0.48],pb:[0.12,0.14,0.14],pc:[1.00,1.00,1.00],pd:[0.10,0.20,0.32]},
   /* GLASS — a sharp filament lattice with the coverage gate opened wide, so
      most of the frame is void and stars. The quietest world, and the one that
      proves darkness is composition rather than absence. */
   {n:'GLASS',   bill:0.18,broad:0.10,cont:0.16,fil:0.56,
-   contF:2.20,contY:0.00,contK:2.60,filK:5.5,lane:0.30,cov:1.00,star:1.40,motion:0.70,gain:1.78,
-   pa:[0.30,0.30,0.46],pb:[0.40,0.36,0.46],pc:[1.00,1.00,1.02],pd:[0.60,0.66,0.82]},
+   contF:2.20,contY:0.00,contK:2.60,filK:5.5,lane:0.30,cov:1.00,star:1.40,motion:0.70,gain:1.62,
+   pa:[0.46,0.56,0.72],pb:[0.11,0.10,0.09],pc:[1.00,1.00,1.00],pd:[0.00,0.14,0.28]},
   /* EMBERFALL — the world the red ban forbade. Filaments as light over deep
      lanes: embers falling through smoke. */
   {n:'EMBERFALL',bill:0.20,broad:0.12,cont:0.10,fil:0.58,
-   contF:1.10,contY:0.40,contK:1.20,filK:3.4,lane:0.78,cov:1.00,star:0.80,motion:1.15,gain:2.00,
-   pa:[0.40,0.17,0.12],pb:[0.48,0.27,0.16],pc:[1.00,0.90,0.72],pd:[0.02,0.14,0.30]},
+   contF:1.10,contY:0.40,contK:1.20,filK:3.4,lane:0.78,cov:1.00,star:0.80,motion:1.15,gain:2.30,
+   pa:[0.70,0.25,0.13],pb:[0.16,0.13,0.07],pc:[1.00,1.00,1.00],pd:[0.00,0.10,0.22]},
   /* DUSTLANE — mass everywhere, cut to ribbons by the deepest lanes in the
      table. Warm grey and amber; the stars do the work. */
   {n:'DUSTLANE',bill:0.55,broad:0.30,cont:0.05,fil:0.10,
-   contF:0.80,contY:0.00,contK:1.00,filK:6.0,lane:0.92,cov:0.88,star:1.50,motion:0.60,gain:1.08,
-   pa:[0.30,0.22,0.16],pb:[0.42,0.30,0.22],pc:[1.00,0.94,0.80],pd:[0.06,0.18,0.38]},
+   contF:0.80,contY:0.00,contK:1.00,filK:6.0,lane:0.92,cov:0.88,star:1.50,motion:0.60,gain:1.20,
+   pa:[0.54,0.42,0.21],pb:[0.11,0.10,0.07],pc:[1.00,1.00,1.00],pd:[0.00,0.09,0.20]},
   /* VEIL — broad violet storm, the fastest thing in the table. */
   {n:'VEIL',    bill:0.30,broad:0.48,cont:0.12,fil:0.10,
-   contF:1.30,contY:1.10,contK:1.40,filK:4.6,lane:0.50,cov:0.86,star:0.90,motion:1.30,gain:0.92,
-   pa:[0.34,0.14,0.36],pb:[0.46,0.22,0.44],pc:[1.00,0.92,1.00],pd:[0.34,0.10,0.62]}];
+   contF:1.30,contY:1.10,contK:1.40,filK:4.6,lane:0.50,cov:0.86,star:0.90,motion:1.30,gain:1.05,
+   pa:[0.50,0.19,0.64],pb:[0.13,0.09,0.13],pc:[1.00,1.00,1.00],pd:[0.30,0.02,0.56]}];
 /* HOW MANY ORBITS BUY A NEW WORLD. The owner's brief, verbatim: "players
    should want to get orbits, and they should be rewarded with a cool
    background change" — and, separately, "many people have complained they
@@ -8681,8 +8681,21 @@ void main(){
   if(uBH>0.0) ca+=uBH*0.12*(0.5+rd);
   vec3 col=vec3(palette(ph-ca).r,palette(ph).g,palette(ph+ca).b);
   col*=pow(m,uExp);
-  col+=pow(m,3.2)*vec3(0.92,0.86,1.00)*0.62;
-  col+=pow(m,7.5)*vec3(1.0,0.97,0.92)*0.85;
+  /* THE HIGHLIGHTS CARRY THE WORLD'S COLOUR NOW, and this is what was making
+     six worlds look like two. These two terms were fixed near-whites —
+     vec3(0.92,0.86,1.00) and vec3(1.0,0.97,0.92) — added on top of the
+     palette wherever m is high. m is high in the bright cloud regions, which
+     are precisely the parts of the frame the eye reads, so every world's
+     highlights were the same cream no matter what its palette said. Rendered
+     side by side, DUSTLANE and VEIL were the same picture while carrying
+     completely different palettes (amber against violet): the palette only
+     survived in the dim regions nobody looks at.
+     A white core is still right for the very hottest pixels — that is what
+     makes a bright thing read as bright rather than as saturated — so the
+     constant term stays and the palette is added to it. The mid highlight
+     leans mostly world, the hot core mostly white. */
+  col+=pow(m,3.2)*(vec3(0.26)+1.05*palette(ph+0.10))*0.62;
+  col+=pow(m,7.5)*(vec3(0.62)+0.72*palette(ph+0.18))*0.85;
   /* ---- THE LAP IN PROGRESS, PAINTED ACROSS THE SKY ----
      THE FIX FOR "many people have complained they didnt even know they were
      supposed to do orbits". The arena has carried a lap arc on the ring for a
