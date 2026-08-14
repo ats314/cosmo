@@ -1044,9 +1044,14 @@ try {
     if (modePeak < calmCap * 2) throw new Error(`the black hole peaked at ${modePeak} against a calm cap of ${calmCap} — the mode is not crowding the board`);
 
     // THE GHOST. Deterministic: a lethal shard placed on the player's own ring
-    // at the player's own angle, which the contact test cannot miss.
+    // at the player's own angle, which the contact test cannot miss — provided
+    // the comet is ON that ring: effRing() reads hopFromI through the first
+    // half of a hop, and the lab session that just ran ends on its own
+    // schedule, occasionally mid-hop. Settle the hop or the shard is placed
+    // on a ring the contact test is not reading and this "deterministic"
+    // probe flakes on the session before it.
     const hitOne = () => {
-      st('G.invuln=0;G.spikes.length=0;BH.phase=0;BH.on=false;G.hyper=0');
+      st('G.invuln=0;G.spikes.length=0;BH.phase=0;BH.on=false;G.hyper=0;G.hopP=1');
       st('G.spikes.push({a:G.angle,ring:G.ringI,t:0,phase:1,bt:0,bo:0,va:0,' +
          'gate:false,blink:false,saucer:false,warn:0,life:99})');
       frame(16.7);
