@@ -82,8 +82,15 @@ jobs:
       # SwiftShader, and asserts on the framebuffer. It needs a browser, which
       # is the only dependency in tools/ and the reason it is last: nothing
       # else here installs anything.
+      # BOTH HALVES, and the package is the half that is easy to forget: the
+      # browser download alone leaves `import('playwright')` unresolvable in a
+      # checkout with no node_modules, and the harness would then have no way
+      # to drive it. rendercheck FAILS rather than skips when it cannot find
+      # playwright under CI, so getting this wrong is loud instead of silent.
       - name: Install a browser for the render harness
-        run: npx --yes playwright@1.56.1 install --with-deps chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
       - run: node tools/rendercheck.mjs
 
   deploy:

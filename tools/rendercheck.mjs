@@ -67,6 +67,19 @@ async function loadPlaywright() {
 
 const pw = await loadPlaywright();
 const exe = findChromium();
+/* IN CI, A MISSING BROWSER IS A FAILURE AND NEVER A SKIP. The first cut of
+   this read `if (!pw || …)` and would have skipped in CI the moment the
+   playwright package was unresolvable — which is precisely the silent
+   non-running guard that check.mjs's workflow assertion exists to prevent,
+   reintroduced inside the harness that assertion protects. The environment
+   decides the severity, not the symptom. */
+if (process.env.CI && !pw) {
+  console.error('RENDERCHECK FAILED');
+  console.error('  - no Playwright in CI: the workflow must install the package AND the browser '
+    + '(`npm install --no-save playwright@<v>` then `npx playwright install --with-deps chromium`). '
+    + 'This is the only check in the repo that looks at a pixel and it must never skip in the build.');
+  process.exit(1);
+}
 if (!pw || (!exe && !process.env.CI)) {
   console.log('SKIP  rendercheck: no Playwright/Chromium on this machine.');
   console.log('      Every other harness runs on a stubbed canvas and cannot see a frame, so this');
