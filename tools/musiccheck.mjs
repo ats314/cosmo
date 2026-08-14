@@ -191,7 +191,11 @@ function ok(msg) { console.log('ok  ' + msg); }
    because bedTick is not being ticked. 0 pins a run to the verse; 0.9
    lifts it at the first legal seam (bar 8). MU.barN is reset so "the
    first eight bars are the verse" is measured from THIS run's opening
-   rather than from however long the previous scenario ran. */
+   rather than from however long the previous scenario ran.
+   skyI is set to the level's FLOOR (the game pins it to G.level-1 — see
+   the ratchet), because the sky bands carry percussion of their own and a
+   harness that leaves the sky at band 0 cannot hear the chorus lean stack
+   onto it — which is exactly how the doubled level-4 backbeat shipped. */
 function startLevel(level, heat = 0.8) {
   LOG.osc.length = 0; LOG.buf.length = 0; LOG.tune.length = 0; LOG.pad.length = 0;
   AUDIO_T = 0;
@@ -204,6 +208,8 @@ function startLevel(level, heat = 0.8) {
     PLAY.heat = ${heat};
     G.groove = 0; G.od = 0; G.hyper = 0;
     MU.next = 0; MU.step = 0; MU.chord = -1; MU.barN = 0; MU.glow = 0;
+    FIN.on = false; FIN.pend = false; FIN.step = 0;
+    skyI = Math.max(0, ${level} - 1);
   `, ctx);
 }
 function tick(level, n) {
@@ -375,6 +381,109 @@ console.log('--- the song settles back to the verse when the play cools ---');
     if (!settled) fail(`after cooling, the pad walked ${tail.join(', ')} — not the verse row`);
     else ok('cooling off returns the walk to the verse at the next seam');
   }
+}
+
+console.log('--- the star dive opens on the verse, not on the chorus chord ---');
+/* The finale latch sits BELOW the bar retune, which has already scheduled
+   the chorus chord at the latch's own t — so applySect alone left the
+   dive's whole first bar sounding over the chorus. The fix re-retunes at
+   the same t; this asserts the LAST pad write group of the latch step is
+   the verse chord of that bar. Level 4 is used because its chorus has
+   three roots the verse never plays, so a wrong chord cannot hide. */
+{
+  startLevel(4, 0.9);
+  tick(4, 100);
+  if ($('MU').sect !== 1) fail('dive-seam test never reached the chorus');
+  else {
+    vm.runInContext('FIN.on = true; FIN.pend = true;', ctx);
+    const cbPre = $('G').chorusBars;
+    let latchStep = -1, latchCounted = false;
+    for (let s = 0; s < 20 && latchStep < 0; s++) {
+      const cbB = $('G').chorusBars;
+      AUDIO_T += $('SPB') / 2;
+      vm.runInContext('musicTick()', ctx);
+      if (!$('FIN').pend) {
+        latchStep = ($('MU').step + 31) % 32;
+        latchCounted = $('G').chorusBars !== cbB;
+      }
+    }
+    if (latchStep < 0) fail('the finale never latched in 20 steps');
+    else {
+      const bar = (latchStep / 8) | 0;
+      const wantRoot = PROG[3][bar % 4][0];
+      const lastRoot = LOG.pad[LOG.pad.length - 8];
+      if ($('MU').sect !== 0) fail('the finale latch did not revert the section');
+      if (Math.abs(lastRoot - wantRoot) > 0.02)
+        fail(`the dive's first bar pad root is ${lastRoot}, expected the verse's ${wantRoot} — the revert did not reach the oscillators`);
+      else ok(`the dive's first bar opens on the verse chord (${wantRoot}Hz)`);
+      /* the latch bar belongs to the dive, not the chorus — the counter
+         runs below the handoff and must not have ticked on that step */
+      if (latchCounted) fail(`the dive's latch bar still counted as a chorus bar (${cbPre} -> ${$('G').chorusBars})`);
+      else ok('the dive\'s latch bar is not a chorus bar');
+    }
+    vm.runInContext('FIN.on = false; FIN.pend = false; FIN.step = 0;', ctx);
+  }
+}
+
+console.log('--- chorus_bars counts only bars the chorus actually sounds ---');
+/* The flag stays frozen through a black hole (the band is halted) and a
+   payoff (the section owns those bars); the counter must not follow the
+   flag there. On level 4 one black hole per run is guaranteed, so the
+   uncorrected counter overstated every hot level-4 run. */
+{
+  startLevel(4, 0.9);
+  tick(4, 100);
+  if ($('MU').sect !== 1) fail('chorus_bars/bh test never reached the chorus');
+  else {
+    const cb1 = $('G').chorusBars;
+    vm.runInContext('startBlackHole(); BH.phase = 2; BH.t = 0; BH.warp = 1; BH.step = 0;', ctx);
+    tick(4, 32);
+    if ($('MU').sect !== 1) fail('chorus_bars/bh test is vacuous — the black hole reset the section');
+    const cb2 = $('G').chorusBars;
+    if (cb2 !== cb1) fail(`chorus_bars advanced ${cb2 - cb1} inside a black hole — the band is halted there`);
+    else ok('chorus_bars holds through a black hole');
+    vm.runInContext('BH.phase = 0; BH.on = false; BH.warp = 0; BH.t = 0; MU.pend = null; MU.pendSrc = null;', ctx);
+  }
+  startLevel(2, 0.9);
+  tick(2, 100);
+  vm.runInContext('MU.armed = true;', ctx);
+  let started = false, cbAt = 0, ended = false, landingCounted = false;
+  for (let s = 0; s < 400 && !ended; s++) {
+    const cbB = $('G').chorusBars;
+    AUDIO_T += $('SPB') / 2;
+    vm.runInContext('musicTick()', ctx);
+    const pay = $('MU').pay;
+    if (!started && pay > 0) {
+      started = true; cbAt = $('G').chorusBars;
+      /* the bar the drop LANDS on is the payoff's first bar — fireDrop runs
+         later in the same step, so a counter above the handoff ticks here */
+      landingCounted = $('G').chorusBars !== cbB;
+    }
+    if (started && pay === 0) ended = true;
+  }
+  if (!started) fail('chorus_bars/payoff test: the payoff never ran');
+  else if (landingCounted) fail('the drop\'s landing bar still counted as a chorus bar — the counter runs above the payoff handoff');
+  else if ($('G').chorusBars !== cbAt) fail(`chorus_bars advanced ${$('G').chorusBars - cbAt} inside the payoff — the section owns those bars`);
+  else ok('chorus_bars holds through the payoff, landing bar included');
+}
+
+console.log('--- the chorus lean never doubles a drum already playing ---');
+/* The sky floors at G.level-1 (startLevel mirrors that), so level 4 rides
+   sky band 3's beat-4 snare from its first bar. The first chorus lean
+   added its own snare on the same slot — two 1900Hz bursts and two tonal
+   bodies at one timestamp, on the level good players live in. Snare
+   BODIES are the countable half (the noise stub records hats anonymously):
+   no timestamp may carry two of them. */
+{
+  const tonic = PROG[3][0][0], body = tonic * 1.7818;
+  const bodies = heardHot[4].osc.filter(o => o.type === 'triangle' &&
+    Math.abs(o.f - body) < 0.05 && (o.dur || 0) < 0.3);
+  if (!bodies.length) fail('level 4 hot run scheduled no snare bodies at all — the doubling guard cannot run');
+  const byT = {};
+  for (const o of bodies) { const k2 = o.t.toFixed(3); byT[k2] = (byT[k2] || 0) + 1; }
+  const dup = Object.entries(byT).filter(([, n]) => n > 1);
+  if (dup.length) fail(`level 4: ${dup.length} slot(s) carry a doubled snare body — the chorus backbeat is stacking on the sky kit`);
+  else ok(`level 4: ${bodies.length} snare bodies, no slot doubled (the chorus yields to sky band 3)`);
 }
 
 /* and the rows really are different progressions, not one transposed:

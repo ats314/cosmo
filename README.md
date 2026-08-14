@@ -371,10 +371,10 @@ owner's three references, cross-checked across transcriptions: **Nightcall**
 with the tonic withheld and floats), **Odd Look** (E♭ minor at ~105 BPM, this
 band's own tempo — one iv–i–♭III–V loop for the whole song, the lift purely
 textural), and **Protovision** (E♭ minor — one asymmetric i–i–♭III–V cell,
-two bars of tonic then a ramp). So level 1's chorus is Nightcall's, in
-Nightcall's own key; level 4's is Odd Look's loop in Odd Look's actual key,
-launched on the subdominant, endless as the level; level 3's is Protovision's
-ramp; and level 2 — whose verse walks the descending tetrachord — gets the
+two bars of tonic then a ramp). So level 1's chorus walks the shape
+Nightcall's does, in the key the level shares with it; level 4 rides Odd
+Look's loop shape in the key they share, launched on the subdominant, endless
+as the level; level 3 runs Protovision's ramp; and level 2 — whose verse walks the descending tetrachord — gets the
 Aeolian cadence, the same chords climbing the other way, dovetailing back
 into its verse with a zero-glide seam. The one thing the records do that this
 game cannot copy is their single borrowed chord: Odd Look's and Protovision's
@@ -387,8 +387,9 @@ its row slot 0 is still the i chord — `CH[0][0]` is read as "the level's
 tonic" by roughly twenty-five call sites, so the walk order (`CHOFF`) is a
 separate fact from the chord inventory, and the rotation is what lets
 Nightcall's tonic-withholding trick coexist with every tonic reader in the
-file. And the chorus carries the genre's voicing split — m7 on the minor
-chords, maj7 on ♭III and ♭VI, one sustained color tone a bar (`SEVB`) — while
+file. And the chorus carries the genre's voicing split — the stacked third decides:
+m7 on the minor chords, maj7 on ♭III and ♭VI, the dominant-shaped seventh on
+♭VII, one sustained color tone a bar (`SEVB`) — while
 the arp and every riff stay plain pentatonic, which is also how the reference
 records keep their extensions from muddying the ostinato. `musiccheck.mjs`
 holds all of it: cold play voices the verse row exactly, hot play must lift
@@ -1917,6 +1918,14 @@ section seams included — inside an octave, and the chorus arps under the same
 well as pitch: the counter-line lands on the same frequency by pentatonic
 arithmetic, and a first version of the check counted it, so deleting the
 color line stayed green until the check learned to read note length.
+The harness also runs each level at its sky-band floor — the game pins
+`skyI` to `G.level-1`, and a harness that left the sky at band 0 could not
+hear the first chorus lean stack its backbeat straight onto sky band 3's,
+which is exactly how a doubled level-4 snare shipped. It now fails on any
+slot carrying two snare bodies, asserts the star dive's first bar opens on
+the verse chord (the section revert has to reach the oscillators, not just
+the tables), and holds `chorus_bars` still through a black hole and a
+payoff, where the section flag is frozen but the chorus is not sounding.
 
 ## License
 
