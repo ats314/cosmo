@@ -1358,9 +1358,10 @@ The judgement is of **consistency, not absolute accuracy**. A phone adds
 player tapping perfectly in time registers late and never scores — their device
 deciding their result. Instead a running bias is tracked and the deviation from
 it is judged, so a player reliably 60ms late is playing in time and gets credit.
-But a latency is static, so the learner is too: twelve gated taps of fast
-calibration for a fresh device, then the bias slews at most 2ms per tap inside
-±120ms. At the old always-on 0.18 EMA the calibration was fast enough to
+But a latency is static, so the learner is too: twelve fast-calibration
+samples for a fresh device — reserved for taps plausibly aimed at the quarter,
+so arbitrary survival taps cannot spend the budget before the player ever aims
+at a beat — then the bias slews at most 3ms per tap inside ±120ms. At the old always-on 0.18 EMA the calibration was fast enough to
 *track* a sloppy masher's wandering cadence — simulation showed a ~7Hz
 renewal tapper being chased by his own bias all the way to ×8 in 458 of 500
 trials; slew-limited on the quarter grid that is 0. Verified end-to-end in

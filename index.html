@@ -2842,11 +2842,22 @@ function judgeTiming(x,y){
      showed a sloppy ~7Hz masher whose phase random-walks across the grid
      being chased by his own calibration all the way to ×8. Twelve gated
      taps of fast learning calibrate a fresh device; after that the bias
-     slews at most 2ms per tap and lives within ±120ms, plenty for any real
-     tendency drift and far too slow to follow a wander. */
+     slews at most 3ms per tap and lives within ±120ms, plenty for any real
+     tendency drift and far too slow to follow a wander.
+     THE FAST SAMPLES ARE RESERVED FOR QUARTER-PLAUSIBLE TAPS (review
+     catch): the sixteenth gate is wider than the sixteenth's own ±72ms
+     range, so on a fresh session EVERY survival tap qualified and twelve
+     arbitrary ones could spend the whole budget before the player ever
+     aimed at a beat — a +40ms device then needed ~18 deliberate taps to
+     its first ×8 instead of ~12. Only taps within the gate of the QUARTER
+     spend a fast sample now; everything gated still learns through the
+     slew, which alone converges a consistent 40ms tapper in ~13 taps.
+     Accepted tail: a 70ms+ device whose budget was fully spent on noise
+     recalibrates only at slew speed — the bias persists across runs, so
+     it is a one-time session cost, not a per-run one. */
   if(Math.min(dev4,dev16)<W*2.5){
     const d=((dev4<=dev16?off4:off16)-PLAY.bias)*0.18;
-    PLAY.bias+=PLAY.biasN<12?(PLAY.biasN++,d):Math.max(-0.002,Math.min(0.002,d));
+    PLAY.bias+=(PLAY.biasN<12&&dev4<W*2.5)?(PLAY.biasN++,d):Math.max(-0.003,Math.min(0.003,d));
     PLAY.bias=Math.max(-0.12,Math.min(0.12,PLAY.bias));
   }
   if(dev16<W){
