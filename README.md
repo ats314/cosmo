@@ -1897,9 +1897,31 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   screen height, and across that band the sky's clamp binds at the full 72% —
   120 to 170px of displacement, tearing every halo off the light it belongs to,
   which is the detached-glow failure this project has already shipped once.
-  Bounded in absolute terms instead: 4–9px of lean and 2.8° of wind across the
-  play annulus, 11% peak compression, and a sweep of the whole screen against
-  the whole envelope confirms r′ never folds.
+  Bounded in absolute terms instead: 6–9px of lean and 2.8° of wind across the
+  play annulus, and a sweep of the whole screen confirms the map never folds.
+  **And it shipped pointing the wrong way, which is the third time this exact
+  inversion has hit the black hole.** The pass is *inverse* sampling: reading
+  from a smaller radius magnifies, so subtracting the pull shoves every halo
+  *away* from the singularity — measured at +6.8px and +8.8px where the
+  comment above it promised the opposite. The gravity pull that "dragged the
+  comet inward" pushed it outward, the "inner ring 2×" bonus paid on the outer
+  ring, and now this. All three read as correct, because code and comment are
+  both true under some reading of which way the number counts. Reading cannot
+  catch it. Asking where a specific light *ends up*, in pixels, can — so
+  `fxcheck.mjs` parses the coefficients out of the shader and does exactly
+  that, and now reports −6.2/−7.8/−8.6/−8.8px at 0.10/0.15/0.20/0.30 of screen
+  height.
+- **A lost context on the glow is silence, not an error.** Every call on a lost
+  WebGL context is a no-op that does not throw, so `fxResize` would see
+  unchanged sizes and return true, `drawArrays` would do nothing, and
+  `fxRender` would return *true* — compositing an empty canvas. Worse than the
+  backdrop's version of the same bug, which at least left a baked sky behind:
+  `bloomHalo` is set false before the dot loop, so the discs that exist for
+  exactly this would never have been drawn either, and the glow would simply
+  stop with no way back. `isContextLost()` is now asked every frame, before
+  anything else, and the lost/restored listeners drop the six render targets —
+  a restored context hands back a new context object and every texture,
+  framebuffer and program made against the old one is dead.
 - **The render scale climbs as well as falls.** `GL_SCALE` is 0.60 — a
   compromise struck between a phone that might not cope and a desktop that
   could render the sky four times over — and it used to be permanent in both
@@ -2087,9 +2109,22 @@ whole game a second time with no WebGL at all and fails unless the drawn-disc
 halo takes over and not one GPU call is issued — a fallback nobody runs is a
 fallback nobody knows is broken.
 
-All five of those assertions were mutation-tested: renaming a uniform,
-deleting the y-flip, collapsing the downsample chain, removing the scale raise
-and removing the ceiling latch each fail the harness with the right message.
+Two more assertions came out of review, both for defects the harness as first
+written could not see. It parses the lens coefficients out of the shader
+source, asks where a light at a given radius actually lands, and fails unless
+the answer is closer to the middle — the sign of an inverse-sampled
+displacement is the opposite of what it looks like, and reading has now failed
+to catch that same inversion three times in this file. And it takes the
+context away mid-run, failing unless the glow stands down and the discs take
+back over.
+
+All seven assertions were mutation-tested: renaming a uniform, deleting the
+y-flip, collapsing the downsample chain, removing the scale raise, removing
+the ceiling latch, flipping the lens sign and removing the lost-context guard
+each fail the harness with the right message. The first attempt at that last
+mutation silently failed to apply — the regex missed a character — and the
+harness "passed", which is its own lesson about mutation tests: confirm the
+mutation landed before believing the result.
 
 ## License
 

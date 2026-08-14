@@ -8470,17 +8470,35 @@ void main(){
        the hole by seven to nine pixels across the whole play annulus and
        stays on its source. Monotonic for the same reason as before but more
        cheaply — the derivative of the pull never approaches 1, so r' cannot
-       fold no matter what uBH does. Measured at full envelope: the glow
-       moves 4.0px inward at 0.05H from the centre, 8.7px at 0.20H, 6.6px at
-       0.50H, winding 2.8 degrees at its strongest; peak compression 11% of
-       the radius against the sky lens's 72%; smallest step in r' over a
-       sweep of the whole screen and the whole envelope is 4.4e-4, so it
+       fold no matter what uBH does. Measured at full envelope by asking
+       where a light at a given source radius actually lands: 6.2px inward
+       at 0.10 of screen height, 7.8px at 0.15, 8.6px at 0.20, 8.8px at
+       0.30, winding 2.8 degrees at its strongest; smallest step in the
+       sampled radius over a sweep of the whole screen is 9.8e-5, so it
        never folds. */
     float fall=exp(-r*4.0);
     float pull=uBH*0.115*r*fall;
     float sw=uBH*0.55*r*fall;
     float cs=cos(sw),sn=sin(sw);
-    d=vec2(d.x*cs-d.y*sn,d.x*sn+d.y*cs)*(1.0-pull/r);
+    /* PLUS, NOT MINUS, AND THE SIGN IS THE WHOLE EFFECT. This is INVERSE
+       sampling: the shader is handed a destination fragment and asked which
+       part of the source to read. Reading from a SMALLER radius magnifies —
+       a light living at source radius s then surfaces at a destination
+       radius LARGER than s, so subtracting the pull shoves every halo away
+       from the singularity while the comment above it says it drags them in.
+       Measured on the first cut: +6.8px at 0.10 of screen height, +8.8px at
+       0.20 — the right magnitude, pointing the wrong way. Reading from a
+       larger radius contracts, which is what a hole does: -6.2px and -8.6px
+       at the same two radii.
+       THIS IS THE THIRD TIME THIS EXACT INVERSION HAS HIT THE BLACK HOLE.
+       The gravity pull that "dragged the comet inward" pushed it outward,
+       the "inner ring 2x" bonus paid on the outer ring, and now this. Every
+       one of them read as correct, because in each case the code and the
+       comment are both true under some reading of which way the number
+       counts. There is no way to catch it by reading; the only thing that
+       works is asking where a specific light ENDS UP, in pixels, and
+       fxcheck.mjs now does exactly that. */
+    d=vec2(d.x*cs-d.y*sn,d.x*sn+d.y*cs)*(1.0+pull/r);
     r=length(d)+1e-5;
     uv=vec2(uCtr.x+d.x/uAsp,uCtr.y+d.y);
   }
@@ -8602,6 +8620,19 @@ function fxRender(srcCanvas,bw,bh){
   if(!FX.on)return false;
   try{
     const g=FX.g;
+    /* A LOST CONTEXT DOES NOT THROW, IT GOES QUIET, and quiet is the one
+       failure this pass cannot survive. Every call on a lost context is a
+       silent no-op: fxResize sees its sizes unchanged and returns true,
+       drawArrays does nothing, nothing raises, and fxRender returns TRUE —
+       so drawBloom composites an empty canvas and the halo simply vanishes.
+       And it vanishes with no way back, because bloomHalo was set false
+       before the dot loop, so the discs that exist for exactly this were
+       never drawn either. That is worse than the backdrop's version of this
+       bug, which at least left a baked sky behind; here the glow just stops.
+       checkFramebufferStatus would catch it, but only on a resize.
+       isContextLost is the question actually being asked, so ask it, every
+       frame, before anything else. */
+    if(typeof g.isContextLost==='function'&&g.isContextLost()){FX.on=false;return false;}
     if(!fxResize(bw,bh)){FX.on=false;return false;}
     const cw=Math.max(1,Math.ceil(W/2)),ch=Math.max(1,Math.ceil(H/2));
     if(FX.cw!==cw||FX.ch!==ch){FX.cv.width=cw;FX.cv.height=ch;FX.cw=cw;FX.ch=ch;}
@@ -8642,6 +8673,26 @@ function fxRender(srcCanvas,bw,bh){
   }catch(e){FX.on=false;return false;}
 }
 fxInit();
+/* The same pair of listeners the backdrop carries, for the same reason and
+   with one addition: the render targets have to be dropped as well as the
+   flag cleared. A restored context hands back a NEW context object, and
+   every texture, framebuffer and program made against the old one is dead —
+   so FX.rt is emptied and its cached size zeroed, or fxResize would see its
+   dimensions unchanged and happily reuse six destroyed framebuffers.
+   preventDefault is what makes restoration possible at all; without it the
+   default action is to make the context permanently unrecoverable. */
+try{
+  if(FX.cv&&typeof FX.cv.addEventListener==='function'){
+    FX.cv.addEventListener('webglcontextlost',function(ev){
+      try{ev.preventDefault();}catch(e){}
+      FX.on=false;FX.rt=[];FX.bw=FX.bh=0;FX.cw=FX.ch=0;
+    },false);
+    FX.cv.addEventListener('webglcontextrestored',function(){
+      FX.on=false;FX.rt=[];FX.bw=FX.bh=0;FX.cw=FX.ch=0;
+      fxInit();
+    },false);
+  }
+}catch(e){}
 function draw(){
   /* ALWAYS start from a known-good canvas state. A thrown frame leaves the
      transform stack dirty (save without restore, translate still applied)

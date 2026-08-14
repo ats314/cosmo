@@ -78,6 +78,7 @@ function makeGL(tag, log) {
     framebufferTexture2D: () => {},
     checkFramebufferStatus: () => E.FRAMEBUFFER_COMPLETE,
     deleteTexture: () => {}, deleteFramebuffer: () => {},
+    isContextLost: () => log.lost,
     viewport: (x, y, w, h) => { log.vp = [w, h]; },
     activeTexture: () => {},
     disable: () => {}, enable: () => {},
@@ -92,7 +93,7 @@ function makeGL(tag, log) {
 
 /* ---------------- the DOM, with WebGL that works ---------------- */
 function build({ webgl }) {
-  const log = { use: [], missing: [], set: new Set(), nullSet: [], draws: [], alloc: [], upload: [], tex: 0, fb: 0, flip: false, vp: null, fbBound: null };
+  const log = { use: [], missing: [], set: new Set(), nullSet: [], draws: [], alloc: [], upload: [], tex: 0, fb: 0, flip: false, vp: null, fbBound: null, lost: false };
   const gradient = { addColorStop() {} };
   const ctx2d = () => new Proxy({}, {
     get(t, k) {
@@ -268,6 +269,98 @@ function crossFront(st, frame, fire, pid) {
   const s3 = Number(st('GL.scale'));
   if (s3 > cap + 1e-9) fail.push(`GL.scale climbed past its latched ceiling (${s3} > ${cap})`);
   note.push(`scale dial: ${s0} -> ${s1} climbed, -> ${s2} retreated, capped ${cap}, held ${s3}`);
+}
+
+/* ================= 1b. THE LENS POINTS THE RIGHT WAY =================
+   This is inverse sampling, so the sign of the displacement is the opposite
+   of what it looks like: reading from a smaller radius MAGNIFIES, and pushes
+   every halo away from the singularity. The first cut of this pass did
+   exactly that, at the right magnitude, with a comment above it saying the
+   opposite — and it read as correct, because both are true under some
+   reading of which way the number counts. It is the third time this precise
+   inversion has hit the black hole in this file (the gravity pull that
+   "dragged the comet inward" pushed it outward; the "inner ring 2x" bonus
+   paid on the outer ring). Reading cannot catch it.
+   So this does not read. It takes the real coefficients out of the shader
+   source, asks where a light living at a given radius actually lands, and
+   fails if the answer is not "closer to the middle". The constants are
+   PARSED rather than copied, so retuning the shader retunes the check — and
+   if the parse ever stops matching, that is a hard failure and not a silent
+   pass. */
+{
+  const fs = src.match(/const FX_COMP\s*=\s*`([\s\S]*?)`/);
+  if (!fs) fail.push('could not find FX_COMP in the source — the lens check cannot run');
+  else {
+    const body = fs[1];
+    const mFall = body.match(/float\s+fall\s*=\s*exp\(-r\*([\d.]+)\)/);
+    const mPull = body.match(/float\s+pull\s*=\s*uBH\*([\d.]+)\*r\*fall/);
+    const mSign = body.match(/\*\(1\.0([+-])pull\/r\)/);
+    if (!mFall || !mPull || !mSign) {
+      fail.push('the lens lines in FX_COMP no longer parse — the direction check cannot run');
+    } else {
+      const K = Number(mPull[1]), FALL = Number(mFall[1]), SIGN = mSign[1] === '+' ? 1 : -1;
+      const pull = r => 1.0 * K * r * Math.exp(-FALL * r);
+      /* a destination fragment at radius r samples the source at sampled(r);
+         a light living at source radius s therefore appears wherever
+         sampled(r) === s */
+      const sampled = r => r + SIGN * pull(r);
+      const landsAt = s => {
+        let lo = 0, hi = 3;
+        for (let i = 0; i < 200; i++) {
+          const mid = (lo + hi) / 2;
+          if (sampled(mid) < s) lo = mid; else hi = mid;
+        }
+        return (lo + hi) / 2;
+      };
+      const H = 844;
+      const moves = [0.10, 0.15, 0.20, 0.30].map(s => (landsAt(s) - s) * H);
+      const outward = moves.filter(m => m > 0.05);
+      if (outward.length) {
+        fail.push(`the black hole lens pushes the glow AWAY from the singularity ` +
+          `(${moves.map(m => m.toFixed(1) + 'px').join(', ')} at 0.10/0.15/0.20/0.30 of screen height) ` +
+          `— inverse sampling means a smaller sampled radius magnifies`);
+      } else if (!moves.some(m => m < -2)) {
+        fail.push(`the black hole lens barely moves the glow at all (${moves.map(m => m.toFixed(1) + 'px').join(', ')})`);
+      } else {
+        note.push(`BH lens: glow moves ${moves.map(m => m.toFixed(1)).join('/')}px (inward) at 0.10/0.15/0.20/0.30 H`);
+      }
+      /* and it must never fold — a non-monotonic map turns the field inside out */
+      let prev = -1, worst = Infinity;
+      for (let r = 0.0001; r < 2; r += 0.0001) {
+        const cur = sampled(r);
+        if (prev >= 0) worst = Math.min(worst, cur - prev);
+        prev = cur;
+      }
+      if (!(worst > 0)) fail.push(`the lens is not monotonic (smallest step ${worst.toExponential(2)}) — the glow field folds through itself`);
+    }
+  }
+}
+
+/* ================= 1c. A LOST CONTEXT HANDS BACK THE DISCS =================
+   The failure this guards is silence, not an error. Every call on a lost
+   WebGL context is a no-op that does not throw, so without an explicit test
+   fxResize sees unchanged sizes and returns true, drawArrays does nothing,
+   fxRender returns TRUE, and drawBloom composites an empty canvas. The glow
+   does not degrade — it disappears, and it cannot come back, because
+   bloomHalo was set false before the dot loop so the discs were never drawn
+   either. */
+{
+  const { log, frame, fire, st } = build({ webgl: true });
+  let pid = 1;
+  for (let i = 0; i < 60; i++) frame(16.7);
+  pid = crossFront(st, frame, fire, pid);
+  for (let i = 0; i < 30; i++) frame(16.7);
+  if (st('FX.on') !== true) fail.push('lost-context: the glow was not up to begin with');
+  log.lost = true;                       // the GPU goes away mid-run
+  for (let i = 0; i < 5; i++) frame(16.7);
+  if (st('FX.on') !== false) fail.push('lost-context: FX.on stayed true — the glow is now silently empty with no fallback');
+  if (st('bloomHalo') !== true) fail.push('lost-context: the disc halo did not take back over');
+  const after = log.draws.length;
+  for (let i = 0; i < 20; i++) frame(16.7);
+  const glowDraws = log.draws.length - after;
+  /* the backdrop keeps drawing on its own context; the glow must not */
+  if (glowDraws > 20) fail.push(`lost-context: ${glowDraws} draws over 20 frames — the glow is still issuing calls into a dead context`);
+  note.push('lost context: glow stood down, discs took over');
 }
 
 /* ================= 2. WITH NO GPU AT ALL ================= */

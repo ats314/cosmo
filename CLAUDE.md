@@ -331,6 +331,19 @@ Breaking one of these is a product regression, not a style question.
   object must be bounded in ABSOLUTE terms and the bound quoted in pixels.
   This was caught by measurement, not by reading: the code was a faithful copy
   of a shipped, correct lens, and it looked right in review.
+- **A SCREEN-SPACE WARP IS INVERSE SAMPLING, so its sign is the opposite of
+  what it looks like.** The shader is handed a destination fragment and asked
+  which part of the source to read, so reading from a SMALLER radius
+  magnifies and pushes content OUTWARD. The glow's black hole lens shipped
+  subtracting its pull, at the right magnitude, under a comment promising the
+  opposite — halos moved 6.8 to 8.8px away from the singularity. **This is the
+  third time this precise inversion has hit the black hole**: the gravity pull
+  that "dragged the comet inward" pushed it outward, the "inner ring 2x" bonus
+  paid on the outer ring, and now this. The pattern is always the same — code
+  and comment are each true under a different reading of which way the number
+  counts, so review confirms both. Nothing catches it except asking where a
+  specific thing ENDS UP, in pixels, which `fxcheck.mjs` now does by parsing
+  the coefficients out of the shader rather than copying them.
 - **A visual feature is not shipped until something proves it reaches a pixel.**
   `fxcheck.mjs` now covers the GL path specifically — use it, extend it, and
   do not assume the other harnesses see any of this. They stub the canvas, so
