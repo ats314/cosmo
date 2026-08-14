@@ -40,9 +40,41 @@ if (steps.length < 2) {
   process.exit(1);
 }
 
+/* TWO LANES, AND THE HARNESS DECIDES WHICH IT IS IN.
+
+   The full run is ~50 seconds and three harnesses are 90% of it, because they
+   play whole games; the other four are static or targeted and finish together
+   in under four. Paying fifty seconds to find out you left a typo in a shader
+   is the loop that makes an editing session slow, so `--fast` runs the quick
+   four and leaves the game-playing three for the run before you push.
+
+   The lane is declared IN each harness (`@lane fast` / `@lane full`) rather
+   than listed here, for the same reason this file parses the workflow instead
+   of holding its own list: a list here would be a second place to update, and
+   the update everybody forgets is the one that silently puts a slow harness in
+   the fast lane and makes `--fast` a lie. check.mjs fails if a harness
+   declares no lane at all. */
+const FAST = process.argv.includes('--fast');
+const lanes = new Map();
+for (const step of steps) {
+  const body = await readFile(new URL(step, root), 'utf8');
+  lanes.set(step, (body.match(/@lane\s+(fast|full)/) || [, 'full'])[1]);
+}
+const run = FAST ? steps.filter(s => lanes.get(s) === 'fast') : steps;
+if (FAST && !run.length) {
+  console.error('FAIL  --fast selected no harnesses — every one of them declares @lane full, '
+    + 'so the fast lane is empty and would report success without checking anything.');
+  process.exit(1);
+}
+if (FAST) {
+  console.log(`fast lane: ${run.length} of ${steps.length} harnesses. `
+    + `Skipping ${steps.filter(s => lanes.get(s) !== 'fast').map(s => s.replace('tools/', '')).join(', ')} `
+    + '— run without --fast before you push.');
+}
+
 const t0 = Date.now();
-for (const [i, step] of steps.entries()) {
-  process.stdout.write(`\n--- [${i + 1}/${steps.length}] ${step}\n`);
+for (const [i, step] of run.entries()) {
+  process.stdout.write(`\n--- [${i + 1}/${run.length}] ${step}\n`);
   const started = Date.now();
   const r = spawnSync(process.execPath, [step], {
     cwd: fileURLToPath(root),
@@ -58,4 +90,5 @@ for (const [i, step] of steps.entries()) {
     process.exit(r.status || 1);
   }
 }
-console.log(`\nOK  all ${steps.length} checks passed in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+console.log(`\nOK  ${FAST ? `fast lane (${run.length} of ${steps.length})` : `all ${run.length}`}`
+  + ` checks passed in ${((Date.now() - t0) / 1000).toFixed(1)}s`);

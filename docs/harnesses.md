@@ -1,10 +1,11 @@
 # The harnesses
 
-All six run on every pull request and must pass. Run them locally before
+All seven run on every pull request and must pass. Run them locally before
 pushing — they are fast and need nothing installed.
 
 ```sh
-node tools/all.mjs         # every check below, in CI's order, first failure stops it
+node tools/all.mjs --fast   # the four quick checks, ~4s — the editing loop
+node tools/all.mjs          # all seven, ~50s — before you push
 ```
 
 `all.mjs` is not a seventh check and holds no list of its own. It **parses the
@@ -20,6 +21,7 @@ node tools/dropcheck.mjs   # the build meter still delivers beat drops
 node tools/curriculum.mjs  # nothing is left untaught by level 3
 node tools/musiccheck.mjs  # four levels, four songs, each in its own key
 node tools/fxcheck.mjs     # the glow reaches a pixel, with a GPU and without one
+node tools/drawcheck.mjs   # every 2D draw call is one a real canvas would honour
 ```
 
 **Adding a harness is three edits, and `check.mjs` fails until all three are
@@ -81,8 +83,11 @@ scheduled. **Anything that touches `PROG`, the hooks, the per-level basslines
 or kits, or any pitch in the audio path belongs in this harness** — a musical
 regression is otherwise invisible to CI by construction.
 
-**The harnesses are not deterministic.** The game uses unseeded `Math.random`,
-so run-length-dependent output (the `struggle` counter, death timings) varies
-between runs. Before attributing a changed value to your diff, re-run the
-harness on the unmodified file — several times.
+**The harnesses are deterministic, and the seed is how.** Each one drives the
+game through a seeded `Math.random` injected at the sandbox boundary
+(`tools/lib/rng.mjs`) — `index.html` is untouched by this. A local run replays
+the same game every time, so a changed number IS your diff and the old ritual
+of re-running several times before believing anything is retired. CI rotates
+the seed per run so coverage keeps moving, and every harness prints its seed:
+reproduce any CI failure with `SEED=<n> node tools/<harness>.mjs`.
 

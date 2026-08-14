@@ -61,32 +61,40 @@ Deployed to GitHub Pages from `main`. The published page is the product.
 | `MECHANICS.md` | The mechanics ledger: one row per player-facing mechanic, where it is introduced, every channel that explains it. |
 | `LICENSE` | All-rights-reserved proprietary grant. |
 | `docs/invariants.md` | The rules that are load-bearing, grouped by what you'd be touching. Indexed below. |
-| `docs/harnesses.md` | What each of the six checks covers, and where a new test belongs. |
+| `docs/harnesses.md` | What each of the seven checks covers, and where a new test belongs. |
 | `docs/review.md` | The two halves of a review here, including the hygiene half people skip. |
-| `tools/all.mjs` | Runs every check in CI's order. Holds no list — it reads the workflow. |
-| `tools/*.mjs` | The six CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
+| `tools/all.mjs` | Runs every check in CI's order, or `--fast` for the quick four. Holds no list — it reads the workflow. |
+| `tools/*.mjs` | The seven CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
+| `tools/lib/rng.mjs` | The seeded `Math.random` every harness runs on. Determinism lives here, not in the game. |
 | `AGENTS.md` | Pointer here, for agent tools that look for that name instead. |
-| `.github/workflows/pages.yml` | Runs all six checks on every PR; only `main` deploys, and only an allowlist. |
+| `.github/workflows/pages.yml` | Runs all seven checks on every PR; only `main` deploys, and only an allowlist. |
 | `*.png`, `manifest.webmanifest` | Icons, share image, PWA manifest. |
 
 ## Before you push
 
 ```sh
-node tools/all.mjs
+node tools/all.mjs --fast   # ~4s, while you are editing
+node tools/all.mjs          # ~50s, before you push
 ```
 
-One command, every check, CI's order, stopping at the first failure. It takes
-seconds and needs nothing installed. See `docs/harnesses.md` for what each
+Every check, in CI's order, stopping at the first failure. Needs nothing
+installed. `--fast` skips the three harnesses that play whole games and keeps
+the four that are static or targeted; each harness declares its own lane and
+`check.mjs` fails if one declares none. See `docs/harnesses.md` for what each
 harness covers and — this matters when you add a test — which one a given kind
 of regression belongs in. **Anything touching a shader, a uniform or the glow
 goes in `fxcheck.mjs`; anything touching a pitch, a kit or the progression goes
-in `musiccheck.mjs`.** Those two exist because those two areas were invisible to
-CI by construction.
+in `musiccheck.mjs`; anything touching a 2D draw call goes in `drawcheck.mjs`.**
+Those three exist because those three areas were invisible to CI by
+construction.
 
-**The harnesses are not deterministic.** The game uses unseeded `Math.random`,
-so run-length-dependent output (the `struggle` counter, death timings) varies
-between runs. Before attributing a changed value to your diff, re-run the
-harness on the unmodified file — several times.
+**The harnesses are deterministic, and the seed is how.** Each one drives the
+game through a seeded `Math.random` injected at the sandbox boundary
+(`tools/lib/rng.mjs`) — `index.html` is untouched by this. A local run replays
+the same game every time, so a changed number IS your diff and the old ritual
+of re-running several times before believing anything is retired. CI rotates
+the seed per run so coverage keeps moving, and every harness prints its seed:
+reproduce any CI failure with `SEED=<n> node tools/<harness>.mjs`.
 
 ## What to read before you change something
 
@@ -101,7 +109,7 @@ matches, you are probably doing repository or documentation work and
 | `MODES`, the level select, a stored record, or anything reachable from POWERUP TESTING | **Modes, records and the powerup lab** | One mode ships and the table stays anyway; the unsuffixed storage keys are SKILL's; a lab session must be unable to *create* a key, and every guard behind that is one `!LAB.on` on an ordinary-looking line. |
 | pause, `G.t` / `G.vt`, ring indices, difficulty numbers, or a telemetry property | **Simulation, state and telemetry** | Ring index 0 is the OUTERMOST orbit and has shipped inverted three times. Pause is a flag one line above `G.t+=dt`. Difficulty is measured per ring, never per board. |
 | `PROG`, `PROGB`, a voice, a kit, the pad, or any pitch | **Audio and the arrangement** | Every pitch is an interval over the level's tonic — a bare frequency is wrong on three levels out of four. Silencing the scheduler does not silence the band. A moment that must be immediate cannot be a section. |
-| a draw pass, a shader, a uniform, the glow chain, the render-scale dial | **Graphics, shaders and the sky** | A screen-space warp's sign is the opposite of what it reads like; a halo's bound must be in pixels, not fractions; the sky can never go black and the set of skies is closed. Nothing here is caught by reading — measure it. |
+| a draw pass, a shader, a uniform, the glow chain, the render-scale dial | **Graphics, shaders and the sky** | A screen-space warp's sign is the opposite of what it reads like; a halo's bound must be in pixels, not fractions; the sky can never go black and the set of skies is closed. Nothing here is caught by reading — measure it, and `drawcheck.mjs` is where a 2D draw belongs. |
 | the deploy, the build stamp, the freshness check | **Delivery** | The plain play URL is a contract: it must serve the newest build. |
 
 Two rules sit above all of them and are not negotiable:
@@ -133,10 +141,10 @@ finishes it, but it was the only sentence here about merging and so it became
 the rule. It is replaced rather than clarified.
 
 - **Merge your own work.** Open pull requests ready for review, not as drafts.
-  Squash-merge as soon as all six checks are green — that matches the history,
+  Squash-merge as soon as all seven checks are green — that matches the history,
   where each commit on `main` carries its `(#N)`. Do not ask first. Do not wait
   for review that was never coming.
-- **Never merge red, and never merge unverified.** The six checks are the gate,
+- **Never merge red, and never merge unverified.** The seven checks are the gate,
   and `main` publishes to the live page on merge, so a red merge is a broken
   product for real players. If a check fails, fix it or say plainly why you are
   not going to.

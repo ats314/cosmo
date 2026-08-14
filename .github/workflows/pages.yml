@@ -6,15 +6,32 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Allow one deploy at a time; let an in-flight run finish rather than
-# cancelling it half-published.
+# CONCURRENCY IS PER-REF, NOT GLOBAL — and it used to be global. The group was
+# the constant `pages` at WORKFLOW level, which put every run of every kind into
+# one queue: two pull requests checked one after the other, and a pull request's
+# checks could sit waiting behind a deploy of main that had nothing to do with
+# it. The single-flight rule only ever needed to protect PUBLISHING, and it is
+# moved down to the deploy job below where it belongs.
+#
+# Superseded pull-request runs are cancelled now. Pushing a fix used to leave
+# the previous run grinding through seven harnesses on code nobody would merge,
+# and its result arriving later reads as the newer one having failed. Runs on
+# main are never cancelled: each is a deploy of a distinct commit.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      # THE SEED ROTATES PER RUN, AND EVERY FAILURE PRINTS IT. The harnesses
+      # drive the game through a seeded Math.random, so a run is reproducible
+      # from its seed alone — `SEED=<n> node tools/smoke.mjs` replays exactly
+      # the game CI played. Rotating it per run keeps coverage moving instead
+      # of replaying one fixed game forever, which is what a constant seed
+      # everywhere would buy at the price of never finding a rare path again.
+      SEED: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,12 +61,29 @@ jobs:
       # mistyped uniform name, where getUniformLocation returns null and every
       # write through it is a silent no-op that removes an effect from the game.
       - run: node tools/fxcheck.mjs
+      # The only harness that runs the 2D DRAW path — which is where this game
+      # actually draws: 852 `ctx.` calls against 107 `GL.` ones. Every other
+      # harness stubs the context as a no-op Proxy, so all 852 vanish and
+      # ctx.arc(NaN,NaN,r,0,TAU) is indistinguishable from a correct draw. The
+      # canvas is specified to SWALLOW bad input rather than throw: a non-finite
+      # coordinate draws nothing, an unparseable colour keeps the PREVIOUS
+      # colour, an out-of-range globalAlpha is ignored. This records instead of
+      # stubbing and validates every call the way a browser would. It found a
+      # live HUD bug on its first run.
+      - run: node tools/drawcheck.mjs
 
   deploy:
     # Only main publishes; pull requests get the check alone.
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: check
     runs-on: ubuntu-latest
+    # Single-flight PUBLISHING, which is the only thing that ever needed it:
+    # let an in-flight deploy finish rather than cancelling it half-published.
+    # This is the rule that used to sit at workflow level and serialise every
+    # pull request in the repository behind it.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
       # A permissions block replaces the defaults rather than adding to them,
       # so contents:read has to be spelled out — without it checkout cannot

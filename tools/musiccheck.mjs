@@ -1,3 +1,4 @@
+/* @lane fast */
 /* THE MUSIC HAD NO HARNESS. smoke.mjs deliberately runs with WebAudio absent
    — that is its job, it proves every audio path is guarded — but the
    consequence is that musicTick() never turns over in CI and not one note of
@@ -20,6 +21,7 @@
    comparison cannot see that at all. */
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { seededMath, seedLine } from './lib/rng.mjs';
 
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const src = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i)[1];
@@ -139,7 +141,7 @@ const sandbox = {
   getComputedStyle: () => ({ paddingTop: '0', paddingBottom: '0' }),
   location: { origin: 'https://x.test', pathname: '/' },
   console,
-  Math, JSON, Date, Array, Object, Number, String, Boolean, Float32Array, Infinity, NaN,
+  Math: seededMath(), JSON, Date, Array, Object, Number, String, Boolean, Float32Array, Infinity, NaN,
   isNaN, parseInt, parseFloat, setTimeout: () => {},
 };
 sandbox.window = new Proxy(sandbox, {
