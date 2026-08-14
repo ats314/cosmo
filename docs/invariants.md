@@ -73,6 +73,16 @@ any player-facing sentence.*
 
 - **`MECHANICS.md` and the code move together.** Change a mechanic, update the
   ledger row and the level card text in the same commit.
+  **This is enforced now, in `check.mjs`.** Every `TIERS[].name` and every
+  `LAB_ORBS[].n` must appear somewhere in `MECHANICS.md`, matched
+  case-insensitively because the code shouts and the ledger is prose. It was a
+  sentence asking people to remember until the guard was written, and the guard
+  failed on its first run: THE EYE — the last rung of the tier ladder, dl 340,
+  level 4's floor — had shipped with no ledger row at all. The check runs
+  FORWARD only, because "every mechanic the code ships is in the ledger" is
+  precise, while asking which of the ledger's hundred rows ought to name a code
+  symbol would guess, and a guard that guesses gets deleted the first time it
+  is wrong.
 
 ## Modes, records and the powerup lab
 

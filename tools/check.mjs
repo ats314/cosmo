@@ -288,6 +288,61 @@ else {
   }
 }
 
+/* `MECHANICS.md` AND THE CODE MOVE TOGETHER — the last load-bearing invariant
+   in CLAUDE.md that nothing enforced.
+
+   Every other rule of that weight has a guard; this one was a sentence asking
+   people to remember, and the record says remembering does not work. Three
+   documents in this repository disagreed with the code at once and each was
+   found by a reader who trusted the prose: CLAUDE.md said "five checks" while
+   saying six everywhere else, and both it and README said tiers complete at
+   level 2's finish line while the code beside them read level 3's. A ledger
+   that has quietly stopped listing a mechanic is the same failure with a
+   bigger blast radius, because the ledger is what the next session reads to
+   learn what the game HAS.
+
+   The check runs one way on purpose. Forward — every mechanic the code ships
+   must appear in the ledger — is precise, and it catches the failure that
+   actually happens: a formation or an orb is added and the row is written
+   "next commit". The reverse direction would have to decide which of the
+   ledger's ninety-nine rows are supposed to name a code symbol, and a guard
+   that guesses produces false failures, which is how a guard gets deleted.
+
+   Matching is case-insensitive because the code shouts (`'TWIN SHARDS'`) and
+   the ledger is prose (`Twin shards`). It is a substring test, not a row
+   parse, for the same reason: this asks whether the ledger KNOWS about the
+   mechanic, and anything stricter would break every time someone rewords a
+   row, which is a thing they should be free to do. */
+{
+  const ledger = await readFile(new URL('MECHANICS.md', root), 'utf8').catch(() => '');
+  if (!ledger) fail.push('MECHANICS.md is missing or unreadable — the ledger-drift guard cannot run');
+  else {
+    const hay = ledger.toLowerCase();
+    const tiersBlock = src.match(/const TIERS=\[([\s\S]*?)\n\];/);
+    const orbsBlock = src.match(/const LAB_ORBS=\[([\s\S]*?)\n\];/);
+    if (!tiersBlock) fail.push('TIERS table not found — the ledger-drift guard cannot run');
+    if (!orbsBlock) fail.push('LAB_ORBS table not found — the ledger-drift guard cannot run');
+    const names = [
+      ...(tiersBlock ? [...tiersBlock[1].matchAll(/name:\s*'([^']+)'/g)] : []),
+      ...(orbsBlock ? [...orbsBlock[1].matchAll(/\bn:\s*'([^']+)'/g)] : []),
+    ].map(m => m[1]);
+    /* A floor, because a regex that has stopped matching yields zero names and
+       an empty loop reports success — the failure mode this whole file is
+       written against. Six formations and six orbs ship today. */
+    if (names.length < 8) {
+      fail.push(`the ledger-drift guard collected only ${names.length} mechanic names from TIERS `
+        + 'and LAB_ORBS — the tables have changed shape and it is no longer reading them');
+    }
+    for (const n of [...new Set(names)]) {
+      if (!hay.includes(n.toLowerCase())) {
+        fail.push(`'${n}' ships in the game but appears nowhere in MECHANICS.md — the ledger is `
+          + 'one row per player-facing mechanic, and a mechanic the ledger does not know about is '
+          + 'one the next session will not know the game has. Add the row in this commit.');
+      }
+    }
+  }
+}
+
 /* ------------------------------------------------------------------------
    Repository tripwires. Everything above this line asks whether the GAME is
    sound; what follows asks whether the REPOSITORY still tells the truth about

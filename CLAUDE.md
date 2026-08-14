@@ -121,7 +121,8 @@ Two rules sit above all of them and are not negotiable:
   shipped with one of them perceivable, each individually correct at its own
   site and disabled by something elsewhere.
 - **`MECHANICS.md` and the code move together.** Change a mechanic, update the
-  ledger row and the level card text in the same commit.
+  ledger row and the level card text in the same commit. `check.mjs` enforces
+  it: a formation or orb that ships without a ledger row fails the build.
 
 ## Workflow
 
