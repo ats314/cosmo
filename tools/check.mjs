@@ -123,24 +123,33 @@ if (freeRadius.length) {
 if (/function starR\s*\(/.test(src)) {
   fail.push('starR() is back without the guard that has to come with it — see the note in check.mjs');
 }
-/* CHILL IS A DERIVATIVE, AND THIS IS WHAT KEEPS IT ONE. The whole claim of
-   the two modes is that there is no second implementation: MODES holds
-   multipliers, every difficulty curve reads them, and a balance change made
-   once lands in both games. Three ways that claim can rot, all guarded here.
+/* A SECOND MODE MUST BE A DERIVATIVE, AND THIS IS WHAT WILL KEEP IT ONE.
+   CHILL IS RETIRED — one mode until the game is perfected — but these guards
+   are NOT retired with it, and that is deliberate. They are the reason the
+   table is worth keeping at one row: the rule they encode was arrived at
+   rather than obvious, and a future second mode that arrives while nothing is
+   watching arrives as a branch on a flag somewhere in the game code, which is
+   exactly what MODES exists to prevent.
+
+   Three ways the claim can rot. Two of them can still rot TODAY with one row;
+   the third goes quiet until a second row exists and comes back the moment it
+   does, which is precisely when it is needed.
 
    1. SKILL STOPS BEING THE IDENTITY. Every skill knob is 1 (or 0 for the
-      additive shield), which is the only reason "with skill selected the
-      expressions reduce to what shipped" is a fact rather than a hope. The
-      moment someone tunes the real game by editing skill's row, the two modes
-      are two balances and this file is the last place that would notice.
-   2. A MODE GROWS ITS OWN KNOB. If chill carries a field skill does not, then
-      something reads a value that exists in one mode only — which is a second
-      code path wearing a table's clothes. Every row must have the same shape.
-   3. A KNOB IS NEVER READ. Exactly the dead-tile failure the upgOn guard
+      additive shield), which is the only reason "every expression reduces to
+      what shipped" is a fact rather than a hope. Live today: the moment
+      someone tunes the real game by editing this row, the table has quietly
+      become the place the game is balanced and this file is the last thing
+      that would notice.
+   2. A KNOB IS NEVER READ. Exactly the dead-tile failure the upgOn guard
       above exists for, and worse here: a number in this table is a PROMISE
       about how the mode plays, and an unread one is a promise the game does
-      not keep. Read from the stripped source, because a knob named in the
-      comment that explains its removal is not a call site. */
+      not keep. Live today. Read from the stripped source, because a knob
+      named in the comment that explains its removal is not a call site.
+   3. A MODE GROWS ITS OWN KNOB. If a second row carries a field skill does
+      not, something reads a value that exists in one mode only — a second
+      code path wearing a table's clothes. Vacuous with one row, and it costs
+      nothing to leave armed for the row that comes back. */
 const modesBlock = src.match(/const MODES\s*=\s*\{([\s\S]*?)\n\};/);
 if (!modesBlock) fail.push('MODES table not found — the mode-derivation guards cannot run');
 else {
@@ -149,7 +158,10 @@ else {
       [...m[2].matchAll(/\b(\w+)\s*:\s*(-?[\d.]+)\b/g)].map(k => [k[1], +k[2]]))]);
   const modes = Object.fromEntries(rows);
   if (!modes.skill) fail.push('MODES has no `skill` row — skill is the identity mode, everything else derives from it');
-  if (rows.length < 2) fail.push('MODES parsed but yielded fewer than two modes — the guards cannot run');
+  /* One row is the current shipped state, not a parse failure. Zero rows IS a
+     parse failure, and it would silently disarm every guard below it — which
+     is the failure mode this line exists to make loud. */
+  if (rows.length < 1) fail.push('MODES parsed but yielded no modes at all — the guards below cannot run');
   const knobs = modes.skill ? Object.keys(modes.skill) : [];
   if (modes.skill && knobs.length < 4) {
     fail.push(`MODES.skill parsed only ${knobs.length} numeric knobs — the derivation guards cannot run`);
@@ -160,7 +172,7 @@ else {
     const want = k === 'shields' ? 0 : 1;
     if (modes.skill[k] !== want) {
       fail.push(`MODES.skill.${k} is ${modes.skill[k]}, not ${want} — skill must be the identity mode, `
-        + 'or chill stops being a derivative of the shipped game');
+        + 'or this table quietly becomes the place the real game is balanced');
     }
     if (!new RegExp(`(MD\\(\\)|\\bm)\\.${k}\\b`).test(CODE)) {
       fail.push(`mode knob '${k}' is declared but never read — MD().${k} has no call site, `
@@ -200,7 +212,12 @@ else {
    here because this check failed: guard the new write with !LAB.on unless a lab
    session genuinely should perform it, then add the key below. */
 const persisted = [...new Set([...CODE.matchAll(/savePref\(\s*'cometloop:(\w+)'/g)].map(m => m[1]))].sort();
-const persistedKnown = ['groove', 'hopped', 'landed', 'mode', 'muted', 'runs',
+/* 'mode' left this list with CHILL: the title screen no longer offers a
+   choice, so nothing writes cometloop:mode. The KEY is deliberately left on
+   the devices that have one, along with the `:chill` records — see the note
+   above recKey. Removing a key from this list is as much a decision as adding
+   one, which is why the count below is a floor and not a range. */
+const persistedKnown = ['groove', 'hopped', 'landed', 'muted', 'runs',
                         'seen', 'seen2', 'struggle', 'swipe'].sort();
 if (persisted.length < persistedKnown.length) {
   fail.push(`only ${persisted.length} persisted keys found, expected at least ${persistedKnown.length} `
@@ -220,6 +237,22 @@ for (const k of persisted) {
 for (const k of ['best', 'gl']) {
   if (!new RegExp(`recKey\\(\\s*'${k}'`).test(CODE)) {
     fail.push(`recKey('${k}') has no call site — the per-mode record it names is no longer written`);
+  }
+}
+/* THE UNSUFFIXED KEY BELONGS TO SKILL, and that is what makes retiring a mode
+   free. Every value ever written to cometloop:best and cometloop:gl was
+   skill's, because any other mode's went to a suffixed key — so removing a
+   mode cannot change what a stored number means on anybody's device. If
+   recKey ever starts suffixing skill, every historical record silently
+   changes owner, which is the retired-`cometloop:level` failure exactly. */
+{
+  const rk = src.match(/function recKey\(([\s\S]*?)\n\}/);
+  if (!rk) fail.push('recKey() not found — the unsuffixed-key guard cannot run');
+  else if (!/'cometloop:'\+k\+\(\(m\|\|MODE\)===\s*'skill'\s*\?\s*''/.test(rk[1].replace(/\s+/g, ''))
+        && !/===.skill.\?../.test(rk[1])) {
+    fail.push('recKey() no longer maps skill to the UNSUFFIXED key — every historical '
+      + 'cometloop:best and cometloop:gl on every device was skill\'s, and suffixing it now '
+      + 'silently changes what all of them mean');
   }
 }
 

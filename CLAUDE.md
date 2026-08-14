@@ -68,13 +68,15 @@ DOM and actually plays it — the three front screens, menu demo, taps, swipes,
 keyboard, minutes of simulated play, resize, tab visibility, death, retry,
 level 2. Audio stays off, which exercises every audio guard.
 
-**Three screens now stand between the menu and a run**, and each publishes its
-controls as rects from its draw pass: the mode cards on the title screen, the
-swipe chooser, then the level picker. None of them answers a tap on its
-background — the cards select rather than start, and the picker is a decision —
-so every harness crosses them by pressing the control it actually drew
-(`passMenu`, `passSwipeChooser`, `passLevelSelect`). A harness that taps a
-fixed point does not fail; it waits there forever, which is how the swipe
+**Two decision screens stand between the menu and a run**, and each publishes
+its controls as rects from its draw pass: the swipe chooser, then the level
+picker. Neither answers a tap on its background, because each is a decision, so
+every harness crosses them by pressing the control it actually drew
+(`passSwipeChooser`, `passLevelSelect`). The title screen answers a tap
+anywhere again now the mode cards are gone, but `passMenu` presses its START
+rect regardless — a helper that presses a real control keeps working when a
+screen gains one, and a harness that taps a fixed point does not fail when it
+meets an unexpected screen, it waits there forever. That is how the swipe
 chooser broke all four harnesses when it arrived. Add a front screen and you
 add a crossing helper to `smoke.mjs`, `dropcheck.mjs` and `curriculum.mjs` in
 the same commit. A fourth screen, the powerup picker, sits off that route —
@@ -142,30 +144,45 @@ Breaking one of these is a product regression, not a style question.
   `TIERS.length`. Twelve places in `index.html` still hardcode tier ordinals for
   the sky band, the NEW SOUND ladder and the star instrument — inserting below
   the highest of them shifts every one.
-- **CHILL is a derivative of SKILL, never a second implementation.** The two
-  modes are one game: `MODES` holds a table of multipliers, every difficulty
-  curve reads it, and a balance change made once has to land in both. Two
-  things keep that true and both are enforced by `check.mjs`. **SKILL is the
-  identity mode** — every knob 1, or 0 for the additive shield — so with skill
-  selected every expression reduces to exactly what shipped, and this table can
-  never quietly become the place the real game is tuned. **Every mode has the
-  same knob set**, so no mode can read a value only it has. A knob that is
-  declared and never read fails the build for the same reason a dead upgrade
-  tile does: it is a promise to the player that the game does not keep. If a
-  mode ever needs behaviour a multiplier cannot express, that is the
-  conversation to have first — not a branch on `MODE` in the game code.
-  Chill must not touch the curriculum, the music or the scoring: tiers are
-  keyed on `dl` and orbs on `G.level`, and `curriculum.mjs` fails if a mode
-  moves a tier, a finish line or a level boundary.
+- **ONE MODE SHIPS, AND `MODES` STAYS ANYWAY.** CHILL is retired — the owner's
+  call, one mode until the game is perfected — and the table is kept at a
+  single row on purpose. Do not "finish the job" by deleting it. The table is
+  where the rule lives that **a second difficulty is a derivative and never a
+  second implementation**, and that rule was arrived at rather than obvious.
+  Delete the table and a future mode rediscovers it as a branch on a flag in
+  the game code, which is the thing the table exists to prevent.
+  The guards stay armed and `check.mjs` still enforces them. **The one row is
+  the identity mode** — every knob 1, or 0 for the additive shield — so every
+  expression reduces to exactly what shipped and the table can never quietly
+  become the place the real game is tuned. **A knob declared and never read
+  fails the build**, for the same reason a dead upgrade tile does. **Every mode
+  has the same knob set** is vacuous at one row and stays armed for the row
+  that comes back. `smoke.mjs` is what keeps the wiring honest with nothing
+  shipped on it: it INJECTS a synthetic mode with every knob off neutral and
+  measures every curve through the real functions, so a table wired to nothing
+  cannot pass. Do not delete that test as dead weight — it is the only thing
+  standing between a future second mode and a day spent discovering the
+  plumbing rotted while nobody was looking.
+  If a mode ever needs behaviour a multiplier cannot express, that is the
+  conversation to have first — not a branch on `MODE` in the game code. And a
+  mode must not touch the curriculum, the music or the scoring: tiers are keyed
+  on `dl` and orbs on `G.level`, and `curriculum.mjs` fails if a mode moves a
+  tier, a finish line or a level boundary.
 - **A picked starting level cannot forge a climb.** The level select can start
   any level on any device, including ones never reached — that is what it is
   for. `G.startLevel` is the level the run *opened* on, and the level record
   (`FURTHEST YET`, `cometloop:gl`) only moves when it is 1. Never widen this to
   "the level the run is on": a run that starts at 1 and climbs must keep
   counting across retries, and a run that jumped must never count at all.
-  Records are per mode and the unsuffixed storage keys are SKILL's — writing a
-  chill value under `cometloop:best` redefines every historical value on every
-  device, which is the retired-`cometloop:level` failure exactly.
+  Records are still keyed per mode and **the unsuffixed storage keys are
+  SKILL's**, which is exactly why retiring chill cost no player their history:
+  every value ever written to `cometloop:best` was skill's, because any other
+  mode's went to a suffixed key. Never let `recKey` suffix skill — that
+  silently changes what every stored record on every device means, which is the
+  retired-`cometloop:level` failure exactly. `check.mjs` guards it. The
+  `:chill` keys and `cometloop:mode` are left on disk deliberately and
+  `cometloop:mode` is no longer read: a device that last played chill has
+  `chill` under it, and honouring that selects a mode that does not exist.
 - **A LAB SESSION LEAVES NOTHING BEHIND, and that is the whole feature.**
   POWERUP TESTING is a sandbox reached from the title screen: it forces one
   orb, pins `dl()` to `LAB_DL`, and switches red off by default. Every one of
