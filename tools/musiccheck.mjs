@@ -370,8 +370,17 @@ console.log('--- the song settles back to the verse when the play cools ---');
   if ($('MU').sect !== 1) fail('the exit test never entered the chorus to leave it');
   vm.runInContext('PLAY.heat = 0;', ctx);
   LOG.pad.length = 0;
-  tick(2, 72);                        /* across at least one seam, then two loops */
+  /* stepped singly so the EXIT STEP is observable: a settle that fired at
+     any half-beat would leave the last-four-bars check green, and a
+     mutation doing exactly that passed every check until this loop */
+  let exitStep = -1;
+  for (let s2 = 0; s2 < 72; s2++) {
+    AUDIO_T += $('SPB') / 2;
+    vm.runInContext('musicTick()', ctx);
+    if (exitStep < 0 && $('MU').sect === 0) exitStep = ($('MU').step + 31) % 32;
+  }
   if ($('MU').sect !== 0) fail('heat gone, and the chorus never handed the song back');
+  else if (exitStep !== 0) fail(`the chorus exited at step ${exitStep} — sections may change only at the four-bar seam`);
   else {
     /* the last four bars must be the verse walk — some rotation of the row,
        since the window cut into the cycle at an arbitrary bar */
@@ -420,6 +429,11 @@ console.log('--- the star dive opens on the verse, not on the chorus chord ---')
          runs below the handoff and must not have ticked on that step */
       if (latchCounted) fail(`the dive's latch bar still counted as a chorus bar (${cbPre} -> ${$('G').chorusBars})`);
       else ok('the dive\'s latch bar is not a chorus bar');
+      /* heat is still 0.9: without the !FIN.on guard the next seam would
+         lift the song back into the chorus mid-dive */
+      tick(4, 40);
+      if ($('MU').sect !== 0) fail('the chorus re-entered during the star dive — the FIN guard is not being read');
+      else ok('the dive holds the verse to its end');
     }
     vm.runInContext('FIN.on = false; FIN.pend = false; FIN.step = 0;', ctx);
   }
@@ -447,7 +461,7 @@ console.log('--- chorus_bars counts only bars the chorus actually sounds ---');
   startLevel(2, 0.9);
   tick(2, 100);
   vm.runInContext('MU.armed = true;', ctx);
-  let started = false, cbAt = 0, ended = false, landingCounted = false;
+  let started = false, cbAt = 0, ended = false, landingCounted = false, payFlip = false;
   for (let s = 0; s < 400 && !ended; s++) {
     const cbB = $('G').chorusBars;
     AUDIO_T += $('SPB') / 2;
@@ -458,13 +472,19 @@ console.log('--- chorus_bars counts only bars the chorus actually sounds ---');
       /* the bar the drop LANDS on is the payoff's first bar — fireDrop runs
          later in the same step, so a counter above the handoff ticks here */
       landingCounted = $('G').chorusBars !== cbB;
+      /* and the section must HOLD through the payoff even when the play
+         cools mid-section: the glow is only written at the section's end,
+         so without the pay guard the internal seams would dump the chorus */
+      vm.runInContext('PLAY.heat = 0;', ctx);
     }
+    if (started && pay > 0 && $('MU').sect !== 1) payFlip = true;
     if (started && pay === 0) ended = true;
   }
   if (!started) fail('chorus_bars/payoff test: the payoff never ran');
   else if (landingCounted) fail('the drop\'s landing bar still counted as a chorus bar — the counter runs above the payoff handoff');
+  else if (payFlip) fail('the section changed inside the payoff — the pay guard is not being read');
   else if ($('G').chorusBars !== cbAt) fail(`chorus_bars advanced ${$('G').chorusBars - cbAt} inside the payoff — the section owns those bars`);
-  else ok('chorus_bars holds through the payoff, landing bar included');
+  else ok('chorus_bars holds through the payoff, landing bar included, section frozen');
 }
 
 console.log('--- the chorus lean never doubles a drum already playing ---');
@@ -484,6 +504,222 @@ console.log('--- the chorus lean never doubles a drum already playing ---');
   const dup = Object.entries(byT).filter(([, n]) => n > 1);
   if (dup.length) fail(`level 4: ${dup.length} slot(s) carry a doubled snare body — the chorus backbeat is stacking on the sky kit`);
   else ok(`level 4: ${bodies.length} snare bodies, no slot doubled (the chorus yields to sky band 3)`);
+}
+
+console.log('--- every road into the chorus works, not just heat ---');
+/* The eval is five OR'd terms and the main tests drive exactly one. A
+   deleted afterglow term — the road that GUARANTEES every player hears the
+   chorus — left every check green, which is the dead-tile failure with a
+   progression instead of an upgrade. Each term is now its own tiny run. */
+{
+  const roads = [
+    /* glow is set after one tick — the cold-start endSection zeroes it —
+       and od is oversized because it burns one per eighth and must still
+       be alive at the bar-8 seam */
+    ['afterglow', () => 'MU.glow = ' + (AUDIO_T + 240) + ';'],
+    ['groove chain', () => 'G.groove = 4;'],
+    ['overdrive', () => 'G.od = 400;'],
+    ['hypernova', () => 'G.hyper = 32;'],
+  ];
+  for (const [name, js] of roads) {
+    startLevel(2, 0);
+    tick(2, 1);
+    vm.runInContext(js(), ctx);
+    tick(2, 79);
+    if ($('MU').sect !== 1) fail(`the ${name} road never lifted the song`);
+    else ok(`the ${name} road lifts the song on its own`);
+    vm.runInContext('G.groove = 0; G.od = 0; G.hyper = 0; MU.glow = 0;', ctx);
+  }
+  /* ...and the heat threshold is a threshold: warm is not hot */
+  startLevel(2, 0.5);
+  tick(2, 80);
+  if ($('MU').sect !== 0) fail('heat 0.5 lifted the song — the 0.62 threshold is not being read');
+  else ok('heat 0.5 stays on the verse — the threshold is real');
+}
+
+console.log('--- the section is frozen while something else owns the harmony ---');
+/* The eval's guards (pay, rise, armed, FIN, black hole) were individually
+   deletable with every check green, because no test ever put a section
+   swap in tension with an owner. Each guard now has a scenario where the
+   eval WOULD flip if the guard were gone. */
+{
+  /* armed + rise: going hot after arming must not lift until the drop resolves */
+  startLevel(2, 0);
+  tick(2, 80);
+  vm.runInContext('PLAY.heat = 0.9; MU.armed = true;', ctx);
+  let flipped = false, sawPay = false;
+  for (let s = 0; s < 300 && !sawPay; s++) {
+    AUDIO_T += $('SPB') / 2;
+    vm.runInContext('musicTick()', ctx);
+    if ($('MU').pay > 0) sawPay = true;
+    else if ($('MU').sect !== 0) flipped = true;
+  }
+  if (!sawPay) fail('freeze test: the armed drop never fired');
+  else if (flipped) fail('the section flipped while a drop was armed or rising — the eval is not frozen');
+  else ok('armed and rising bars hold the section still');
+  /* payoff: cooling off mid-section must not dump the chorus until it ends */
+  let inPayFlip = false;
+  vm.runInContext('PLAY.heat = 0;', ctx);
+  for (let s = 0; s < 300 && $('MU').pay > 0; s++) {
+    AUDIO_T += $('SPB') / 2;
+    vm.runInContext('musicTick()', ctx);
+    if ($('MU').pay > 0 && $('MU').sect !== 0) inPayFlip = true;
+  }
+  ok('payoff freeze exercised (verse-entered section held: ' + !inPayFlip + ')');
+  /* black hole: wantB flips underneath it, the section must not follow */
+  startLevel(4, 0.9);
+  tick(4, 100);
+  if ($('MU').sect !== 1) fail('bh freeze test never reached the chorus');
+  vm.runInContext('startBlackHole(); BH.phase = 2; BH.t = 0; BH.warp = 1; BH.step = 0; PLAY.heat = 0;', ctx);
+  tick(4, 40);
+  if ($('MU').sect !== 1) fail('the section changed inside a black hole — the bh guard is not being read');
+  else ok('the section holds through a black hole even when the play cools');
+  vm.runInContext('BH.phase = 0; BH.on = false; BH.warp = 0; BH.t = 0; MU.pend = null; MU.pendSrc = null;', ctx);
+}
+
+console.log('--- the lift itself is measured, not just the harmony ---');
+/* Reviewed and found wanting: every audible chorus lean — the driving
+   bass, the deeper pump, the pad opening, the chorus arp — was deletable
+   at once with all five checks green. The harmony tests pin what the
+   chords ARE; these pin that the section change DOES something. */
+{
+  /* the chorus bass drives: level 2's chorus swaps its sparse verse figure
+     for root eighths, so low sawtooth density per bar must jump. Compared
+     inside ONE run (heat matched), medians so a drum-break bar cannot
+     skew it. */
+  const bassRoots = new Set([...PROG[1].map(c => c[0]), ...PROGB[1].map(c => c[0])]);
+  const lowSaws = heardHot[2].osc.filter(o => o.type === 'sawtooth' && o.f < 250 &&
+    [...bassRoots].some(r => Math.abs(o.f - r) < 0.02 || Math.abs(o.f - r / 2) < 0.02 || Math.abs(o.f - r * 0.75) < 0.02 || Math.abs(o.f - r * 1.5 / 2) < 0.02));
+  const barLen = $('SPB') * 4;
+  const perBar = bar => lowSaws.filter(o => o.t >= bar * barLen && o.t < (bar + 1) * barLen).length;
+  const med = a => a.slice().sort((x, y) => x - y)[a.length >> 1];
+  const verseMed = med([1, 2, 3, 4, 5, 6].map(perBar));
+  const chorMed = med([13, 14, 15, 16, 17, 18, 19, 20].map(perBar));
+  if (chorMed < verseMed + 3)
+    fail(`level 2's chorus bass does not drive: ${verseMed} low saws/bar in the verse, ${chorMed} in the chorus`);
+  else ok(`level 2's chorus bass drives (${verseMed} -> ${chorMed} low saws/bar)`);
+
+  /* the pump inhales deeper and the pad opens: probe both params directly,
+     same heat, same level, only the section different */
+  startLevel(2, 0.9);
+  tick(2, 100);
+  if ($('MU').sect !== 1) fail('lean probe never reached the chorus');
+  vm.runInContext(`
+    globalThis.__pumpMin = 1;
+    const pg = A.pump.gain, orig = pg.linearRampToValueAtTime;
+    pg.linearRampToValueAtTime = function (v, t) { if (v < __pumpMin) __pumpMin = v; return orig.call(this, v, t); };
+    globalThis.__cut = 0;
+    const lf = BED.lp.frequency, origF = lf.setTargetAtTime;
+    lf.setTargetAtTime = function (v, t, k) { __cut = v; return origF.call(this, v, t, k); };
+  `, ctx);
+  /* heat pinned to 0.5 for BOTH samples: the cutoff formula reads heat, so
+     an unmatched probe measures the play, not the section */
+  vm.runInContext('PLAY.heat = 0.5;', ctx);
+  tick(2, 16);
+  vm.runInContext('PLAY.heat = 0.5; bedTick(0.05);', ctx);
+  const chorPump = $('__pumpMin'), chorCut = $('__cut');
+  /* 0.5 is under the 0.62 threshold, so the next seam settles to the verse
+     on its own — the first version forced applySect(0) with the heat still
+     hot and the following seam simply lifted it straight back */
+  tick(2, 40);
+  if ($('MU').sect !== 0) fail('lean probe: the verse window is not the verse');
+  vm.runInContext('__pumpMin = 1; PLAY.heat = 0.5;', ctx);
+  tick(2, 16);
+  vm.runInContext('PLAY.heat = 0.5; bedTick(0.05);', ctx);
+  const versePump = $('__pumpMin'), verseCut = $('__cut');
+  if (!(chorPump < versePump - 0.02))
+    fail(`the chorus pump is not deeper: ${chorPump} vs verse ${versePump}`);
+  else ok(`the chorus pump inhales deeper (${chorPump} vs ${versePump})`);
+  if (!(chorCut > verseCut + 150))
+    fail(`the chorus does not open the pad: cutoff ${chorCut} vs verse ${verseCut}`);
+  else ok(`the chorus opens the pad (+${(chorCut - verseCut).toFixed(0)}Hz)`);
+
+  /* the chorus ARP reaches the schedule. The main runs hold score 5000,
+     where the riff replaces the arp — so applySect could keep the verse
+     arp forever and stay green. Score 0 keeps the arp layer live; the
+     scheduled even-eighth arp pitches must follow ARPBL's sequence, and
+     at the slots where the two tables disagree they must NOT follow ARPL.
+     Level 2's rows differ at five of eight positions. */
+  startLevel(2, 0.9);
+  vm.runInContext('G.score = 0;', ctx);
+  LOG.osc.length = 0;
+  /* long enough that the drum break's four-slot holes leave clean
+     sixteen-slot runs between them */
+  tick(2, 220);
+  if ($('MU').sect !== 1) fail('arp probe never reached the chorus');
+  else {
+    /* the arp's signature: a square at PENT[d]*0.5 on even eighths. Matched
+       as an ORDERED d-sequence against each table's generator (the drum
+       break punches four-slot holes and the schedule offset is not zero,
+       so absolute-time matching is the fragile version): somewhere in the
+       chorus there must be a 16-slot run following ARPBL's contour, and
+       nowhere one following ARPL's — the rows differ at five positions, so
+       sixteen slots cannot satisfy both. */
+    const ARPL2 = $('ARPL')[1], ARPBL2 = $('ARPBL')[1], PENT2 = $('PENT');
+    const barLen = $('SPB') * 4;
+    const ds = LOG.osc.filter(o => o.type === 'square' && o.t > 9 * barLen &&
+        (o.dur || 0) > 0.2 && (o.dur || 0) < 0.3)   /* the arp's 0.22s — the bass glint shares its pitches at under 0.11s */
+      .map(o => { for (let d = 0; d <= 4; d++) if (Math.abs(o.f - PENT2[d] * 0.5) < 0.02) return d; return -1; })
+      .filter(d => d >= 0);
+    const gen = T => { const e = []; for (let i = 0; i < 32; i += 2) e.push(T[(i + ((i / 8) | 0)) % 8]); return e; };
+    const runOf = (T) => {
+      const e = gen(T);
+      for (let j = 0; j + 16 <= ds.length; j++)
+        for (let ph = 0; ph < 16; ph++) {
+          let okRun = true;
+          for (let n = 0; n < 16 && okRun; n++) okRun = ds[j + n] === e[(ph + n) % 16];
+          if (okRun) return true;
+        }
+      return false;
+    };
+    if (!ds.length) fail('the arp probe heard no arp at all (score 0 should keep the layer live)');
+    else if (!runOf(ARPBL2)) fail('no 16-slot arp run follows ARPBL — the chorus is not swapping the arp');
+    else if (runOf(ARPL2)) fail('a 16-slot arp run still follows the VERSE contour inside the chorus');
+    else ok(`the chorus arp follows ARPBL and never the verse contour (${ds.length} arp notes examined)`);
+  }
+
+  /* the chorus PAYS: a tight hit inside the chorus is worth exactly the
+     +8 the other standing states pay. judgeTiming is the one music-path
+     function smoke can never reach (no AC by design); this harness has an
+     AC, so the promise in the ledger is checkable directly. */
+  startLevel(2, 0.9);
+  tick(2, 100);
+  if ($('MU').sect !== 1) fail('pay probe never reached the chorus');
+  else {
+    const probe = () => {
+      /* park the clock exactly on a sixteenth-grid point: gridOff then
+         reads 0 and the hit is tight by construction, not by luck */
+      AUDIO_T = $('MU').next - ($('SPB') / 4) * 3;
+      vm.runInContext('G.groove = 0; PLAY.bias = 0; G.build = 0;', ctx);
+      const before = $('G').score;
+      vm.runInContext('judgeTiming(0, 0);', ctx);
+      return $('G').score - before;
+    };
+    const payChorus = probe();
+    vm.runInContext('applySect(0);', ctx);
+    const payVerse = probe();
+    if (payChorus - payVerse !== 8)
+      fail(`a tight tap pays +${payChorus} in the chorus vs +${payVerse} in the verse — expected exactly 8 more`);
+    else ok(`riding the chorus pays a tight tap +8 over the verse (${payVerse} -> ${payChorus})`);
+  }
+}
+
+console.log('--- the chorus is named and counted when it arrives ---');
+/* The say line, chorus_entries and chorus_bars were all deletable while
+   green — and those counters are the commit's own answer to "are the
+   thresholds right", so a silent zero would quietly close that question. */
+{
+  startLevel(3, 0.9);
+  vm.runInContext('G.saidChor = false; G.chorusN = 0; G.chorusBars = 0; ANN.length = 0;', ctx);
+  tick(3, 74 / ($('SPB') / 2) | 0);
+  if ($('MU').sect !== 1) fail('naming test never reached the chorus');
+  const g = $('G');
+  if (!g.saidChor || !$('ANN').some(a => /chorus/i.test(a.str)))
+    fail('the chorus arrived unnamed — the say line is not firing');
+  else ok('the first chorus of a run names itself');
+  if (g.chorusN < 1) fail('chorus_entries did not count the entry');
+  else if (g.chorusBars < 10) fail(`chorus_bars counted only ${g.chorusBars} bars of a long chorus`);
+  else ok(`the counters count (${g.chorusN} entry, ${g.chorusBars} bars)`);
 }
 
 /* and the rows really are different progressions, not one transposed:
