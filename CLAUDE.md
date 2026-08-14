@@ -141,10 +141,18 @@ capitals. The instruction was about how a pull request starts, not about who
 finishes it, but it was the only sentence here about merging and so it became
 the rule. It is replaced rather than clarified.
 
-- **Merge your own work.** Open pull requests ready for review, not as drafts.
-  Squash-merge as soon as every check is green — that matches the history,
-  where each commit on `main` carries its `(#N)`. Do not ask first. Do not wait
-  for review that was never coming.
+- **Merge your own work, and do not sit and watch CI do it.** Open pull
+  requests ready for review, not as drafts, then **squash-merge with
+  auto-merge** — the repository has `allow_auto_merge` on, so you can arm the
+  merge the moment the pull request exists and end your turn. GitHub merges it
+  when the checks go green and deletes the branch itself. Squash matches the
+  history, where each commit on `main` carries its `(#N)`. Do not ask first.
+  Do not wait for review that was never coming.
+  **Polling is the expensive habit this replaces.** Watching a run to
+  completion costs a minute of billed waiting per pull request and buys
+  nothing: the merge condition is "checks green", which GitHub already
+  evaluates. Arm it and go. Only fall back to merging by hand when auto-merge
+  cannot be armed — and then say so, rather than quietly starting a poll loop.
 - **Never merge red, and never merge unverified.** The checks are the gate,
   and `main` publishes to the live page on merge, so a red merge is a broken
   product for real players. If a check fails, fix it or say plainly why you are
@@ -155,10 +163,15 @@ the rule. It is replaced rather than clarified.
   so this rule is honoured rather than enforced. What *is* enforced is the
   deploy: it `needs: check`, so a red push to `main` fails CI and never
   publishes. The live page is safe; `main`'s history is on you.
-- **Delete your branch when the pull request merges.** GitHub squash-merges
-  here, which leaves the branch behind looking unmerged forever — twenty-nine of
-  them accumulated before anyone counted. One `git push origin --delete <branch>`
-  after the merge, every time.
+- **The branch deletes itself now — do not add a step for it.** The repository
+  has `delete_branch_on_merge` on, so a merged pull request takes its branch
+  with it. This used to be a manual `git push origin --delete <branch>` after
+  every merge, and the rule was obeyed about as well as any rule that depends
+  on remembering: twenty-nine branches accumulated before anyone counted them,
+  because a squash-merge leaves the branch looking permanently unmerged and
+  nothing complained. The setting is the fix, and it is the better kind — the
+  work is not done more carefully, it is not done at all. If you find yourself
+  writing a cleanup step, check the setting before writing the step.
 - **Develop on the branch assigned for the session.** Push somewhere else only
   with explicit permission — but splitting unrelated work onto its own branch is
   usually the right instinct, so ask for it rather than shipping a pull request
