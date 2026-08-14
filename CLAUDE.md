@@ -358,6 +358,24 @@ Breaking one of these is a product regression, not a style question.
   counts, so review confirms both. Nothing catches it except asking where a
   specific thing ENDS UP, in pixels, which `fxcheck.mjs` now does by parsing
   the coefficients out of the shader rather than copying them.
+- **THE SKY CAN NEVER GO BLACK, and the set of skies is CLOSED.** The nebula's
+  coverage gate rides a single sample of a noise field — the screen spans a
+  quarter of one coverage cell — and the drift clock (G.vt) never resets. As a
+  straight line, the drift walked into barren stretches where the gate zeroed
+  the ENTIRE nebula for 10+ minutes while the stars stayed alive, which reads
+  as the game being broken, not as weather. It shipped that way from the
+  shader's first day and was found from two same-build screenshots hours
+  apart: one vivid, one black. Two rules now hold. The drift is an ELLIPSE, so
+  one ~95-minute lap is every sky the game can ever show, and a closed set can
+  be verified end to end. The gate is FLOORED (0.42 + 0.58*smoothstep), so a
+  barren stretch reads quiet, never black. `fxcheck.mjs` carries a
+  line-for-line port of the nebula chain, parses the orbit and floor constants
+  from the shader source, sweeps the full orbit, and fails if the darkest
+  point drops under 0.04 mean luminance — and its fake GL asserts every
+  uniform component is FINITE, because a NaN reaching a uniform renders as
+  black on a real GPU and throws nowhere. If you retune the sky, the port
+  retunes with you; if you restructure the chain, update the port in the same
+  commit or the parse tripwires fail loudly.
 - **A visual feature is not shipped until something proves it reaches a pixel.**
   `fxcheck.mjs` now covers the GL path specifically — use it, extend it, and
   do not assume the other harnesses see any of this. They stub the canvas, so

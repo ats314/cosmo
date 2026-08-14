@@ -2010,6 +2010,24 @@ Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
   anything else, and the lost/restored listeners drop the six render targets —
   a restored context hands back a new context object and every texture,
   framebuffer and program made against the old one is dead.
+- **The sky had blackouts built in, and now provably cannot.** The coverage
+  gate that carves the nebula into clouds is sampled at `uv*0.75` — a phone
+  screen spans about a *quarter of one coverage cell*, so the whole sky rides
+  one wandering sample. The drift clock (`G.vt`) never resets, and as a
+  straight line it eventually parked that sample in barren stretches of the
+  field: whole-screen nebula blackouts lasting 10+ minutes, the first inside
+  the first quarter hour of page life, with the stars alive — which reads as
+  the game being broken. Latent since the shader's first day; found from two
+  same-build screenshots taken four hours apart, one vivid and one black, and
+  confirmed by a numeric port of the chain (mean luminance 0.0000 across the
+  epoch a phone had parked in). The drift is now an **ellipse** at the same
+  tangential speed — one ~95-minute lap is every sky the game can ever show —
+  and the gate is **floored**, so a barren stretch reads quiet rather than
+  black. Because the reachable skies are now a closed set, `fxcheck.mjs`
+  sweeps the entire orbit through a line-for-line port and pins the darkest
+  point (measured: 0.069 against a mean of 0.218; the assertion floor is
+  0.04), with the orbit and floor constants parsed from the shader so a retune
+  retunes the check.
 - **The render scale climbs as well as falls — but only on gameplay frames,
   and the degrade ladder sheds in order of identity.** `GL_SCALE` is 0.60 and
   rises toward 1.0 on a machine holding its frame; the ceiling *latches down*

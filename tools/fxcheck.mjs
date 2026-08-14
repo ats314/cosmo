@@ -82,10 +82,14 @@ function makeGL(tag, log) {
     viewport: (x, y, w, h) => { log.vp = [w, h]; },
     activeTexture: () => {},
     disable: () => {}, enable: () => {},
-    uniform1f: (l, v) => { if (l) log.set.add(l.n); else log.nullSet.push(tag); },
-    uniform2f: (l) => { if (l) log.set.add(l.n); else log.nullSet.push(tag); },
-    uniform3f: (l) => { if (l) log.set.add(l.n); else log.nullSet.push(tag); },
-    uniform1i: (l) => { if (l) log.set.add(l.n); else log.nullSet.push(tag); },
+    /* every component of every uniform write is checked FINITE. A NaN or
+       undefined reaching a uniform does not throw anywhere — it propagates
+       through the shader as NaN and renders as black or garbage on a real
+       GPU, silently. Nothing else in this repo can see that class. */
+    uniform1f: (l, v) => { if (l) { log.set.add(l.n); if (!Number.isFinite(v)) log.badVals.push(`${l.n}=${v}`); } else log.nullSet.push(tag); },
+    uniform2f: (l, a, b) => { if (l) { log.set.add(l.n); if (![a, b].every(Number.isFinite)) log.badVals.push(`${l.n}=${a},${b}`); } else log.nullSet.push(tag); },
+    uniform3f: (l, a, b, c) => { if (l) { log.set.add(l.n); if (![a, b, c].every(Number.isFinite)) log.badVals.push(`${l.n}=${a},${b},${c}`); } else log.nullSet.push(tag); },
+    uniform1i: (l, v) => { if (l) { log.set.add(l.n); if (!Number.isFinite(v)) log.badVals.push(`${l.n}=${v}`); } else log.nullSet.push(tag); },
     drawArrays: () => { log.draws.push({ fb: log.fbBound, vp: log.vp && log.vp.slice() }); },
   };
   return g;
@@ -93,7 +97,7 @@ function makeGL(tag, log) {
 
 /* ---------------- the DOM, with WebGL that works ---------------- */
 function build({ webgl }) {
-  const log = { use: [], missing: [], set: new Set(), nullSet: [], draws: [], alloc: [], upload: [], tex: 0, fb: 0, flip: false, vp: null, fbBound: null, lost: false };
+  const log = { use: [], missing: [], set: new Set(), nullSet: [], draws: [], alloc: [], upload: [], badVals: [], tex: 0, fb: 0, flip: false, vp: null, fbBound: null, lost: false };
   const gradient = { addColorStop() {} };
   const ctx2d = () => new Proxy({}, {
     get(t, k) {
@@ -227,6 +231,7 @@ function crossFront(st, frame, fire, pid) {
      silently missing from the game. */
   if (log.missing.length) fail.push(`uniform names not declared by their shader: ${[...new Set(log.missing)].join(', ')}`);
   if (log.nullSet.length) fail.push(`${log.nullSet.length} uniform writes went to a null location`);
+  if (log.badVals.length) fail.push(`non-finite uniform values reached the GPU: ${[...new Set(log.badVals)].slice(0, 4).join('; ')}`);
 
   /* every location the glow pass looked up must actually be written */
   for (const bag of ['FX.uB', 'FX.uC']) {
@@ -391,6 +396,89 @@ function crossFront(st, frame, fire, pid) {
   /* the backdrop keeps drawing on its own context; the glow must not */
   if (glowDraws > 20) fail.push(`lost-context: ${glowDraws} draws over 20 frames — the glow is still issuing calls into a dead context`);
   note.push('lost context: glow stood down, discs took over');
+}
+
+/* ================= 1d. THE SKY CAN NEVER GO BLACK =================
+   Field failure, measured after the fact: the nebula's coverage gate rode a
+   SINGLE sample of a noise field (the screen spans a quarter of one coverage
+   cell), and the drift walked a straight line through unsurveyed territory
+   forever, because G.vt never resets. Result: whole-screen nebula blackouts
+   lasting 10+ minutes — the first inside the first quarter hour of page
+   life — with the stars alive, which reads not as weather but as the game
+   being broken. It shipped that way from the shader's first day, and it was
+   found from two same-build screenshots taken four hours apart.
+   The fix made the reachable skies a CLOSED SET: the drift is an ellipse, so
+   one lap is every sky the game can ever show, and the gate is floored so a
+   barren stretch reads quiet rather than black. A closed set can be verified
+   END TO END, so this does: a line-for-line port of the nebula chain, swept
+   over the full orbit, with a hard floor on the darkest point. The port must
+   move with GL_FS — the constants are PARSED from the shader source so a
+   retune retunes the check, and a parse failure is a loud failure. */
+{
+  const fs = src.match(/const GL_FS=`([\s\S]*?)`;/);
+  if (!fs) { fail.push('GL_FS not found — the sky-luminance sweep cannot run'); }
+  else {
+    const body = fs[1];
+    const mOrbit = body.match(/float drA=uFlow\*([\d.]+);\s*\n\s*vec2 dr=vec2\(sin\(drA\)\*([\d.]+),cos\(drA\)\*([\d.]+)\)/);
+    const mGate = body.match(/band\*=\(([\d.]+)\+([\d.]+)\*smoothstep\(uCov,uCov\+0\.20,covA-0\.18\*\(covB-0\.5\)\)\)/);
+    const mCov = src.match(/const GL_COV=([\d.]+), GL_EXP=([\d.]+)/);
+    const mMot = src.match(/const GL_MOTION=([\d.]+)/);
+    if (!mOrbit) fail.push('the drift is not the bounded orbit — a linear drift walks into multi-minute nebula blackouts (or the port desynced: update it with GL_FS)');
+    if (!mGate) fail.push('the coverage gate has no floor — a barren coverage sample blacks out the whole sky (or the port desynced: update it with GL_FS)');
+    if (mOrbit && mGate && mCov && mMot) {
+      const [OMEGA, AX, AY] = [+mOrbit[1], +mOrbit[2], +mOrbit[3]];
+      const [GF0, GF1] = [+mGate[1], +mGate[2]];
+      const [COV, EXP] = [+mCov[1], +mCov[2]];
+      const MOT = +mMot[1];
+      const fract = x => x - Math.floor(x);
+      const h21 = (px, py) => { let x = fract(px * 123.34), y = fract(py * 345.45); const d = x * (x + 34.345) + y * (y + 34.345); x += d; y += d; return fract(x * y); };
+      const vn = (px, py) => { const ix = Math.floor(px), iy = Math.floor(py), fx = px - ix, fy = py - iy; const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy); const a = h21(ix, iy), b = h21(ix + 1, iy), c = h21(ix, iy + 1), d = h21(ix + 1, iy + 1); return (a * (1 - ux) + b * ux) * (1 - uy) + (c * (1 - ux) + d * ux) * uy; };
+      const wrp = (px, py) => [1.62 * px + 1.18 * py, -1.18 * px + 1.62 * py];
+      const fbmN = (px, py, n) => { let v = 0, a = 0.5; for (let i = 0; i < n; i++) { v += a * vn(px, py); [px, py] = wrp(px, py); a *= 0.5; } return v; };
+      const rid = (px, py) => { let v = 0, a = 0.5; for (let i = 0; i < 5; i++) { const n2 = 1 - Math.abs(vn(px, py) * 2 - 1); v += a * n2 * n2; [px, py] = wrp(px, py); a *= 0.5; } return v; };
+      const ss = (a, b, x) => { const t2 = Math.min(1, Math.max(0, (x - a) / (b - a))); return t2 * t2 * (3 - 2 * t2); };
+      const lumAt = (u, v, drx, dry) => {
+        const px = u * 1.35, py = v * 1.35;
+        const q = [fbmN(px + drx, py + dry, 6), fbmN(px + 5.2 - drx, py + 1.3 - dry, 6)];
+        const r = [fbmN(px + 3.2 * q[0] + 1.7 + drx * 1.7, py + 3.2 * q[1] + 9.2 + dry * 1.7, 6),
+                   fbmN(px + 3.2 * q[0] + 8.3 - drx * 1.3, py + 3.2 * q[1] + 2.8 - dry * 1.3, 6)];
+        const f = fbmN(px + 3.0 * r[0] + drx * 0.6, py + 3.0 * r[1] + dry * 0.6, 6);
+        const p2x = u * 0.62 + 3.7, p2y = v * 0.62 + 1.1;
+        const q2x = fbmN(p2x - drx * 0.5, p2y - dry * 0.5, 4), q2y = fbmN(p2x + 2.1 + drx * 0.4, p2y + 7.4 + dry * 0.4, 4);
+        const f2 = fbmN(p2x + 2.4 * q2x, p2y + 2.4 * q2y, 4);
+        const dust = Math.pow(rid(px * 1.6 + r[0] * 1.2 + drx, py * 1.6 + r[1] * 1.2 + dry), 2.2);
+        let band = ss(0.32, 0.68, f) * 0.82 + ss(0.26, 0.97, f) * 0.18;
+        band = band * 0.56 + (band * 0.52 + ss(0.36, 0.76, f2) * 0.48) * 0.44;
+        band *= (1 - 0.66 * dust);
+        const covA = fbmN(u * 0.75 + 9.1 + drx * 0.35, v * 0.75 + 4.4 + dry * 0.35, 4);
+        const covB = fbmN(u * 1.9 + 2.7 - drx * 0.5, v * 1.9 + 8.8 - dry * 0.5, 4);
+        band *= (GF0 + GF1 * ss(COV, COV + 0.20, covA - 0.18 * (covB - 0.5)));
+        return Math.pow(Math.min(1, Math.max(0, band)), EXP);
+      };
+      let worst = 1e9, worstTh = 0, msum = 0;
+      const STEPS = 96, GX = 8, GY = 16;
+      for (let i = 0; i < STEPS; i++) {
+        const th = (i / STEPS) * 2 * Math.PI;
+        const drx = Math.sin(th) * AX, dry = Math.cos(th) * AY;
+        let lum = 0;
+        for (let gy = 0; gy < GY; gy++) for (let gx = 0; gx < GX; gx++) {
+          lum += lumAt((-0.5 + (gx + 0.5) / GX) * (390 / 844), -0.5 + (gy + 0.5) / GY, drx, dry);
+        }
+        lum /= GX * GY;
+        msum += lum;
+        if (lum < worst) { worst = lum; worstTh = th; }
+      }
+      const mean = msum / STEPS;
+      if (worst < 0.04) {
+        fail.push(`the sky goes dark: darkest point of the drift orbit has mean nebula luminance ${worst.toFixed(4)} `
+          + `(orbit mean ${mean.toFixed(4)}) — the old blackouts read 0.0000 for 10+ minutes, and 0.04 is the never-again floor`);
+      } else {
+        note.push(`sky over the full orbit: darkest ${worst.toFixed(4)}, mean ${mean.toFixed(4)} — never black (lap ${Math.round(2 * Math.PI / (OMEGA * MOT))}s)`);
+      }
+    } else if (mOrbit && mGate) {
+      fail.push('GL_COV/GL_EXP/GL_MOTION constants no longer parse — the sky sweep cannot run');
+    }
+  }
 }
 
 /* ================= 2. WITH NO GPU AT ALL ================= */
