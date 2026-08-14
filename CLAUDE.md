@@ -131,17 +131,25 @@ Two rules sit above all of them and are not negotiable:
 **You are the agent. You ship. The owner gives guidance, not process steps.**
 
 That means the whole mechanical chain is yours and none of it is worth asking
-about: branch, commit, push, open the pull request, watch the checks, merge it,
-and update the docs in the same breath. A green pull request sitting open is not
-a finished task — it is a task stopped one step early.
+about: run the checks, commit, push, and update the docs in the same breath.
+Work that is finished and unpushed is a task stopped one step early.
 
-This paragraph exists because of a specific failure. This file used to say
-"open pull requests as drafts", and a session read that as *stop here and wait
-to be told*. It left two green pull requests open, reported them as the
-deliverable, and the owner had to say "merge" three times, the last two in
-capitals. The instruction was about how a pull request starts, not about who
-finishes it, but it was the only sentence here about merging and so it became
-the rule. It is replaced rather than clarified.
+THIS SECTION HAS BEEN WRONG TWICE, IN OPPOSITE DIRECTIONS, AND BOTH COST A
+SESSION. It first said "open pull requests as drafts", which one session read
+as *stop and wait to be told*: it left two green pull requests open, reported
+them as the deliverable, and the owner had to say "merge" three times, the last
+two in capitals. That was corrected into an instruction to open a pull request
+and arm auto-merge for every change — which was worse, because it was followed
+exactly, and every pull request fired an automatic activity subscription that
+relayed raw webhook envelopes into the owner's chat, woke the repository's
+review bots, and left the agent polling GitHub. An afternoon of that produced:
+*"fix the fucking github ... so every stupid fucking thing you keep doing stops
+happening."*
+The lesson under both is the same one: **a process step that nobody can point
+at a reason for is a cost with no owner.** Before you add one here, say what
+would go wrong without it, and check that the thing you are protecting against
+is not already prevented somewhere else — as it was, in the workflow file, the
+entire time.
 
 - **PUSH STRAIGHT TO `main`. DO NOT OPEN A PULL REQUEST UNLESS ASKED.**
   This file used to require the opposite, and its stated reason was false.
@@ -167,6 +175,23 @@ the rule. It is replaced rather than clarified.
   wants a second opinion, or when you want the before/after screenshots on a
   visual change to live somewhere durable. Then merge it yourself and do not
   sit watching CI — and if you do open one, expect the event noise and say so.
+
+- **A VISUAL CHANGE DOES NOT GET PUSHED UNTIL YOU HAVE LOOKED AT IT.** This is
+  the one place the fast path above does not apply, and it was paid for at full
+  price. `main` publishes to the live page, and for anything touching a shader,
+  a draw call, a uniform or the glow, "checks green" says almost nothing about
+  the frame: seven of the eight harnesses stub the canvas, so a `drawImage` at
+  the wrong translate is a valid call with finite arguments and a correct count.
+  A build reached real playtesters carrying a hairline rim down every screen
+  edge, every halo oscillating off its own light, and half the intended
+  brightness — every check passing, merged in seconds, exactly as this file said
+  to. **A day of a playtest cycle is not recoverable; testers do not come back.**
+  So render it, look at it, and put the measurement in the commit message. It
+  costs about twenty seconds using the loop below. `rendercheck.mjs` covers the
+  regressions that have already happened; it cannot judge a new one for you.
+  (This rule was itself briefly lost in a merge conflict while the workflow
+  above was being rewritten, and restored on the next read — which is its own
+  small argument for grepping the file after you resolve one.)
 
 - **LOOK AT THE GAME. YOU CAN SEE THE SCREEN.** This line used to say the
   opposite — "you cannot hear the audio or see the screen" — and it was false,
