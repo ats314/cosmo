@@ -84,6 +84,39 @@ const safeEl=document.getElementById('safe');
    exposed as window.COSMO_BUILD; never drawn during play. */
 const BUILD='dev';
 try{window.COSMO_BUILD=BUILD;}catch(e){}
+/* THE PLAY LINK IS A CONTRACT: whoever opens the plain URL gets the newest
+   build. GitHub Pages caches index.html for ten minutes and its CDN keys on
+   the exact URL, so on a day with several releases the plain URL hands back
+   a copy up to ten minutes old — and every "it's fixed, go look" becomes a
+   fresh argument, because the tester is replaying the PREVIOUS build through
+   the same button that has always been trustworthy. The page checks its own
+   freshness now: fetch the first bytes of index.html past the CDN (a
+   minute-bucketed query is its own cache key), read the BUILD stamp out of
+   them, and if a newer build exists swap to it once, before play starts.
+   Four guards, each load-bearing:
+   - BUILD 'dev' (source, harnesses, local files) never checks — force is the
+     harness's door;
+   - a URL already carrying ?u= never redirects again, so two mismatched
+     copies can bounce at most ONE hop and can never loop;
+   - the swap fires only from the title screen — reloading a live run to
+     freshen its background would be vandalism;
+   - every failure (no fetch, offline, a range the host ignores, a parse
+     miss) is silence. Staleness is a nuisance; a blocked boot is a bug. */
+function freshCheck(force){
+  try{
+    if(!force&&BUILD==='dev')return;
+    if(typeof fetch!=='function')return;
+    if(/(^|[?&])u=/.test(location.search||''))return;
+    fetch(location.pathname+'?chk='+((Date.now()/60000)|0),
+      {headers:{'Range':'bytes=0-8191'}})
+      .then(function(r){return r.text();})
+      .then(function(t){
+        const m=t.match(/const BUILD='([0-9a-f]{7})'/);
+        if(!m||m[1]===BUILD)return;
+        if(G.state==='menu')location.replace(location.pathname+'?u='+m[1]);
+      }).catch(function(){});
+  }catch(e){}
+}
 const TAU=Math.PI*2;
 const rand=(a,b)=>a+Math.random()*(b-a);
 const RM=(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)||false;
@@ -11540,6 +11573,7 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+freshCheck();
 </script>
 </body>
 </html>
