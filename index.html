@@ -1033,6 +1033,15 @@ const CH=[[110,220,261.63,329.63],      /* Am  — level 1's i  */
 /* ARP tops out at degree 4 (784Hz) on purpose: the player's floor is 784 and a
    boundary only reads as a boundary if the band actually stops below it. */
 const ARP=[0,2,4,2,3,2,4,3],CNT=[7,5,4,5,7,8,7,5];
+/* THE STAR RUN — sixteen sixteenths, one bar, restated for as long as the
+   hypernova lasts. Four ascending four-note cells, each starting one degree
+   above the last, so the line climbs and wraps instead of resolving. Indices
+   into PENT, which is the level's own minor pentatonic: an interval over the
+   tonic, never a frequency, so it transposes with the key and stays consonant
+   against every chord in either section. Degrees 4-10 sit ABOVE the band's
+   degree-4 arp ceiling — the star is meant to be on top of the arrangement,
+   which is the one voice in the game that is. */
+const STARRUN=[4,5,6,7, 5,6,7,8, 6,7,8,9, 7,8,9,10];
 /* The score-anchored layer ladder. The riff and the solo it used to declare
    here (RIFF, SOLO) are deleted: they were superseded by the per-level RIFFL
    and SOLOL and had no reader left, so they sat in the distributed file as two
@@ -2214,13 +2223,58 @@ function musicStep(i,t,k){
     hat(t+S16,0.007,4600,0.04,0,0,7200);
     if(G.od===0){G.odBrk=true;cueState(false);} /* it ends the way a record ends: on the break */
   }
-  /* HYPERNOVA: the kit rides sixteenths and the floor pounds every other
-     beat — the star is audible as double-time, exactly the hyper-speed
-     zone the playtest asked to chase */
+  /* ================= HYPERNOVA: THE STAR RUN =================
+     "Like getting a star in Mario, but with our theme." The kit already rode
+     sixteenths and the floor already pounded every other beat, and that is a
+     TEXTURE change — the same song, busier. What a star does in the game
+     everyone means by this is HARMONIC and MELODIC: a different tune arrives,
+     instantly, and it is unmistakably the invincibility tune.
+
+     WHY NOT THE CHORUS. The star already lifts the record into it — hypernova
+     is in the hot-play set at the top of this function. But that lift can only
+     land at a four-bar seam, and a seam can be up to a full loop away while
+     the star lasts sixteen beats. So a player could take the star, hear
+     nothing change, and have it expire before the section arrived. The one
+     thing this moment cannot be is late.
+
+     WHY NOT A THIRD SECTION. `applySect` is the only writer of CH/ARP and
+     sections change only at a four-bar seam, never inside a payoff, rise,
+     black hole or star dive. A star that swapped the harmony mid-bar would
+     break the rule those four exceptions exist to protect, and it would fight
+     the chorus for the same tables.
+
+     SO THE STAR IS AN OVERLAY, NOT A SECTION. The harmony underneath is
+     whatever was already playing; the star adds a voice above it that starts
+     on the frame you take it. That is why it is immediate, and why it cannot
+     collide with anything.
+
+     THE RUN ITSELF is sixteen sixteenths that climb and wrap: four ascending
+     cells, each starting a degree higher than the last, so the line spirals
+     upward and never resolves. That is the whole feeling of the thing — an
+     unstoppable climb, restated every bar for as long as you are untouchable.
+     Written as PENT DEGREES, never frequencies, so it is an interval over the
+     level's own tonic and transposes with the key by construction. The
+     pentatonic is consonant against any triad in the natural minor, so the
+     run is safe over the verse, the chorus, and any chord either walks to. */
   if(G.hyper>0){
     hat(t,0.013,5200,0.045,0,0,7400);
     hat(t+S16,0.010,5800,0.04,0,0.3,7600);
     if(beat%2===0)kick(t,0.055);
+    /* the two sixteenths this eighth owns */
+    for(let s=0;s<2;s++){
+      const ix=beat*2+s,d=STARRUN[ix];
+      /* alternating pan gives the run width without moving anything else */
+      const pn=(ix%2)?0.22:-0.22;
+      /* square for the bite, triangle under it for body — the same pairing
+         lead() uses, at the register above the band's degree-4 ceiling */
+      note(PENT[d],t+s*S16,0.115,'square',0.026,3400,pn);
+      note(PENT[d],t+s*S16,0.115,'triangle',0.018,2100,pn);
+    }
+    /* AND THE FLOOR DRIVES. Straight eighths on the live chord's root, so the
+       star pushes forward against a progression that is still walking rather
+       than sitting on a pedal. chI/CH, never a stored frequency: this has to
+       follow a section change if one lands while the star is running. */
+    bassN(ch[0]*0.5,t,SPB*0.42,0.052);
   }
   /* 3 / 7 / 11 melodic events per bar still hold. The kit sits underneath
      them; the payoff section remains the loudest thing in the game. */
@@ -3090,6 +3144,14 @@ function bedTick(dt){
      loudest instant in the game and drove the soft clip to 1.45 pre-limiter.
      The pad comes down, never the hook — the pad receding IS the loudness. */
   if(MU&&MU.pay>0)mul=((PAY-MU.pay)>>3)<(MU.lateAt||4)?0.35:0.60;
+  /* THE STAR OPENS THE BAND, and it has to be written HERE or it does not
+     happen. bedTick is the only writer of BED.g, so a mode that adds voices in
+     musicStep and nothing else gets a brighter cutoff over a pad sitting at
+     exactly the level it was before — which is the bug the black hole shipped
+     and the drop's hush shipped before it. The star is the one moment in the
+     game that should sound BIGGER rather than merely busier, so the floor
+     comes up under the run instead of stepping back for it. */
+  else if(G.hyper>0)mul=1.22;
   else if(G.spot>0)mul=0.8;   /* the band steps back while you have the light */
   /* it CUTS on the way in (0.05s) and SWELLS on the way out (0.9s): the pitch
      is explicit that a crossfade would read as a transition between two songs
@@ -6355,10 +6417,18 @@ window.addEventListener('keydown',function(e){
 });
 
 /* ---------- update ---------- */
+/* THE STAR'S TAIL IS LONGER, and the DECAY is why — not this cap. Measured:
+   an ordinary run holds 29 samples and a star holds 52, because a sample's
+   life is what expires first (1/2.1s ordinarily, 1/1.15s with the star). The
+   cap is never the binding constraint in either case and must not become one:
+   at 50 it would have clipped the star's ribbon by two samples, which is the
+   only reason it moves at all. It is headroom, and calling it the mechanism
+   would be a comment claiming credit for a line that does nothing. */
+function trailCap(){return RM?50:Math.round(50+46*G.hyperGlow);}
 function pushTrail(){
   const p=posPlayer();
   G.trail.push({x:p[0],y:p[1],life:1});
-  if(G.trail.length>50)G.trail.shift();
+  while(G.trail.length>trailCap())G.trail.shift();
 }
 /* THE MENU DEMONSTRATES BOTH VERBS. The title comet was already orbiting the
    real simulation behind the key; now it plays a 12-second scripted loop — a
@@ -6697,7 +6767,10 @@ function update(dt){
     if(p.life<=0)G.pops.splice(i,1);
   }
   for(let i=G.trail.length-1;i>=0;i--){
-    const tr=G.trail[i];tr.life-=pdt*2.1;
+    /* the star's samples live longer, or the raised cap buys nothing: a
+       sample that expires on schedule is gone before the extra length can
+       reach it */
+    const tr=G.trail[i];tr.life-=pdt*(2.1-(RM?0:0.95*G.hyperGlow));
     if(tr.life<=0)G.trail.splice(i,1);
   }
 
@@ -7068,8 +7141,15 @@ function update(dt){
        rather than to how fast the world is running, and changing that is a
        separate argument from this one.) */
     G.wakeT-=sdt;
-    if(G.groove>=4&&G.trail.length>6&&G.parts.length<150&&G.wakeT<=0){
-      G.wakeT=rand(0.05,0.11)/(1+0.30*(G.groove-4)+(G.pay>0?1.4:0));
+    /* THE STAR OPENS THE WAKE UNCONDITIONALLY. Ordinarily this is the groove's
+       reward and waits for a chain of four; a hypernova is not a chain and a
+       player who takes one from a cold start would otherwise get the biggest
+       tail in the game with nothing coming off it. The star also raises the
+       particle ceiling, because the ribbon it is shedding from is nearly twice
+       as wide and half again as long. */
+    const star=G.hyperGlow>0.02;
+    if((G.groove>=4||star)&&G.trail.length>6&&G.parts.length<(star?230:150)&&G.wakeT<=0){
+      G.wakeT=rand(0.05,0.11)/(1+0.30*Math.max(0,G.groove-4)+(G.pay>0?1.4:0)+2.2*G.hyperGlow);
       const n=G.trail.length;
       /* never the last two samples: that is the head, and the furnace
          already owns it — two emitters on one point reads as one brighter
@@ -7084,7 +7164,10 @@ function update(dt){
       G.parts.push({x:G.trail[i].x,y:G.trail[i].y,
         vx:-ty*side*sp3+tx*rand(-16,16),vy:tx*side*sp3+ty*rand(-16,16),
         life:Math.max(0.35,G.trail[i].life),dec:rand(2.2,3.4),
-        col:(G.pay>0||G.groove>=7)?'#ffffff':(Math.random()<0.35?COL.ember:COL.warp),
+        /* the star's sparks are its own two colours, so the debris matches the
+           ribbon it came off rather than reporting a groove nobody is on */
+        col:star?(Math.random()<0.45?'#ffffff':(Math.random()<0.5?COL.hyper:COL.ember))
+          :((G.pay>0||G.groove>=7)?'#ffffff':(Math.random()<0.35?COL.ember:COL.warp)),
         size:rand(0.8,1.6)*u});
     }
   }
@@ -7874,8 +7957,12 @@ function tailRibbon(n,am,ghost){
     const L=Math.sqrt(tx*tx+ty*ty);
     if(L<1e-4){tx=1;ty=0;}else{tx/=L;ty/=L;}
     nx[i]=-ty;ny[i]=tx;
-    /* width tapers by both age and position, so the head stays fat */
-    bw[i]=8*u*Math.pow(Math.max(p.life,0),0.7)*(0.16+0.84*i/(n-1));
+    /* width tapers by both age and position, so the head stays fat.
+       THE STAR WIDENS THE WHOLE RIBBON. G.hyperGlow rather than G.hyper, so
+       it arrives and leaves on the same envelope the corona does instead of
+       snapping on with the timer. */
+    bw[i]=8*u*Math.pow(Math.max(p.life,0),0.7)*(0.16+0.84*i/(n-1))
+      *(1+(RM?0:0.85*G.hyperGlow));
   }
   /* Width, alpha, colour. The narrow pass runs near-white so the ribbon goes
      hot at its centre and cools outward, the way anything incandescent does.
@@ -7890,9 +7977,30 @@ function tailRibbon(n,am,ghost){
   /* the ghost is two passes, not three: it is an after-image, and giving it
      the hot white core the live ribbon has would make it read as a second
      comet rather than as the first one's past */
+  /* THE STAR'S TAIL. "A comet flying through orbit with a brilliant tail" —
+     so during a hypernova the ribbon stops being the groove's scoreboard and
+     becomes the thing itself: five passes instead of three, a wide magenta
+     bloom outside a hot gold body inside a white core, running the length of
+     a ribbon that is also longer and nearly twice as wide. The colours are
+     COL.hyper's magenta and the ember gold, which is what the orb and its
+     popup already are — the tail is the same object as the pickup, not a new
+     palette. Crossfaded on hyperGlow so it arrives and leaves with the
+     corona; at hyperGlow 0 the arithmetic reduces to the ordinary passes. */
+  const hg=RM?0:G.hyperGlow;
+  const hmix=function(base,star){
+    return 'rgb('+Math.round(base[0]+(star[0]-base[0])*hg)+','+
+      Math.round(base[1]+(star[1]-base[1])*hg)+','+
+      Math.round(base[2]+(star[2]-base[2])*hg)+')';
+  };
   const passes=ghost?[
     [3.0,0.055,'rgb(150,110,240)'],
-    [1.5,0.10,'rgb(196,166,255)']]:[
+    [1.5,0.10,'rgb(196,166,255)']]:hg>0.02?[
+    /* outermost first, the order light is built in */
+    [4.2,0.055*hg,'rgb(255,79,216)'],
+    [2.5,0.075+0.06*hg,hmix([93,240,255],[255,120,225])],
+    [1.35,0.16+0.10*hg,hmix([142,242,255],[255,200,120])],
+    [0.6,0.34+0.30*hg,hmix([230,253,255],[255,255,255])],
+    [0.26,0.30*hg,'#ffffff']]:[
     [2.5,0.075,mix([93,240,255],[180,139,255])],
     [1.35,0.16,mix([142,242,255],[214,190,255])],
     [0.6,0.34,G.pay>0?'#ffffff':'#e6fdff']];

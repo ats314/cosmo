@@ -298,6 +298,18 @@ Breaking one of these is a product regression, not a style question.
   black hole, where it left 54% of the mix identical either side of an entry
   the pitch describes as the music "immediately cutting out". Any new mode that
   claims to replace the arrangement must have a branch in `bedTick`.
+- **A MOMENT THAT MUST BE IMMEDIATE CANNOT BE A SECTION.** The section machinery
+  changes only at a four-bar seam, which is the right rule for the chorus and
+  the wrong one for anything a player triggers and expects to hear. The
+  hypernova is the case: it is already in the hot-play set that lifts the
+  record into the chorus, but the lift can only land at a seam, and a seam can
+  be most of a loop away against a star that lasts four bars — so the payoff
+  could arrive after the star had ended, or never. THE STAR RUN IS AN OVERLAY
+  instead: a voice added above whatever harmony is already playing, starting on
+  the frame the orb is taken. That is what makes it immediate, and it is also
+  why it cannot collide with the chorus, the payoff or the black hole — it owns
+  no table. Reach for an overlay whenever the answer to "when will the player
+  hear this?" has to be "now"; reach for a section only when it can wait.
 - **Audio is optional everywhere.** The game must be completable with no
   WebAudio at all. Every audio path is guarded; keep it that way.
 - **Two clocks: `G.t` measures, `G.vt` shows.** `G.t` is real seconds and every
