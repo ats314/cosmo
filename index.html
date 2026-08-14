@@ -75,6 +75,15 @@ const IN_APP_BROWSER=(function(){
   }catch(e){return false;}
 })();
 const safeEl=document.getElementById('safe');
+/* THE BUILD STAMP. 'dev' in source; the deploy workflow replaces it with the
+   short commit sha before upload, so the LIVE page names the exact commit it
+   was built from. It exists because a day was lost to screenshots that could
+   not say which build they came from: a fix deployed at 1:01:42pm, a
+   screenshot taken at 1:02pm, and no way for either side to prove the page
+   was the ten-minute-stale cached copy. Drawn faintly on the title screen and
+   exposed as window.COSMO_BUILD; never drawn during play. */
+const BUILD='dev';
+try{window.COSMO_BUILD=BUILD;}catch(e){}
 const TAU=Math.PI*2;
 const rand=(a,b)=>a+Math.random()*(b-a);
 const RM=(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)||false;
@@ -11036,6 +11045,9 @@ function drawHUD(){
     const lbs='try any orb on a quiet board';
     text(lbs,labX+labH*1.16,labY+labH*0.80,
       fitSz(lbs,lbz*0.80,'600',labW-labH*1.9),'600','rgba(190,178,235,0.6)',0);
+    /* which build this is, provable from a screenshot */
+    ctx.textAlign='center';
+    text('build '+BUILD,cx,H-safeBot-8*u,8.5*u,'600','rgba(160,175,205,0.30)',1);
     ctx.textAlign='right';
     ctx.globalAlpha=0.75;
     text('›',labX+labW-labH*0.5,labY+labH*0.68,labH*0.5,'700',COL.warp,0);

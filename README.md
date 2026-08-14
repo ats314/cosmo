@@ -1798,6 +1798,17 @@ Two things that bite when this is not yet working:
 - Enabling Pages does not itself trigger a build. Push to `main`, or re-run
   the last workflow, before expecting the site to appear.
 
+
+**The deployed page is stamped with its commit.** The source says `const
+BUILD='dev'`; the deploy workflow rewrites it to the short sha before upload,
+so the game itself stays a single hand-written file with no build step — the
+stamp is a label on the box, not a compiler. It draws faintly at the bottom of
+the title screen and is readable as `window.COSMO_BUILD`. It exists because a
+day was lost to screenshots that could not say which build they came from: a
+fix deployed at 1:01:42pm, a screenshot taken at 1:02pm, and GitHub Pages'
+ten-minute cache between them. A stale cache can also be bypassed on demand by
+adding any query string to the URL (`/cosmo/?fresh`) — the CDN keys on it.
+
 ## Notes on the implementation
 
 Everything is one `<canvas>` and about 1,300 lines of plain JavaScript.
