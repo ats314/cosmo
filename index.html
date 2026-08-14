@@ -3389,13 +3389,12 @@ function useMode(m){
 
    THE WORDING IS THE GAME'S OWN. Every line below is lifted from the channel
    that already explains that orb — hintText for the three intro orbs, MEET for
-   the four that carry lessons — so the picker cannot drift into being a second,
-   differently-worded description of the same seven things. */
+   the three that carry lessons — so the picker cannot drift into being a second,
+   differently-worded description of the same six things. */
 const LAB_ORBS=[
  {id:'shield',   n:'SHIELD',    d:'a shield takes one hit for you'},
  {id:'warp',     n:'SLOW-MO',   d:'this one slows everything down'},
  {id:'nova',     n:'NOVA',      d:'this one turns every red into a star'},
- {id:'bass',     n:'BASS BOMB', d:'clears the lane, drops the low end'},
  {id:'spot',     n:'SPOTLIGHT', d:'you take the lead, taps pay double'},
  {id:'hyper',    n:'PINK STAR', d:'untouchable and fast'},
  {id:'blackhole',n:'BLACK HOLE',d:'everything slows, the reds pile up'}
@@ -3409,7 +3408,7 @@ const LAB_ORBS=[
    1.62 of a 4.2 ceiling, and a 2.35s telegraph on every shard. Level 1's
    finish line is dl 90 and the clock never moves, so the lab is endless. */
 const LAB_DL=40;
-const LAB={on:false,type:'blackhole',invuln:true,sel:6};
+const LAB={on:false,type:'blackhole',invuln:true,sel:5};
 /* Red cannot touch you with the ghost on. Written as one predicate read at the
    single lethal-contact site rather than as a shield top-up, because a bank
    that refills is still a bank being spent — the pip row would count down and
@@ -4399,17 +4398,6 @@ const UPG=[
   ic:function(g,c){g.fillStyle=c;g.beginPath();
     g.moveTo(-3,-20);g.lineTo(10,-3);g.lineTo(2,-1.5);g.lineTo(7,20);
     g.lineTo(-10,1.5);g.lineTo(-1.5,0);g.closePath();g.fill();}},
- /* REDRAWN. It was three concentric rings, which at tile size was the same
-    picture as WIDE PULL sitting beside it. A cone with a shockwave leaving it
-    says "this pushes outward" where rings said only "circles". */
- {id:'longfuse',n:'LONG FUSE',d:'the bomb clears wider',c:'#5df0ff',
-  ic:function(g,c){g.fillStyle=c;g.globalAlpha=0.85;
-    g.beginPath();g.moveTo(-16,-11);g.lineTo(-4,-11);g.lineTo(7,-19);
-    g.lineTo(7,19);g.lineTo(-4,11);g.lineTo(-16,11);g.closePath();g.fill();
-    g.globalAlpha=1;g.strokeStyle=c;g.lineCap='round';
-    for(let k=0;k<3;k++){g.globalAlpha=0.8-k*0.22;g.lineWidth=2.6-k*0.5;
-      g.beginPath();g.arc(9,0,(11+k*7),-0.85,0.85);g.stroke();}
-    g.globalAlpha=1;}},
  {id:'stagelight',n:'STAGE LIGHT',d:'the spotlight lasts',c:'#b48bff',
   ic:function(g,c){g.fillStyle=c;g.globalAlpha=0.32;
     g.beginPath();g.moveTo(0,-14);g.lineTo(-18,21);g.lineTo(18,21);g.closePath();g.fill();
@@ -4479,7 +4467,7 @@ const G={
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,slowD:4,shMax:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
   didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,gotShield:false,
-  gotBass:false,gotSpot:false,gotBH:false,hyperPlaced:false,bhPlaced:false,
+  gotSpot:false,gotBH:false,hyperPlaced:false,bhPlaced:false,
   bhCool:0,bhT:0,bhN:0,   /* black hole: rarity gate, entry stamp, count this run */
   dropsEarned:0,loopN:0,nearN:0,bestCombo:0,holdTimeout:false, /* play-style aggregates for run_ended */
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
@@ -4488,7 +4476,7 @@ const G={
   sauT:0,   /* earliest G.t another saucer may arrive — see saucerOK */
   runs:0,didReverse:false,didHop:false,didLap:false,
   teach:0,teachKind:null,teachHint:null,teachType:null,seen:{},seen2:{},campT:0, /* lessons + outer-ring camp clock */
-  bassPlaced:false,spotPlaced:false,   /* the level-2 orb guarantees */
+  spotPlaced:false,   /* the level-3 spotlight guarantee */
   lapCut:0,lapCutDir:1,lapCutA:0,lapFx:null, /* a committed reverse's discarded orbit — the cost, drawn */
   beatPop:false,lsnN:0,said8:false,   /* per-run: ON BEAT popup, lessons shown, ×8 line */
   saidChor:false,chorusN:0,chorusBars:0, /* the chorus: named once per run; entries and bars for telemetry */
@@ -4860,7 +4848,6 @@ const MEET={
      the test the two twin wordings failed. */
   saucer:  {t:'turn back and it blocks your ring — swipe off',g:'swipe'},
   blinktwin:{t:'only one is solid — cross the dim one',g:'shard'},
-  bass:  {t:'bass bomb — clears the lane, drops the low end',g:'nova',soft:1},
   spot:  {t:'spotlight — you take the lead, taps pay double',g:'beat',soft:1},
   /* NOT "gold", and not "double". COL.hyper is '#ff4fd8' and SPR.powHyper
      fills with it — the orb is magenta. Gold is COL.ember, the colour of the
@@ -5136,7 +5123,7 @@ function spawnPow(){
        blackhole_entered events in the game's whole history, every one of
        them on level 4, none on level 3.
        The reorder is safe because the branches it jumps are PATIENT and this
-       one is IMPATIENT: hyperPlaced/bassPlaced/spotPlaced persist until
+       one is IMPATIENT: hyperPlaced/spotPlaced persist until
        satisfied, so delaying them by one placement costs nothing, while a
        per-placement die that is never rolled is simply gone. */
     type='blackhole';
@@ -5158,32 +5145,28 @@ function spawnPow(){
        without seeing one. On level 2+ the first placement after the
        curriculum is the star, guaranteed, once per run. */
     type='hyper';
-  }else if(G.level>=2&&!G.bassPlaced){
-    /* THE CURRICULUM RULE extends to the musical orbs: everything is
-       introduced by the end of level 2, so bass bomb and spotlight stop
-       being dice rolls there — at 14% each, a level-2 clear could easily
-       end with two of the game's orbs still unmet. Placed after the pity
-       shield so the never-three-without-a-shield promise holds. */
-    type='bass';
   }else if(G.level>=3&&!G.spotPlaced){
     /* SPOTLIGHT MOVED TO LEVEL 3. Six of the seven orbs used to be met by the
        end of level 2 and levels 3 and 4 introduced nothing at all, which is
        what the owner's rebalance is about: "balance power up introduction,
        mechanics, and difficulty all the way the level 4." Spotlight is the one
-       that moves best — it is the least load-bearing of the three guarantees
-       (hypernova is the marquee item and the bass bomb is the panic button),
+       that moves best — it is the least load-bearing of the guarantees
+       (hypernova is the marquee item),
        and it is a pure reward, so meeting it later costs a player nothing they
        needed earlier. */
     type='spot';
   }else{
-    /* the family expansion: three musical orbs join the rotation */
+    /* the family expansion: two musical orbs join the rotation */
     const rr=Math.random();
-    /* MAGNETAR's 0.11 share is redistributed proportionally across the
-       remaining six rather than handed to one of them, so removing it changes
+    /* MAGNETAR's 0.11 share was redistributed proportionally across the
+       remaining six rather than handed to one of them, so removing it changed
        what can appear and not how often the others appear relative to each
-       other. */
-    type=rr<0.31?'shield':rr<0.49?'warp':rr<0.64?'nova':
-         rr<0.79?'bass':rr<0.92?'spot':'hyper';
+       other. The bass bomb's 0.15 goes the same way: with sound off it was a
+       weaker nova (a third of the board, no invulnerability, same conversion
+       pipeline) and the owner cut it. Shares stay .31/.18/.15/.13/.08
+       relative — renormalised over 0.85. */
+    type=rr<0.36?'shield':rr<0.58?'warp':rr<0.75?'nova':
+         rr<0.91?'spot':'hyper';
   }
   for(let i=0;i<24;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
@@ -5198,9 +5181,8 @@ function spawnPow(){
          the full one, and the ordinary 10% roll takes over from there. */
       if(type==='blackhole'){G.bhPlaced=true;G.bhCool=G.t+20;}
       if(type==='hyper')G.hyperPlaced=true;
-      if(type==='bass')G.bassPlaced=true;
       if(type==='spot')G.spotPlaced=true;
-      if(type==='bass'||type==='spot'||type==='hyper')firstMeet(type);
+      if(type==='spot'||type==='hyper')firstMeet(type);
       G.sinceShield=(type==='shield')?0:G.sinceShield+1;
       /* counts PLACEMENTS, not pickups: a player who misses the slow-mo still
          advances the curriculum, or a run spent dodging would serve nothing
@@ -5304,12 +5286,12 @@ function startGame(){
      all. Each clears the instant the thing is done, so a veteran sees each for
      well under a second. */
   G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;G.gotShield=false;
-  G.gotBass=false;G.gotSpot=false;G.gotBH=false;
+  G.gotSpot=false;G.gotBH=false;
   G.bhCool=0;G.bhT=0;G.bhN=0;G.bhPlaced=false;
   BH.phase=0;BH.on=false;BH.warp=0;BH.t=0;BH.rings0=3;
   for(let i=0;i<4;i++)RADII[i]=RAD_OFF[i];
   G.dropsEarned=0;G.loopN=0;G.nearN=0;G.bestCombo=0;G.holdTimeout=false;
-  G.hyperPlaced=false;G.bassPlaced=false;G.spotPlaced=false;
+  G.hyperPlaced=false;G.spotPlaced=false;
   G.didReverse=false;G.didHop=false;G.didLap=false;
   G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];G.novas=[];
   G.stop=0;
@@ -5528,7 +5510,7 @@ function die(){
        Named `paused_seconds` and not `paused`, because a bare `paused` would be
        read as a boolean by the first person to query it. */
     pauses:PAUSE.n,paused_seconds:Math.round(pausedSeconds()),
-    got_bass:G.gotBass,got_spot:G.gotSpot,got_blackhole:G.gotBH,blackholes:G.bhN,
+    got_spot:G.gotSpot,got_blackhole:G.gotBH,blackholes:G.bhN,
     /* two ladders, two names, never the word `level` for the tier one: `tier`
        is the zero-based UNLOCK ladder (what has been introduced), `game_level`
        is the 1-3 structure the player is told about. `level` used to be sent
@@ -7261,7 +7243,6 @@ function update(dt){
          level-2 guarantee is of the INTRODUCTION, not of one spawn roll —
          a 7s life can fall entirely inside another lesson's spacing */
       if(s.type==='blackhole'&&!G.seen.blackhole)G.bhPlaced=false;
-      else if(s.type==='bass'&&!G.seen.bass)G.bassPlaced=false;
       else if(s.type==='spot'&&!G.seen.spot)G.spotPlaced=false;
       else if(s.type==='hyper'&&!G.seen.hyper)G.hyperPlaced=false;
       G.pows.splice(i,1);continue;
@@ -7270,7 +7251,7 @@ function update(dt){
        call at placement could hit a busy moment, defer, and the orb —
        guaranteed once per level-2 run — leave unexplained. firstMeet's own
        guards (seen, calm, spacing) make the retry free. */
-    if(!G.seen[s.type]&&(s.type==='bass'||s.type==='spot'||s.type==='hyper'||s.type==='blackhole'))firstMeet(s.type);
+    if(!G.seen[s.type]&&(s.type==='spot'||s.type==='hyper'||s.type==='blackhole'))firstMeet(s.type);
     if(s.ring===er&&sweptHit(s.a,(22*u)/radiusOf(er))){
       const p=posAt(s.a,radiusOf(s.ring));
       G.pows.splice(i,1);
@@ -7284,13 +7265,12 @@ function update(dt){
          black hole's lesson, silently, on a device that has never met one in
          the real game. Found by the harness rather than by reading: one guard
          looked like the whole job and there were two. */
-      if(!LAB.on&&(s.type==='bass'||s.type==='spot'||s.type==='hyper'||s.type==='blackhole')&&!G.seen[s.type]){
+      if(!LAB.on&&(s.type==='spot'||s.type==='hyper'||s.type==='blackhole')&&!G.seen[s.type]){
         G.seen[s.type]=1;savePref('cometloop:seen',Object.keys(G.seen).join(','));
       }
       arcFlash(s.a,s.ring,
         s.type==='shield'?COL.shield:
         s.type==='warp'||s.type==='spot'?COL.warp:
-        s.type==='bass'?COL.comet:
         s.type==='hyper'?COL.hyper:
         s.type==='blackhole'?COL.bh:COL.nova);
       if(s.type==='shield'){
@@ -7357,28 +7337,6 @@ function update(dt){
         burst(p[0],p[1],COL.warp,14,150);
         ripple(p[0],p[1],COL.warp);
         beep(400,0.3,'sine',0.07,150);
-      }else if(s.type==='bass'){
-        G.gotBass=true;
-        /* BASS BOMB: every shard in the neighbourhood converts, and the low
-           end drops — a pitch-fall boom into a one-bar heavy kick figure.
-           The clear reuses novaConvert, so the shards pay like a nova's. */
-        for(let j=G.spikes.length-1;j>=0;j--)
-          if(angDist(G.spikes[j].a,G.angle)<(upgOn('longfuse')?1.5:1.05))novaConvert(G.spikes.splice(j,1)[0]);
-        popup(p[0],p[1]-24*u,'BASS BOMB!',COL.comet,1.5);
-        burst(p[0],p[1],COL.comet,24,260);
-        ripple(p[0],p[1],COL.comet);
-        if(!RM){G.shake=Math.max(G.shake,8);flashHit(0.22);
-          G.rings.push({x:p[0],y:p[1],r:10*u,life:1,col:COL.comet,sp:520,dec:1.2,fat:1});}
-        duckBed(0.25,0.5);
-        beep(160,0.6,'sine',0.10,40);
-        cueTone(function(w){
-          const t0=AC.currentTime+w;
-          note(CH[0][0]/2,t0,0.5,'sine',0.055,300);
-          kick(t0,0.085);kick(t0+SPB,0.070);
-          kick(t0+SPB*1.5,0.055);kick(t0+SPB*2,0.080);
-          note(CH[0][0]/2,t0+SPB*2,0.5,'sine',0.045,280);
-        });
-        try{if(navigator.vibrate)navigator.vibrate([30,30,60]);}catch(e){}
       }else if(s.type==='spot'){
         /* SPOTLIGHT: four bars where YOU are the lead — your instrument
            doubles and brightens, the band steps back a notch, and every
@@ -7475,20 +7433,6 @@ function drawPow(x,y,s,al){
   }else if(s.type==='warp'){
     blit(SPR.powWarpO,x,y,pulse,s.t*2,al);
     blit(SPR.powWarpI,x,y,1,-s.t*2+Math.PI/4,al);
-  }else if(s.type==='bass'){
-    /* a subwoofer: the cone slams on the landed beat and the rings jump
-       with it — you can see the low end before you take it */
-    const th=1+(RM?0.10:0.42*G.beat);
-    ctx.save();ctx.strokeStyle=COL.comet;ctx.lineWidth=2.0*u;
-    for(let ri=0;ri<3;ri++){
-      ctx.globalAlpha=al*(1-ri*0.24);
-      ctx.beginPath();ctx.arc(x,y,(3.6+ri*3.4)*u*th,0,TAU);ctx.stroke();
-    }
-    ctx.globalAlpha=al*0.9;ctx.fillStyle='#04263a';
-    ctx.beginPath();ctx.arc(x,y,3.2*u*th,0,TAU);ctx.fill();
-    ctx.fillStyle=COL.comet;
-    ctx.beginPath();ctx.arc(x,y,(1.6+0.9*(th-1)*3)*u,0,TAU);ctx.fill();
-    ctx.restore();
   }else if(s.type==='spot'){
     /* a stage light: four rays sweeping round a bright bulb */
     ctx.save();ctx.strokeStyle='#eaf1ff';ctx.lineWidth=1.8*u;
@@ -7718,8 +7662,7 @@ function drawBloom(){
     const p=posAt(pw.a,radiusOf(pw.ring));
     bloomDot(g,p[0],p[1],10*u,
       pw.type==='shield'?COL.shield:
-      pw.type==='warp'||pw.type==='spot'?COL.warp:
-      pw.type==='bass'?COL.comet:COL.nova);
+      pw.type==='warp'||pw.type==='spot'?COL.warp:COL.nova);
   }
   for(const pt of G.parts){
     if(pt.life<=0)continue;
