@@ -307,7 +307,7 @@ Breaking one of these is a product regression, not a style question.
   everywhere else, unnoticed for as long as the levels differed only by
   transposition. Never write a bare frequency into the audio path. `PROG` and
   `musiccheck.mjs` are where both halves are enforced.
-  **The song is two sections per level now, and the chorus obeys three extra
+  **The song is two sections per level now, and the chorus obeys four extra
   laws.** `PROGB` is the chorus table, `CHOFF` its per-level walk rotation,
   `SEVB` its color tones; `applySect` is the ONLY writer of the live `CH`/`ARP`
   tables and `chI()` the only translator from bar ordinal to chord. (1) Chord
@@ -317,11 +317,19 @@ Breaking one of these is a product regression, not a style question.
   row. (2) Sections change only at a four-bar seam, never inside a payoff,
   rise, black hole or star dive, and a level's first eight bars are always
   the verse. (3) The chorus's harmonic color lives in `SEVB` (stacked-third
-  sevenths — the pad-extension half of the genre voicing); the arps stay
+  sevenths: m7 on minor chords, maj7 on III/VI, the dominant-shaped m7 on
+  VII — the stacked third decides, never a hand-picked quality); the arps stay
   plain pentatonic under degree 4, the band's ceiling below the player's
-  register. All three are enforced in `musiccheck.mjs`, including walk ORDER
-  (the L2 chorus is the verse's chords walked the other way — invisible to
-  any pitch-set comparison) and the seam glides.
+  register. (4) The chorus lean never doubles a drum already playing: the
+  sky bands FLOOR at `G.level-1`, so level 4 always rides band 3's beat-4
+  snare and level 3 band 2's open offbeat hat, and the first lean stacked
+  its "arriving" backbeat and open hat straight onto both — each addition
+  yields wherever its slot already has that tenant (`skyI`/`rs` gates). All
+  four are enforced in `musiccheck.mjs`, including walk ORDER (the L2
+  chorus is the verse's chords walked the other way — invisible to any
+  pitch-set comparison), the seam glides, the star dive's first-bar revert
+  reaching the oscillators, `chorus_bars` holding through black hole and
+  payoff, and a doubled-snare-body tripwire run at each level's sky floor.
 - **No aimed input.** There is no target to hit anywhere in this game. Landing
   the beat drop is *any* move in the window, wherever the thumb is.
 - **A lesson may only reference actions and objects the game actually has.**

@@ -1774,7 +1774,7 @@ function musicStep(i,t,k){
     for(let v=0;v<4;v++)for(let u2=0;u2<2;u2++)
       BED.oscs[v*2+u2].frequency.setTargetAtTime(ch[v],t,0.09);
   }
-  if(beat===0){MU.barN++;if(MU.sect)G.chorusBars++;}
+  if(beat===0)MU.barN++;
   /* THE BLACK HOLE OUTRANKS EVERYTHING, including a payoff section already in
      flight. Placed after the chord retune so the pad keeps tracking the
      progression silently underneath and returns in tune, exactly as it does
@@ -1796,9 +1796,29 @@ function musicStep(i,t,k){
   if(rn===16){fireDrop(t);payoffStep(t,ch,k);return;}
   const rise=MU.rise;
   /* the star dive is a composed setpiece: it walks the level's own verse
-     home, whatever section the run had earned when the finish line hit */
-  if(FIN.on&&FIN.pend&&i%16===0){FIN.pend=false;FIN.step=0;if(MU.sect)applySect(0);}
+     home, whatever section the run had earned when the finish line hit.
+     The revert RE-RETUNES in place, and that second write is load-bearing:
+     this latch sits BELOW the bar retune, which has already scheduled the
+     chorus chord at this same t, and applySect touches tables, never
+     oscillators — so without it the dive's entire first bar (2.3s) sounded
+     over the chorus chord while the comment above claimed otherwise. Same
+     t, later write wins; nothing sounds twice. */
+  if(FIN.on&&FIN.pend&&i%16===0){FIN.pend=false;FIN.step=0;
+    if(MU.sect){applySect(0);
+      for(let v=0;v<4;v++)for(let u2=0;u2<2;u2++)
+        BED.oscs[v*2+u2].frequency.setTargetAtTime(CH[chI(bar)][v],t,0.09);}}
   if(FIN.on&&!FIN.pend){finStep(t);return;}
+  /* chorus_bars counts bars the chorus ARRANGEMENT actually owns, which is
+     why it sits HERE, below every handoff, and not beside barN at the top:
+     the flag stays frozen through a black hole (band halted) and a payoff
+     (the section's eight bars), and the flag-only counter overstated the
+     telemetry by exactly those bars. The first below-the-flag version sat
+     above the returns and still counted two transition bars — the bar the
+     drop LANDS on (fireDrop runs later in the same step) and the star
+     dive's latch bar (finStep runs later in the same step). A bar that
+     reaches this line is the ordinary arrangement's: armed, rising or
+     plain, the pad is voicing the chorus through all of them. */
+  if(beat===0&&MU.sect)G.chorusBars++;
   if(beat%2===0)BEATQ.push(t);          /* quarter notes, for the visual pulse */
   /* THE DRUM BREAK (playtest: "more percussion breakdowns"). Play hot and
      every so often the band steps out for ONE bar of drums — and the
@@ -2074,13 +2094,26 @@ function musicStep(i,t,k){
      chorus adds the sixteenth ghost instead), a half-time backbeat lands
      (level 2's own lean already covers it there — see above), and ONE color
      tone a bar: the sounding chord's own seventh (SEVB), sustained an octave
-     up. m7 on the minor chords, maj7 on III and VI — the pad voicing split
-     the reference records use, and the one place extensions live: the arp
-     and every riff stay plain pentatonic, per the same records. */
+     up. m7 on the minor chords, maj7 on III and VI, and the dominant-shaped
+     m7 on VII — the stacked third decides, which is the reference records'
+     own voicing split — and the one place extensions live: the arp and
+     every riff stay plain pentatonic, per the same records. */
   if(MU.sect){
-    if(G.level===4){if(beat%2===0)hat(t+S16,0.007,4400,0.04,0,0,7200);}
-    else if(beat%2===1)hat(t,0.010,3800,0.13,0,0.3,6600);
-    if(beat===4&&G.level!==2)snare(t,0.018,0.20);
+    /* ONE TENANT PER BAND holds at the seam too. The first version of this
+       lean stacked its additions onto voices already playing: the sky is
+       FLOORED at G.level-1, so level 4 has carried sky band 3's beat-4
+       snare since its first bar — the chorus "backbeat" doubled it, ~+4.6dB
+       on one slot, on the level good players live in — and level 3's floor
+       is band 2, whose signature IS the open offbeat hat, so "the open hat
+       arrives" stacked a third copy over the sky's and the level's own
+       tick. The sixteenth ghost is likewise the inner rings' own pattern
+       (rs>=2). Each addition now yields wherever its slot already has that
+       tenant: the chorus is the harmony moving, never the same drum twice
+       as loud. musiccheck runs the harness at each level's sky floor and
+       fails on a doubled snare body. */
+    if(G.level===4){if(rs<2&&beat%2===0)hat(t+S16,0.007,4400,0.04,0,0,7200);}
+    else if(beat%2===1&&skyI!==2)hat(t,0.010,3800,0.13,0,0.3,6600);
+    if(beat===4&&G.level!==2&&skyI!==3)snare(t,0.018,0.20);
     if(beat===0)note(SEVB[G.level-1][cix]*2,t,1.6,'triangle',0.016,1400,(bar%2)?0.22:-0.22);
   }
   /* THE SKY FLAVOURS THE KIT (playtest: "more electro beats"). Each palette
@@ -2688,7 +2721,7 @@ function finStep(t){
   const beat=fs%8;
   if(beat%2===0)BEATQ.push(t);
   /* the floor rolls under the dive; voices join as the trail is gathered */
-  if(beat===0){kick(t,0.050);bassN(CH[((fs/8)|0)%4][0],t,0.28,0.034);}
+  if(beat===0){kick(t,0.050);bassN(CH[chI((fs/8)|0)][0],t,0.28,0.034);}
   if(beat===4)kick(t,0.036);
   if(beat%2===1)hat(t,0.009,4000,0.038,0,0.35,6800);
   if(FIN.voices>=1&&beat===0)swellPad(chTone(2),t,2.0,0.024,0);
@@ -3574,23 +3607,25 @@ const SOLOL=[
      musiccheck.mjs enforces both halves.
 
    The four choruses, heard order (walk = row[(bar+CHOFF)%4]):
-   L1 LIFT OFF      — VI VII v i  (F G Em Am). Nightcall's own chorus in
-     Nightcall's own key: tonic withheld for three bars, home on the fourth.
-     The v is the mode's cool minor dominant — lift without a leading tone.
+   L1 LIFT OFF      — VI VII v i  (F G Em Am). The chorus shape Nightcall
+     uses, in the key the level shares with it: tonic withheld for three
+     bars, home on the fourth. The v is the mode's cool minor dominant —
+     lift without a leading tone.
    L2 INTO THE RINGS — VI VII i i (Eb F Gm). The Aeolian cadence — two
      whole-step root ascents into the tonic — where the verse only ever
      descended. Same chords, opposite direction; the loop's last bar IS the
      verse's first, so the sections dovetail with zero seam.
-   L3 THE STORM     — i i III VII (Fm Fm Ab Eb). Protovision's cell with its
-     one borrowed chord translated: the record rides two bars of tonic, lifts
+   L3 THE STORM     — i i III VII (Fm Fm Ab Eb). The cell shape Protovision
+     runs, its one borrowed chord translated: the record rides two bars of tonic, lifts
      through III and cadences V–i every four bars — the harmonic-minor V is
      unusable here (the raised seventh against the SFX pentatonic), and
      VII–i is the mode's own cadence, so the ramp keeps its shape and burns
      cooler. Asymmetric harmonic rhythm: a ramp, not a circle.
-   L4 EVENT HORIZON — iv i III v (Abm Ebm Gb Bbm). Odd Look's loop in Odd
-     Look's actual key (the album take sits in Eb minor at ~105 BPM — this
-     band's own tempo): launches on the subdominant, and the v recycles to
-     iv at the seam instead of resolving, endless as the level. Its major V
+   L4 EVENT HORIZON — iv i III v (Abm Ebm Gb Bbm). The loop shape Odd Look
+     rides, in the key the level shares with it (that record sits in Eb
+     minor at ~105 BPM — this band's own tempo): launches on the
+     subdominant, and the v recycles to iv at the seam instead of
+     resolving, endless as the level. Its major V
      is the one chord the record has that this game cannot borrow — the SFX
      pentatonic would rub its raised seventh — so the diatonic v stands in,
      which is also what Nightcall does all along.
@@ -3610,9 +3645,10 @@ const PROGB=[
    chorus open off-tonic while row slot 0 stays the i chord */
 const CHOFF=[1,2,0,3];
 /* THE COLOR TONE: each chorus chord's own stacked-third seventh, sustained
-   once a bar an octave up — m7 on the minor chords, maj7 on III and VI,
-   which is exactly the voicing split the reference records use. Diatonic by
-   construction (a third above the chord's fifth never leaves the scale);
+   once a bar an octave up — m7 on the minor chords, maj7 on III and VI, and
+   on VII the stacked third lands a minor seventh over a major triad: the
+   mode's dominant-shaped chord, no raised leading tone anywhere. Diatonic
+   by construction (a third above the chord's fifth never leaves the scale);
    held to that numerically in musiccheck. Indexed like PROGB rows. */
 const SEVB=[
  [196,164.81,174.61,146.83],       /* G  E  F  D  — Am7 Fmaj7 G7 Em7   */
@@ -5211,6 +5247,11 @@ function startGame(){
   if(carried){G.orbits=G.carryOrbits;G.lands=G.carryLands;
     G.bestStreak=G.carryStreak;G.bestGroove=G.carryGroove;}
   else{G.carryOrbits=0;G.carryLands=0;G.carryStreak=0;G.carryGroove=0;G.carryTime=0;}
+  /* the chorus's naming line is once per RUN, as its comment and the ledger
+     both claim — a carried level boundary keeps the said bit; a fresh run
+     (every retry included) clears it. It sat in the per-level reset line
+     below at first, so a 1-to-4 climb heard "THE SONG LIFTS" four times. */
+  if(!carried)G.saidChor=false;
   G.teach=0;G.teachKind=null;G.teachHint=null;G.campT=0;G.holdD=0;G.hopHintT=0;G.coach=null;
   G.revFlip=0;G.impactT=0;G.killer=null;G.deadPips=0;G.deadSkip=false;
   G.sparkT=0;G.sparkN=0;
@@ -5222,7 +5263,7 @@ function startGame(){
   G.bandN=0;G.bandFx=0;G.sndAt=0;G.sndStr=null;
   G.flashT=0;G.meetNext=0;G.teachSoft=false;G.teachType=null;ANN.length=0;annNext=0;
   G.lapCut=0;G.lapCutDir=1;G.lapFx=null;G.beatPop=false;G.lsnN=0;G.said8=false;
-  G.saidChor=false;G.chorusN=0;G.chorusBars=0;
+  G.chorusN=0;G.chorusBars=0;   /* per level, the scale `seconds` uses; saidChor is per run, above */
   G.loopFx=0;G.bandCap=false;G.bandCapT=0;LOOPQ.length=0;
   skyI=0;      /* the sky opens on band 0 — the ratchet re-deepens it as the run climbs */
   pd=null;     /* a finger held across the death screen must not steer the new run */
