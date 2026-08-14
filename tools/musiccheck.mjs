@@ -22,6 +22,11 @@
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { seededMath, seedLine } from './lib/rng.mjs';
+/* PRINTED HERE, BEFORE ANY ASSERTION CAN EXIT. This harness imported
+   seedLine and never called it, so the seed CI ran on never reached the
+   log — and CI rotates it per run, which made every failure here a
+   one-off nobody could reproduce. Both docs promised otherwise. */
+console.log(seedLine('musiccheck'));
 
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const src = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i)[1];
