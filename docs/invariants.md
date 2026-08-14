@@ -132,7 +132,7 @@ reachable from POWERUP TESTING.*
 
 - **A LAB SESSION LEAVES NOTHING BEHIND, and that is the whole feature.**
   POWERUP TESTING is a sandbox reached from the title screen: it forces one
-  orb, pins `dl()` to `LAB_DL`, and switches red off by default. Every one of
+  orb, pins `dl()` to `LAB_DL` (40), and switches red off by default. Every one of
   its guarantees is a `!LAB.on` sitting on a line whose ordinary job is to
   write to the device — the best score, the level record, the run count, the
   struggle streak, the `seen` bits, telemetry — so an omitted guard looks

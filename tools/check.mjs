@@ -544,10 +544,34 @@ if (!cp) {
     for (const [name, val] of consts) {
       if (!body.includes(name)) continue;
       /* the value as written, and without a trailing zero, since prose says
-         0.6 where the source says 0.60 */
-      const forms = new Set([val, String(Number(val))]);
-      if ([...forms].some(f => body.includes(f))) continue;
-      fail.push(`${doc} discusses ${name} but never mentions its current value (${val}) — `
+         0.6 where the source says 0.60. Bounded on both sides so 0.72 cannot
+         be satisfied by 10.725, and an integer constant cannot be satisfied
+         by a digit inside some unrelated number. */
+      /* COMPARED AS NUMBERS, NOT AS STRINGS. The first cut matched the
+         literal text with a bounded regex, and README.md's "every row that
+         would ever exist read 17.0" failed the guard for BH_DUR=17 — the
+         document was correct and the check could not read its own value in a
+         different notation. Prose writes 0.6 for 0.60 and 17.0 for 17. */
+      const want = Number(val);
+      /* NEAR THE NAME, NOT ANYWHERE IN THE FILE. The first cut searched the
+         whole document, which any sufficiently long document satisfies by
+         accident: README.md discusses both GL_MOTION and SKY_ARENA_CALM, so
+         changing GL_MOTION to 0.34 would have been waved through by the 0.34
+         sitting beside SKY_ARENA_CALM three hundred lines away — and a
+         constant whose value is 1 or 2 matches essentially any prose. The
+         window is the paragraph the name appears in, which is where a reader
+         looking up that constant would actually be looking. */
+      let ok = false;
+      for (const m of body.matchAll(new RegExp(`\\b${name}\\b`, 'g'))) {
+        const from = body.lastIndexOf('\n\n', m.index) + 1;
+        let to = body.indexOf('\n\n', m.index);
+        if (to < 0) to = body.length;
+        const para = body.slice(from, to);
+        const nums = [...para.matchAll(/-?\d+\.?\d*/g)].map(n => Number(n[0]));
+        if (nums.some(n => Math.abs(n - want) < 1e-9)) { ok = true; break; }
+      }
+      if (ok) continue;
+      fail.push(`${doc} discusses ${name} but never mentions its current value (${val}) near it — `
         + 'the document has gone stale against the source. Quoting the old value as history is fine; '
         + 'describing the constant without ever naming what it is now is how a reader ends up wrong');
     }
