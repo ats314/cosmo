@@ -67,7 +67,7 @@ Deployed to GitHub Pages from `main`. The published page is the product.
 | `tools/*.mjs` | The CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
 | `tools/lib/rng.mjs` | The seeded `Math.random` every harness runs on. Determinism lives here, not in the game. |
 | `AGENTS.md` | Pointer here, for agent tools that look for that name instead. |
-| `.github/workflows/pages.yml` | Runs every check on every PR; only `main` deploys, and only an allowlist. |
+| `.github/workflows/pages.yml` | Runs every check on every push to `main` and on any PR; only `main` deploys, only if the checks pass, and only an allowlist. |
 | `*.png`, `manifest.webmanifest` | Icons, share image, PWA manifest. |
 
 ## Before you push
@@ -143,56 +143,31 @@ capitals. The instruction was about how a pull request starts, not about who
 finishes it, but it was the only sentence here about merging and so it became
 the rule. It is replaced rather than clarified.
 
-- **Merge your own work, and do not sit and watch CI do it.** Open pull
-  requests ready for review, not as drafts, then **squash-merge with
-  auto-merge** — the repository has `allow_auto_merge` on, so you can arm the
-  merge the moment the pull request exists and end your turn. GitHub merges it
-  when the checks go green and deletes the branch itself. Squash matches the
-  history, where each commit on `main` carries its `(#N)`. Do not ask first.
-  Do not wait for review that was never coming.
-  **Polling is the expensive habit this replaces.** Watching a run to
-  completion costs a minute of billed waiting per pull request and buys
-  nothing: the merge condition is "checks green", which GitHub already
-  evaluates. Arm it and go. Only fall back to merging by hand when auto-merge
-  cannot be armed — and then say so, rather than quietly starting a poll loop.
-- **A VISUAL CHANGE DOES NOT AUTO-MERGE. It gets a screenshot in the pull
-  request first.** This is the one exception to the rule above and it was paid
-  for at full price. `main` publishes to the live page on merge, and for
-  anything touching a shader, a draw call, a uniform or the glow, "checks
-  green" says nothing at all about the frame: every harness but `rendercheck`
-  stubs the canvas, so a `drawImage` at the wrong translate is a valid call
-  with finite arguments and a correct count. A build shipped to real
-  playtesters carrying a hairline rim down every screen edge, every halo
-  oscillating off its own light, and half the intended brightness — with all
-  the checks passing, armed and merged in seconds, exactly as this file said
-  to. **A day of a playtest cycle is not recoverable; testers do not come
-  back.** So: render it, look at it, put the before and after in the pull
-  request body, then merge. It costs about twenty seconds against a loop that
-  is already written down above. Everything non-visual keeps the fast path —
-  the speed this rule protects is real and only the frame needs the eyes.
-- **Never merge red, and never merge unverified.** The checks are the gate,
-  and `main` publishes to the live page on merge, so a red merge is a broken
-  product for real players. If a check fails, fix it or say plainly why you are
-  not going to.
-- **Never commit directly to `main`.** This is not an approval gate; it is how
-  CI gets to run before the deploy does. The pull request is the mechanism, not
-  the permission. `main` is deliberately left unprotected — the owner's call —
-  so this rule is honoured rather than enforced. What *is* enforced is the
-  deploy: it `needs: check`, so a red push to `main` fails CI and never
-  publishes. The live page is safe; `main`'s history is on you.
-- **The branch deletes itself now — do not add a step for it.** The repository
-  has `delete_branch_on_merge` on, so a merged pull request takes its branch
-  with it. This used to be a manual `git push origin --delete <branch>` after
-  every merge, and the rule was obeyed about as well as any rule that depends
-  on remembering: twenty-nine branches accumulated before anyone counted them,
-  because a squash-merge leaves the branch looking permanently unmerged and
-  nothing complained. The setting is the fix, and it is the better kind — the
-  work is not done more carefully, it is not done at all. If you find yourself
-  writing a cleanup step, check the setting before writing the step.
-- **Develop on the branch assigned for the session.** Push somewhere else only
-  with explicit permission — but splitting unrelated work onto its own branch is
-  usually the right instinct, so ask for it rather than shipping a pull request
-  that does two things.
+- **PUSH STRAIGHT TO `main`. DO NOT OPEN A PULL REQUEST UNLESS ASKED.**
+  This file used to require the opposite, and its stated reason was false.
+  It said: *"Never commit directly to `main`. This is not an approval gate; it
+  is how CI gets to run before the deploy does."* Check the workflow. It runs
+  `on: push: branches: [main]`, and the deploy job carries `needs: check`. A
+  direct push to `main` runs all eight harnesses and publishes **only** if they
+  pass. The gate the rule existed to provide was already there without it.
+  So the pull request was buying nothing and costing a great deal. Every one
+  opened in a session fires an automatic PR-activity subscription, which relays
+  raw webhook envelopes into the owner's chat; it triggers whatever review bots
+  the repository has installed, each of which relays more; and it leaves the
+  agent polling GitHub for a merge condition that a plain push does not have.
+  The owner watched all of that happen for an afternoon and the instruction is
+  verbatim: *"fix the fucking github ... so every stupid fucking thing you keep
+  doing stops happening."*
+  What is actually protected is the live page, and it stays protected: a red
+  push fails `check`, `deploy` never runs, and the site keeps serving the last
+  good build. What you risk is a broken commit sitting at the head of `main`
+  until you fix it. **So run `node tools/all.mjs` before you push, every time.**
+  That is the whole of the discipline this replaces.
+  Open a pull request when the owner asks for one, when the change genuinely
+  wants a second opinion, or when you want the before/after screenshots on a
+  visual change to live somewhere durable. Then merge it yourself and do not
+  sit watching CI — and if you do open one, expect the event noise and say so.
+
 - **LOOK AT THE GAME. YOU CAN SEE THE SCREEN.** This line used to say the
   opposite — "you cannot hear the audio or see the screen" — and it was false,
   and it cost a whole session. An agent read it, believed it, shipped a
