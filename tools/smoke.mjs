@@ -839,7 +839,20 @@ try {
         throw new Error(`pause did not freeze ${k}: ${JSON.stringify(a[k])} -> ${JSON.stringify(b[k])}`);
       }
     }
-    if (!(st('PAUSE.total') > 9)) throw new Error('paused time was not accumulating for telemetry');
+    if (!(st('pausedSeconds()') > 9)) throw new Error('paused time was not accumulating for telemetry');
+    // PAUSED TIME MUST BE WALL-CLOCK, NOT FRAME TIME. frame() clamps dt to
+    // 0.05s and requestAnimationFrame does not fire at all while a tab is
+    // hidden, so a break taken with the phone locked produces NO frames — and
+    // an accumulator built on dt records the one case the field exists to
+    // detect as roughly zero. Simulated by advancing the clock without running
+    // a single frame, which is exactly what a locked phone does.
+    const beforeGap = st('pausedSeconds()');
+    nowMs += 600000;                                  // ten minutes, no frames
+    const afterGap = st('pausedSeconds()');
+    if (afterGap - beforeGap < 590) {
+      throw new Error(`ten minutes paused with the tab hidden measured ${(afterGap - beforeGap).toFixed(2)}s `
+        + '— paused time is being accumulated from the capped frame delta, not the wall clock');
+    }
     // the panel answers RESUME and nothing else: a tap on the background must
     // not resume, and must certainly not fall through to reverse()
     const dir0 = st('G.dir');
@@ -871,7 +884,28 @@ try {
     if (st('canPause()')) throw new Error('pause re-armed immediately — the count-in can be farmed');
     for (let i = 0; i < 400; i++) frame(16.7);
     if (!st('canPause()')) throw new Error('pause never re-armed after its cooldown');
+    // A CLEARED LEVEL'S PAUSES HAVE TO BE REPORTED BY SOMETHING. startGame()
+    // re-baselines the counters at every level boundary and run_ended only
+    // fires on death, so level_cleared is the one event that can carry them —
+    // without it, every pause on a level the player survived is recorded
+    // nowhere. Asserted on the payload rather than on the counters, because the
+    // counters were never the thing that went missing.
+    {
+      const sent = [];
+      st('G.__trk=[];var __tk=track;track=function(n,p){G.__trk.push(n+":"+JSON.stringify(p||{}));return __tk(n,p);}');
+      st("G.state='playing';PAUSE.n=4;PAUSE.total=42;PAUSE.at=0;levelComplete()");
+      const rows = JSON.parse(st('JSON.stringify(G.__trk)'));
+      const lc = rows.find(r => r.startsWith('level_cleared:'));
+      if (!lc) throw new Error('levelComplete did not fire level_cleared');
+      const payload = JSON.parse(lc.slice('level_cleared:'.length));
+      if (payload.pauses !== 4) throw new Error(`level_cleared reported pauses=${payload.pauses}, want 4 — a cleared level's pauses are lost`);
+      if (payload.paused_seconds !== 42) throw new Error(`level_cleared reported paused_seconds=${payload.paused_seconds}, want 42`);
+      // same scale as `seconds` beside it: both this level's, not the run's
+      if (typeof payload.seconds !== 'number') throw new Error('level_cleared lost its seconds');
+      sent.push(payload.pauses);
+    }
     // and it is a RUN control: no pausing a menu or a death screen
+    st("G.state='playing'");
     st('die()');
     if (st('canPause()')) throw new Error('the death screen offered a pause');
     st('enterMenu()');

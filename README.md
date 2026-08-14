@@ -1541,6 +1541,17 @@ many seconds were survived, which phase the death fell in, and whether the
 innermost orbit had been reached. `blackhole_survived` used to send
 `seconds: BH_DUR` — a constant reported as a measurement, so every row that
 would ever exist read 17.0; it sends the elapsed time.
+**Pause reports `pauses` and `paused_seconds`**, on `level_cleared` as well as
+`run_ended` and on the same per-level scale as the `seconds` beside them —
+`startGame()` re-baselines the counters at every level boundary, so without the
+pair on both events a pause taken on level 1 of a run that died on level 4 was
+recorded nowhere at all. Carrying a cumulative total into `run_ended` instead
+would have put two scales on one event, which is the retired-`level` failure
+rather than a fix for it. Paused time is measured on a **wall clock**: `frame()`
+clamps `dt` to 0.05s and `requestAnimationFrame` stops entirely while a tab is
+hidden, so a break taken with the phone locked produces no frames, and a
+frame-delta accumulator recorded ten minutes as 0.05 seconds — the one case the
+field exists to detect, reported as its opposite.
 **A POWERUP TESTING session sends nothing**, and it is suppressed at the choke
 point inside `track()` rather than tagged with a property. Tagging would have
 been the smaller change and the worse one: it moves the burden onto every

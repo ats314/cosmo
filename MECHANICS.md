@@ -271,10 +271,27 @@ gain is written every frame by `bedTick`, its only writer — so freezing
 playing volume for as long as the panel is up. The bed is taken down
 explicitly on the way in; `bedTick` restores it on the first live frame.
 
-Telemetry: `pauses` and `paused_seconds` on `run_ended`, both per run and both
-excluded from `seconds`. Twenty short pauses and one long break are different
+Telemetry: `pauses` and `paused_seconds`, on **both** `run_ended` and
+`level_cleared`. Twenty short pauses and one long break are different
 behaviours and only the pair tells them apart — the hidden board and the
 count-in were balanced on an assumption, and this is what would show it wrong.
+
+Two things about that pair are easy to get wrong and were:
+
+- **They are per level, like the `seconds` beside them.** `startGame()`
+  re-baselines the counters at every level boundary and `run_ended` only fires
+  on death, so a pause taken on level 1 of a run that died on level 4 was
+  recorded nowhere until `level_cleared` carried them too. Reported per level
+  rather than carried into `run_ended`, because a cumulative number sitting
+  next to a per-level `seconds` on the same event is one name with two scales —
+  the shape of the retired `level` bug, not a fix for it.
+- **Paused time is wall-clock, never the frame delta.** `frame()` clamps `dt`
+  to 0.05s and `requestAnimationFrame` does not fire at all while a tab is
+  hidden, so a break taken with the phone locked produces no frames — and a
+  `dt` accumulator recorded a ten-minute break as 0.05 seconds, reporting the
+  exact case the field exists to detect as its opposite. The count-in still
+  rides `dt` on purpose: it is an animation, and a tab backgrounded mid-count
+  should hold rather than silently expire.
 
 ## POWERUP TESTING (the lab)
 

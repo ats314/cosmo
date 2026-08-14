@@ -222,6 +222,14 @@ Breaking one of these is a product regression, not a style question.
   **The pad is the trap here too** — see the `bedTick` entry below. Freezing
   `update()` stops its only writer, which does not silence the band, it freezes
   it at playing volume.
+  **Anything measuring REAL elapsed time must read `performance.now()`, never
+  `dt`.** `frame()` clamps `dt` to 0.05s so a stalled tab cannot fast-forward
+  the simulation, and `requestAnimationFrame` does not fire at all while a tab
+  is hidden — so a `dt` accumulator recorded a ten-minute paused break as 0.05
+  seconds, which is the one measurement `paused_seconds` exists to make,
+  reported as its opposite. The clamp is correct and is not the bug; using a
+  simulation delta to measure wall time is. `smoke.mjs` advances its clock
+  without running a frame, which is what a locked phone does.
 - **Two ladders, two names.** `G.tier` is the ten-rung *unlock* ladder (what has
   been introduced); `G.level` is the 1–3 structure the player is told about.
   Everything player-facing — the HUD, the death headline, the pips, the share

@@ -3353,7 +3353,24 @@ function labGhost(){return LAB.on&&LAB.invuln;}
    exists to prevent, reassembled out of the escape hatch. */
 const PAUSE_COUNT=3;    /* seconds of frozen, visible board before play resumes */
 const PAUSE_COOL=5;     /* seconds of real play before pause re-arms */
-const PAUSE={on:false,resumeT:0,cool:0,n:0,total:0};
+const PAUSE={on:false,resumeT:0,cool:0,n:0,total:0,at:0};
+/* PAUSED TIME IS WALL-CLOCK, AND THE FRAME DELTA CANNOT MEASURE IT.
+   frame() clamps dt to 0.05s, deliberately, so a stalled tab cannot fast-
+   forward the simulation on its first frame back — and while a tab is hidden
+   requestAnimationFrame does not fire at all. Accumulating pause duration out
+   of dt therefore recorded a ten-minute locked-phone break as a single capped
+   frame: 0.05 seconds. That is not a rounding error, it is the exact case the
+   field exists to detect, silently reported as its opposite.
+   performance.now() is monotonic and answers whether or not any frames ran.
+   The countdown deliberately still rides dt: it is an animation, and a tab
+   backgrounded mid-count SHOULD hold rather than silently expire.
+   Read through a function because the in-flight pause has not been committed
+   yet — telemetry can fire while the panel is up only if a later change lets
+   it, and a getter cannot be wrong about that the way a bare field can. */
+function pauseNow(){try{return performance.now();}catch(e){return 0;}}
+function pausedSeconds(){
+  return PAUSE.total+(PAUSE.at?Math.max(0,(pauseNow()-PAUSE.at)/1000):0);
+}
 /* Paused, or counting back in — either way the simulation is frozen. Read by
    update() and by the input handler, so the two can never disagree about
    whether the world is running. */
@@ -3380,7 +3397,7 @@ function pauseAudio(){
 }
 function pauseGame(){
   if(!canPause())return;
-  PAUSE.on=true;PAUSE.resumeT=0;PAUSE.n++;
+  PAUSE.on=true;PAUSE.resumeT=0;PAUSE.n++;PAUSE.at=pauseNow();
   /* a finger held across the pause must not steer the run when it comes back:
      the same reason die() drops it */
   pd=null;
@@ -3539,6 +3556,13 @@ function levelComplete(){
   track('level_cleared',{
     game_level:G.level,score:G.score,run_index:G.runs,
     seconds:Math.round(G.t-G.started),
+    /* THE ONLY EVENT THAT CAN REPORT A CLEARED LEVEL'S PAUSES. run_ended fires
+       on death and carries the counters startGame() re-baselined at this
+       boundary, so without these two a pause taken on level 1 of a run that
+       died on level 4 was recorded nowhere at all — the counters existed, were
+       reset, and the data was simply gone. Same scale as `seconds` above, so
+       the run total is a sum across a run_index either way. */
+    pauses:PAUSE.n,paused_seconds:Math.round(pausedSeconds()),
     /* how the Star Dive went: 11 is the perfect ending */
     fin_got:(FIN.on||FIN.done)?FIN.got:null,
     fin_perfect:(FIN.on||FIN.done)&&FIN.got>=11
@@ -5049,7 +5073,7 @@ function startGame(){
      restart — can begin a run behind a panel or inside a countdown left over
      from the last one. The counters are per RUN because that is the unit
      run_ended reports on. */
-  PAUSE.on=false;PAUSE.resumeT=0;PAUSE.cool=0;PAUSE.n=0;PAUSE.total=0;
+  PAUSE.on=false;PAUSE.resumeT=0;PAUSE.cool=0;PAUSE.n=0;PAUSE.total=0;PAUSE.at=0;
   G.pauseBtn=null;
   BEATQ.length=0;DROPQ.length=0;
   /* brkN resets per RUN: it capped the DRUM BREAK caption per page-load,
@@ -5278,15 +5302,23 @@ function die(){
     drops_earned:G.dropsEarned,hold_timeout:G.holdTimeout,
     best_combo:G.bestCombo,loop_caught:G.loopN,near_misses:G.nearN,
     /* WHETHER PAUSE IS BEING USED AS A BREAK OR AS A TELESCOPE. `pauses` is the
-       count and `paused_seconds` the real time spent frozen, both per run and
-       both excluded from `seconds` above — which reads G.deadT-G.started, and
-       G.t does not advance while the panel is up. A run with twenty short
-       pauses is a different thing from one with a single two-minute break, and
-       only the pair can tell them apart; the hidden board and the count-in were
-       balanced on an assumption, and this is what would show the assumption
-       wrong. Named `paused_seconds` and not `paused`, because a bare `paused`
-       would be read as a boolean by the first person to query it. */
-    pauses:PAUSE.n,paused_seconds:Math.round(PAUSE.total),
+       count and `paused_seconds` the real time spent frozen. A level with
+       twenty short pauses is a different thing from one with a single
+       two-minute break, and only the pair can tell them apart; the hidden board
+       and the count-in were balanced on an assumption, and this is what would
+       show the assumption wrong.
+       PER LEVEL, exactly like `seconds` beside it — which reads
+       G.deadT-G.started and so has always been this level's clock, not the
+       run's. startGame() re-baselines both at every level boundary. That is why
+       `level_cleared` carries the same two properties: a run that cleared three
+       levels reports four rows, one per level, and the run total is the sum
+       across a run_index. Carrying them into run_ended instead would have put a
+       cumulative number next to a per-level `seconds` on the same event — one
+       scale for one property and another for the one beside it, which is the
+       shape of the retired `level` bug rather than a fix for it.
+       Named `paused_seconds` and not `paused`, because a bare `paused` would be
+       read as a boolean by the first person to query it. */
+    pauses:PAUSE.n,paused_seconds:Math.round(pausedSeconds()),
     got_bass:G.gotBass,got_spot:G.gotSpot,got_blackhole:G.gotBH,blackholes:G.bhN,
     /* two ladders, two names, never the word `level` for the tier one: `tier`
        is the zero-based UNLOCK ladder (what has been introduced), `game_level`
@@ -6299,13 +6331,18 @@ function update(dt){
      note above PAUSE. The countdown runs on the REAL frame delta rather than on
      G.t, because G.t is precisely the thing it is holding still. */
   if(frozen()){
-    if(PAUSE.on){PAUSE.total+=dt;return;}
-    PAUSE.total+=dt;
+    if(PAUSE.on)return;
     PAUSE.resumeT=Math.max(0,PAUSE.resumeT-dt);
     /* the cooldown is armed HERE, at the moment play actually restarts, rather
        than when the panel closed — otherwise the three counted-down seconds
-       would pay for most of it */
-    if(PAUSE.resumeT<=0)PAUSE.cool=PAUSE_COOL;
+       would pay for most of it. The wall-clock span is banked on the same
+       edge, so it covers the count-in too: the world was frozen for all of it,
+       and a measurement that stopped at the panel closing would be describing
+       a different thing from the one the player experienced. */
+    if(PAUSE.resumeT<=0){
+      PAUSE.cool=PAUSE_COOL;
+      PAUSE.total=pausedSeconds();PAUSE.at=0;
+    }
     return;
   }
   if(PAUSE.cool>0)PAUSE.cool=Math.max(0,PAUSE.cool-dt);
