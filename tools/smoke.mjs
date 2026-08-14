@@ -319,7 +319,7 @@ try {
   if (st('TIERS[TIERS.length-1].at') !== st('LV[2].end')) throw new Error('STORM is not aligned to the exam level\'s floor');
   // every spawnable formation and every reward orb carries a lesson
   if (!st("TIERS.every(t=>!t.type||!!MEET[t.type])")) throw new Error('a tier type has no MEET lesson');
-  if (!st("['bass','spot','hyper','lapcost'].every(k=>MEET[k]&&MEET[k].soft)")) throw new Error('a reward lesson lost its no-slow-mo flag');
+  if (!st("['spot','hyper','lapcost'].every(k=>MEET[k]&&MEET[k].soft)")) throw new Error('a reward lesson lost its no-slow-mo flag');
   // ONE SENTENCE PER IDEA. A tier banner's sub and its formation's lesson are
   // the same rule said twice — when they drifted into paraphrases the player
   // was asked to notice that "every ring blocked", "every ring is blocked" and
@@ -946,7 +946,7 @@ try {
     const rows = JSON.parse(st('JSON.stringify(G.powSelRects.filter(r=>r.id==="orb").map(r=>r.orb))'));
     const want = JSON.parse(st('JSON.stringify(LAB_ORBS.map(o=>o.id))'));
     if (rows.join(',') !== want.join(',')) throw new Error(`the picker drew rows ${rows} for orbs ${want}`);
-    if (rows.length !== 7) throw new Error(`the lab offers ${rows.length} orbs, want the game's seven`);
+    if (rows.length !== 6) throw new Error(`the lab offers ${rows.length} orbs, want the game's six`);
     const bhRow = JSON.parse(st('JSON.stringify(G.powSelRects.find(r=>r.orb==="blackhole"))'));
     fire('pointerdown', pev(bpid, bhRow.x + bhRow.w / 2, bhRow.y + bhRow.h / 2, 'pointerdown'));
     fire('pointerup', pev(bpid++, bhRow.x + bhRow.w / 2, bhRow.y + bhRow.h / 2, 'pointerup'));
@@ -1226,7 +1226,9 @@ try {
       for (let i = 0; i < 20; i++) frame(16.7);
       const pr = JSON.parse(st('JSON.stringify(G.powSelRects)'));
       const orbs = pr.filter(r => r.id === 'orb');
-      if (orbs.length !== 7) throw new Error(`${w}x${h}: the picker drew ${orbs.length} orbs`);
+      // read off the table: the count tripwire lives with the lab-session test,
+      // one place — this loop only cares that every row the table owns got drawn
+      if (orbs.length !== st('LAB_ORBS.length')) throw new Error(`${w}x${h}: the picker drew ${orbs.length} orbs`);
       for (const r of pr) {
         if (r.y < 0 || r.y + r.h > h) throw new Error(`${w}x${h}: the picker's ${r.id} runs off the screen vertically`);
         if (r.x < 0 || r.x + r.w > w) throw new Error(`${w}x${h}: the picker's ${r.id} runs off the screen horizontally`);

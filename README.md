@@ -175,11 +175,11 @@ one chord for as long as the panel is up.
 ### POWERUP TESTING
 
 Under the two mode cards is a third option, and it is deliberately not a third
-mode. Six of the seven orbs sit behind a curriculum ladder, and the seventh —
+mode. Five of the six orbs sit behind a curriculum ladder, and the sixth —
 the black hole — is rare on purpose: three `blackhole_entered` events in the
 game's entire recorded history, every one of them on level 4. Finding out what
 an orb actually feels like meant playing until the game decided to hand you
-one. The bar opens a picker of all seven; choosing one starts a run where that
+one. The bar opens a picker of all six; choosing one starts a run where that
 orb, and only that orb, arrives every few seconds.
 
 The board it arrives on is quiet and stays quiet. `dl()` — the difficulty
@@ -225,7 +225,7 @@ first three have finish lines; the fourth does not:
 | Level | Name | Introduces | Key | Verse · Chorus | Groove |
 |---|---|---|---|---|---|
 | 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor | i–♭VI–♭III–♭VII · ♭VI–♭VII–v–i | the original groove |
-| 2 | INTO THE RINGS | gates, drifters, blinkers, bass bomb, hypernova | G minor | i–♭VII–♭VI–iv · ♭VI–♭VII–i–i | swung sixteenths, bass off the beat |
+| 2 | INTO THE RINGS | gates, drifters, blinkers, hypernova | G minor | i–♭VII–♭VI–iv · ♭VI–♭VII–i–i | swung sixteenths, bass off the beat |
 | 3 | THE STORM | the two compounds — sliding gates, flicker pairs — plus THE SAUCER and the spotlight, then a finish line | F minor | i–♭III–v–♭VI · i–i–♭III–♭VII | rolling four-on-the-floor |
 | 4 | EVENT HORIZON | **no new formations** — the same storm with no exit, speed climbing toward the 4.2 rad/s ceiling, and one black hole guaranteed. Endless. | E♭ minor | i–♭VI–♭VII–i · iv–i–♭III–v, both over a tonic pedal | octave bass, open offbeat hat |
 
@@ -437,8 +437,7 @@ below the player, through the dub delay — for eight bars or until a new
 phrase replaces it. The first capture of a run announces itself: "YOUR
 BEAT IS IN THE SONG." Dodging in rhythm is composing.
 
-**The orbs earn their look.** The bass bomb is a subwoofer now — its cone
-slams on the landed beat; the spotlight is a stage light, four rays
+**The orbs earn their look.** The spotlight is a stage light, four rays
 sweeping round a bright bulb. (Meteor Shower was cut — the playtest's
 verdict was that it failed, and the board is calmer without star rain.)
 
@@ -750,8 +749,8 @@ completion and death rate would otherwise silently average two different games
 together and stop being readable.
 
 **Nine tiles the player chose between, and not one of them did anything.**
-(Nine at the time — `WIDE PULL` went with the magnetar, so there are eight
-now.) The
+(Nine at the time — `WIDE PULL` went with the magnetar and `LONG FUSE` with
+the bass bomb, so there are seven now.) The
 same audit found `upgOn` — the accessor every upgrade effect was supposed to go
 through — with **zero call sites in 7,257 lines**. Each of the nine ids
 appeared exactly once in the file: in its own row of the `UPG` table. `G.upg`
@@ -773,7 +772,6 @@ All nine are wired now, each verified to change the value it claims to:
 | SLOW WORLD | 4s | 6s |
 | RICH NOVA | 1 ember/shard | 2 |
 | HAIR TRIGGER | meter 1.0 | 0.85 |
-| LONG FUSE | 1.05 rad | 1.5 |
 | STAGE LIGHT | 9.2s | 13.8s |
 | STEADY HAND | 0.032s | 0.045s |
 
@@ -1052,7 +1050,7 @@ motion keeps every layer static, as always.
 
 Every one of these can be tried on demand from the title screen's POWERUP
 TESTING bar — see [POWERUP TESTING](#powerup-testing). It exists because the
-list below is gated: three are introduced on level 1, two on level 2, one on
+list below is gated: three are introduced on level 1, one on level 2, one on
 level 3, and the black hole is deliberately rare enough that it had been
 entered three times in the game's whole recorded history.
 
@@ -1066,9 +1064,6 @@ entered three times in the game's whole recorded history.
   every overflow shield is worth +50 ("OVERCHARGED") instead of a token
   +2. Reaching full announces it: "SHIELDS FULL — everything pays
   double."
-- **Bass Bomb** (cyan) — every shard in the neighbourhood converts to light,
-  and the low end drops: a pitch-fall boom into a one-bar heavy kick figure.
-  The clear reuses the nova's conversion, so the shards pay the same.
 - **Spotlight** (white/violet) — four bars where YOU are the lead: your
   instrument doubles and brightens, the band steps back a notch, every
   tight tap pays double. A performance, not a transaction. (It replaced
@@ -1092,7 +1087,21 @@ optional content again (a 6000-point run met zero), which is the exact
 disease the curriculum exists to cure. The shield-pity rule is unchanged:
 never more than three placements without one.
 
-**The near miss.** Two honest shapes only: stopping just short of a shard on
+**THE BASS BOMB IS REMOVED.** Owner's call, after a full review of the seven
+orbs. The review's finding made the case: the orb's entire named
+identity — "drops the low end" — lived in the audio channel, and its visual
+tell (the subwoofer cone slamming on the beat) rode `G.beat`, which only moves
+when the audio scheduler feeds it, so for a muted player the sprite sat
+motionless and the pickup was a cyan flash. What remained with sound off was
+strictly a weaker nova: the same `novaConvert` pipeline over a third of the
+board instead of all of it, with no invulnerability, at the same rotation odds.
+Its clear region — a ±60° wedge across every ring — was never drawn, so the
+`LONG FUSE` upgrade widened an invisible number. Two orbs occupying one job,
+one of them inferior and illegible, is one orb too many; the nova keeps the
+job. `LONG FUSE` goes with it, leaving seven upgrade tiles, and the bomb's
+0.15 share of the spawn roll is redistributed proportionally across the
+remaining five — the magnetar's precedent, both times: removal changes what
+can appear, not how often the others appear relative to each other. Two honest shapes only: stopping just short of a shard on
 your own ring (the reverse that saved you), and sweeping past a shard on the
 ring you just left mid-hop (the hop that saved you). Either pays +3, a white
 spark, a breath of heat and a tick of build — passing shards on other rings
@@ -1579,7 +1588,7 @@ than guesses. The play-style aggregates round it out: `lands` vs
 `best_combo` (did the rhythm and combo lessons change behaviour),
 `hold_timeout` (the twin exam arrived by hop or by the release valve —
 the purest hop-teaching signal), `loop_caught`, `near_misses`, and
-`got_bass` / `got_spot` alongside the existing orb pickup flags.
+`got_spot` alongside the existing orb pickup flags.
 `chorus_entries` and `chorus_bars` ride on `run_ended` *and* `level_cleared`
 (the same per-level scale and split as `pauses`, for the same reason): did a
 run ever lift the song, and could it stay there — the two numbers that say
@@ -1615,7 +1624,7 @@ has ever been to enter the mode, and none of those entries reach the data — so
 `blackhole_entered` keeps meaning "a player met one in a real run", which is
 the only reading its failure rate is worth anything under. Exactly one name is
 allowed through, `powerup_lab_started`, carrying which orb was picked and
-whether the ghost was on; which of the seven anybody actually wants to look at
+whether the ghost was on; which of the six anybody actually wants to look at
 is the one thing about a lab session worth counting. There is deliberately no
 analytics SDK: events are plain POSTs to the capture API (sendBeacon
 first, so a death recorded as the tab closes still gets out; keepalive
@@ -1866,7 +1875,7 @@ through each transition intact. No browser, no dependencies; audio stays off,
 which also exercises every audio guard.
 
 It also runs the POWERUP TESTING lab, which needs proving in two opposite
-directions. That it *does* something: all seven orbs are run for 45 simulated
+directions. That it *does* something: all six orbs are run for 45 simulated
 seconds each and each lab must place its own orb and nothing else, at a
 measured cadence. And that it *leaves nothing behind*: `localStorage` is
 **cleared**, then a whole session is played — entry, hops, taps, orbs taken, a
