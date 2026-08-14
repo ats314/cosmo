@@ -46,13 +46,13 @@ Deployed to GitHub Pages from `main`. The published page is the product.
 | `README.md` | Design record — why the game is the way it is. |
 | `MECHANICS.md` | The mechanics ledger: one row per player-facing mechanic, where it is introduced, every channel that explains it. |
 | `LICENSE` | All-rights-reserved proprietary grant. |
-| `tools/*.mjs` | The five CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
-| `.github/workflows/pages.yml` | Runs all five checks on every PR; only `main` deploys. |
+| `tools/*.mjs` | The six CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
+| `.github/workflows/pages.yml` | Runs all six checks on every PR; only `main` deploys. |
 | `*.png`, `manifest.webmanifest` | Icons, share image, PWA manifest. |
 
 ## The checks
 
-All five run on every pull request and must pass. Run them locally before
+All six run on every pull request and must pass. Run them locally before
 pushing — they are fast and need nothing installed.
 
 ```sh
@@ -61,6 +61,7 @@ node tools/smoke.mjs       # loads and plays the game in a stubbed DOM
 node tools/dropcheck.mjs   # the build meter still delivers beat drops
 node tools/curriculum.mjs  # nothing is left untaught by level 3
 node tools/musiccheck.mjs  # four levels, four songs, each in its own key
+node tools/fxcheck.mjs     # the glow reaches a pixel, with a GPU and without one
 ```
 
 `smoke.mjs` is the one that catches real bugs: it loads the game into a stubbed
@@ -83,7 +84,25 @@ the same commit. A fourth screen, the powerup picker, sits off that route —
 it opens only from the title screen's POWERUP TESTING bar — and all three
 harnesses carry `passPowerSelect` anyway, returning untouched. That is not
 redundancy: it was exactly true of the swipe chooser the day before it stalled
-everything, and the helper costs one function.
+everything, and the helper costs one function. `fxcheck.mjs` crosses the front
+too and needs the same treatment — it is a fourth harness on that route.
+
+`fxcheck.mjs` is the only harness that runs the RENDER path, and it is the
+answer to the "not shipped until something proves it reaches a pixel" rule
+below. It stubs WebGL as a RECORDING FAKE instead of removing it: shaders
+compile, framebuffers complete, and it asserts on what was issued. Its most
+important assertion is the uniform-name check — real WebGL returns null from
+`getUniformLocation` for a name the shader does not declare, and a write
+through a null location is a silent no-op, so **one typo removes an effect
+from the game without failing anything else in this repo**. The fake parses
+the shader source it was handed and reproduces that exactly. It also pins the
+glow's draw count and its render-target ladder, checks the y-flip on upload,
+drives the render-scale dial through fast/slow/fast, and then runs the whole
+game again with no WebGL and fails unless the drawn-disc fallback takes over
+with zero GPU calls. **Anything that touches a shader, a uniform, the glow
+chain or the scale dial belongs in this harness.** All of its assertions were
+mutation-tested when it was written; keep that habit — a render check that
+cannot fail is worse than none, because it reads as coverage.
 
 `musiccheck.mjs` is the only harness that runs the arrangement. `smoke.mjs`
 removes WebAudio deliberately and `dropcheck.mjs` never drives past level 2, so
@@ -300,9 +319,36 @@ Breaking one of these is a product regression, not a style question.
   build, on the same day. Quote the per-ring figure, say which metric any
   number came from, and be suspicious of a difficulty claim that improves the
   moment a ring is added.
+- **A halo belongs to an object; a backdrop belongs to nobody.** These are
+  tuned by opposite rules and the constants do not transfer. The sky's
+  gravitational lens bounds its pull as a FRACTION of the radius, which is
+  right for a smooth field where nothing has to stay anywhere. Copied onto the
+  arena's glow it is a catastrophe: the orbits live between 0.09 and 0.20 of
+  screen height, the clamp binds across that whole band, and the halo is
+  dragged 120-170px off the light it belongs to — the detached-glow failure
+  this file already records once, when an ember's bloom stayed parked on the
+  ring it started from. Anything applied to light that is attached to an
+  object must be bounded in ABSOLUTE terms and the bound quoted in pixels.
+  This was caught by measurement, not by reading: the code was a faithful copy
+  of a shipped, correct lens, and it looked right in review.
+- **A SCREEN-SPACE WARP IS INVERSE SAMPLING, so its sign is the opposite of
+  what it looks like.** The shader is handed a destination fragment and asked
+  which part of the source to read, so reading from a SMALLER radius
+  magnifies and pushes content OUTWARD. The glow's black hole lens shipped
+  subtracting its pull, at the right magnitude, under a comment promising the
+  opposite — halos moved 6.8 to 8.8px away from the singularity. **This is the
+  third time this precise inversion has hit the black hole**: the gravity pull
+  that "dragged the comet inward" pushed it outward, the "inner ring 2x" bonus
+  paid on the outer ring, and now this. The pattern is always the same — code
+  and comment are each true under a different reading of which way the number
+  counts, so review confirms both. Nothing catches it except asking where a
+  specific thing ENDS UP, in pixels, which `fxcheck.mjs` now does by parsing
+  the coefficients out of the shader rather than copying them.
 - **A visual feature is not shipped until something proves it reaches a pixel.**
-  The five harnesses stub the canvas and WebGL, so the entire render path is
-  uncovered by construction, and the black hole spent its life with thirteen
+  `fxcheck.mjs` now covers the GL path specifically — use it, extend it, and
+  do not assume the other harnesses see any of this. They stub the canvas, so
+  the 2D render path is STILL uncovered by construction, and the black hole
+  spent its life with thirteen
   documented visual and audio features of which a playtester could perceive
   one. Each was individually correct at its own site and disabled by something
   elsewhere: the arena-scale art was gated on WebGL having *failed*; the
@@ -381,7 +427,7 @@ finishes it, but it was the only sentence here about merging and so it became
 the rule. It is replaced rather than clarified.
 
 - **Merge your own work.** Open pull requests ready for review, not as drafts.
-  Squash-merge as soon as all five checks are green — that matches the history,
+  Squash-merge as soon as all six checks are green — that matches the history,
   where each commit on `main` carries its `(#N)`. Do not ask first. Do not wait
   for review that was never coming.
 - **Never merge red, and never merge unverified.** The five checks are the gate,

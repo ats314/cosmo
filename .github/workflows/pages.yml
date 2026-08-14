@@ -35,6 +35,15 @@ jobs:
       # existed the per-level songs had no coverage at all: deleting level 4's
       # riff and solo rows left all four checks green and crashed the browser.
       - run: node tools/musiccheck.mjs
+      # The only harness that runs the RENDER path. The other five stub the
+      # canvas and WebGL away, so the whole draw layer is uncovered by
+      # construction — which is how thirteen black hole features shipped with
+      # one of them visible. This stubs WebGL as a recording fake instead:
+      # shaders compile, framebuffers complete, and it asserts on what was
+      # actually issued. It catches the class of bug nothing else can — a
+      # mistyped uniform name, where getUniformLocation returns null and every
+      # write through it is a silent no-op that removes an effect from the game.
+      - run: node tools/fxcheck.mjs
 
   deploy:
     # Only main publishes; pull requests get the check alone.
