@@ -1780,6 +1780,18 @@ python3 -m http.server 8000   # then open http://localhost:8000
 `.github/workflows/pages.yml` syntax-checks the game on every push and pull
 request, and publishes `main` to GitHub Pages.
 
+**The site is an allowlist, not the repository.** The deploy stages
+`index.html`, the icons, the manifest, `og.png` and `LICENSE` into `_site/` and
+publishes that. It was `path: .` for most of the project's life, which served
+the entire checkout from the Pages URL — `CLAUDE.md`, this file, `MECHANICS.md`
+and all six harnesses among them, each at its own public address. Repository
+visibility never covered it: Pages serves the artifact rather than the repo, so
+turning the repository private would have left every one of those documents
+readable exactly where they were. `check.mjs` now fails the build on any file at
+the repository root that is in neither the published list nor its internal one,
+because both directions of that mistake are silent — an asset left out of the
+list 404s on the live site, and a document left in becomes a URL.
+
 Setting it up on a fresh clone takes one manual step: *Settings → Pages →
 Build and deployment → Source: **GitHub Actions***. The workflow passes
 `enablement: true` to `configure-pages`, which is meant to create the Pages
@@ -2136,7 +2148,11 @@ Scores persist to `localStorage`.
 ## Checks
 
 ```sh
-node tools/check.mjs       # parses, elements, teaching-data drift
+node tools/all.mjs         # every check below, in CI's order, first failure stops it
+```
+
+```sh
+node tools/check.mjs       # parses, elements, teaching-data drift, repository tripwires
 node tools/smoke.mjs       # loads and plays the game headlessly
 node tools/dropcheck.mjs   # the build meter still delivers drops
 node tools/curriculum.mjs  # nothing is left untaught by level 3
@@ -2146,10 +2162,18 @@ node tools/fxcheck.mjs     # the glow actually reaches a pixel, on a GPU and wit
 
 All six run on every pull request; only `main` goes on to publish.
 
+`all.mjs` is a runner, not a seventh check, and it holds no list of its own: it
+parses `pages.yml` and runs exactly the harnesses CI runs, in CI's order. A list
+in two places is the thing that rots, and the way it rots is the worst one
+available — "all checks passed locally" followed by a red pull request. The
+complement is in `check.mjs`, which fails if a harness sits in `tools/` without
+a step in the workflow. Between them a harness cannot exist without running in
+CI, and cannot run in CI without running locally.
+
 `check.mjs` confirms the inline script still parses, that the elements it
 looks up by ID are still in the document, and that the teaching tables have
 not gone stale — no lesson pointing at a cut orb, no tier unlocking after
-level 2's finish line, and no mode knob that is declared without being read or
+level 3's finish line, and no mode knob that is declared without being read or
 that lets SKILL stop being the identity. `smoke.mjs` goes further: it loads the
 game into a stubbed DOM and actually plays it — the front screens, the
 menu demo, taps, committed and aborted swipes, the keyboard, several simulated
