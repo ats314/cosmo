@@ -76,6 +76,39 @@ approaches — the old dormant glyph was dimmest at the exact moment it was
 about to become lethal — and the plain single keeps the square. The red
 glow is identical across all three, so red stays one lesson.
 
+### Strokes are wireframes; light is a gradient
+
+Two of the game's biggest moments were drawn as **stroked outlines**, and both
+read on a real screen as drawn lines rather than as light. It is worth stating
+as a rule because it caught this file twice in one week:
+
+> A stroke of constant colour has a hard edge on **both** sides, however wide
+> it is. Widening it makes a thicker band, not a softer one. Anything meant to
+> be light — a shock front, an accretion disc, a halo — needs a gradient across
+> its width, and a radial gradient used *as the stroke style* gets that in one
+> pass, because gradients are evaluated in user space.
+
+- **The black hole's accretion disc** was two stroked ellipses, 9u and 5u wide,
+  at 0.62R and 0.78R, spun at different rates and rotated against each other.
+  On screen: two big thin purple loops crossing the middle of the arena. It is
+  a filled, squashed radial band now, with a hot inner edge and a Doppler limb
+  stroked along its own ellipse.
+- **The nova front** was three concentric strokes — a 26u soft one, a hard
+  white 1.5–5.5u one at 0.85 alpha, and a thin inner echo. The middle one
+  dominated completely: a flat white circle sweeping the arena in the game's
+  single most spectacular moment. It is one wide stroke with a radial gradient
+  across it now: dark → hot → dark, a band of light with a bright leading edge
+  and no boundary anywhere.
+
+**And one thing measurement said was fine.** The hypernova ribbon's widest pass
+looked, in a screenshot, as though it had a hard vertical seam at screen centre.
+Scanning the frame for the largest column-to-column luminance step across that
+band returned **1.21/255 — half a percent**, below perception; the same scan
+with the halo composite disabled returned 1.25, so the composite was not
+implicated either. There was nothing there. The ribbon is a filled polygon and
+its outermost pass is simply wide. Changing it would have been a guess wearing
+a fix's clothes.
+
 ### Nova embers condense
 
 A converted shard's ember is born as a white-hot
