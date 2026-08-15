@@ -5,7 +5,7 @@ it, and every channel that explains it. The curriculum rule this table
 enforces, **as the owner revised it**, now differs by kind:
 **every FORMATION is introduced and explained by the end of level 3** — level 4
 opens with every shape known and active and introduces none — while **orbs and
-modes are spread across all four levels**, taught at first contact wherever
+modes are spread across all six levels**, taught at first contact wherever
 that falls. Shield/slow-mo/nova on level 1, hypernova on level 2,
 spotlight on level 3, the black hole guaranteed to be offered once on level 4.
 

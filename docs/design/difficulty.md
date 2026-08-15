@@ -78,7 +78,7 @@ prevent. The lab door stays exactly as it was; it was never a card.
 
 ## Where you start
 
-The screen after the title picks the starting level. All four are selectable on any device, including levels never
+The screen after the title picks the starting level. All six are selectable on any device, including levels never
 reached — the screen exists so a level can be reached without playing to it,
 which is what makes testing level 4 possible at all. Rows the device has
 actually got to are marked *reached*, so picked and earned stay visibly
@@ -91,7 +91,7 @@ thought the game had skipped level 1. That complaint was about a start nobody
 *chose*. So the selection is deliberately **not persisted** — it lives in
 memory and every page load opens on LEVEL 1 — and a borrowed phone still
 begins at LIFT OFF unless the person holding it picks otherwise on a screen
-that names all four levels. Saving the pick is what would bring the original
+that names all six levels. Saving the pick is what would bring the original
 bug back with the picker as its new hiding place.
 
 The cost of that freedom is bounded in exactly one place. `G.startLevel`

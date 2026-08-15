@@ -19,7 +19,7 @@ node tools/check.mjs       # parses; elements; teaching + mode drift; repo tripw
 node tools/smoke.mjs       # loads and plays the game in a stubbed DOM
 node tools/dropcheck.mjs   # the build meter still delivers beat drops
 node tools/curriculum.mjs  # nothing is left untaught by level 3
-node tools/musiccheck.mjs  # four levels, four songs, each in its own key
+node tools/musiccheck.mjs  # six levels, six songs, each in its own key
 node tools/fxcheck.mjs     # the glow reaches a pixel, with a GPU and without one
 node tools/drawcheck.mjs   # every 2D draw call is one a real canvas would honour
 node tools/rendercheck.mjs # the frame a player sees, rendered in real Chromium

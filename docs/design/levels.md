@@ -1,20 +1,22 @@
 # Levels
 
-*Four levels, what each one is for, and where the boundaries sit.*
+*Six levels, what each one is for, and where the boundaries sit.*
 
 Part of the [Cosmo design record](../../README.md#where-everything-is).
 
 ---
 
-The run is **four levels**, each with an intro card and its own song. The
-first three have finish lines; the fourth does not:
+The run is **six levels**, each with an intro card and its own song. The
+first five have finish lines; the sixth does not:
 
 | Level | Name | Introduces | Key | Verse · Chorus | Groove |
 |---|---|---|---|---|---|
 | 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor | i–♭VI–♭III–♭VII · ♭VI–♭VII–v–i | the original groove |
 | 2 | INTO THE RINGS | gates, drifters, blinkers, hypernova | G minor | i–♭VII–♭VI–iv · ♭VI–♭VII–i–i | swung sixteenths, bass off the beat |
 | 3 | THE STORM | the two compounds — sliding gates, flicker pairs — plus THE SAUCER and the spotlight, then a finish line | F minor | i–♭III–v–♭VI · i–i–♭III–♭VII | rolling four-on-the-floor |
-| 4 | EVENT HORIZON | **no new formations** — the same storm with no exit, speed climbing toward the 4.2 rad/s ceiling, and one black hole guaranteed. Endless. | E♭ minor | i–♭VI–♭VII–i · iv–i–♭III–v, both over a tonic pedal | octave bass, open offbeat hat |
+| 4 | EVENT HORIZON | the same storm, one black hole guaranteed — and a finish line, which it did not have when it was last | E♭ minor | i–♭VI–♭VII–i · iv–i–♭III–v, both over a tonic pedal | octave bass, open offbeat hat |
+| 5 | REDSHIFT | everything running away and stretching as it goes | D♭ minor | i–iv–♭VII–♭III · ♭VI–♭III–♭VII–i | the 3+3+2 push, in the bass and the hats |
+| 6 | HEAT DEATH | **no new formations** — everything at once, speed climbing toward the 4.2 rad/s ceiling. Endless. | B minor | i–iv–v–♭VI · ♭III–♭VII–iv–i | continuous sixteenths, the floor on 2 and 6 |
 
 ### BLACK HOLE MODE
 
@@ -120,15 +122,34 @@ pattern). The fix is arrangement discipline, not more subtraction:
   octave double is deleted — the downbeat is no longer twelve oscillators
   deep.
 
-### Four songs, not one song in four keys
+### Six songs, not one song in six keys
 
-The four levels are **four
+The six levels are **six
 arrangements**: each has its own bassline (L1 walks, L2 pushes off the beat,
-L3 rolls relentless eighths, L4 jumps the octave), its own riff, its own
-afterglow solo, its own payoff hook, and — past level 1, which is the
-reference the others are heard against — its own kit identity (L2 swings with
-a soft clap lean, L3 drives an offbeat hat everywhere, L4 rides an open hat
-and doubles the floor).
+L3 rolls relentless eighths, L4 jumps the octave, L5 leans on the 3+3+2, L6
+rides the octave up because its own root is too low to carry a bar), its own
+riff, its own afterglow solo, its own payoff hook, and — past level 1, which
+is the reference the others are heard against — its own kit identity (L2
+swings with a soft clap lean, L3 drives an offbeat hat everywhere, L4 rides an
+open hat and doubles the floor, L5 marks the 3+3+2, L6 runs continuous
+sixteenths).
+
+**The keys close a circle rather than falling forever.** A, G, F, E♭, D♭, B is
+one full lap of the whole-tone scale: a seventh level would be A again, an
+octave below where the game opened, which is the reason there are six and not
+five or seven. The register does *not* keep descending with it — level 6's
+tonic at 61.74Hz is the lowest root in the game and a bassline sitting on it
+all bar would give the level people spend the most time inside the thinnest
+bottom end of the six, so its line rides an octave up and touches the low root
+only on the downbeat. `musiccheck.mjs` pins a 60Hz floor under every chord
+tone in both tables so the next key added cannot fall through it.
+
+Measured across all six, verse and chorus: six distinct progression shapes in
+semitones from the tonic (L1 `0 -4 3 -2`, L2 `0 -2 -4 -7`, L3 `0 3 7 8`,
+L4 `0 -4 -2 0`, L5 `0 5 10 3`, L6 `0 5 7 8`), six distinct chorus walks, six
+distinct payoff hooks, every chord diatonic to its own natural minor, every
+pitch within 8 cents of 12-TET, and the widest pad glide 9 semitones — level
+3's long-standing figure, matched but not exceeded by either new level.
 
 For a long time that claim had a hole in the middle of it. Every level walked
 the identical i–♭VI–♭III–♭VII and differed only by transposition, so the chord

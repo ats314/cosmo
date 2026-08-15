@@ -1,6 +1,6 @@
 # Audio and the arrangement
 
-*Four levels, four keys, verse and chorus, and why every pitch is an interval.*
+*Six levels, six keys, verse and chorus, and why every pitch is an interval.*
 
 Part of the [Cosmo design record](../../README.md#where-everything-is).
 
@@ -275,7 +275,7 @@ chord), earns a dotted-eighth echo panned opposite once the groove is found —
 against the 3+3+2 world one tap sounds like three — and the figures are
 chord-aware, resolving against whatever chord is sounding in that bar rather
 than against a fixed scale, so a run of taps follows the song instead of
-circling a static position — and follows it on all four levels, since the
+circling a static position — and follows it on all six levels, since the
 figures are chord-tone *indices* and each level's chords differ.
 
 ### Embers play the band's own instrument

@@ -1273,7 +1273,36 @@ const HOOKL=[
  /*4*/  5,-1,-1, 9,-1,-1, 8,-1,  9,-1,-1, 5,-1,-1, 8,-1,
  /*5*/  6,-1,-1,10,-1,-1, 9,-1,  8,-1,-1, 6,-1,-1,-1,-1,
  /*6*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
- /*7*/ 10,-1,-1, 9,-1,-1, 8,-1,  6,-1,-1, 5,-1,-1,-1,-1]]; /* the descent */
+ /*7*/ 10,-1,-1, 9,-1,-1, 8,-1,  6,-1,-1, 5,-1,-1,-1,-1],  /* the descent */
+/* REDSHIFT — a SINKING SEQUENCE. The same three-note cell restated a degree
+   lower each time it comes round, so the tune is always receding from where
+   it just was and never arrives. The level is named for light that is running
+   away; this is that, in the melody. */
+[/*0*/  9,-1,-1, 8,-1,-1, 6,-1,  8,-1,-1, 6,-1,-1, 5,-1,
+ /*1*/  8,-1,-1, 6,-1,-1, 5,-1,  6,-1,-1, 3,-1,-1,-1,-1,
+ /*2*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*3*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*4*/  9,-1,-1, 8,-1,-1, 6,-1,  8,-1,-1, 6,-1,-1, 5,-1,
+ /*5*/  8,-1,-1, 6,-1,-1, 5,-1,  6,-1,-1, 3,-1,-1,-1,-1,
+ /*6*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*7*/  8,-1,-1, 6,-1,-1, 5,-1,  4,-1,-1, 3,-1,-1,-1,-1],  /* the descent */
+/* HEAT DEATH — THE COOLING LINE. The first cut of this tried to say "running
+   down" by taking notes OUT of the 3+3+2 grammar, and musiccheck rejected it
+   in as many words: the accent positions are shared across every level on
+   purpose, because six melodies over one rhythm is a game with a tune and six
+   rhythms is six unrelated pieces. The harness was right and the idea was
+   wrong. So the energy leaves through PITCH instead — every cell starts lower
+   than the one before it and the intervals narrow as the bar goes on, from a
+   fourth down to a single step, until the phrase has nowhere left to fall.
+   Same skeleton as the other five, at the end of its life. */
+[/*0*/ 10,-1,-1, 9,-1,-1, 7,-1,  9,-1,-1, 7,-1,-1, 6,-1,
+ /*1*/  7,-1,-1, 6,-1,-1, 5,-1,  6,-1,-1, 4,-1,-1,-1,-1,
+ /*2*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*3*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*4*/ 10,-1,-1, 9,-1,-1, 7,-1,  9,-1,-1, 7,-1,-1, 6,-1,
+ /*5*/  7,-1,-1, 6,-1,-1, 5,-1,  6,-1,-1, 4,-1,-1,-1,-1,
+ /*6*/ -1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,   /* YOURS */
+ /*7*/ 10,-1,-1, 8,-1,-1, 7,-1,  5,-1,-1, 3,-1,-1,-1,-1]]; /* the descent */
 /* A SECOND ENDING for bars 4-5, played on every other section, so two drops
    in a row never state the hook identically. 32 slots per level because the
    two bars sit over different chords; the accents keep the 3+3+2 grammar or
@@ -1286,7 +1315,11 @@ const HOOKBL=[
 [/*4*/  6,-1,-1, 8,-1,-1, 6,-1,  9,-1,-1, 8,-1,-1, 6,-1,
  /*5*/  8,-1,-1, 9,-1,-1, 8,-1, 10,-1,-1, 9,-1,-1,-1,-1],
 [/*4*/  5,-1,-1, 8,-1,-1,10,-1,  9,-1,-1, 8,-1,-1, 5,-1,
- /*5*/  6,-1,-1, 9,-1,-1,11,-1, 10,-1,-1, 8,-1,-1,-1,-1]];
+ /*5*/  6,-1,-1, 9,-1,-1,11,-1, 10,-1,-1, 8,-1,-1,-1,-1],
+[/*4*/  8,-1,-1, 6,-1,-1, 9,-1,  8,-1,-1, 6,-1,-1, 4,-1,
+ /*5*/  6,-1,-1, 5,-1,-1, 3,-1,  5,-1,-1, 6,-1,-1,-1,-1],
+[/*4*/ 11,-1,-1, 9,-1,-1, 8,-1, 10,-1,-1, 8,-1,-1, 6,-1,
+ /*5*/  8,-1,-1, 6,-1,-1, 5,-1,  6,-1,-1, 3,-1,-1,-1,-1]];
 /* sixteenths to the next note, so a note can be as long as the gap it owns.
    One derivation for both tables now — it wraps on the table's own length,
    which is what the two hand-written copies each did for their own size. */
@@ -2149,7 +2182,7 @@ function musicStep(i,t,k){
       bassN(ch[0],t,beat%2?0.10:0.15,bg*(beat===0?1:(beat%2?0.5:0.72)));
       if(beat===4)bassN(ch[2]/2,t,0.14,bg*0.80);
       if(beat===7)bassN(ch[1]/2,t+S16,0.10,bg*0.55);
-    }else{
+    }else if(G.level===4){
       /* L4 JUMPS THE OCTAVE. Level 4 had no bassline of its own: the branch
          above caught it, so the endless level — the one good players spend
          most of a session inside — was the only level whose bottom end was
@@ -2159,6 +2192,28 @@ function musicStep(i,t,k){
          audible fundamental keeps stepping up and back down. */
       bassN(beat%2?ch[1]:ch[0],t,0.11,bg*(beat===0?1:(beat%2?0.62:0.80)));
       if(beat===6)bassN(ch[3]/2,t+S16,0.12,bg*0.62);
+    }else if(G.level===5){
+      /* L5 PUSHES THE 3+3+2. Every other bassline in the game is symmetrical
+         — walked, offbeat, rolled or octave-jumped, all of them even. This
+         one lands on eighths 0, 3 and 6, which is the same accent grammar the
+         payoff hook has used on every level since it was written. REDSHIFT is
+         the level where the bass and the hook finally agree about where the
+         bar leans, so the whole level pulls in one direction. */
+      if(beat===3)bassN(ch[0],t,0.15,bg*0.78);
+      if(beat===6)bassN(ch[1],t,0.13,bg*0.70);
+      if(beat===7)bassN(ch[3]/2,t+S16,0.10,bg*0.50);
+    }else{
+      /* L6 RIDES THE OCTAVE, AND THAT IS A FIX RATHER THAN A FLOURISH. Its
+         tonic is 61.74Hz, the lowest root in the game, and a bassline sitting
+         on it for a whole bar would give the level people spend the most time
+         inside the thinnest audible bottom end of the six — a phone speaker
+         reproduces almost nothing of a 62Hz fundamental. So the low root
+         sounds on the downbeat for weight (the beat===0 line above already
+         fires it) and every other eighth is ch[1], an octave up, where the
+         note is actually heard. Relentless rather than sparse: the hook is
+         the thing running down on this level, and the engine under it is not. */
+      bassN(ch[1],t,beat%2?0.09:0.13,bg*(beat%2?0.48:0.68));
+      if(beat===6)bassN(ch[2]/2,t+S16,0.11,bg*0.55);
     }
   }
   /* THE SOLO (playtest: "some keyboard solos"). After every payoff the lead
@@ -2294,6 +2349,29 @@ function musicStep(i,t,k){
     if((k>0.25||hot)&&(beat===2||beat===6))kick(t,0.030);
     if((k>0.45||hot)&&beat===7)snare(t+S16,0.022,0.28);
   }
+  /* L5 PUTS THE 3+3+2 IN THE KIT TOO. Its bassline leans on eighths 0, 3 and
+     6; the hats mark the same two offbeats, so the level's asymmetry is
+     audible with the bass muted. No kick on 0 and no snare on 4 anywhere in
+     here, deliberately: skyI FLOORS at 3 from level 4 onward and band 3
+     already owns both of those slots, so adding either would be the doubled-
+     drum bug the chorus lean was rewritten to avoid. */
+  if(G.level===5){
+    if(beat===3||beat===6)hat(t,0.009,4600,0.05,0,0.2,7000);
+    if((k>0.30||hot)&&beat===2)snare(t,0.016,0.20);
+    if(beat===7)hat(t+S16,0.006,5000,0.035,0,0,7400);
+  }
+  /* L6 RUNS SIXTEENTHS. Level 4 rides an open offbeat hat and level 3 a
+     clipped one, so the last level cannot have a hat pattern at all without
+     repeating one of them — it has a CONTINUOUS one instead, an eighth-note
+     tick with the sixteenth between it once the run is warm. Nothing else in
+     the game is that dense, which is the point: HEAT DEATH is the level whose
+     kit never lets go, under the sparsest hook of the six. Same slot rules as
+     level 5 — the floor doubles on 2 and 6, never on 0. */
+  if(G.level===6){
+    hat(t,0.008,3800,0.10,0,0.25,6600);
+    if(k>0.25||hot)hat(t+S16,0.006,4400,0.055,0,0,7200);
+    if(beat===2||beat===6)kick(t,0.032);
+  }
   /* THE CHORUS LEAN — the genre's chorus recipe, at this band's scale: the
      open offbeat hat arrives (levels 1-3; level 4 rides one all game, so its
      chorus adds the sixteenth ghost instead), a half-time backbeat lands
@@ -2316,7 +2394,11 @@ function musicStep(i,t,k){
        tenant: the chorus is the harmony moving, never the same drum twice
        as loud. musiccheck runs the harness at each level's sky floor and
        fails on a doubled snare body. */
-    if(G.level===4){if(rs<2&&beat%2===0)hat(t+S16,0.007,4400,0.04,0,0,7200);}
+    /* levels 4-6 all ride an offbeat hat of their own (L4 open, L5 on the
+       3+3+2, L6 continuous), so for all three the chorus adds the sixteenth
+       ghost instead of a second open hat — the yield rule, applied to the two
+       levels that did not exist when it was written */
+    if(G.level>=4){if(rs<2&&beat%2===0)hat(t+S16,0.007,4400,0.04,0,0,7200);}
     else if(beat%2===1&&skyI!==2)hat(t,0.010,3800,0.13,0,0.3,6600);
     if(beat===4&&G.level!==2&&skyI!==3)snare(t,0.018,0.20);
     if(beat===0)note(SEVB[G.level-1][cix]*2,t,1.6,'triangle',0.016,1400,(bar%2)?0.22:-0.22);
@@ -3561,23 +3643,59 @@ const PENT=[440,523.25,587.33,659.25,783.99,880,1046.5,1174.66,1318.5,1568,
             1760,2093,2349.32,2637];
 const PENT_BASE=PENT.slice();
 /* ---------- levels ----------
-   The run is four LEVELS, the first three with a clear finish line on the
+   The run is SIX LEVELS, the first five with a clear finish line on the
    difficulty clock, each with an intro card naming the mechanics it will
    introduce, and each with its own song — same 104bpm grid (the dub delay
    stays in time), but a new key, a new PROGRESSION, a new arp contour, its
    own bassline, its own payoff hook and a different lean to the kit.
-   The keys descend a whole step at a time (A minor, then G, then F, then Eb):
-   going deeper into the game literally deepens the music. The progressions
-   are not transpositions of each other — see PROG, which is where the four
-   songs stop being one song. Progress persists; death retries the level you
-   are on, so later levels are trainable without regrinding. */
-/* THE CURRICULUM RULE (owner's spec, near-verbatim): every mechanic is
-   introduced and explained by the end of level 2 \u2014 by the start of level 3
-   the player knows how everything works and all of it is active. So level 1
-   carries the verbs, twins and the scoring economy, level 2 carries every
-   remaining threat and orb one at a time, and level 3 introduces NOTHING:
-   it is the exam. The card lines below are checked against MECHANICS.md \u2014
-   update both together. */
+
+   THE KEYS WALK THE WHOLE-TONE SCALE DOWN AND CLOSE THE CIRCLE. A, G, F, Eb,
+   Db, B — six whole steps, which is exactly one lap of the whole-tone scale:
+   a seventh level would be A again, an octave below where the game opened.
+   That is why there are six and not five or seven. Going deeper into the game
+   literally deepens the music, and the descent now has a floor it arrives at
+   rather than a slope it falls down forever. The progressions are not
+   transpositions of each other — see PROG, which is where the six songs stop
+   being one song. Progress persists; death retries the level you are on, so
+   later levels are trainable without regrinding.
+
+   THE REGISTER TURNS AROUND EVEN THOUGH THE KEY KEEPS DESCENDING, and levels
+   5 and 6 are where that stops being free. LV[].key scales the SFX pentatonic
+   and by level 6 it is 0.5612, which puts PENT[0] on B3 at 247Hz against
+   level 1's A4 — fine for the effects layer. The BASS is where it breaks:
+   PROG's roots are written absolutely, and continuing the literal descent
+   would have put level 6's tonic at 61.7Hz, below what a phone speaker
+   reproduces at all, with its third and fifth buried under level 4's. So
+   levels 5 and 6 voice their roots UP an octave from where the straight
+   descent would land them. The pitch CLASS keeps descending, which is what
+   the ear actually tracks, while the register turns around — the same thing a
+   bass player does walking a line down and jumping back up to keep playing.
+   musiccheck.mjs pins a 60Hz floor under every chord tone in PROG and PROGB
+   so the next key added cannot quietly fall through it. */
+/* THE CURRICULUM RULE, REBUILT FOR SIX LEVELS. The owner's call on what
+   levels 5 and 6 should introduce was "complete overhaul from the ground up",
+   and this is the rule that overhaul lands on.
+   It used to end all teaching at level 3's floor, dl 340. That was right when
+   level 4 was the only level after it and became wrong the moment there were
+   three: LIFT OFF through THE STORM taught nine formations in 340 difficulty-
+   seconds, and then EVENT HORIZON, REDSHIFT and HEAT DEATH would have taught
+   nothing at all for the twelve minutes that follow. A second half that
+   introduces nothing is not an exam, it is a plateau \u2014 which is the exact
+   complaint that produced level 4 in the first place, restated one level
+   further on. Stretching the old ladder over six levels would have reproduced
+   it; the ladder is rebuilt instead.
+   THIS COMMIT MOVES THE STRUCTURE, NOT YET THE LADDER, and says so rather
+   than describing the game it is on the way to. Right now all nine formations
+   still unlock inside dl 0-340 and levels 4, 5 and 6 introduce no new SHAPE
+   at all \u2014 the plateau above, one level longer. What has changed is that
+   there is somewhere to put the fix: six songs, six keys, six finish lines,
+   and a difficulty clock with room past dl 470.
+   The ladder rebuild that fills levels 4 and 5 is the next commit and is
+   deliberately not pre-announced here. A comment that describes intentions
+   is the same defect as a rule that disagrees with its enforcement: it makes
+   the careful reader wrong, and this file has paid for that twice.
+   The card lines below are checked against MECHANICS.md \u2014 update both
+   together. */
 const LV=[
  /* THREE LINES, NOT SIX. Playtest, near-verbatim: "initially I felt like
     there were like eight rules so it was sort of hard to keep track of all of
@@ -3618,15 +3736,33 @@ const LV=[
  {dl0:215,end:340,name:'THE STORM', key:0.7937,
   mech:[['shard','the shapes start combining'],
         ['star','survive to the star dive']]},
- /* THE STORM used to be endless and therefore last. It has a finish line and a
-    star dive of its own now, and EVENT HORIZON takes over as the level you do
-    not finish — which keeps "the last level is the exam" true rather than
-    making level 3 both the exam and the middle of the game.
-    Neither introduces anything: every tier still unlocks by dl 215, so the
-    curriculum rule is untouched by the extra level. The fourth song drops
-    another whole step (A -> G -> F -> Eb) and, since it is the level nobody
-    finishes, walks the one progression that never leaves home — see PROG. */
- {dl0:340,end:Infinity,name:'EVENT HORIZON', key:0.7071,
+ /* EVENT HORIZON HAS A FINISH LINE NOW, and losing "the endless one" is what
+    it is FOR. It was made endless when it was the last level; with two levels
+    after it, an endless level in the middle of the run is a wall the game
+    never lets you past. It keeps its identity — it is still the black hole's
+    level, and it is still the one that opens a fourth orbit — and it gains
+    the one thing it never had: a way to finish it. The fourth song drops
+    another whole step (A -> G -> F -> Eb) and walks the progression that
+    never leaves home, which now reads as the pedal under the black hole
+    rather than as the sound of a level nobody completes.
+    DIVERS unlock here, at dl 395. The black hole is guaranteed once, as it
+    already was, and THE TWIN joins the rotation. */
+ {dl0:340,end:470,name:'EVENT HORIZON', key:0.7071,
+  mech:[['shard','red changes ring in mid-air'],
+        ['warp','the black hole opens a fourth orbit']]},
+ /* REDSHIFT — Db minor. The name is the mechanic: everything here is running
+    away from you and stretching as it goes. It carries the last formation the
+    game teaches (THE NARROWS, dl 520) and the last orb (SCORCH), so the
+    syllabus finishes on its finish line and HEAT DEATH opens owing nothing. */
+ {dl0:470,end:610,name:'REDSHIFT', key:0.6300,
+  mech:[['swipe','one ring stays open — go to it'],
+        ['star','your wake burns behind you']]},
+ /* HEAT DEATH — B minor, and the whole-tone lap closes one whole step above
+    the A it started on. THE LEVEL THAT DOES NOT END, and the only one, which
+    is the property level 4 gave up. Nothing new arrives: everything the game
+    has is already in play and the clock keeps climbing. Its progression is
+    the one that never resolves — see PROG. */
+ {dl0:610,end:Infinity,name:'HEAT DEATH', key:0.5612,
   mech:[['shard','no new tricks — everything at once'],
         ['star','how far can you ride?']]}];
 /* Declared here rather than beside the death-screen helpers so loadPrefs can
@@ -3896,15 +4032,39 @@ const PROG=[
     level read undefined. curriculum.mjs is the only harness that drives far
     enough to have found it. */
  [[77.78,155.56,184.99,233.08],[61.74,123.47,155.56,184.99],
-  [69.30,138.59,174.61,207.65],[77.78,155.56,184.99,233.08]]]; /* Ebm Cb Db Ebm */
-const ARPL=[[0,2,4,2,3,2,4,3],[0,3,1,4,2,4,3,1],[0,1,3,2,4,2,3,1],[0,4,2,3,1,3,4,2]];
+  [69.30,138.59,174.61,207.65],[77.78,155.56,184.99,233.08]],  /* Ebm Cb Db Ebm */
+ /* REDSHIFT — Db minor — i iv VII III. THE DESCENDING FIFTHS, which is the
+    one strong functional motion in the mode that no other level uses: every
+    root falls a fifth to the next (Db Gb Cb Fb, written as rising fourths to
+    keep the glide inside seven semitones). It is the progression that is
+    always leaving, and it lands on III — the relative major — rather than
+    home, so the loop turns back to the tonic from the brightest chord it
+    owns instead of cadencing onto it. A sequence, not a circle. */
+ [[69.30,138.59,164.81,207.65],[92.50,184.99,220,277.18],
+  [123.47,246.94,311.13,369.99],[82.41,164.81,207.65,246.94]], /* Dbm Gbm Cb Fb */
+ /* HEAT DEATH — B minor — i iv v VI. Three minor chords in a row, which no
+    other level does and which is the coldest colour the mode has, then one
+    major that lifts and is immediately taken away again by the turnaround.
+    The level that never ends gets the loop that never warms up.
+    Its ROOT is the lowest in the game at 61.74Hz, and that is handled in the
+    arrangement rather than in this table: level 6's bassline rides ch[1] an
+    octave up and touches ch[0] only on the downbeat, the same way level 4
+    jumps the octave. A root written low and then played low all bar would
+    have given the level people spend the most time in the thinnest bottom
+    end in the game. */
+ [[61.74,123.47,146.83,185],[82.41,164.81,196,246.94],
+  [92.50,184.99,220,277.18],[98,196,246.94,293.66]]];          /* Bm Em F#m G */
+const ARPL=[[0,2,4,2,3,2,4,3],[0,3,1,4,2,4,3,1],[0,1,3,2,4,2,3,1],[0,4,2,3,1,3,4,2],
+            [0,2,1,3,4,3,1,2],[0,3,4,2,1,2,4,3]];
 /* per-level written parts: the riff layer and the afterglow solo are
    different tunes on each level, not the same tune transposed */
 const RIFFL=[
  [0,-1,2,-1,3,-1,2,-1, 0,-1,2,-1,4,3,2,-1],
  [0,-1,-1,3,-1,2,-1,-1, 1,-1,-1,3,-1,4,-1,2],
  [0,2,-1,0,3,-1,0,2, 4,-1,3,2,-1,0,-1,-1],
- [0,-1,2,3,-1,2,0,-1, 3,4,-1,3,2,-1,0,-1]];
+ [0,-1,2,3,-1,2,0,-1, 3,4,-1,3,2,-1,0,-1],
+ [0,-1,3,-1,2,4,-1,2, 1,-1,3,-1,4,-1,2,-1],
+ [0,4,-1,2,-1,3,-1,1, 2,-1,4,-1,3,2,-1,0]];
 const SOLOL=[
  [7,-1,8,-1,9,-1,8,7, -1,5,-1,7,-1,-1,5,-1,
   6,-1,7,-1,9,-1,10,-1, 9,8,-1,7,-1,5,-1,-1],
@@ -3913,7 +4073,15 @@ const SOLOL=[
  [7,7,-1,9,-1,7,9,-1, 10,-1,9,-1,8,7,-1,-1,
   5,-1,7,-1,8,-1,9,10, -1,9,-1,7,-1,5,-1,-1],
  [9,-1,10,-1,9,8,-1,7, -1,9,-1,10,-1,12,-1,10,
-  9,-1,7,-1,8,-1,9,-1, 7,5,-1,7,-1,-1,5,-1]];
+  9,-1,7,-1,8,-1,9,-1, 7,5,-1,7,-1,-1,5,-1],
+ /* REDSHIFT — the solo sinks the way its hook does: each four-note cell
+    answers the last one a degree lower */
+ [10,-1,9,-1,-1,8,-1,10, 9,-1,8,-1,7,-1,-1,5,
+  8,-1,7,-1,6,-1,-1,7, 6,-1,5,-1,-1,3,-1,-1],
+ /* HEAT DEATH — the longest notes and the widest gaps of the six; the
+    afterglow of the level that is winding down */
+ [7,-1,-1,-1,9,-1,-1,10, -1,-1,9,-1,-1,7,-1,-1,
+  5,-1,-1,7,-1,-1,8,-1, -1,7,-1,5,-1,-1,-1,-1]];
 /* ---------- THE CHORUS ----------
    A VERSE ALONE IS NOT A SONG. Every level walked its one four-chord loop
    forever: the arrangement thickened and thinned (the vertical axis games
@@ -3972,10 +4140,23 @@ const PROGB=[
  [[87.31,174.61,207.65,261.63],[87.31,174.61,207.65,261.63],
   [103.83,207.65,261.63,311.13],[77.78,155.56,196,233.08]],   /* Fm Fm Ab Eb  */
  [[77.78,155.56,184.99,233.08],[92.50,184.99,233.08,277.18],
-  [116.54,233.08,277.18,349.23],[103.83,207.65,246.94,311.13]]];/* Ebm Gb Bbm Abm */
+  [116.54,233.08,277.18,349.23],[103.83,207.65,246.94,311.13]], /* Ebm Gb Bbm Abm */
+ /* L5 REDSHIFT — VI III VII i (Bbb Fb Cb Dbm, heard from slot 1). The verse
+    is always leaving; the chorus is the one thing in the level that arrives.
+    Its roots fall a fifth, a fifth, then step UP a whole tone onto the tonic
+    — the full Aeolian cadence — so the section that answers a sequence of
+    departures is the one that finally lands. */
+ [[69.30,138.59,164.81,207.65],[110,220,277.18,329.63],
+  [82.41,164.81,207.65,246.94],[61.74,123.47,155.56,185]],      /* Dbm Bbb Fb Cb */
+ /* L6 HEAT DEATH — III VII iv i (D A Em Bm, heard from slot 1). Opens on the
+    relative major, the brightest chord the level owns, and falls the whole
+    way home — the only chorus in the game that is a single continuous
+    descent. The last level's lift is a long cooling off, not a climb. */
+ [[61.74,123.47,146.83,185],[73.42,146.83,185,220],
+  [110,220,277.18,329.63],[82.41,164.81,196,246.94]]];          /* Bm D A Em */
 /* where each chorus's walk begins in its row — the rotation that lets a
    chorus open off-tonic while row slot 0 stays the i chord */
-const CHOFF=[1,2,0,3];
+const CHOFF=[1,2,0,3,1,1];
 /* THE COLOR TONE: each chorus chord's own stacked-third seventh, sustained
    once a bar an octave up — m7 on the minor chords, maj7 on III and VI, and
    on VII the stacked third lands a minor seventh over a major triad: the
@@ -3986,11 +4167,14 @@ const SEVB=[
  [196,164.81,174.61,146.83],       /* G  E  F  D  — Am7 Fmaj7 G7 Em7   */
  [174.61,174.61,146.83,155.56],    /* F  F  D  Eb — Gm7 Gm7 Ebmaj7 F7  */
  [155.56,155.56,196,138.59],       /* Eb Eb G  Db — Fm7 Fm7 Abmaj7 Eb7 */
- [138.59,174.61,207.65,184.99]];   /* Db F  Ab Gb — Ebm7 Gbmaj7 Bbm7 Abm7 */
+ [138.59,174.61,207.65,184.99],    /* Db F  Ab Gb — Ebm7 Gbmaj7 Bbm7 Abm7 */
+ [123.47,207.65,155.56,110],       /* Cb Ab Eb Bbb — Dbm7 Bbbmaj7 Fbmaj7 Cb7 */
+ [110,138.59,196,146.83]];         /* A  C# G  D  — Bm7 Dmaj7 A7 Em7 */
 /* the chorus arps: same even-eighth grid, same 0-4 ceiling (the band still
    stops below the player's floor), different contour — the surface the ear
    tracks bar to bar, so the section change reads melodically too */
-const ARPBL=[[2,4,3,4,2,4,3,4],[0,1,2,3,4,3,2,1],[3,4,3,4,2,4,3,4],[4,0,3,0,4,1,4,2]];
+const ARPBL=[[2,4,3,4,2,4,3,4],[0,1,2,3,4,3,2,1],[3,4,3,4,2,4,3,4],[4,0,3,0,4,1,4,2],
+             [1,3,2,4,1,3,2,4],[4,2,4,1,3,1,4,2]];
 /* ONE WRITER FOR THE SECTION. CH and ARP are the live tables everything
    reads — the pad retune, chTone, every bassline — so swapping the section
    is copying a row set, and everything downstream follows by construction.
@@ -5662,7 +5846,14 @@ function startGame(){
   }
   /* the sky band matches the pre-climbed ladder, same formula as the
      crossing ratchet — level 3 opens in the storm's own ember light */
-  skyI=Math.max(G.level-1,G.tier>=10?3:G.tier>=7?2:G.tier>=4?1:0);
+  /* CLAMPED, because there are six levels and only four sky bands. skyI
+     indexes SKY_BANDS (four rows) and is passed to the shader as uPal,
+     which clamps to 3 on its own — so an unclamped level 5 or 6 would have
+     read SKY_BANDS[4] as undefined and thrown inside the 2D fallback while
+     the GPU path quietly carried on. Levels 4, 5 and 6 all floor at the
+     deepest band; past that the sky belongs to the world table, not to the
+     level number. */
+  skyI=Math.min(3,Math.max(G.level-1,G.tier>=10?3:G.tier>=7?2:G.tier>=4?1:0));
   /* a pre-climbed start owns its voice announcement: the crossing that used
      to announce it can no longer happen in-run (STORM sits on level 3's
      floor and endgame crossings hold), so without this the death screen
@@ -7305,7 +7496,7 @@ function update(dt){
        STORM over its own graduation. The next level's silent pre-climb
        owns any crossing the window swallows. */
     G.tier++;G.featT=G.t;      /* the featuring grace clock — see pickType */
-    skyI=Math.max(G.level-1,G.tier>=10?3:G.tier>=7?2:G.tier>=4?1:0);  /* the sky deepens; each level floors it */
+    skyI=Math.min(3,Math.max(G.level-1,G.tier>=10?3:G.tier>=7?2:G.tier>=4?1:0));  /* the sky deepens; each level floors it, clamped to the four bands */
     const T=TIERS[G.tier];
     if(T.rings&&T.rings>G.nRings){
       G.nRings=T.rings;

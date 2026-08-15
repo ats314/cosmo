@@ -246,8 +246,18 @@ function padRoots(pad) {
 
 /* ---------- the assertions ---------- */
 const PROG = $('PROG');
+/* HOW MANY LEVELS THERE ARE IS THE TABLE'S ANSWER, NOT THIS FILE'S. Every
+   loop below used to be `L < 4`, written when four was all there was — so the
+   day levels 5 and 6 were added, the two newest songs in the game became the
+   only two nothing checked: their progressions, their glides, their arps and
+   their hooks would all have shipped unmeasured while the harness reported
+   OK on the four it already knew about. A count copied out of the code is a
+   count that silently stops being true. NLV is read from PROG, which is the
+   table a new level cannot be added without touching. */
+const NLV = PROG.length;
+
 const HOOKL = $('HOOKL');
-const LEVELS = [1, 2, 3, 4];
+const LEVELS = Array.from({ length: NLV }, (_, i) => i + 1);
 
 console.log('--- the SFX scale is in the same key as the band ---');
 /* THE HALF OF THE INVARIANT NOTHING WAS CHECKING. CLAUDE.md states it as one
@@ -802,28 +812,28 @@ console.log('--- the chorus is named and counted when it arrives ---');
   const shape = row => row.map(c => Math.round(12 * Math.log2(c[0] / row[0][0]))).join(' ');
   const shapes = PROG.map(shape);
   const uniq = new Set(shapes);
-  if (uniq.size < 3) fail(`only ${uniq.size} distinct progression shape(s) across four levels: ${shapes.join(' / ')}`);
+  if (uniq.size < NLV) fail(`only ${uniq.size} distinct progression shape(s) across ${NLV} levels: ${shapes.join(' / ')}`);
   else ok(`${uniq.size} distinct verse shapes in semitones from the tonic: ${shapes.map((s, i) => `L${i + 1}[${s}]`).join(' ')}`);
 
   const walkShape = L => {
     const tonic = PROGB[L][0][0];
     return [0, 1, 2, 3].map(b => Math.round(12 * Math.log2(PROGB[L][(b + CHOFF[L]) % 4][0] / tonic))).join(' ');
   };
-  const bShapes = [0, 1, 2, 3].map(walkShape);
-  if (new Set(bShapes).size < 4) fail(`the four chorus walks are not four shapes: ${bShapes.join(' / ')}`);
-  else ok(`4 distinct chorus walks: ${bShapes.map((s, i) => `L${i + 1}[${s}]`).join(' ')}`);
-  for (let L = 0; L < 4; L++) {
+  const bShapes = Array.from({ length: NLV }, (_, i) => walkShape(i));
+  if (new Set(bShapes).size < NLV) fail(`the ${NLV} chorus walks are not ${NLV} shapes: ${bShapes.join(' / ')}`);
+  else ok(`${NLV} distinct chorus walks: ${bShapes.map((s, i) => `L${i + 1}[${s}]`).join(' ')}`);
+  for (let L = 0; L < NLV; L++) {
     const v = PROG[L].map(c => Math.round(12 * Math.log2(c[0] / PROG[L][0][0]))).join(' ');
     if (bShapes[L] === v) fail(`level ${L + 1}'s chorus walk is its own verse — a section change that changes nothing`);
   }
 }
 
-console.log('--- the four hooks are four different tunes ---');
+console.log(`--- the ${NLV} hooks are ${NLV} different tunes ---`);
 const sig = HOOKL.map(r => r.join(','));
-for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) {
+for (let a = 0; a < NLV; a++) for (let b = a + 1; b < NLV; b++) {
   if (sig[a] === sig[b]) fail(`hook for level ${a + 1} is identical to level ${b + 1}`);
 }
-if (new Set(sig).size === 4) ok('all four payoff hooks are distinct');
+if (new Set(sig).size === NLV) ok(`all ${NLV} payoff hooks are distinct`);
 
 /* the structural grammar every hook must keep: bars 2,3,6 belong to the
    player, and every bar's accents sit on the same 3+3+2 positions */
@@ -889,7 +899,7 @@ console.log('--- the pad glides, so the voice leading is measured ---');
    is the standard voice-leading smoothness measure; the hard bound here is
    that no single voice may glide more than an octave, which no reasonable
    voicing does and a mistyped frequency immediately would. */
-for (let L = 0; L < 4; L++) {
+for (let L = 0; L < NLV; L++) {
   const row = PROG[L];
   let worst = 0, worstAt = '', ss = 0;
   for (let i = 0; i < 4; i++) {
@@ -906,7 +916,7 @@ for (let L = 0; L < 4; L++) {
 /* ...and the chorus glides are measured over the WALK (the row read through
    CHOFF), including both seams — the section swap itself is a retune the
    player hears, so verse[last] -> chorus[first] and back are glides too */
-for (let L = 0; L < 4; L++) {
+for (let L = 0; L < NLV; L++) {
   const walk = [0, 1, 2, 3].map(b => PROGB[L][(b + CHOFF[L]) % 4]);
   const seq = [PROG[L][3], ...walk, walk[0], PROG[L][0]]; /* seam in, cycle, loop, seam out */
   let worst = 0, worstAt = '';
@@ -968,7 +978,7 @@ console.log('--- the chorus tables hold the same law as the verse ---');
    the player's 784Hz floor), and actually different contours */
 {
   const ARPL2 = $('ARPL'), ARPBL = $('ARPBL');
-  for (let L = 0; L < 4; L++) {
+  for (let L = 0; L < NLV; L++) {
     for (const [tn, row] of [['ARPL', ARPL2[L]], ['ARPBL', ARPBL[L]]]) {
       if (row.length !== 8 || row.some(d => d < 0 || d > 4))
         fail(`level ${L + 1} ${tn}: a degree leaves 0-4 — the arp would cross the player's register floor`);
@@ -1314,4 +1324,4 @@ if (failures) {
   console.error(`\nMUSICCHECK FAILED (${failures})`);
   process.exit(1);
 }
-console.log('\nOK  four levels, eight progressions, four hooks — verse and chorus both walked, none crossed');
+console.log(`\nOK  ${NLV} levels, ${NLV * 2} progressions, ${NLV} hooks — verse and chorus both walked, none crossed`);
