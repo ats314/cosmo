@@ -13066,6 +13066,18 @@ function drawHUD(){
        against on eight viewports is the layout it still gets. */
     const cardH=0;
     ctx.textAlign='center';
+    /* THE LAB DOOR MOVED UNDER START. The bar itself is unchanged and the
+       reasoning below still holds; what was wrong is where it sat. It was the
+       SECOND thing on the front door — directly beneath the game's name, above
+       the four lines that say what the game is and above the button that plays
+       it — so the loudest object on the title screen was a developer sandbox
+       that keeps no record and pins the difficulty clock. That is an inverted
+       hierarchy anyone would read instantly, and it is exactly the shape of
+       "pieced together": a debug affordance promoted to hero because it was
+       the last thing added and the layout had a slot free.
+       It is a SIDE DOOR, so it goes under the front one. The key rows take the
+       band it vacated, which also closes the 119px dead gap that opened above
+       them when the mode cards were deleted. */
     /* THE LAB DOOR, still a bar and still not a card. It was drawn this way
        to keep it out of the row that answered "which game" — a sandbox that
        keeps no record and pins the difficulty clock had no business sitting
@@ -13077,7 +13089,19 @@ function drawHUD(){
        Violet, and still not red: COL.warp already means "this bends the
        rules" everywhere else in the game. */
     const labH=Math.max(28*u,Math.min(38*u,cardW*0.22));
-    const labW=cardW*2+cardGap,labX=cardX,labY=cardTop+cardH+9*u;
+    /* The START pill is measured HERE now, because the bar hangs off its
+       bottom edge and the key rows clamp to its top one. Both were already
+       derived from bottomY, so nothing about the button moves. */
+    const sbH=30*u,sbW=Math.min(168*u,W-60*u);
+    const sbY=bottomY-sbH/2-8*u;
+    /* ONLY IF THERE IS ROOM UNDER THE BUTTON. On a short landscape viewport
+       bottomY collapses onto the bottom safe area and the pill IS the last
+       row, so the bar keeps its old slot rather than being pushed off the
+       screen — a door nobody can reach is worse than a door in the wrong
+       place, and it is the one control here that opens another screen. */
+    const labRoom=(H-safeBot)-(sbY+sbH)>labH+34*u;
+    const labW=cardW*2+cardGap,labX=cardX,
+          labY=labRoom?sbY+sbH+9*u:cardTop+cardH+9*u;
     G.menuRects.push({x:labX,y:labY,w:labW,h:labH,id:'lab'});
     ctx.save();
     ctx.fillStyle='rgba(16,22,38,0.80)';
@@ -13128,7 +13152,9 @@ function drawHUD(){
     G.swipeRect=null;
     /* the key now starts under the LAB BAR rather than under the cards — same
        divide-the-gap rule, one more thing above it */
-    const kTop=labY+labH+8*u, kBot=bottomY-24*u;
+    /* the key takes the band the lab bar vacated — the whole gap between the
+       best line and the button, which is what it should have had all along */
+    const kTop=(labRoom?cardTop+cardH+2*u:labY+labH+8*u), kBot=sbY-26*u;
     const rh=Math.min(24*u,Math.max(15*u,(kBot-kTop)/rows.length));
     const fs=Math.min(13*u,rh*0.56), gs=Math.min(20*u,rh*0.84);
     /* centred in the gap rather than pinned to the top of it: on a tall phone
@@ -13176,8 +13202,8 @@ function drawHUD(){
        bottomY. 30u rather than 34 buys the clearance a 375-tall landscape
        phone needs — where the notice would otherwise be pushed off-screen,
        which is the one outcome worse than overlapping it. */
-    const sbH=30*u,sbW=Math.min(168*u,W-60*u);
-    const sbY=bottomY-sbH/2-8*u;
+    /* sbH/sbW/sbY are measured up beside the lab bar now — see the note
+       there; the bar hangs off this pill's bottom edge. */
     /* Opened from a chat app, iOS presents the page as a modal sheet, and that
        sheet eats downward swipes to dismiss itself — the game's own inward hop.
        Nothing in here can prevent it, so point at the thing that does. */
@@ -13219,7 +13245,8 @@ function drawHUD(){
          this always clears the button AND stays on the screen; the min is a
          belt for a future layout that moves bottomY down. */
       text('anonymous play stats collected',cx,
-        Math.min(H-6*u-safeBot,sbY+sbH+14*u),10*u,'600','rgba(200,215,255,0.32)',0);
+        Math.min(H-18*u-safeBot,(labRoom?labY+labH:sbY+sbH)+15*u),
+        10*u,'600','rgba(200,215,255,0.32)',0);
     }
   }else if(G.state==='levelsel'){
     /* WHERE DO YOU WANT TO START. Four rows and a button, drawn in the hollow

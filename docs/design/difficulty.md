@@ -137,6 +137,15 @@ anywhere again — with no selection on the screen, there is nothing a stray tap
 can cost you, which is the only thing the select-don't-start rule existed to
 prevent. The lab door stays exactly as it was; it was never a card.
 
+**And then it moved under START.** Keeping the bar unchanged was right and
+leaving it in the vacated slot was not: it made a developer sandbox the second
+thing on the front door, above the four lines that say what the game is and
+above the button that plays it. Nothing decided that — the mode cards were
+deleted and the bar inherited their position. It hangs off the START pill now
+and the key rows take the band, which is also how the 119px dead gap above
+them closed. It falls back to the old slot on a viewport with no room under
+the button; see the invariant.
+
 ## Where you start
 
 The screen after the title picks the starting level. All six are selectable on any device, including levels never

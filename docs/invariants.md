@@ -161,6 +161,21 @@ any player-facing sentence.*
   for the banner's first 3.2s instead of printing the state's name twice, 25px
   apart, on the same frame.
 
+- **THE FRONT DOOR RANKS BY WHAT IT IS FOR: the name, what you do, START,
+  then side doors.** `POWERUP TESTING` sat *second* on the title screen —
+  directly under the game's name, above the four lines that say what the game
+  is and above the button that plays it — so the loudest object on the front
+  door was a developer sandbox that keeps no record and pins the difficulty
+  clock. Nothing had decided that; it was the last thing added and the layout
+  had a slot free where the mode cards used to be. It hangs off the START
+  pill's bottom edge now, and the key rows take the band it vacated (which
+  also closed a 119px dead gap above them). The bar itself is unchanged —
+  the reasoning that made it a violet bar rather than a card still holds.
+  **It falls back to the old slot when there is no room under the button**
+  (`labRoom`): on a short landscape viewport `bottomY` collapses onto the
+  bottom safe area and the pill *is* the last row, and a door nobody can
+  reach is worse than a door in the wrong place.
+
 - **ONE THING OWNS THE CENTRE, AND BOTH SET PIECES COUNT.** `hintText()`
   returns null inside the black hole *and* inside the star dive. This was
   described in that function's comment and implemented for only one of them,
