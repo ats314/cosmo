@@ -75,6 +75,30 @@ exactly 0 below level 4's floor, and the twin ceiling carries an explicit
 level 3's board complexity — a difficulty change nobody asked for — which is
 why the gate is there.
 
+Three curves were re-anchored after that pass, all three for the same
+written-as-a-number-not-a-rule failure:
+
+- **The telegraph decay lives in HEAT DEATH now, not in REDSHIFT.** The
+  second `warnTime` ramp holds 1.00 through dl 610 — the endless level's
+  floor, derived from `LV` rather than written as a literal — and eases to
+  0.86 by ~dl 790. The old ease ran dl 460–640, written when everything past
+  dl 340 was the endless exam and never re-anchored when dl 470–610 became
+  REDSHIFT, a *teaching* level: 78% of the total telegraph decay landed
+  inside the level that introduces THE NARROWS, while the level the curve
+  exists for got a flat tail. 0.86s is still about three radians of travel
+  between arming and lethal, so the telegraph stays a telegraph.
+- **The shard-cap steps moved off the lesson windows.** 9→10 and 10→11 sat at
+  dl 420 and 540 — 25 and 20 difficulty-seconds after the DIVERS (395) and
+  NARROWS (520) banners, a density step in the middle of each new formation's
+  own introduction. They sit at 445 and 575 now; the later steps (11→12 at
+  650, on to 15 past 1080) and the gap floor (0.80 decaying from dl 340 to
+  0.50) are unchanged.
+- **The drop's escalation is clamped under its own meter.** `dropNeed()` tops
+  out at 2.75 against the meter's 2.9 cap: the unclamped +0.8-per-drop curve
+  crossed the cap at the fourth drop, so after three drops the game's stated
+  centrepiece could never arm again — 420s of strong play armed exactly
+  three. The drop always re-arms now; the audio record has the economy.
+
 ## One mode, and the table that survives it
 
 ### CHILL is retired for now
@@ -139,7 +163,13 @@ prevent. The lab door stays exactly as it was; it was never a card.
 
 ## Where you start
 
-The screen after the title picks the starting level. All six are selectable on any device, including levels never
+The screen after the title picks the starting level — from the second run on.
+A fresh device skips it: START (after the once-ever swipe chooser) goes
+straight to level 1's card, because a player with zero runs has nothing to
+pick with, and offering EVENT HORIZON and HEAT DEATH to someone who has never
+touched the game was two decisions and four screens before their first second
+of play. One run, however short, opens the picker — which also preserves its
+testing job. All six are selectable on any device, including levels never
 reached — the screen exists so a level can be reached without playing to it,
 which is what makes testing level 4 possible at all. Rows the device has
 actually got to are marked *reached*, so picked and earned stay visibly
@@ -201,12 +231,14 @@ one chord for as long as the panel is up.
 
 ## POWERUP TESTING
 
-Under the two mode cards is a third option, and it is deliberately not a third
-mode. Five of the six orbs sit behind a curriculum ladder, and the sixth —
+Under the title screen's key rows is the POWERUP TESTING bar, and it is
+deliberately not a mode (it was "under the two mode cards" when the cards
+existed; retiring chill did not make it a second row, which is the test of
+it). Seven of the eight orbs sit behind a curriculum ladder, and the eighth —
 the black hole — is rare on purpose: three `blackhole_entered` events in the
 game's entire recorded history, every one of them on level 4. Finding out what
 an orb actually feels like meant playing until the game decided to hand you
-one. The bar opens a picker of all six; choosing one starts a run where that
+one. The bar opens a picker of all eight; choosing one starts a run where that
 orb, and only that orb, arrives every few seconds.
 
 The board it arrives on is quiet and stays quiet. `dl()` — the difficulty

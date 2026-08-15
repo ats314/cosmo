@@ -8,11 +8,13 @@ Part of the [Cosmo design record](../../README.md#where-everything-is).
 
 Every one of these can be tried on demand from the title screen's POWERUP
 TESTING bar — see [POWERUP TESTING](difficulty.md#powerup-testing). It exists because the
-list below is gated: three are introduced on level 1, one on level 2, one on
-level 3, and the black hole is deliberately rare enough that it had been
+list below is gated: three are introduced on level 1, one on each of levels 2
+through 5, and the black hole is deliberately rare enough that it had been
 entered three times in the game's whole recorded history.
 
-- **Shield** (green) — banked, up to 3. Taking a hit spends one automatically
+- **Shield** (green) — banked, up to 3 at first; the cap steps to 4 and 5 on
+  the difficulty clock, and the crossing announces itself (BANK DEEPER).
+  Taking a hit spends one automatically
   but knocks you off your orbit. Never more than three power-ups pass without
   a shield.
 - **Slow-mo** (violet) — 4 seconds at 55% speed.
@@ -20,8 +22,12 @@ entered three times in the game's whole recorded history.
   and the streak pays (playtester-designed, near-verbatim): while shields
   are full, embers and on-beat taps pay DOUBLE, the pips ring gold, and
   every overflow shield is worth +50 ("OVERCHARGED") instead of a token
-  +2. Reaching full announces it: "SHIELDS FULL — everything pays
-  double."
+  +2. Reaching full announces it: "SHIELDS FULL — stars pay double" —
+  stars, not "everything", because the orbit payout (the game's largest,
+  up to 86) is untouched. The line waits until the red shard's lesson has
+  landed on the device: announcing an economy nuance at fourteen seconds of
+  a first-ever run, before the player knows what a shield is for, was the
+  firehose's loudest sentence. The shimmer still marks the state either way.
 - **Spotlight** (white/violet) — four bars where YOU are the lead, on an
   actual stage: the house dims under the arena, a followspot beam and a
   pool of light pin the comet, stars and tight taps pay double, your
@@ -30,15 +36,22 @@ entered three times in the game's whole recorded history.
   1.5 seconds. A performance, not a transaction. (It replaced the Echo
   orb, which the loop recorder made redundant, and which the playtest
   didn't love.)
-- **Hypernova** — the gold star (the playtest group asked for "a star in
-  Mario", so it is one, drawn plainly). Sixteen beats of invincibility at
+- **Hypernova** — the pink star (the playtest group asked for "a star in
+  Mario", so it is one, drawn plainly — in `COL.hyper`'s magenta, `#ff4fd8`,
+  because gold is the embers' colour and a sentence pointing at "the gold
+  star" sent players hunting the most common object on screen). HYPERNOVA is
+  its one name in every channel now — the lesson, the pickup popup, the say
+  line, the HUD chip and the lab row — after shipping as "the pink star" in
+  one channel and HYPERNOVA in the rest, renamed mid-encounter on its own
+  guaranteed introduction. Sixteen beats of invincibility at
   nearly double speed: the kit doubles to sixteenths, the room floods
-  gold, and every red you plow through converts into a paying ember on
-  your lane — fast contacts play an ascending sixteenth run, so carving
+  magenta-white, and every red you plow through converts into a paying ember
+  on your lane — fast contacts play an ascending sixteenth run, so carving
   through a full lane IS a melody. The speed eases in over a third of a
   second and back out over the final 1.4 seconds, with a short
   invulnerability grace after it fades, so the star never dumps you at
-  double speed into an armed shard. Everything pays double while it burns.
+  double speed into an armed shard. Stars and tight taps pay double while it
+  burns — the orbit payout, as everywhere, is untouched.
 
   **And the song gets a star tune**, which is what the playtest was really
   asking for. Doubling the kit is a *texture* change — the same song, busier.
@@ -122,11 +135,20 @@ entered three times in the game's whole recorded history.
   Warm orange and deliberately not warm red: red belongs to death alone.
 
 The musical orbs join the spawn rotation after the intro curriculum
-(shield → slow-mo → nova) has run, each named by a first-encounter hint.
-On level 2 and up the FIRST placement after the curriculum is the
-hypernova, guaranteed, once per run — at a 10% roll the marquee item was
+(shield → slow-mo → nova) has run — once per RUN, on its own counter, so a
+level boundary never replays it — each named by a first-encounter hint.
+The guarantees are spread across the run now, one home level each: the
+hypernova's first placement is guaranteed on level 2, the spotlight's on
+level 3, THE MIRROR's on level 4 and scorch's on level 5, each once per run —
+because at a 10% roll the marquee item was
 optional content again (a 6000-point run met zero), which is the exact
-disease the curriculum exists to cure. The shield-pity rule is unchanged:
+disease the curriculum exists to cure. A run picked into a later start opens
+with the earlier homes pre-spent, so a 1→6 climb meets each guarantee exactly
+once, on its home level, and a level-5 start is not owed four marquee
+placements in its first minute. The fallback roll behind the guarantees
+respects the same level floors — shield, slow-mo and nova always, hypernova
+from level 2, the spotlight from 3, the mirror from 4, scorch from 5 — with
+the shares renormalised proportionally. The shield-pity rule is unchanged:
 never more than three placements without one.
 
 ### THE BASS BOMB IS REMOVED
@@ -142,10 +164,27 @@ board instead of all of it, with no invulnerability, at the same rotation odds.
 Its clear region — a ±60° wedge across every ring — was never drawn, so the
 `LONG FUSE` upgrade widened an invisible number. Two orbs occupying one job,
 one of them inferior and illegible, is one orb too many; the nova keeps the
-job. `LONG FUSE` goes with it, leaving seven upgrade tiles, and the bomb's
+job. `LONG FUSE` goes with it — leaving seven upgrade tiles at the time;
+`LONG MIRROR` and `DEEP BURN` have since brought the draft back to nine — and
+the bomb's
 0.15 share of the spawn roll is redistributed proportionally across the
 remaining five — the magnetar's precedent, both times: removal changes what
-can appear, not how often the others appear relative to each other.
+can appear, not how often the others appear relative to each other. The
+mirror and scorch joined by the same rule run in reverse: the five existing
+orbs keep their ratios exactly and the two new ones take a flat share off
+the top.
+
+### The draft cannot run dry
+
+Nine tiles, three offered at each of the five level boundaries — fifteen
+slots against nine tiles, which is the arithmetic that broke the old rule.
+`rollOffer` used to burn every tile it had ever *offered*, taken or not;
+harmless when three levels meant two draws, but over five draws it left the
+level-5 and level-6 cards drawing from an empty pool, so the two levels added
+most recently were the two the draft skipped. TAKEN upgrades still never
+repeat — a pick is spent — but a DECLINED tile may return once the fresh pool
+runs thin, so early draws stay as varied as they ever were and the late cards
+are never blank.
 
 ### THE SPOTLIGHT FINALLY LIGHTS THE STAGE
 
@@ -165,7 +204,11 @@ the state reads with the sound off, where `G.beat` never moves), and a
 violet timer ring around the comet empties clockwise, blinking through
 the last 1.5s — the hypernova's playtest lesson applied before a second
 playtester had to teach it. The claim is true now too: the tight-tap
-garnish doubles (16 against the standing states' 8), and every ember
+garnish doubles (16 against the standing states' 8), and the ×2 composes
+with a payoff section rather than being outranked by it — during a section
+a tight tap pays 8·secMult·2, because the section branch used to win
+outright and a lit "SPOTLIGHT ×2" chip spent the overlap paying half what
+the same tap paid seconds earlier. Every ember
 popup prints what the score actually paid — a fix that repairs the same
 lie for overdrive, hypernova and overcharge, which had all been adding
 2× while printing 1×. The lesson rewords to what is countable: "the

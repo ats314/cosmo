@@ -12,13 +12,17 @@ on every death (score, game level, run length, death cause, the two-verb usage
 counts and the swipe-misread rate — the "did the teaching land" numbers),
 `level_cleared` on every finish line (with the Star Dive tally, 11 being
 the perfect ending), and `share_tapped`. **One name per ordinal:**
-`game_level` is the 1–3 level on every event that carries it, and the
-ten-rung unlock ladder is only ever `tier`. `run_ended` used to send `level`
+`game_level` is the 1–6 level on every event that carries it, and the
+thirteen-rung unlock ladder is only ever `tier` — with `tier_name` beside it
+on `run_ended`, from `tierLabel()`, which is the one channel where the rung's
+name still prints now that the HUD, death screen and share text all carry the
+level's own name. `run_ended` used to send `level`
 holding `tier + 1` while `level_cleared` sent `level` holding 1–3 — one
 property name, two scales, two events. The ambiguous name is retired rather
 than redefined, so no historical row silently changes meaning; `tier` carried
-the same number all along. The two difficulty modes ride on every event as
-`play_mode` — with a second mode, deaths would otherwise average into one unreadable
+the same number all along. `play_mode` rides on every event — one mode ships
+today, CHILL being retired, but the property stays: without it a second mode's
+deaths would average into one unreadable
 completion rate, exactly as the two swipe rules would — and it is deliberately
 **not** called `mode`, because `swipe_mode_chosen` has always carried the swipe
 rule under that name and reusing it would rewrite what every historical row of
@@ -75,7 +79,7 @@ has ever been to enter the mode, and none of those entries reach the data — so
 `blackhole_entered` keeps meaning "a player met one in a real run", which is
 the only reading its failure rate is worth anything under. Exactly one name is
 allowed through, `powerup_lab_started`, carrying which orb was picked and
-whether the ghost was on; which of the six anybody actually wants to look at
+whether the ghost was on; which of the eight anybody actually wants to look at
 is the one thing about a lab session worth counting. There is deliberately no
 analytics SDK: events are plain POSTs to the capture API (sendBeacon
 first, so a death recorded as the tab closes still gets out; keepalive

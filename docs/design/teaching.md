@@ -59,9 +59,11 @@ red.
   object (`a shield takes one hit for you`); "this one" names nothing, and the
   powerup lab copies these strings verbatim by design, so it inherited the
   vagueness.
-- **`play well — you're building toward a beat drop`** → **`gather sparks, tap
+- **`play well — you're building toward a beat drop`** → **`gather stars, tap
   in time — a drop is coming`**. The only row in the ladder that asked for
-  something a player cannot perform. Every other row names an input.
+  something a player cannot perform. Every other row names an input. (First
+  reworded with "sparks"; it says "stars" now — the one-voice pass made
+  "star" the only player-facing word for the collectible.)
 
 ### The menu demonstrates both verbs
 
@@ -146,11 +148,15 @@ copy:
   counters carry now: sums for orbits and drops, max for the streaks, and the
   clock spans the run. Verified: 3 levels + 30s reads **5:15**, not 0:30.
 - **`TIERS[9]` was named `STORM`,** which is also `LV[2].name` (`THE STORM`).
-  Its `sub` can never render, but its *name* is the only label `tierLabel()`
-  can return on level 4 — so every level-4 run printed `LEVEL 4 · STORM` in the
-  header, on the death screen and in the share text, seconds after the card
-  named the level EVENT HORIZON. Renamed to `THE EYE`; deleting it would fail
-  `smoke.mjs`, which asserts the last tier sits on level 3's finish line.
+  Its `sub` can never render, but its *name* was the only label `tierLabel()`
+  could return on level 4 — so every level-4 run printed `LEVEL 4 · STORM` in
+  the header, on the death screen and in the share text, seconds after the card
+  named the level EVENT HORIZON. Renamed to `THE EYE` — and since moved with
+  the six-level ladder to dl 610, level 6's floor; deleting it would fail
+  `smoke.mjs`, which asserts the last tier's `at` equals the exam level's
+  floor, the last finish line. The channel collision itself was later closed
+  for good: `tierLabel()` speaks only in telemetry now, and the header, death
+  screen and share text print the level's own name.
 
 And six wordings:
 
@@ -160,8 +166,8 @@ And six wordings:
 | SHIELDS FULL — **everything** pays double | SHIELDS FULL — **stars** pay double | the orbit payout, up to 86, is untouched |
 | combo — each star pays more than the last | combo — chain stars, **up to +6 each** | the chain caps at 6 and the lesson fires at 3 |
 | red starts arriving in shapes | red starts blocking whole rings | twins unlock at dl 18, inside level 1 |
-| next sound: X at **level 7 / 10** | next sound: X — keep climbing | those are tier rungs, on a four-level ladder |
-| LAPS **×**7 | LAPS 7 IN A ROW | the streak bonus saturates at five laps |
+| next sound: X at **level 7 / 10** | next sound: X — keep climbing | those are tier rungs, which the player is never told as numbers |
+| LAPS **×**7 | ORBITS 7 IN A ROW | the streak bonus saturates at five laps — and "orbit" is the one player-facing word for the act now, so the chip stopped saying LAPS too |
 
 Two more, from the bug hunt rather than the copy audit. `shieldMax()` steps
 3→4→5 on the difficulty clock, so a bank sitting full silently stopped being
@@ -216,7 +222,8 @@ together and stop being readable.
 
 **Nine tiles the player chose between, and not one of them did anything.**
 (Nine at the time — `WIDE PULL` went with the magnetar and `LONG FUSE` with
-the bass bomb, so there are seven now.) The
+the bass bomb, dropping the count to seven; `LONG MIRROR` and `DEEP BURN`,
+one per new orb, have since brought it back to nine.) The
 same audit found `upgOn` — the accessor every upgrade effect was supposed to go
 through — with **zero call sites in 7,257 lines**. Each of the nine ids
 appeared exactly once in the file: in its own row of the `UPG` table. `G.upg`
@@ -240,6 +247,8 @@ All nine are wired now, each verified to change the value it claims to:
 | HAIR TRIGGER | meter 1.0 | 0.85 |
 | STAGE LIGHT | 9.2s | 13.8s |
 | STEADY HAND | 0.032s | 0.045s |
+| LONG MIRROR | 8 beats (4.6s) | 14 (8.1s) |
+| DEEP BURN | 8s | 13s |
 
 Two of the descriptions were wrong even once wired, and changed with them.
 *"slow-mo slows spawns"* sold the base game back to the player — slow-mo
@@ -293,10 +302,12 @@ rather than the synchronisation: it fails the build if an ember or an orb is
 given a `.pr` again, or if `starR()` returns without the guard that has to come
 with it. Verified by reintroducing the assignment and watching the build fail.
 
-`WIDE PULL` goes with it, leaving eight upgrade tiles. Magnetar's share of the
-orb spawn roll is redistributed proportionally across the remaining six orbs,
-so removing it changes what can appear without changing how often the others
-appear relative to each other.
+`WIDE PULL` went with it, leaving eight upgrade tiles at the time. Magnetar's
+share of the
+orb spawn roll was redistributed proportionally across the six orbs that
+remained,
+so removing it changed what could appear without changing how often the others
+appeared relative to each other.
 
 
 ### The teaching says one thing, and it is true
@@ -383,7 +394,8 @@ the standing argument for putting eyes on the actual pixels.
 ### Every formation teaches itself on first contact
 
 The first time a twin,
-gate, drifter, blinker, sliding gate or flicker pair ever spawns on a device,
+gate, drifter, blinker, sliding gate, flicker pair, saucer, diver or narrows
+ever spawns on a device,
 time dilates for about three seconds, further spawns hold, and the one
 relevant sentence sits dead centre with its glyph while the new thing is
 actually on screen — "every ring is blocked — tap to turn around" arrives while
@@ -435,16 +447,26 @@ note"), the first on-beat tap names the timing game ("tap as the ring
 lands and the chain climbs" — it points at the one object that shows the
 beat), the first ×3 names the combo, ×8 says what the summit bought, and
 the level 1 card carries the promise up front. All soft lessons —
-sentences, never slow-mo.
+sentences, never slow-mo. And they yield: a soft reward lesson waits until
+the red shard's lesson has landed on this device — deferred, not spent, so
+each returns at its next trigger — because measured on a fresh device the
+reward curriculum filled the first half-minute while the one sentence about
+the thing that kills landed at 44 seconds. The SHIELDS FULL say-line waits
+behind the same gate.
 
 ### Hard lessons are a held breath now
 
 The first-encounter slow-mo ran at
 0.35x — the new threat was explained over a board still visibly in motion.
 A 'see' lesson now runs near-frozen (0.06x) under a dim veil with the
-specimen wearing a breathing gold ring: one thing lit, one sentence,
-nothing else asking for the eye. The hop rehearsal keeps 0.35x (it needs a
-world to practice against) and the music never stops either way.
+specimen wearing a breathing cool-white ring: one thing lit, one sentence,
+nothing else asking for the eye. (Cool white, not gold — gold is the embers'
+colour, and a lesson ring should not dress its specimen as a reward.) The hop
+rehearsal keeps 0.35x (it needs a
+world to practice against) and the music never stops either way. And the tier
+ratchet defers while the freeze runs: a crossing may not announce the next
+formation over the near-frozen veil of the lesson before it, exactly as it
+already defers for a live banner, the finale and a black hole.
 
 ### No line ever runs off the screen
 
@@ -523,8 +545,17 @@ the exam.
 ### Every run introduces all three power-ups, in order
 
 The first three
-placements are shield, then slow-mo, then nova; only afterwards does the
-40/35/25 roll take over. Drawn independently at roughly one placement every
+placements are shield, then slow-mo, then nova — once per RUN, not per level:
+the trio rides its own counter (`G.introN`), reset only when a run starts, so
+a level boundary mid-climb no longer replays the introductions. The same rule
+covers the hint ladder's beginner rungs and the whole set of intro flags —
+beginner ceremonies fire once per run, never once per level. Only afterwards
+does the weighted roll take over, and it is floored by level now rather than
+flat — shield, slow-mo and nova always; hypernova from level 2, the spotlight
+from 3, the mirror from 4, scorch from 5 — with the shares renormalised
+proportionally, so a level-1 first run can no longer be handed the spotlight.
+The guaranteed opening exists because the roll alone failed: drawn
+independently at roughly one placement every
 twelve seconds, a 60-second run — which is most runs — saw two power-ups and
 had better than even odds of never meeting slow-mo or nova at all. Two of the
 three most interesting objects in the game were optional content. Slow-mo and

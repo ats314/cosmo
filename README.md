@@ -40,11 +40,11 @@ tried and abandoned. Read the one you are about to change.
 | Document | What it covers |
 |---|---|
 | [`docs/design/difficulty.md`](docs/design/difficulty.md) | The difficulty clock, the `MODES` knob table, where a run starts, and pause. |
-| [`docs/design/levels.md`](docs/design/levels.md) | The six levels, what each is for, and the black hole that spans two of them. |
+| [`docs/design/levels.md`](docs/design/levels.md) | The six levels, what each is for, and the black hole that runs from level 3 on. |
 | [`docs/design/ladders.md`](docs/design/ladders.md) | `G.tier` unlocks, `G.level` is what the player is told — and why they are never the same word. |
 | [`docs/design/teaching.md`](docs/design/teaching.md) | The curriculum, the death coach, lesson wording, and every channel that explains a mechanic. |
 | [`docs/design/powerups.md`](docs/design/powerups.md) | The orbs, the upgrade draft, and why a tile that does nothing is worse than a bad one. |
-| [`docs/design/audio.md`](docs/design/audio.md) | The bus, the drop, four keys, verse and chorus, and why every pitch is an interval. |
+| [`docs/design/audio.md`](docs/design/audio.md) | The bus, the drop, six keys, verse and chorus, and why every pitch is an interval. |
 
 ### The engine — how it actually works
 

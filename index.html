@@ -370,8 +370,15 @@ const WORLDS=[
    on its own. It is deliberately far slower than the orbit route: the point
    is that orbiting is how you travel, not one of two ways. */
 const ORB_PER_WORLD=7, ORB_WORLD_SECS=150;
-/* which world each level opens on, as a FLOOR on the journey — see startGame */
-const LEVEL_HOME=[0,1,5,3,2,7];   /* DRIFT TIDE VEIL EMBERFALL GLASS DEEPFIELD */
+/* which world each level opens on, as a FLOOR on the journey — see startGame.
+   NONDECREASING, because the floor is a Math.max over a journey that never
+   goes backwards: the previous order (0,1,5,3,2,7) put level 3's home PAST
+   levels 4 and 5's, so for anyone who climbed there the max() was a no-op and
+   EMBERFALL and GLASS were homes no carried run could ever see — the
+   "guaranteed distinct opening image" comment was false for exactly the
+   players it was written about. DUSTLANE and GRID stay journey-only
+   discoveries, which is what makes orbiting between homes worth something. */
+const LEVEL_HOME=[0,1,2,3,5,7];   /* DRIFT TIDE GLASS EMBERFALL VEIL DEEPFIELD */
 /* Contrast moderation in the annulus the orbits occupy — see the red-ban note
    above. 0 disables it and gives the unmoderated sky. */
 const SKY_ARENA_CALM=0.10;
@@ -1423,6 +1430,15 @@ function buildBed(){
       brk:0,brkN:0,brkCool:0,brkEnd:false, /* the drum break: eighths left, count, gate, crash-due */
       glow:0};      /* afterglow: the payoff leaves every gate open until this audio time */
 }
+/* THE SUB REGISTER TURNS AROUND AT 40Hz. Every fixed low interval keeps the
+   register A minor chose, and the six keys descend a whole tone each — so by
+   REDSHIFT and HEAT DEATH the drop's boom (f*0.374577) had fallen to 26 and
+   23Hz and the tonic-half drones to 35 and 31Hz: below what any phone
+   reproduces AT ALL, so the game's biggest hits were literally silent on the
+   two newest levels. Octave-doubling below 40Hz keeps the pitch class (a sub
+   an octave up is the same note with actual air behind it) — the same
+   register turnaround the basslines already got by hand. */
+function subF(f){while(f<40)f*=2;return f;}
 /* One-shot musical voice. Separate from beep() because music needs a filter
    and a longer tail, and because it must route through the bed's duck so a
    nova pushes the score out of the way along with everything else. */
@@ -1659,7 +1675,14 @@ const BUILD_SRC={ember:'GATHERING SPARKS',hop:'WORKING THE RINGS',
    worth the same 15% forever. */
 const DROP_STEP=0.8, DROP_STEP_MAX=4;
 function dropNeed(){
-  return (1+DROP_STEP*Math.min(DROP_STEP_MAX,G.dropsEarned))*(upgOn('hairtrig')?0.85:1);
+  /* CLAMPED UNDER THE METER'S OWN CEILING. build() caps G.build at 2.9, and
+     the unclamped escalation crossed it at the fourth drop ((1+0.8·4)=4.2) —
+     so after three drops the meter could never arm again and the game's
+     stated centrepiece ("it always comes around, worst case ~50s") was
+     silently over for the rest of the run. Measured: 420s of strong play
+     armed exactly 3. The ceiling keeps the escalation it can actually pay. */
+  return Math.min(2.75,
+    (1+DROP_STEP*Math.min(DROP_STEP_MAX,G.dropsEarned))*(upgOn('hairtrig')?0.85:1));
 }
 function build(amount,src){
   if(!MU||G.state!=='playing')return;
@@ -1844,7 +1867,7 @@ function fireDrop(t){
      Written as intervals over the level's tonic now, which is what was always
      meant — CH[0][0] is 110 on level 1, so level 1 is unchanged. */
   const f=CH[0][0];
-  note(f*0.5,t,0.55,'sawtooth',0.045,620);        /* headphone weight only */
+  note(subF(f*0.5),t,0.55,'sawtooth',0.045,620);  /* headphone weight only */
   note(f,    t,0.60,'sawtooth',0.055,2600);
   note(PENT[8],t,0.45,'square',0.034,6000,-0.22);
   note(PENT[5],t,0.45,'square',0.034,6000, 0.22);
@@ -1853,7 +1876,7 @@ function fireDrop(t){
      sub boom under the crash — headphone weight — its octave for the phone
      speaker, and a long dark wash so the hit has a tail instead of an edge.
      The fifth BELOW the tonic, an octave and a fourth down: 2^(-17/12). */
-  note(f*0.374577,t,0.90,'sine',0.060,320);
+  note(subF(f*0.374577),t,0.90,'sine',0.060,320);
   note(f*0.749154,t,0.70,'triangle',0.050,700);
   hat(t,0.030,900,0.9,0.6);
   /* the braam: a fifth-stack brass bloom swelling out of the impact — the
@@ -2123,7 +2146,9 @@ function musicStep(i,t,k){
       MU.sectAt=MU.barN;
       if(wantB&&G.state==='playing'){
         G.chorusN++;
-        if(!G.saidChor){G.saidChor=true;say('THE SONG LIFTS — chorus',2,8);}
+        /* name — gloss, the say channel's one grammar ("SCORCH — your wake
+           burns"); this had them swapped, the only line in the channel that did */
+        if(!G.saidChor){G.saidChor=true;say('CHORUS — the song lifts',2,8);}
       }
     }
   }
@@ -2473,7 +2498,11 @@ function musicStep(i,t,k){
        half-beats once the run is warm. The level with no finish line is the
        one that never stops driving. */
     if(beat%2===1)hat(t,0.012,3600,0.15,0,0.35,6400);
-    if((k>0.25||hot)&&(beat===2||beat===6))kick(t,0.030);
+    /* rg2<2: the inner-ring kit already owns the 2/6 kick slots (rg2>=2
+       above), and two kick oscillators in one timeslot is the doubled-drum
+       mud the chorus lean was rewritten to avoid — the level kick yields the
+       way L3's does with its ringOf()===0 guard */
+    if((k>0.25||hot)&&rg2<2&&(beat===2||beat===6))kick(t,0.030);
     if((k>0.45||hot)&&beat===7)snare(t+S16,0.022,0.28);
   }
   /* L5 PUTS THE 3+3+2 IN THE KIT TOO. Its bassline leans on eighths 0, 3 and
@@ -2497,7 +2526,8 @@ function musicStep(i,t,k){
   if(G.level===6){
     hat(t,0.008,3800,0.10,0,0.25,6600);
     if(k>0.25||hot)hat(t+S16,0.006,4400,0.055,0,0,7200);
-    if(beat===2||beat===6)kick(t,0.032);
+    /* same slot yield as level 4's kick above: the inner-ring kit owns 2/6 */
+    if(rg2<2&&(beat===2||beat===6))kick(t,0.032);
   }
   /* THE CHORUS LEAN — the genre's chorus recipe, at this band's scale: the
      open offbeat hat arrives (levels 1-3; level 4 rides one all game, so its
@@ -2564,7 +2594,7 @@ function musicStep(i,t,k){
      loop into a drone with harmony moving over the top, which is the whole
      point of a pedal point. Every other level keeps the bar's own root. */
   if(G.score>=LAYER_AT[2]&&beat===0)
-    note((G.level===4?CH[0][0]:ch[0])/2,t,1.5,'triangle',0.020,300,0);
+    note(subF((G.level===4?CH[0][0]:ch[0])/2),t,1.5,'triangle',0.020,300,0);
   if(G.score>=LAYER_AT[3]&&beat===7)
     note(PENT[11]*0.5,t+S16,0.22,'sine',0.010,3600,(bar%2)?0.35:-0.35,undefined,0.5);
   /* OVERDRIVE: eight bars of double-time — the eleventh notch. Every gate
@@ -2981,7 +3011,12 @@ function startBlackHole(){
      every ring unlock, every formation and the star dive. The mode that
      re-spaces the orbits, stops the band and opens a fourth ring got a 0.92s
      floating popup. Every noun in the sub is one the game has. */
-  G.banner={str:'BLACK HOLE',eyebrow:'EVENT HORIZON',
+  /* NOT "EVENT HORIZON": that is level 4's NAME, and the mode fires on levels
+     3, 5 and 6 too — a full-screen gold EVENT HORIZON over a HUD reading
+     LEVEL 3 named a level the player was not in. Two things cannot share a
+     name; the level keeps this one (the HORIZON +N bonus inside the mode is
+     unaffected — a black hole owns its horizon anywhere). */
+  G.banner={str:'BLACK HOLE',eyebrow:'SINGULARITY',
     sub:'everything slows — the reds pile up — a fourth ring',t:0};
   /* a live hard lesson would otherwise run the reveal at 6% speed behind a
      dim veil — the finale already flushes for exactly this reason */
@@ -3324,7 +3359,12 @@ function judgeTiming(x,y){
        pays — not just climbs — multiplied by a perfect landing. Playing
        through the drop is the skill; nothing asks you to stop. */
     if(MU&&MU.pay>0){
-      const ex=8*(G.secMult||1);
+      /* THE SPOTLIGHT'S DOUBLE SURVIVES A SECTION. This branch outranks the
+         standing states, and a section without a perfect landing runs at
+         secMult 1 — so for its whole overlap a lit "SPOTLIGHT ×2" chip paid
+         8 a tap, half what the same tap paid seconds earlier. The chip is a
+         promise; the term keeps it inside the section too. */
+      const ex=8*(G.secMult||1)*(G.spot>0?2:1);
       G.score+=ex;G.secScore+=ex;G.scorePop=Math.max(G.scorePop,0.6);
     }else if(G.od>0||G.spot>0||G.hyper>0||G.shields>=shieldMax()||MU.sect===1){
       /* riding the CHORUS pays like the other standing states: the section
@@ -3790,15 +3830,19 @@ const PENT_BASE=PENT.slice();
    5 and 6 are where that stops being free. LV[].key scales the SFX pentatonic
    and by level 6 it is 0.5612, which puts PENT[0] on B3 at 247Hz against
    level 1's A4 — fine for the effects layer. The BASS is where it breaks:
-   PROG's roots are written absolutely, and continuing the literal descent
-   would have put level 6's tonic at 61.7Hz, below what a phone speaker
-   reproduces at all, with its third and fifth buried under level 4's. So
-   levels 5 and 6 voice their roots UP an octave from where the straight
-   descent would land them. The pitch CLASS keeps descending, which is what
-   the ear actually tracks, while the register turns around — the same thing a
-   bass player does walking a line down and jumping back up to keep playing.
-   musiccheck.mjs pins a 60Hz floor under every chord tone in PROG and PROGB
-   so the next key added cannot quietly fall through it. */
+   PROG's roots are written absolutely and level 6's tonic IS the literal
+   descent, 61.74Hz — the turnaround happens in the ARRANGEMENT, not in this
+   table. Level 6's bassline rides ch[1] an octave up and touches ch[0] only
+   on the downbeat (see its row), and every dedicated SUB voice — the drop's
+   boom, the payoff floor, the braam, the layer-three drone — passes through
+   subF(), which octave-doubles anything below 40Hz. The pitch CLASS keeps
+   descending, which is what the ear actually tracks, while the sounding
+   register turns around — the same thing a bass player does walking a line
+   down and jumping back up to keep playing. (An earlier version of this
+   comment claimed the tables themselves were voiced up an octave and that
+   musiccheck pinned a 60Hz floor; neither was true — the tables descend,
+   and the floor that exists is subF's 40Hz turnaround, which musiccheck's
+   sub-drone check now tracks.) */
 /* THE CURRICULUM RULE, REBUILT FOR SIX LEVELS. The owner's call on what
    levels 5 and 6 should introduce was "complete overhaul from the ground up",
    and this is the rule that overhaul lands on.
@@ -3875,15 +3919,22 @@ const LV=[
     DIVERS unlock here, at dl 395. The black hole is guaranteed once, as it
     already was, and THE TWIN joins the rotation. */
  {dl0:340,end:470,name:'EVENT HORIZON', key:0.7071,
-  mech:[['shard','red changes ring in mid-air'],
-        ['warp','the black hole opens a fourth orbit']]},
+  /* CARD ROWS QUOTE THE LESSON, WORD FOR WORD where they can. The MEET
+     header's doctrine: one sentence per idea, and the same one every time —
+     three paraphrases of one sentence read as three rules, which is what
+     "there were like eight rules" was actually counting. The banner subs
+     already obey it; these rows were the stragglers. */
+  mech:[['shard','red changes ring — watch where it lands'],
+        /* "ring", not "orbit": the track is a ring in every lesson and banner
+           (SECOND RING, "one ring is open"), and orbit is the scoring word */
+        ['warp','the black hole opens a fourth ring']]},
  /* REDSHIFT — Db minor. The name is the mechanic: everything here is running
     away from you and stretching as it goes. It carries the last formation the
     game teaches (THE NARROWS, dl 520) and the last orb (SCORCH), so the
     syllabus finishes on its finish line and HEAT DEATH opens owing nothing. */
  {dl0:470,end:610,name:'REDSHIFT', key:0.6300,
-  mech:[['swipe','one ring stays open — go to it'],
-        ['star','your wake burns behind you']]},
+  mech:[['swipe','one ring is open — swipe to it'],
+        ['star','scorch — keep moving, your wake burns red away']]},
  /* HEAT DEATH — B minor, and the whole-tone lap closes one whole step above
     the A it started on. THE LEVEL THAT DOES NOT END, and the only one, which
     is the property level 4 gave up. Nothing new arrives: everything the game
@@ -3992,7 +4043,7 @@ const LAB_ORBS=[
  {id:'warp',     n:'SLOW-MO',   d:'the whole board slows down'},
  {id:'nova',     n:'NOVA',      d:'every red on screen becomes a star'},
  {id:'spot',     n:'SPOTLIGHT', d:'the light is on you: stars and taps pay double'},
- {id:'hyper',    n:'PINK STAR', d:'untouchable and fast'},
+ {id:'hyper',    n:'HYPERNOVA', d:'untouchable and fast'},
  {id:'mirror',   n:'THE MIRROR', d:'a second you, gathering the far side'},
  {id:'scorch',   n:'SCORCH',     d:'keep moving, your wake burns red away'},
  {id:'blackhole',n:'BLACK HOLE',d:'everything slows, the reds pile up'}
@@ -4337,7 +4388,7 @@ function applyLevelMusic(){
 function braam(g,pan){
   if(!AC)return;
   const f=CH[0][0],t0=AC.currentTime;
-  note(f*0.375,t0,0.9,'sine',g*1.1,320);
+  note(subF(f*0.375),t0,0.9,'sine',g*1.1,320);
   swellPad(f,t0+0.01,1.4,g,pan||0);
   swellPad(f*1.5,t0+0.01,1.4,g*0.75,(pan||0)+0.15);
 }
@@ -4722,14 +4773,24 @@ function speedAt(){
    had none. A run ending at dl 420 sees none of it. */
 function warnTime(){
   const d=dl();
-  /* 1.00s held to dl 460, then eased to 0.86 by dl 640. At level-4 speeds that
-     is still about three radians of travel between arming and lethal, so the
-     telegraph stays a telegraph. It never goes below 0.86: the whole game
-     rests on being able to READ a shard before it bites. */
-  /* the mode's trim multiplies the finished value, so chill's floor is 1.12s
-     rather than 0.86 — the telegraph is the thing a relaxed player is most
+  /* 1.00s held through the last finish line, then eased to 0.86 over the
+     endless level's first three minutes. The ease used to run dl 460→640,
+     which was written when everything past dl 340 was the endless exam — and
+     was never re-anchored when dl 470–610 became REDSHIFT, a TEACHING level:
+     78% of the total telegraph decay landed inside the level that introduces
+     THE NARROWS, while HEAT DEATH — the level this curve exists for — got a
+     flat tail. Anchored to the boundary now (LV, not a literal, which is how
+     the shard-cap comment says this class of number goes stale), so the
+     decay lives where the "exam keeps asking" argument actually applies.
+     At those speeds 0.86s is still about three radians of travel between
+     arming and lethal, so the telegraph stays a telegraph; it never goes
+     below 0.86, because the whole game rests on being able to READ a shard
+     before it bites. */
+  /* the mode's trim multiplies the finished value, so an easier mode's floor
+     sits above 0.86 — the telegraph is the thing a relaxed player is most
      short of, and it is the one term where more is unambiguously easier */
-  return MD().warn*Math.max(0.86,Math.min(Math.max(1.0,2.35-d*0.0042),1.0-(d-460)*0.00078));
+  const examDl=LV[LEVEL_MAX-2].end;   /* the endless level's floor: dl 610 */
+  return MD().warn*Math.max(0.86,Math.min(Math.max(1.0,2.35-d*0.0042),1.0-(d-examDl)*0.00078));
 }
 function shardCap(){
   const d=dl();
@@ -4749,8 +4810,14 @@ function shardCap(){
      along because the fix was written as a number rather than as a rule.
      Nothing below dl 420 moves: levels 1-3 are tuned, most runs end there, and
      this change is not for them. */
-  const n0=d<8?1:d<20?2:d<32?3:d<55?4:d<120?5:d<200?6:d<270?7:d<340?8:d<420?9:
-          d<540?10:d<650?11:d<780?12:d<920?13:d<1080?14:15;
+  /* the 10 and 11 steps sat at dl 420 and 540 — 25 and 20 difficulty-seconds
+     after the DIVERS (395) and NARROWS (520) banners, so both of the back
+     half's new formations got a density step in the middle of their own
+     lesson window. Nudged to 445 and 575: end-of-level values are identical,
+     and the step now waits for the lesson the way the ratchet waits for the
+     banner. */
+  const n0=d<8?1:d<20?2:d<32?3:d<55?4:d<120?5:d<200?6:d<270?7:d<340?8:d<445?9:
+          d<575?10:d<650?11:d<780?12:d<920?13:d<1080?14:15;
   /* the mode's density trim, floored at one: a board that can hold no threat
      at all is not an easier game, it is a screensaver */
   const n=Math.max(1,Math.round(n0*MD().cap));
@@ -5159,7 +5226,7 @@ function shieldMax(){const d=dl();return d<160?3:d<320?4:5;}
    Drawn without replacement, so no run ever offers the same card twice.
    `ic` draws the icon at the origin, sized for a 78u tile. */
 const UPG=[
- {id:'longstar',n:'LONGER STAR',d:'the pink star lasts longer',c:'#ff4fd8',
+ {id:'longstar',n:'LONGER STAR',d:'the hypernova lasts longer',c:'#ff4fd8',
   ic:function(g,c){g.fillStyle=c;starPath(g,15,6.4);g.fill();
     g.strokeStyle='#fff';g.lineWidth=2.6;g.lineCap='round';
     g.beginPath();g.arc(0,0,23,-Math.PI/2,Math.PI*0.95);g.stroke();}},
@@ -5183,7 +5250,7 @@ const UPG=[
   ic:function(g,c){g.fillStyle=c;g.beginPath();
     g.moveTo(-3,-20);g.lineTo(10,-3);g.lineTo(2,-1.5);g.lineTo(7,20);
     g.lineTo(-10,1.5);g.lineTo(-1.5,0);g.closePath();g.fill();}},
- {id:'stagelight',n:'STAGE LIGHT',d:'the spotlight lasts',c:'#b48bff',
+ {id:'stagelight',n:'STAGE LIGHT',d:'the spotlight lasts longer',c:'#b48bff',
   ic:function(g,c){g.fillStyle=c;g.globalAlpha=0.32;
     g.beginPath();g.moveTo(0,-14);g.lineTo(-18,21);g.lineTo(18,21);g.closePath();g.fill();
     g.globalAlpha=1;g.fillStyle='#fff';g.beginPath();g.arc(0,-16,6.4,0,TAU);g.fill();}},
@@ -5222,9 +5289,20 @@ function starPath(g,rr,ri){g.beginPath();
 const upgOn=id=>!!G.upg[id];
 /* Three from what is left, never repeating across a run. */
 function rollOffer(){
-  const pool=UPG.filter(x=>!G.upg[x.id]&&!G.offered[x.id]);
+  /* TAKEN upgrades never repeat; DECLINED ones may. The old !G.offered filter
+     burned every unpicked tile for the rest of the run, which was arithmetic
+     from the three-level era: five draws × three tiles = fifteen slots against
+     nine tiles, so the level-5 and level-6 cards drew from an empty pool and
+     the two levels added yesterday were the two levels the draft skipped.
+     Repeats-of-declined only enter once the fresh pool runs thin, so early
+     draws are as varied as they ever were. */
+  let pool=UPG.filter(x=>!G.upg[x.id]&&!G.offered[x.id]);
   const pick=[];
-  for(let k=0;k<3&&pool.length;k++)pick.push(pool.splice((Math.random()*pool.length)|0,1)[0]);
+  for(let k=0;k<3;k++){
+    if(!pool.length)pool=UPG.filter(x=>!G.upg[x.id]&&!pick.includes(x));
+    if(!pool.length)break;
+    pick.push(pool.splice((Math.random()*pool.length)|0,1)[0]);
+  }
   G.offer=pick;
   for(const o of pick)G.offered[o.id]=1;
 }
@@ -5244,6 +5322,7 @@ const G={
      of the number was never the problem. */
   vt:0,
   score:0,diff:0,best:0,newBest:false,scorePop:0,mile:0,
+  lastPopPaid:0,lastPopAt:-9,   /* the ember popup dedupe — see the pickup site */
   newLevel:false, /* did this run reach deeper than any before it */
   swipeAsked:false,selRects:[],selPt:null,selFx:0,selFrom:null,swipeRect:null,
   menuRects:[],menuPt:null,            /* the title screen's controls: START and the lab door */
@@ -5277,7 +5356,7 @@ const G={
   dropsEarned:0,loopN:0,nearN:0,bestCombo:0,holdTimeout:false, /* play-style aggregates for run_ended */
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
   stop:0, /* hitstop: freezes the comet while the celebration plays */
-  starT:0.6,spikeT:1.2,powT:6,powN:0,shake:0,flash:0,tier:0,banner:null,featT:0,
+  starT:0.6,spikeT:1.2,powT:6,powN:0,introN:0,shake:0,flash:0,tier:0,banner:null,featT:0,
   sauT:0,   /* earliest G.t another saucer may arrive — see saucerOK */
   runs:0,didReverse:false,didHop:false,didLap:false,
   teach:0,teachKind:null,teachHint:null,teachType:null,seen:{},seen2:{},campT:0, /* lessons + outer-ring camp clock */
@@ -5446,8 +5525,12 @@ function checkMile(){
     G.mile=Math.floor(G.score/250);
     ripple(cx,cy,COL.ember);
     cueTone(function(w){
-      beep(330,0.10,'triangle',0.05,392,w);
-      beep(440,0.12,'triangle',0.05,523,w+S16);
+      /* intervals over the level tonic, like every pitch that sounds
+         against the band — the literals were A-minor absolutes, in key on
+         one level of six. Written as ratios of the old values over level
+         1's 110Hz tonic, so level 1 is bit-identical. */
+      beep(CH[0][0]*(330/110),0.10,'triangle',0.05,CH[0][0]*(392/110),w);
+      beep(CH[0][0]*(440/110),0.12,'triangle',0.05,CH[0][0]*(523/110),w+S16);
     });
   }
 }
@@ -5683,7 +5766,11 @@ const MEET={
      most common thing on screen. The speed is 1+0.9*hv, eased in and out, so
      "double" rounded up on a value that spends a fifth of its life below even
      1.9x. */
-  hyper: {t:'the pink star — untouchable and fast',g:'star',soft:1},
+  /* ONE NAME PER OBJECT. This said "the pink star" while the pickup popup,
+     the say line and the HUD chip all said HYPERNOVA — the object was renamed
+     mid-encounter, seconds apart, on its guaranteed level-2 introduction.
+     The name leads and the colour stays as the pointer that finds it. */
+  hyper: {t:'hypernova — the pink star: untouchable and fast',g:'star',soft:1},
   /* NAMES WHAT IT DOES, NOT WHAT IT IS MADE OF. "a second comet" is a fact
      about the implementation; "it gathers and it shatters" is the two things
      the player will watch it do. Soft, because it is a pure reward — dilation
@@ -5710,7 +5797,12 @@ const MEET={
      unnamed mechanic: the payout popup is suppressed above speed 2.6 unless a
      streak is already building, so a player who found their rhythm early
      could orbit for a whole run and never see the word. */
-  orbit: {t:'a full lap without turning back — the sky moves with you',g:'star',soft:1},
+  /* "orbit", never "lap". The scoring act had two names, and a player's very
+     first completed circle read both in the same frame — this lesson said
+     "a full lap" while the payout popped "ORBIT +N" beside it. One word,
+     everywhere a player can read: orbit (it was already in the menu key row,
+     the popups, the share text and the FIRST ORBIT tier). */
+  orbit: {t:'a full orbit without turning back — the sky moves with you',g:'star',soft:1},
   lapcost:{t:'turning back restarts the orbit — stars stay banked',g:'star',soft:1},
   /* THE MUSICAL CURRICULUM (playtest: "combos are never explained, timing
      beats is never explained, the music responding to your beats is never
@@ -5763,6 +5855,15 @@ function firstMeet(type){
      when a death re-armed this lesson (see die), the sentence returns but
      the ceremony does not, so a veteran is never slow-motioned twice */
   const soft=!!MEET[type].soft||!!G.seen2[type];
+  /* REWARD LESSONS YIELD TO THE ONE THAT KEEPS YOU ALIVE. The 9s spacing
+     above is first-come-first-served, and on a fresh device the musical
+     curriculum comes first: measured, combo fired at 5.4s, music at 14.4s,
+     orbit at 24.7s, lapcost at 33.9s — and the red shard's lesson, the only
+     one about the thing that kills, landed at 44.3s, half a minute after the
+     first red armed. A soft lesson therefore waits until the red lesson has
+     landed on this device; deferred, not spent, exactly like the guards
+     above, so each returns at its next trigger once red has had its say. */
+  if(soft&&!G.seen.single)return;
   /* the armed-shard deferral protects against SLOW-MO mid-danger — a soft
      lesson never dilates, so it reads like any hint and may fire in traffic
      (for lapcost that is exactly the teachable moment, and a re-offer that
@@ -6020,16 +6121,18 @@ function spawnPow(){
     /* THE LAB IS THE LADDER. Every branch below is a rule about WHEN the game
        is willing to show you something, and the lab exists precisely because
        those rules are the obstacle: the intro trio, the level gates, the pity
-       shield, the three guarantees and the black hole's 10% die all answer
+       shield, the four guarantees and the black hole's 5% die all answer
        "not yet". One orb, chosen on the picker, placed every time. */
     type=LAB.type;
-  }else if(G.powN<POW_INTRO.length){
-    type=POW_INTRO[G.powN];
+  }else if(G.introN<POW_INTRO.length){
+    /* introN, not powN: the trio replays per RUN, never per level — see the
+       reset beside powN's in startGame */
+    type=POW_INTRO[G.introN];
   }else if(G.level>=4&&!G.bhRun&&!G.bhPlaced&&G.t>=G.bhCool&&!bhActive()){
     /* AND LEVEL 4 FINALLY INTRODUCES SOMETHING. The exam still teaches no new
        FORMATION — that half of the curriculum rule is untouched and
        curriculum.mjs still enforces it — but the black hole is guaranteed to
-       arrive once on EVENT HORIZON rather than left entirely to a 10% roll.
+       arrive once on EVENT HORIZON rather than left entirely to a 5% roll.
        A player who reaches the endless level meets the game's biggest set
        piece there; it stays rare everywhere else. The cooldown and the
        !bhActive() guard are new here: without them the guarantee could place
@@ -6078,7 +6181,7 @@ function spawnPow(){
     type='shield'; /* pity: never more than 3 power-ups without a shield */
   }else if(G.level>=2&&!G.hyperPlaced){
     /* THE MARQUEE ITEM IS NOT OPTIONAL CONTENT (the lesson the intro
-       curriculum was invented for): at a 10% roll a long run could
+       curriculum was invented for): at a rare roll a long run could
        plausibly never meet the star at all — the owner reached 6000
        without seeing one. On level 2+ the first placement after the
        curriculum is the star, guaranteed, once per run. */
@@ -6117,9 +6220,21 @@ function spawnPow(){
        what can appear, never how often the survivors appear relative to each
        other — and adding follows the same rule in reverse: the five existing
        orbs keep their ratios exactly (.36/.22/.17/.16/.09 of the old space)
-       and the two new ones take a flat 0.16 between them off the top. */
-    type=rr<0.302?'shield':rr<0.487?'warp':rr<0.630?'nova':
-         rr<0.764?'spot':rr<0.840?'hyper':rr<0.920?'mirror':'scorch';
+       and the two new ones take a flat 0.16 between them off the top.
+       AND THE ROLL RESPECTS THE SAME LEVEL FLOORS AS THE GUARANTEES. It used
+       to draw from all seven on any level, so a first-ever run on LIFT OFF
+       could be handed the spotlight — level 3's orb — at 37% of every
+       post-intro placement, which un-taught the introduction schedule the
+       ladder above exists to keep ("hypernova on level 2, spotlight on level
+       3"). Filtering by floor and renormalising keeps every surviving ratio
+       exactly, per the redistribution rule this comment already states. */
+    const POWPOOL=[['shield',0.302,1],['warp',0.185,1],['nova',0.143,1],
+                   ['spot',0.134,3],['hyper',0.076,2],['mirror',0.080,4],['scorch',0.080,5]];
+    let ptot=0;
+    for(const pp of POWPOOL)if(G.level>=pp[2])ptot+=pp[1];
+    let prr=rr*ptot;
+    type='shield';
+    for(const pp of POWPOOL){if(G.level<pp[2])continue;prr-=pp[1];if(prr<=0){type=pp[0];break;}}
   }
   for(let i=0;i<24;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
@@ -6131,7 +6246,7 @@ function spawnPow(){
          guarantee is a guarantee to OFFER, once per run, which is the only
          kind of guarantee an optional thing can carry; bhPlaced still marks
          that offer as spent. A decline now arms a short cooldown instead of
-         the full one, and the ordinary 10% roll takes over from there. */
+         the full one, and the ordinary 5% roll takes over from there. */
       if(type==='blackhole'){G.bhPlaced=true;G.bhRun=true;G.bhCool=G.t+20;}
       if(type==='hyper')G.hyperPlaced=true;
       if(type==='spot')G.spotPlaced=true;
@@ -6141,7 +6256,10 @@ function spawnPow(){
       G.sinceShield=(type==='shield')?0:G.sinceShield+1;
       /* counts PLACEMENTS, not pickups: a player who misses the slow-mo still
          advances the curriculum, or a run spent dodging would serve nothing
-         but shields forever. */
+         but shields forever. The trio counter advances on the same terms —
+         and a pity shield placed while the trio owes one counts as the trio's
+         shield, because the thing the slot exists to show has just been shown. */
+      if(G.introN<POW_INTRO.length&&type===POW_INTRO[G.introN])G.introN++;
       G.powN++;
       return true;
     }
@@ -6174,6 +6292,7 @@ function startGame(){
      caption is once per RUN, not once per level card */
   G.bandCap=G.layerN>0;
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
+  G.lastPopPaid=0;G.lastPopAt=-9;
   /* every run opens in DRIFT and travels out from there — the journey is the
      run's, not the device's, so arriving somewhere is always earned again */
   /* ---- THE JOURNEY SURVIVES A LEVEL BOUNDARY ----
@@ -6260,13 +6379,21 @@ function startGame(){
      'one more shield' in either mode, and chill simply starts one deeper */
   G.shields=2+(upgOn('deepbank')?1:0)+MD().shields;   /* DEEP BANK: literally 'one more shield' */
   G.invuln=0;G.slow=0;G.tsCur=1;G.sinceShield=0;G.revPend=0;G.didShield=false;
-  /* Reset EVERY run, so the ladder replays from the top every time. These were
-     lifetime flags, permanently true after run one — which meant a returning
-     player, or anyone handed the phone, got no reminder of the controls at
-     all. Each clears the instant the thing is done, so a veteran sees each for
-     well under a second. */
-  G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;G.gotShield=false;
-  G.gotSpot=false;G.gotBH=false;
+  /* Reset EVERY RUN — and a run is not a level. This comment always said
+     "run"; the code beneath it ran on every startGame(), which includes every
+     level advance, so a player who cleared five levels was re-taught "tap
+     anywhere to turn around" and re-served the shield→slow-mo→nova intro trio
+     at the top of level 6 — measured: the identical eight-hint beginner
+     sequence opened levels 2, 3, 4, 5 AND 6 of a single climb. That replay is
+     most of what made the back half read as unowned. `carried` is the same
+     signal bhRun already trusts: true on a level advance, false when a run
+     actually starts (retries included, which keeps the original intent — a
+     returning player, or anyone handed the phone, still gets each reminder
+     once, and each clears the instant the thing is done). */
+  if(!carried){
+    G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;G.gotShield=false;
+    G.gotSpot=false;G.gotBH=false;
+  }
   G.bhCool=0;G.bhT=0;G.bhN=0;G.bhPlaced=false;
   /* ONCE PER RUN, NOT ONCE PER LEVEL. bhPlaced is cleared on every startGame
      — including a level advance — and the guarantee reads `G.level>=4`, which
@@ -6288,19 +6415,42 @@ function startGame(){
   BH.phase=0;BH.on=false;BH.warp=0;BH.t=0;BH.rings0=3;
   for(let i=0;i<4;i++)RADII[i]=RAD_OFF[i];
   G.dropsEarned=0;G.loopN=0;G.nearN=0;G.bestCombo=0;G.holdTimeout=false;
-  G.hyperPlaced=false;G.spotPlaced=false;G.mirrorPlaced=false;G.scorchPlaced=false;
+  /* ONCE PER RUN, LIKE THE LEDGER SAYS. These four are the same bug bhRun's
+     comment above describes, applied to the other four guaranteed orbs and
+     fixed for one of five: MECHANICS.md says "guaranteed once per run
+     (mirrorPlaced)" while this line re-armed every flag at every level
+     boundary. Measured on one climb: HYPERNOVA guaranteed on L2, L3, L4, L5
+     and L6, SPOTLIGHT five times — and level 5 opened with six marquee
+     arrivals in 54 seconds, burying SCORCH and THE NARROWS, the only two
+     things level 5 actually introduces. A guarantee belongs to the level it
+     names: on a fresh run each flag starts spent for every guarantee whose
+     home level is already behind the level the run opens on (a picked
+     REDSHIFT start owes level 2 nothing — the level-gated roll below still
+     lets the earlier orbs appear), and unspent for the ones still ahead. */
+  if(!carried){
+    G.hyperPlaced=G.level>2;G.spotPlaced=G.level>3;
+    G.mirrorPlaced=G.level>4;G.scorchPlaced=G.level>5;
+  }
   G.mirror=0;G.mirrorD=0;G.scorch=0;G.scorchD=0;
   /* allocated once and cleared per run: four rings of sectors, so a burn
      laid on ring 2 cannot be read off ring 1 and nothing has to be freed */
   if(!G.burn){G.burn=[];for(let bi=0;bi<4;bi++)G.burn.push(new Float32Array(BURN_SECT));}
   for(let bi=0;bi<4;bi++)G.burn[bi].fill(0);
-  G.didReverse=false;G.didHop=false;G.didLap=false;
+  /* per RUN, with the flags above: a climb that has already reversed, hopped
+     and lapped does not re-open level 4 with "tap anywhere to turn around"
+     parked over the board */
+  if(!carried){G.didReverse=false;G.didHop=false;G.didLap=false;}
   G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];G.novas=[];
   G.stop=0;
   /* powT 4, not 6: paired with the dl()>=6 gate below it puts the first
      shield on the board around 10s instead of 17s, which leaves room for all
      three of the intro power-ups inside a short run. */
   G.starT=0.5;G.spikeT=1.2;G.powT=4;G.powN=0;G.started=G.t;G.tier=0;G.banner=null;G.featT=G.t;
+  /* the shield→slow-mo→nova intro trio is a CEREMONY, and ceremonies are per
+     run: powN keeps counting this level's placements for pacing and telemetry,
+     while introN is the only thing the trio branch reads — so level 2 of a
+     climb opens with the hypernova guarantee, not a re-run of the syllabus */
+  if(!carried)G.introN=0;
   G.sauT=0;
   if(G.level>=2||LAB.on){
     /* didHop is NOT forged here any more — tierIndex exempts level 2+ from
@@ -6338,7 +6488,7 @@ function startGame(){
                vt>=2?'NEW SOUND: SYNTH LEAD':'NEW SOUND: TWIN SYNTHS';
     }
   }
-  beep(440,0.12,'sine',0.05,880);
+  beep(CH[0][0]*(440/110),0.12,'sine',0.05,CH[0][0]*(880/110));  /* in the level's key */
 }
 function die(){
   if(G.state!=='playing')return;
@@ -6523,7 +6673,7 @@ function die(){
     got_spot:G.gotSpot,got_blackhole:G.gotBH,blackholes:G.bhN,
     /* two ladders, two names, never the word `level` for the tier one: `tier`
        is the zero-based UNLOCK ladder (what has been introduced), `game_level`
-       is the 1-3 structure the player is told about. `level` used to be sent
+       is the 1-6 structure the player is told about. `level` used to be sent
        here holding tier+1 while `level_cleared` sent it holding 1-3 — one
        property name, two scales, across two events. It is retired rather than
        redefined so no historical row silently changes meaning; `tier` carried
@@ -6753,9 +6903,21 @@ function toggleGhost(){
 /* the title screen's exit: the swipe rule is asked once per device and comes
    first, because it is a question about the controls and the level picker is
    a question about the game */
+/* THE FIRST RUN SKIPS THE PICKER. A fresh device used to pass four screens
+   and two decisions before its first second of play: title → swipe chooser →
+   a six-row picker offering EVENT HORIZON and HEAT DEATH to someone with
+   zero runs → the level-1 card. A player with no record has nothing to pick
+   with; they get level 1's card directly, and the picker appears from run 2 —
+   the same screen, one run later, when "start where?" is a question they can
+   answer. The picker's testing job survives: one run (however short) opens
+   it. */
+function enterRunStart(){
+  if(!G.runs){G.lvSel=1;startFromSelect();return;}
+  enterLevelSel();
+}
 function leaveMenu(){
   if(!G.swipeAsked){enterSwipeSel('start');return;}
-  enterLevelSel();
+  enterRunStart();
 }
 /* The lab door obeys the same once-per-device rule the run does: the swipe
    rule is a question about the controls, and the lab is played with them. A
@@ -6900,10 +7062,11 @@ function tierLabel(){
    cardinal you cannot repeat from memory; a level is an ordinal you can say
    out loud, compare, and come back for.
    THERE ARE TWO LADDERS IN HERE AND ONLY ONE OF THEM IS CALLED A LEVEL.
-   G.tier is the ten-rung UNLOCK ladder — which shapes have been introduced —
-   and tierLabel() names its current rung. G.level is the 1-3 structure the
-   player is actually told about: the intro card, the HUD, the share text, the
-   death headline. Both used to surface as "level" in the same places at once:
+   G.tier is the thirteen-rung UNLOCK ladder — which shapes have been introduced —
+   and tierLabel() names its current rung — in telemetry only, since the HUD,
+   death screen and share text all print the LEVEL'S own name now. G.level is
+   the 1-6 structure the player is actually told about: the intro card, the
+   HUD, the share text, the death headline. Both used to surface as "level" in the same places at once:
    the death screen printed LEVEL 2 directly under a ten-pip bar filled to
    eight, and the share text pasted a ten-position bar under "LEVEL 2/3".
    Everything the player reads is G.level now, and the tier ladder keeps its
@@ -6924,13 +7087,18 @@ function runSummary(){
      a score mean something different, and with chill retired there is one
      left: whether the run started at level 1 or was picked into. It is named
      only when it is not the default, so an ordinary run shares exactly the
-     text that shipped — which is still what "Cosmo · LEVEL 2/4" has always
-     meant. A picked run announcing itself as an unqualified level 4 would be
+     text that shipped — which is still what "Cosmo · LEVEL 2/6" has always
+     meant. A picked run announcing itself as an unqualified level 6 would be
      the share text lying on the player's behalf. */
   const tag=(G.startLevel>1?' · from L'+G.startLevel:'');
-  return 'Cosmo · LEVEL '+G.level+'/'+LEVEL_MAX+tag+'\n'+
-    bar+' '+tierLabel()+'\n'+
-    G.score+' points · '+G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
+  /* the LEVEL's name beside the level's number — one identity per level in
+     every channel now (HUD, death screen, share); the tier bar above still
+     reports ladder depth without naming a rung the reader has no referent
+     for. And "streak N", not "×N": the streak is not a multiplier — the
+     lap-streak HUD chip documents the rule. */
+  return 'Cosmo · LEVEL '+G.level+'/'+LEVEL_MAX+' '+LV[G.level-1].name+tag+'\n'+
+    bar+'\n'+
+    G.score+' points · '+G.orbits+' orbits · streak '+G.bestStreak+' · '+runTime()+'\n'+
     (G.bestGroove>=2?'on beat ×'+G.bestGroove+'\n':'')+
     (G.lands>0?G.lands+' drops landed\n':'')+
     /* a deep link to index.html shares worse than the directory it lives in */
@@ -7000,7 +7168,7 @@ function shareRect(){
 }
 function inShare(x,y){
   /* Nothing to share out of the lab, and the share text is the reason rather
-     than the taste: runSummary() writes "Cosmo · LEVEL 1/4" and a score, with
+     than the taste: runSummary() writes "Cosmo · LEVEL 1/6" and a score, with
      no room in it for the four things that make a lab number meaningless. A
      boast the game knows to be false should not be one tap away. */
   if(LAB.on)return false;
@@ -7199,12 +7367,12 @@ function pdEnd(e){
         track('swipe_mode_chosen',{mode:SWIPE_MODE,hops:GEST.swipe+GEST.lateSwipe});
         pd=null;
         /* opened from the menu's swipe row, it goes back to the menu; reached
-           on the way into a run, it hands off to the level picker — which is
-           now the screen that decides where the run starts, so the chooser no
-           longer builds the level-1 card itself */
+           on the way into a run, it hands off to enterRunStart — the level
+           picker for a device with a run behind it, level 1's own card for a
+           first-ever run */
         if(G.selFrom==='menu'){G.selFrom=null;enterMenu();}
         else if(G.selFrom==='lab'){G.selFrom=null;enterPowerSel();}
-        else{G.selFrom=null;enterLevelSel();}
+        else{G.selFrom=null;enterRunStart();}
         beep(523,0.14,'triangle',0.06,784);
         return;
       }
@@ -7290,7 +7458,7 @@ window.addEventListener('keydown',function(e){
       pd=null;
       if(G.selFrom==='menu'){G.selFrom=null;enterMenu();}
       else if(G.selFrom==='lab'){G.selFrom=null;enterPowerSel();}
-      else{G.selFrom=null;enterLevelSel();}
+      else{G.selFrom=null;enterRunStart();}
       beep(523,0.14,'triangle',0.06,784);
     }else if(G.state==='levelsel'){
       startFromSelect();
@@ -7514,10 +7682,10 @@ function updateSpikes(sdt,lethal){
         /* a save that sounded like a punishment: square falling to 90Hz sat
            in the death register and below what a phone reproduces */
         /* the rescue is felt NOW; its confirming chime lands in time */
-        beep(392,0.16,'triangle',0.075,588);
+        beep(CH[0][0]*(392/110),0.16,'triangle',0.075,CH[0][0]*(588/110));
         /* the bright confirming chime would be a lie on an empty bank */
-        if(G.shields>0)cueTone(function(w){beep(784,0.20,'sine',0.055,1046,w);});
-        else cueTone(function(w){beep(330,0.34,'sawtooth',0.055,196,w);});
+        if(G.shields>0)cueTone(function(w){beep(CH[0][0]*(784/110),0.20,'sine',0.055,CH[0][0]*(1046/110),w);});
+        else cueTone(function(w){beep(CH[0][0]*(330/110),0.34,'sawtooth',0.055,CH[0][0]*(196/110),w);});
       }else{
         /* the tw stamp carries the pairing a lone shard cannot infer, so a
            twin death coaches the hop instead of reporting 'single' */
@@ -7880,7 +8048,10 @@ function update(dt){
   }
   if(G.finEnd){
     G.finEnd=0;
-    if(FIN.score>0)popup(cx,cy-40*u,'FINALE +'+FIN.score,COL.ember,1.5);
+    /* a RECEIPT, not a payment: every component already popped and paid at
+       its own site ('+30', '+60 CHAIN', 'PERFECT ENDING +200'), so a '+N'
+       here printed the same money twice in the grammar of new money */
+    if(FIN.score>0)popup(cx,cy-40*u,'FINALE · '+FIN.score,COL.ember,1.5);
     levelComplete();return;
   }
   /* OVERDRIVE — the eleventh notch. Keep the heat pinned for a full bar
@@ -8012,8 +8183,13 @@ function update(dt){
     });
   }
   /* a NEW SOUND is announced once its level banner has had the screen —
-     and the announcement is the sound itself, playing a quick lick */
-  if(G.sndAt&&G.t>=G.sndAt){
+     and the announcement is the sound itself, playing a quick lick.
+     Never inside a black hole: the band is silenced and the player is not
+     an instrument there, so announcing a new band voice mid-mode was a
+     sentence about music that was not playing (screenshotted: "NEW SOUND:
+     SYNTH LEAD" across the singularity). sndAt simply waits; the mode's
+     exit releases it. */
+  if(G.sndAt&&G.t>=G.sndAt&&!bhActive()){
     G.sndAt=0;say(G.sndStr,2,20);
     const tr=G.tier;
     cueTone(function(w){
@@ -8067,7 +8243,13 @@ function update(dt){
      printed across the singularity, replacing the black hole's own banner and
      introducing a formation the player could not look at. The increment defers
      with the banner, exactly as the finale guard above defers it. */
+  /* ...and never over a hard lesson's freeze. firstMeet defers for a fresh
+     banner, but the deferral only ran one way: measured, "FLICKER PAIRS /
+     UNLOCKED" and its chord fired 1.0s into the black hole lesson's 2.8s
+     near-frozen veil. The crossing defers exactly as it does for the banner
+     it would have collided with. */
   if(ti>G.tier&&!FIN.on&&!FIN.pend&&!G.banner&&!bhActive()&&
+     !(G.teach>0&&!G.teachSoft)&&
      !(lvEnd<1e9&&dl()>=lvEnd-10)){
     /* ...and never in a level's ENDGAME window either: a beat-drop payoff
        defers the finale latch while dl keeps running, so without this a
@@ -8082,8 +8264,8 @@ function update(dt){
       const nr=radiusOf(G.nRings-1);
       G.rings.push({x:cx,y:cy,r:nr*0.3,life:1,col:COL.comet});
       G.rings.push({x:cx,y:cy,r:nr,life:1,col:COL.comet});
-      beep(330,0.2,'sine',0.05,660);
-      beep(660,0.25,'sine',0.05,990,0.16);
+      beep(CH[0][0]*(330/110),0.2,'sine',0.05,CH[0][0]*(660/110));
+      beep(CH[0][0]*(660/110),0.25,'sine',0.05,CH[0][0]*(990/110),0.16);
       /* THE HARD GESTURE GETS A REHEARSAL. When the second ring lands for
          someone who has never once hopped, time dilates, spawns hold, and
          the radial guide draws at the comet — the one place the rotating
@@ -8106,12 +8288,21 @@ function update(dt){
       cueUnlock();
     }
     /* the star voice steps up at levels 4, 7 and 10 — announced after the
-       level banner has had the screen (see update), as its own moment */
+       level banner has had the screen (see update), as its own moment.
+       SND_SEEN is keyed by VOICE ORDINAL (1/2/3), the same key space the
+       level-start path reads — this line used to write the TIER INDEX, and
+       when DIVERS and THE NARROWS were inserted THIRD RING's index collided
+       with the guitar's ordinal: measured, TWIN SYNTHS and SYNTH LEAD each
+       announced twice per climb and ELECTRIC GUITAR never announced at all,
+       because every level-1 THIRD RING crossing pre-poisoned its key. */
     if(G.tier===T_VOICE[1]||G.tier===T_VOICE[2]||G.tier===T_VOICE[3]){
-      SND_SEEN[G.tier]=1;   /* a later level start must not repeat it */
+      const cvt=G.tier===T_VOICE[3]?3:G.tier===T_VOICE[2]?2:1;
+      if(!SND_SEEN[cvt]){
+      SND_SEEN[cvt]=1;   /* a later level start must not repeat it */
       G.sndAt=G.t+3.8;
       G.sndStr=G.tier>=T_VOICE[3]?'NEW SOUND: ELECTRIC GUITAR':
                G.tier>=T_VOICE[2]?'NEW SOUND: SYNTH LEAD':'NEW SOUND: TWIN SYNTHS';
+      }
     }
   }
   if(G.banner){G.banner.t+=dt;if(G.banner.t>3.2)G.banner=null;}
@@ -8213,7 +8404,10 @@ function update(dt){
     G.score+=bonus;G.scorePop=1;
     G.diff+=1;
     const lp=posPlayer();
-    const label=(G.lapStreak>1?'ORBIT \u00d7'+G.lapStreak+' +':'ORBIT +')+bonus;
+    /* no \u00d7N here: the streak is not a multiplier (base+min(7\u00b7(streak-1),28),
+       saturated at five) and the lap-streak HUD chip one slot down already
+       documents that rule \u2014 the pips and the sky's winding carry the count */
+    const label='ORBIT +'+bonus;
     if(fed){
       const st=G.lapStreak;
       /* everything below scales with the streak, so the payoff grows with
@@ -8231,12 +8425,14 @@ function update(dt){
       duckBed(0.45,0.35);
       /* the payout arpeggio walks up on sixteenths from the next grid point
          — the game's biggest scoring phrase finally plays in time */
-      beep(262,0.05,'triangle',0.05,330);
+      /* the game's biggest scoring phrase, as intervals over the tonic —
+         it was a fixed C-major arpeggio, fully chromatic on levels 4 and 5 */
+      beep(CH[0][0]*(262/110),0.05,'triangle',0.05,CH[0][0]*(330/110));
       cueTone(function(w){
-        beep(262,0.12,'triangle',0.07,392,w);
-        beep(392,0.12,'triangle',0.07,523,w+S16);
-        beep(523,0.16,'triangle',0.07,784,w+2*S16);
-        if(st>=3)beep(784,0.18,'triangle',0.05,1046,w+3*S16);
+        beep(CH[0][0]*(262/110),0.12,'triangle',0.07,CH[0][0]*(392/110),w);
+        beep(CH[0][0]*(392/110),0.12,'triangle',0.07,CH[0][0]*(523/110),w+S16);
+        beep(CH[0][0]*(523/110),0.16,'triangle',0.07,CH[0][0]*(784/110),w+2*S16);
+        if(st>=3)beep(CH[0][0]*(784/110),0.18,'triangle',0.05,CH[0][0]*(1046/110),w+3*S16);
       });
       /* thresholds, not a floor: `st>=5` fired on every fed orbit past the
          fifth, which at mid-run speed is roughly every three seconds */
@@ -8262,7 +8458,7 @@ function update(dt){
       }
     }else if(G.speed<2.6){
       popup(lp[0],lp[1]-26*u,label,'rgba(200,215,255,0.7)');
-      cueTone(function(w){beep(392,0.1,'triangle',0.04,440,w);});
+      cueTone(function(w){beep(CH[0][0]*(392/110),0.1,'triangle',0.04,CH[0][0]*(440/110),w);});
     }
     G.lapEmbers=0;G.didLap=true;
     checkMile();
@@ -8368,8 +8564,19 @@ function update(dt){
          breaking it: under spotlight/overdrive/hypernova/overcharge the
          score added 2x combo while this line printed the undoubled half,
          so the one number on screen hid exactly the doubling that three
-         channels had promised. */
-      popup(p[0],p[1]-20*u,'+'+paid,bhInner?COL.bh:COL.ember);
+         channels had promised.
+         AND ONLY WHEN THE NUMBER IS NEWS. Measured on level 4: 302 popups in
+         126 seconds, a '+12' printed 2.4 times a second, something popped on
+         91% of frames — number confetti that buried the popups carrying
+         information (SHIELD USED, LAST SHIELD, HORIZON). A steady combo at a
+         steady state prints once; the value changing (a rung climbed, a
+         state opened or closed, the inner-ring double) prints immediately,
+         and a quiet 1.6s refresh keeps the channel visibly alive. The burst,
+         ripple and arc flash above still mark every single pickup. */
+      if(paid!==G.lastPopPaid||G.t-G.lastPopAt>1.6){
+        G.lastPopPaid=paid;G.lastPopAt=G.t;
+        popup(p[0],p[1]-20*u,'+'+paid,bhInner?COL.bh:COL.ember);
+      }
       /* THE EMBER IS THE ARP'S NOTE NOW. It used to be a sine ding over the
          music; it plays the band's own square, chord-aware, through the bed
          bus — so it ducks, pans and mixes as part of the record, and a
@@ -8489,13 +8696,18 @@ function update(dt){
                largest payout in the game at up to 86, is paid with a bare
                G.score+=bonus, so a player who read "everything" watched
                ORBIT +86 print unchanged seconds later. */
-            say('SHIELDS FULL \u2014 stars pay double',2,7);
+            /* the sentence waits until red has been taught \u2014 announcing an
+               economy nuance at 14s of a first-ever run, before the player
+               knows what a shield is for, was the firehose's loudest line.
+               The shimmer still marks the state; the line returns on the
+               next fill once the red lesson has landed. */
+            if(G.seen.single)say('SHIELDS FULL \u2014 stars pay double',2,7);
             cueState(true);   /* overcharge opens \u2014 the rising shimmer */
           }
         }
         burst(p[0],p[1],COL.shield,14,150);
         ripple(p[0],p[1],COL.shield);
-        cueTone(function(w){beep(520,0.12,'triangle',0.06,780,w);});
+        cueTone(function(w){beep(CH[0][0]*(520/110),0.12,'triangle',0.06,CH[0][0]*(780/110),w);});
       }else if(s.type==='blackhole'){
         G.gotBH=true;
         /* the full rarity clock is armed here, on the event, not back at
@@ -8518,7 +8730,7 @@ function update(dt){
            CH[0][0] like every other pitch in the file. */
         beep(CH[0][0],0.9,'sawtooth',0.085,CH[0][0]*0.25);
         /* sub boom: octave below tonic, fast decay, felt more than heard */
-        beep(CH[0][0]*0.5,0.28,'sine',0.10,CH[0][0]*0.15);
+        beep(subF(CH[0][0]*0.5),0.28,'sine',0.10,CH[0][0]*0.15);
         /* shimmer: flat-six two octaves up, thin, panned right, longer ring */
         beep(CH[0][0]*1.5874*2,0.55,'sine',0.025,CH[0][0]*1.5874*4,undefined,0.4);
         /* second shimmer: +2st one octave up, panned left, offsets the first */
@@ -8541,7 +8753,7 @@ function update(dt){
            without WebAudio for the star half. */
         G.spot=(upgOn('stagelight')?24:16)*SPB;G.spotD=G.spot;G.gotSpot=true;
         cueState(true);
-        popup(p[0],p[1]-24*u,'SPOTLIGHT!',COL.warp,1.5);
+        popup(p[0],p[1]-24*u,'SPOTLIGHT',COL.warp,1.5);
         burst(p[0],p[1],'#eaf1ff',20,220);
         ripple(p[0],p[1],COL.warp);
         say('SPOTLIGHT \u00d72',3,5);
@@ -8589,7 +8801,7 @@ function update(dt){
            the kit rides sixteenths, and every red you plow through turns
            into a paying ember right on your lane. */
         G.hyperD=SPB*(upgOn('longstar')?24:16);G.hyper=G.hyperD;G.gotHyper=true;
-        popup(p[0],p[1]-24*u,'HYPERNOVA!',COL.hyper,1.7);
+        popup(p[0],p[1]-24*u,'HYPERNOVA',COL.hyper,1.7);
         say('HYPERNOVA \u2014 nothing can touch you',3,5);
         burst(p[0],p[1],'#ffffff',22,280);
         burst(p[0],p[1],COL.ember,16,200);
@@ -8612,7 +8824,7 @@ function update(dt){
            spare, but the front now takes ~0.65s to reach the far side of the
            ring system and the guarantee has to outlast it. */
         G.invuln=Math.max(G.invuln,G.t+0.95);
-        popup(p[0],p[1]-24*u,'NOVA!',COL.nova,1.7);
+        popup(p[0],p[1]-24*u,'NOVA',COL.nova,1.7);
         ripple(p[0],p[1],COL.nova);
         burst(p[0],p[1],COL.nova,34,320);
         burst(p[0],p[1],'#ffffff',14,190);
@@ -12231,7 +12443,7 @@ function hintText(){
     if(a-G.hopHintT<10||Math.floor(a/6)%2===0)
       return {t:swipeWords(),g:'swipe'};
   }
-  if(!G.didLap&&a<22)return {t:'collect stars, then finish a lap',g:'star'};
+  if(!G.didLap&&a<22)return {t:'collect stars, then finish an orbit',g:'star'};
   /* the same sentence MEET.single uses, because it is the same rule */
   if(!G.didDodge&&G.spikes.length)return {t:'red costs a shield \u2014 turn around or change ring',g:'shard'};
   /* Named after the ring now visibly contracting onto the comet, and phrased
@@ -12250,7 +12462,10 @@ function hintText(){
      for something the player cannot actually do — every other row names an
      input. The meter takes sparks, ring changes, on-beat taps and clean laps;
      two of those is the most that fits and the most anyone can act on at once. */
-  if(!G.sawDrop&&G.build>0.15)return {t:'gather sparks, tap in time \u2014 a drop is coming',g:'beat'};
+  /* "stars", the only name the collectible has \u2014 "sparks" was an invented
+     noun no other channel used, exactly the class this ladder's own doctrine
+     purged */
+  if(!G.sawDrop&&G.build>0.15)return {t:'gather stars, tap in time \u2014 a drop is coming',g:'beat'};
   return null;
 }
 
@@ -12285,7 +12500,7 @@ function drawLadder(x,y,level,shown){
 function drawHUD(){
   /* THE LESSON VEIL. While a hard first-encounter lesson holds the world
      near-frozen, the whole board dims and the specimen being explained
-     wears a breathing gold ring — one thing lit, one sentence, nothing
+     wears a breathing white ring — one thing lit, one sentence, nothing
      else asking for the eye. Drawn under the HUD so the lesson text and
      glyph sit on top of the veil at full brightness. */
   if(G.state==='playing'&&G.teach>0&&!G.teachSoft&&G.teachKind==='see'){
@@ -12297,7 +12512,11 @@ function drawHUD(){
       const pp=posAt(sp.a,radiusOf(sp.ring));
       const pr2=(16+(RM?0:3.5*Math.sin(G.t*5)))*u;
       ctx.globalAlpha=0.85*ease;
-      ctx.strokeStyle=COL.ember;ctx.lineWidth=2.2*u;
+      /* NOT GOLD. Gold is the collectible's colour — "what the game already
+         uses for everything earned" — and this ring circles a LETHAL specimen
+         for a player who is mid-lesson on what kills them. A cool white ring
+         points without promising payment; the veil already isolates it. */
+      ctx.strokeStyle='#dfe9ff';ctx.lineWidth=2.2*u;
       ctx.beginPath();ctx.arc(pp[0],pp[1],pr2,0,TAU);ctx.stroke();
       ctx.globalAlpha=1;
     }
@@ -12340,8 +12559,15 @@ function drawHUD(){
     textFx(G.score,cx,top+52*u,sz,'800','#ffffff','#c2d8ff',null,0);
     /* The level replaces BEST here. The score directly above is already the
        live number, and a second number you cannot affect this second is worth
-       less than the one that says where in the game you are. */
-    text('LEVEL '+G.level+' \u00b7 '+tierLabel(),cx,top+76*u,13*u,'700',
+       less than the one that says where in the game you are.
+       THE LEVEL'S OWN NAME, NOT THE TIER'S. This printed tierLabel(), so the
+       standing header read "LEVEL 4 \u00b7 FLICKER PAIRS" and "LEVEL 6 \u00b7 THE EYE"
+       \u2014 a formation name wearing the level-subtitle slot, seconds after the
+       card said EVENT HORIZON and HEAT DEATH. That channel collision has
+       already forced two tier renames (STORM\u2192THE EYE documents one at the
+       TIERS table); naming the level here ends the class. Rungs keep their
+       moment in the UNLOCKED banner, and telemetry keeps tier_name. */
+    text('LEVEL '+G.level+' \u00b7 '+LV[G.level-1].name,cx,top+76*u,13*u,'700',
       'rgba(255,200,87,0.72)',2);
     /* THE BAND METER (playtest: nobody could tell there was more band to
        unlock). One dot per layer, lit as it joins the record: five violet
@@ -12455,10 +12681,17 @@ function drawHUD(){
        therefore been told what it is exactly once, years of runs ago. It also
        answers the question the mode's whole tension depends on — how long is
        left — from the clock that was already running. */
+    /* THE ROW WEARS THE ORB'S OWN COLOUR — that is the pairing that lets a
+       label be found from the thing on the board. Three of five obeyed it;
+       HYPERNOVA wore gold (the ember's colour, the one identity its own
+       lesson comment forbids) and SPOTLIGHT wore white. And HYPERNOVA is the
+       one doubling state that never said ×2, while paying exactly what
+       OVERDRIVE ×2 and SPOTLIGHT ×2 pay — measured, +12 embers and the +8
+       garnish under all three. One grammar for the trio now. */
     const timed=BH.phase===2?['BLACK HOLE · '+Math.max(0,Math.ceil(BH_DUR-BH.t))+'s',COL.bh]:
-                G.hyper>0?['HYPERNOVA','rgba(255,220,130,0.98)']:
+                G.hyper>0?['HYPERNOVA ×2',COL.hyper]:
                 G.od>0   ?['OVERDRIVE ×2','rgba(255,200,87,0.95)']:
-                G.spot>0 ?['SPOTLIGHT ×2','rgba(234,241,255,0.95)']:
+                G.spot>0 ?['SPOTLIGHT ×2',COL.warp]:
                 G.mirror>0?['THE MIRROR',COL.mirror]:
                 G.scorch>0?['SCORCH',COL.scorch]:null;
     if(timed&&roomy){
@@ -12471,7 +12704,7 @@ function drawHUD(){
          base+min(7*(streak-1),28), saturated at five laps, so x5, x7 and x20
          all pay the same +28 while the number climbs on in the same slot and
          the same idiom as OVERDRIVE x2, which is a real multiplier. */
-      text('LAPS '+G.lapStreak+' IN A ROW',cx,top+154*u,9*u,'700',
+      text('ORBITS '+G.lapStreak+' IN A ROW',cx,top+154*u,9*u,'700',
         'rgba(255,200,120,0.85)',2);
       ctx.globalAlpha=1;
     }else if(MU&&MU.sect===1&&roomy){
@@ -12512,7 +12745,12 @@ function drawHUD(){
     }
     if(G.combo>=2&&G.comboT>0){
       ctx.globalAlpha=0.35+0.65*(G.comboT/CW);
-      text('\u00d7'+G.combo+' COMBO',cx,top+116*u,14*u,'800',COL.ember,2);
+      /* "+", NOT "\u00d7". The combo is an additive escalator \u2014 a star at combo 4
+         pays +4 \u2014 and its own lesson says "up to +6 each". The chip said \u00d74
+         in the same idiom as OVERDRIVE \u00d72, which genuinely doubles; the \u00d7
+         glyph is reserved for real multipliers now (the lap streak chip
+         one slot down already documents the same rule). */
+      text('COMBO +'+G.combo,cx,top+116*u,14*u,'800',COL.ember,2);
       ctx.globalAlpha=1;
     }
     if(G.banner){
@@ -12872,10 +13110,10 @@ function drawHUD(){
       G.selRects.push({x:rx,y:ry,w:rw,h:rh,id:rw2[0]});
       ctx.save();ctx.globalAlpha=selA;
       ctx.fillStyle=on?'rgba(30,54,84,0.96)':'rgba(16,22,38,0.92)';
-      ctx.beginPath();ctx.roundRect(rx,ry,rw,rh,12*u);ctx.fill();
-      ctx.strokeStyle=on?COL.comet:'rgba(140,170,220,0.30)';
+      ctx.beginPath();ctx.roundRect(rx,ry,rw,rh,11*u);ctx.fill();
+      ctx.strokeStyle=on?COL.comet:'rgba(140,170,220,0.28)';
       ctx.lineWidth=on?2:1.2;
-      ctx.beginPath();ctx.roundRect(rx+1,ry+1,rw-2,rh-2,12*u);ctx.stroke();
+      ctx.beginPath();ctx.roundRect(rx+1,ry+1,rw-2,rh-2,11*u);ctx.stroke();
       /* the selected row carries the same arrow idiom as the comet, so the
          row and the thing it controls are visibly the same statement */
       const gx=rx+22*u,gy=ry+rh/2;
@@ -12945,42 +13183,21 @@ function drawHUD(){
        against on eight viewports is the layout it still gets. */
     const cardH=0;
     ctx.textAlign='center';
-    /* THE LAB DOOR, still a bar and still not a card. It was drawn this way
-       to keep it out of the row that answered "which game" — a sandbox that
-       keeps no record and pins the difficulty clock had no business sitting
-       among difficulties. That row is gone and the bar stays exactly as it
-       was, because the reasoning that put it here never depended on the
-       cards: it is a door to another screen, drawn the way the swipe
-       chooser's `change` control is drawn, and it is the only thing on this
-       screen that is not START.
-       Violet, and still not red: COL.warp already means "this bends the
-       rules" everywhere else in the game. */
+    /* THE LAB BAR'S GEOMETRY is measured here (the key rows lay out around
+       it) but it DRAWS below the key, not above it — see the block after the
+       rows. It sat in the dead mode-cards slot directly under the title, so
+       the second thing a first-time visitor read, above the controls key
+       itself, was the door to a debug sandbox, with the cards' vacated band
+       yawning under it. The key takes that band now; the bar sits under the
+       key at the register a testing door earns. */
     const labH=Math.max(28*u,Math.min(38*u,cardW*0.22));
-    const labW=cardW*2+cardGap,labX=cardX,labY=cardTop+cardH+9*u;
-    G.menuRects.push({x:labX,y:labY,w:labW,h:labH,id:'lab'});
-    ctx.save();
-    ctx.fillStyle='rgba(16,22,38,0.80)';
-    ctx.beginPath();ctx.roundRect(labX,labY,labW,labH,labH*0.34);ctx.fill();
-    ctx.strokeStyle='rgba(160,135,255,0.42)';ctx.lineWidth=1.2;
-    ctx.beginPath();ctx.roundRect(labX+1,labY+1,labW-2,labH-2,labH*0.34);ctx.stroke();
-    /* the orb currently armed in the lab, drawn at the size the picker uses:
-       the bar says what is behind it with the object rather than a word */
-    drawPow(labX+labH*0.62,labY+labH/2,{type:LAB_ORBS[LAB.sel].id,t:G.t},0.9);
-    const lbz=Math.min(11.5*u,labH*0.36);
-    ctx.textAlign='left';
-    text('POWERUP TESTING',labX+labH*1.16,labY+labH*0.44,
-      fitSz('POWERUP TESTING',lbz,'800',labW-labH*1.9),'800','rgba(226,214,255,0.92)',2);
-    const lbs='try any orb on a quiet board';
-    text(lbs,labX+labH*1.16,labY+labH*0.80,
-      fitSz(lbs,lbz*0.80,'600',labW-labH*1.9),'600','rgba(190,178,235,0.6)',0);
-    /* which build this is, provable from a screenshot */
-    ctx.textAlign='center';
-    text('build '+BUILD,cx,H-safeBot-8*u,8.5*u,'600','rgba(160,175,205,0.30)',1);
+    const labW=cardW*2+cardGap,labX=cardX;
+    /* which build this is, provable from a screenshot — bottom-RIGHT, out of
+       the centre column where landscape clamps the stats-disclosure line onto
+       the same baseline and the two printed through each other */
     ctx.textAlign='right';
-    ctx.globalAlpha=0.75;
-    text('›',labX+labW-labH*0.5,labY+labH*0.68,labH*0.5,'700',COL.warp,0);
-    ctx.globalAlpha=1;
-    ctx.restore();
+    text('build '+BUILD,W-12*u,H-safeBot-8*u,8.5*u,'600','rgba(160,175,205,0.30)',1);
+    ctx.textAlign='center';
     ctx.textAlign='center';
     /* FOUR ROWS, NOT NINE. This is the densest block of text in the game and
        the first thing anybody reads \u2014 the playtester who counted "like eight
@@ -13005,9 +13222,9 @@ function drawHUD(){
        phone; it now takes the gap between the title and TAP TO START and
        divides it, so adding a row shrinks the leading instead of overflowing. */
     G.swipeRect=null;
-    /* the key now starts under the LAB BAR rather than under the cards — same
-       divide-the-gap rule, one more thing above it */
-    const kTop=labY+labH+8*u, kBot=bottomY-24*u;
+    /* the key starts in the band the mode cards vacated, and the bottom of
+       its gap reserves room for the lab bar that now sits UNDER it */
+    const kTop=cardTop+6*u, kBot=bottomY-45*u-labH-8*u;
     const rh=Math.min(24*u,Math.max(15*u,(kBot-kTop)/rows.length));
     const fs=Math.min(13*u,rh*0.56), gs=Math.min(20*u,rh*0.84);
     /* centred in the gap rather than pinned to the top of it: on a tall phone
@@ -13036,6 +13253,38 @@ function drawHUD(){
         ctx.globalAlpha=1;
       }
     }
+    ctx.textAlign='center';
+    /* THE LAB DOOR, still a bar and still not a card — a door to another
+       screen, drawn the way the swipe chooser's `change` control is drawn.
+       Violet, and still not red: COL.warp already means "this bends the
+       rules" everywhere else in the game. Under the key now (see the note at
+       its measurement above): directly beneath the last row, clamped clear
+       of the sound line over START. */
+    const labY=Math.min(y0+(rows.length-1)*rh+rh*0.5+8*u,bottomY-45*u-labH);
+    G.menuRects.push({x:labX,y:labY,w:labW,h:labH,id:'lab'});
+    ctx.save();
+    ctx.fillStyle='rgba(16,22,38,0.80)';
+    ctx.beginPath();ctx.roundRect(labX,labY,labW,labH,labH*0.34);ctx.fill();
+    ctx.strokeStyle='rgba(160,135,255,0.42)';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.roundRect(labX+1,labY+1,labW-2,labH-2,labH*0.34);ctx.stroke();
+    /* the orb currently armed in the lab, drawn at the size the picker uses:
+       the bar says what is behind it with the object rather than a word */
+    drawPow(labX+labH*0.62,labY+labH/2,{type:LAB_ORBS[LAB.sel].id,t:G.t},0.9);
+    const lbz=Math.min(11.5*u,labH*0.36);
+    ctx.textAlign='left';
+    text('POWERUP TESTING',labX+labH*1.16,labY+labH*0.44,
+      fitSz('POWERUP TESTING',lbz,'800',labW-labH*1.9),'800','rgba(226,214,255,0.92)',2);
+    /* "powerup", matching the bar's own title and the picker behind it —
+       the door said POWERUP above and "orb" below, two names for the
+       category introduced on the same screen */
+    const lbs='try any powerup on a quiet board';
+    text(lbs,labX+labH*1.16,labY+labH*0.80,
+      fitSz(lbs,lbz*0.80,'600',labW-labH*1.9),'600','rgba(190,178,235,0.6)',0);
+    ctx.textAlign='right';
+    ctx.globalAlpha=0.75;
+    text('›',labX+labW-labH*0.5,labY+labH*0.68,labH*0.5,'700',COL.warp,0);
+    ctx.globalAlpha=1;
+    ctx.restore();
     ctx.textAlign='center';
     /* START IS A CONTROL NOW, not just an instruction. "TAP TO START" was true
        when the whole screen did exactly one thing; with two cards on it that
@@ -13128,7 +13377,11 @@ function drawHUD(){
     const lsTop=Math.max(top+40*u,cy-R-44*u);
     textFx('START WHERE?',cx,lsTop,fitSz('START WHERE?',24*u,'800',W-30*u,2),'800',
       '#ffffff','#9fd8ff','rgba(125,228,255,0.45)',2);
-    const sub=MD().name+' · pick a level';
+    /* not MD().name: with one mode, "SKILL · pick a level" leaked an internal
+       label onto a mandatory screen — the word appears nowhere else a player
+       can see since the mode cards were retired. If a second mode returns,
+       its chooser reintroduces the name with the context that explains it. */
+    const sub='pick a level';
     text(sub,cx,lsTop+21*u,fitSz(sub,11.5*u,'600',W-30*u),'600',
       'rgba(210,225,255,0.72)',1);
     G.lvSelRects=[];
@@ -13257,11 +13510,11 @@ function drawHUD(){
       ctx.save();
       ctx.globalAlpha=psA;
       ctx.fillStyle=on?'rgba(38,30,72,0.96)':'rgba(16,22,38,0.90)';
-      ctx.beginPath();ctx.roundRect(cxx,cyy,cellW,plh,10*u);ctx.fill();
-      ctx.strokeStyle=on?COL.warp:'rgba(140,170,220,0.24)';
+      ctx.beginPath();ctx.roundRect(cxx,cyy,cellW,plh,11*u);ctx.fill();
+      ctx.strokeStyle=on?COL.warp:'rgba(140,170,220,0.28)';
       ctx.lineWidth=on?2:1.2;
       ctx.globalAlpha=psA*(on?Math.min(1,(RM?1:0.62+0.38*Math.sin(G.t*3))+G.powSelFx*0.35):1);
-      ctx.beginPath();ctx.roundRect(cxx+1,cyy+1,cellW-2,plh-2,10*u);ctx.stroke();
+      ctx.beginPath();ctx.roundRect(cxx+1,cyy+1,cellW-2,plh-2,11*u);ctx.stroke();
       ctx.globalAlpha=psA;
       drawPow(cxx+plh*0.62,cyy+plh/2,{type:o.id,t:G.t},on?1:0.55);
       ctx.textAlign='left';
@@ -13337,7 +13590,9 @@ function drawHUD(){
     if(la>0){
       ctx.globalAlpha=la;
       textFx('LEVEL '+G.level,cx,cy-72*u,30*u*(skip?1:1+0.35*(1-la)),'800','#ffe9b0',COL.ember,'rgba(255,200,87,0.5)',5);
-      text(tierLabel(),cx,cy-52*u,11*u,'700','rgba(255,200,87,0.6)',3);
+      /* the level's name, not tierLabel() — same rule as the in-run header:
+         the card said HEAT DEATH, so the death screen may not say THE EYE */
+      text(LV[G.level-1].name,cx,cy-52*u,11*u,'700','rgba(255,200,87,0.6)',3);
       ctx.globalAlpha=1;
     }
     ctx.globalAlpha=el(0.15);

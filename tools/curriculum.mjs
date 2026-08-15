@@ -1,10 +1,13 @@
 /* @lane full */
 /* The curriculum rule, executed: every mechanic is introduced and explained
-   by the end of level 3 — by the start of level 4 the player has met every
-   formation, seen every lesson, and had every orb placed. This drives the
-   real game headlessly (same scaffold as smoke.mjs) with an invulnerable,
-   periodically-hopping player, taps through the level cards, and fails the
-   build if level 4 opens with anything left untaught. */
+   before the exam level — which is read off the table (EXAM = LV.length,
+   level 6 today), never written down here. Teaching runs through level 5:
+   DIVERS lands in level 4, THE NARROWS in level 5, and the exam opens with
+   every formation lessoned, every orb placed and the tier ladder complete.
+   This drives the real game headlessly (same scaffold as smoke.mjs) with an
+   invulnerable, periodically-hopping player, taps through the level cards
+   and the upgrade draft, and fails the build if the exam opens with anything
+   left untaught — or if a tier banner fires inside it. */
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { seededMath, seedLine } from './lib/rng.mjs';
@@ -212,13 +215,14 @@ while (st('G.level') < EXAM || st('age()') < 30) {
        to be met by the end of level 2 while levels 3 and 4 introduced nothing;
        the owner's rebalance spreads them, so SPOTLIGHT's guarantee starts at
        level 3 and the black hole's at level 4.
-       HONEST LIMIT ON WHAT THIS PROVES. The placed flags reset at every
-       startGame, so a guarantee written as `level >= N` fires on N and every
-       level after it. Both the old rule and the new one therefore place a
-       spotlight by the end of level 3, and no assertion here can tell them
-       apart — this checks that every orb is REACHED by the level its guarantee
-       names, which is the thing that matters to a player, not which line
-       forced it. The level-2 spot check was removed rather than moved because
+       HONEST LIMIT ON WHAT THIS PROVES. The placed flags are per RUN now
+       (and pre-spent for any guarantee whose home level is behind a picked
+       start), so a guarantee written as `level >= N` fires exactly once, on
+       its home level. This harness drives one full climb from level 1, so it
+       still meets each orb where its guarantee names — what it checks is that
+       every orb is REACHED by that level, which is the thing that matters to
+       a player, not which branch forced it. The level-2 spot check was
+       removed rather than moved because
        it had started passing on a one-in-eight pool roll, which is the shape
        of assertion that goes green for the wrong reason. */
     if (lv === 3 && st('G.lvCard.done') && !placedByEndL2) {
@@ -250,7 +254,7 @@ if (!placedByEndL3) fail.push('level 3 completion card never observed');
 else if (!placedByEndL3.spot) fail.push('level 3 ended without the spotlight ever placed');
 /* Read off TIERS rather than written down: this line was a hardcoded 9, which
    meant ADDING A TIER ANYWHERE failed the build with a message about the wrong
-   thing. The assertion that matters is that level 4 opens on the LAST rung —
+   thing. The assertion that matters is that the exam level opens on the LAST rung —
    that every unlock has already happened — not that the ladder is ten long. */
 const lastTier = st('TIERS.length') - 1;
 if (st('G.tier') !== lastTier) fail.push(`level ${EXAM} did not open on the last tier (${lastTier}), tier=` + st('G.tier'));

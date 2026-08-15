@@ -661,7 +661,7 @@ function crossFront(st, frame, fire, pid) {
          takes it as uniforms. Everything below the structure blend is
          unchanged from the chain that was calibrated against the historical
          look; what is new is that `bill` is no longer the only thing the mass
-         can be made of. At WORLDS[0] (DRIFT) with its 0.70/0.30/0/0 weights
+         can be made of. At WORLDS[0] (DRIFT) with its 0.79/0.21/0/0 weights
          this reduces to very nearly the old expression, which is deliberate:
          the opening sky had to survive the overhaul unchanged. */
       const lumAt = (u, v, drx, dry, W) => {

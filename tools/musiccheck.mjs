@@ -378,7 +378,8 @@ for (const L of LEVELS) {
   if (sevHits < 3) fail(`level ${L}: the chorus color tone fired ${sevHits} time(s) in ${roots.length} bars — SEVB is not reaching the schedule`);
   else ok(`level ${L}: the seventh color tone sang ${sevHits} times`);
 }
-if (Object.keys(heard).length === 4) ok('no level read another level\'s progression row');
+if (Object.keys(heard).length === NLV) ok('no level read another level\'s progression row');
+else fail(`heard ${Object.keys(heard).length} levels' progressions — expected ${NLV}`);
 
 console.log('--- the song settles back to the verse when the play cools ---');
 {
@@ -850,9 +851,13 @@ const accents = row => [0, 1, 4, 5, 7].map(b =>
   row.slice(b * 16, b * 16 + 16).map((v, j) => v >= 0 ? j : -1).filter(j => j >= 0).join(' ')).join(' | ');
 const grammar = new Set(HOOKL.map(accents));
 if (grammar.size !== 1) fail(`the hooks no longer share one rhythm: ${[...grammar].join('  /  ')}`);
-else ok('all four hooks keep one rhythmic signature: ' + [...grammar][0]);
+else ok(`all ${NLV} hooks keep one rhythmic signature: ` + [...grammar][0]);
 
-for (let i = 0; i < 4; i++) {
+/* NLV, NOT 4. This file's own header says the level count is the table's
+   answer, and these loops were the stragglers: levels 5 and 6 shipped with
+   their hooks unchecked for the response-bar law and the PENT bounds — the
+   exact silent-stop the header warns a copied count produces. */
+for (let i = 0; i < NLV; i++) {
   const yours = [2, 3, 6].every(b => HOOKL[i].slice(b * 16, b * 16 + 16).every(v => v === -1));
   if (!yours) fail(`level ${i + 1}'s hook plays over a response bar — bars 2, 3 and 6 are the player's`);
 }
@@ -860,7 +865,7 @@ ok('the response bars are silent on every level');
 
 /* every degree must be indexable in PENT, including the crown's +5 clamp */
 const PENT = $('PENT');
-for (let i = 0; i < 4; i++) {
+for (let i = 0; i < NLV; i++) {
   const bad = HOOKL[i].concat($('HOOKBL')[i]).filter(d => d >= PENT.length);
   if (bad.length) fail(`level ${i + 1}'s hook uses degree(s) ${[...new Set(bad)].join(',')} beyond PENT`);
 }
@@ -884,11 +889,18 @@ console.log('--- level 4 has parts of its own ---');
      drone pitch, and the chorus run is checked too: the chorus is where the
      bass finally moves, which is exactly when a drone that secretly follows
      the chord would start following it */
-  const tonicHalf = PROG[3][0][0] / 2;
+  /* the sub drone rides subF() now — the 40Hz register turnaround — so the
+     expected pitch is the FLOORED tonic-half: same pitch class, audible
+     octave. Mirror the game's own floor rather than hardcoding the result. */
+  const subFloor = f => { while (f < 40) f *= 2; return f; };
+  const tonicHalf = subFloor(PROG[3][0][0] / 2);
   const offRoots = [...PROG[3], ...$('PROGB')[3]]
-    .map(c => c[0] / 2).filter(f => Math.abs(f - tonicHalf) > 0.02);
+    .map(c => subFloor(c[0] / 2)).filter(f => Math.abs(f - tonicHalf) > 0.02);
   for (const [name, list] of [['verse', osc4], ['chorus', heardHot[4].osc]]) {
-    const drone = list.filter(o => o.type === 'triangle');
+    /* dur as well as type: the 40Hz floor moved the drone into the same
+       octave as the bar-root triangle voice, so frequency alone no longer
+       separates them — the drone is the only triangle held ~1.5s */
+    const drone = list.filter(o => o.type === 'triangle' && o.dur > 1.2 && o.dur < 1.6);
     const onTonic = drone.filter(o => Math.abs(o.f - tonicHalf) < 0.02).length;
     const offTonic = drone.filter(o => offRoots.some(r => Math.abs(o.f - r) < 0.02)).length;
     if (!onTonic) fail(`level 4 never sounded its tonic pedal in the ${name} run`);

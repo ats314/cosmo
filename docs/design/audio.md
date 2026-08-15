@@ -52,8 +52,13 @@ Three changes, measured after each:
   threshold would have fixed the share and broken the opening, since most runs
   are short and a player who never hears a drop has lost the feature rather
   than had it rationed. The cost escalates within a run instead — 1.0, then
-  +0.8 each, capped at 4.2 — so drop one still lands around 43s and the steady
-  state moves past a minute. `hairtrig` scales the curve rather than
+  +0.8 each — so drop one still lands around 43s and the steady
+  state moves past a minute. The escalation is clamped at 2.75 now, under the
+  meter's own 2.9 ceiling: the unclamped curve crossed the cap at the fourth
+  drop (1+0.8·4 = 4.2), so after three drops the meter could never arm again
+  and the mechanic's "it always comes around" promise was silently over for
+  the rest of the run — 420s of strong play armed exactly three. The drop can
+  always re-arm. `hairtrig` scales the curve rather than
   subtracting from its base, or it would be worth 15% of the first drop and 5%
   of the fourth.
 - **The skill contributions halve; the trickle does not.** `build(dt/50)` is
@@ -110,10 +115,16 @@ once — without the hole, the loud part is just more loud.
 
 Playtest: "the payoff isn't big enough" and
 "the game needs more bass." The drop's impact now lands with a real sub
-boom (41Hz, with its octave for speakers) and a braam — a fifth-stack
+boom — the fifth below the tonic, an octave and a fourth down, which is
+~41Hz on level 1, with its octave for speakers — and a braam — a fifth-stack
 brass bloom swelling out of the hit — and the section carries a bass line
 under the hook, sub sine plus octave square, riding the sidechain pump so
-it breathes with the kick. When the eight bars run out the arrangement no
+it breathes with the kick. The boom is an interval, not a frequency, and it
+rides the 40Hz register turnaround: every fixed sub voice below 40Hz
+octave-doubles through `subF()`, because the six keys descend a whole tone
+each and by REDSHIFT and HEAT DEATH the literal had fallen to 26 and 23Hz —
+below anything a phone reproduces at all, so the game's biggest hits were
+silent on the two newest levels. Same pitch class, actual air behind it. When the eight bars run out the arrangement no
 longer snaps back to normal: every gate stays open through the four-bar
 breath that follows (the afterglow), so the record cools instead of
 stopping — the playtest's exact note was "and then continue on."
@@ -273,12 +284,18 @@ people actually have (~2.5 minutes), engagement can open every layer the
 clock would (playing hard means hearing more, immediately), and the third
 ring — the hottest kit — lands at ~73s instead of 114, one level before the
 gates. And the stars change voice as you climb, one instrument per act: a
-clean square early, a detuned synth pair from level 4, a sawtooth lead with
-a slide-in attack from level 7, and at level 10 an electric guitar — a
+clean square early, a detuned synth pair from THIRD RING, a sawtooth lead
+with a slide-in attack from BLINKERS, and at THE EYE an electric guitar — a
 detuned saw pair with its fifth driven into a hard clip, hammer-on slide and
-all. Each step announces itself ("NEW SOUND: SYNTH LEAD") once the level
+all. (The steps are tier rungs, read off `TIERS` by name — they were bare
+ordinals once, which is the class of number that goes stale when a ladder
+grows.) Each step announces itself ("NEW SOUND: SYNTH LEAD") once the level
 banner has cleared, playing a quick lick in the new voice, and the death
-screen names the next one so the ladder is never a secret. Same key, same
+screen names the next one so the ladder is never a secret. The announcement
+is keyed by the voice, not the rung, so a climb hears each name exactly once
+— TWIN SYNTHS and SYNTH LEAD used to announce twice and ELECTRIC GUITAR
+never — and it defers across a black hole rather than captioning music that
+is not playing. Same key, same
 degrees throughout — a band that grows up with the run.
 
 ### Score buys the band
@@ -331,7 +348,11 @@ promise the speaker broke. Each ring now has a rhythmic identity: the outer
 rides the heartbeat (one kick per bar — it used to be silent, which measured
 as the single biggest reason ordinary play never hit), the mid ring gains a
 half-time kick and a low fifth leaning into the turn, the inner runs a
-four-on-the-floor with a moving octave bass and a swung sixteenth. Pattern reads louder than gain: a drum kit assembling under
+four-on-the-floor with a moving octave bass and a swung sixteenth. The level
+kits keep out of its way rather than doubling it — one tenant per timeslot:
+level 3's kick fires only on the outer ring, and level 4's and level 6's
+floors on beats 2 and 6 yield whenever the inner-ring kit owns those slots,
+because two kick oscillators in one slot is mud, not emphasis. Pattern reads louder than gain: a drum kit assembling under
 you as you dive is unmissable at any volume. And the hop itself is cut on the
 grid like a DJ transition — a bright two-grain sweep inward, a breathing one
 outward, with the arriving track flashing under the comet — so the change is
@@ -534,3 +555,13 @@ block landed in the death register and sounded like a punishment for being
 rescued. The death itself fell to 50Hz and so ended by vanishing. The nova
 cascade picked a random pitch per shard and stacked into a dissonant wash; it
 is now a minor pentatonic.
+
+And the in-run reward cues transpose now. The orbit payout arpeggio, the
+score milestone cue, the shield save and shield pickup, the ring unlock and
+the level-start chime were all absolute A-minor/C-major literals — in key on
+level 1 because level 1's key is the key they were written in, and chromatic
+against most of the other five. Each is written as an interval over the
+level's tonic, `CH[0][0]*(old/110)`, so level 1 is bit-identical to what
+shipped and every other level finally hears its own rewards in its own key —
+the same audit and the same fix the drop's boom, the snare body and the tom
+fill got before them.

@@ -15,48 +15,39 @@ any player-facing sentence.*
 - **The curriculum rule, as the owner revised it.** The rule used to end
   teaching at level 4's floor. The owner's call, verbatim: *"We are going to
   change to balance power up introduction, mechanics, and difficulty all the
-  way the level 4."* So the boundary now differs by KIND, and the split is
+  way the level 4."* So the boundary differs by KIND, and the split is
   deliberate rather than a loophole:
-  - **Formations** — the shard shapes on the tier ladder — now complete by
+  - **Formations** — the shard shapes on the tier ladder — complete by
     **dl 520**, level 5's finish line, NOT dl 340. That boundary moved when the
     run went to six levels: teaching that stopped at level 3 left levels 4, 5
     and 6 introducing nothing for twelve minutes, which is a plateau rather
     than an exam. DIVERS (dl 395, level 4) and THE NARROWS (dl 520, level 5)
-    are the two rungs that fill it, and THE EYE moved to dl 610. The guards
-    moved with it and none of them is indexed by a literal any more:
-    `check.mjs` derives the boundary from `ends[ends.length-1]` (every level
-    but the last carries a numeric `end`, so that IS the last teaching level),
-    `curriculum.mjs` reads `EXAM = LV.length`, and `smoke.mjs` pins the last
-    tier to `LV[LV.length-2].end`. The previous text of this entry said dl 340. They compound with each other, they are what the death coach
-    explains, and meeting a new one at the speed ceiling is the density
-    problem the ladder was rebuilt to avoid. `curriculum.mjs` still fails if a
-    tier banner fires inside level 4, and that guard stays.
-  - **Orbs and modes** may now be introduced through level 4, taught by
-    `firstMeet` at first contact wherever that falls. THE BLACK HOLE is the
-    first of these: it is rare on purpose, so guaranteeing it inside level 3
-    to satisfy a boundary would have destroyed the thing that makes it work.
-  This is the owner's decision and not an inference from the code. The pacing
-  half of it is now done: spotlight's guarantee moved to level 3, the black
-  hole's to level 4, and the difficulty clock grew a second ramp past dl 420
-  where every pressure term used to sit flat forever. Do not read the new
-  latitude as permission to scatter formations into level 4 — that half of the
-  rule is unchanged and still enforced.
-
-- **The formation half of the rule.** Every formation is introduced *and
-  explained* by the end of level 3 — dl 340, which is `LV[2].end` and level 4's
-  floor. Enforced by `curriculum.mjs` (which
-  fails if any tier banner fires inside level 4, and requires every type in its
-  `TAUGHT` list to have been lessoned by then) and by a static guard in
-  `check.mjs` (`max(TIERS[].at) <= ends[2]`). `smoke.mjs` additionally pins the
-  LAST tier to exactly `LV[2].end`, so a new tier can be inserted anywhere below
-  THE EYE but never appended after it. If you move a tier, all three must pass.
-  This entry said "the end of level 2 · level 3 introduces nothing" until a
-  session went looking for room to add a shape and found the code, the ladder
-  table and all three harnesses saying level 3 while `CLAUDE.md`, `README.md` and
-  one comment in `check.mjs` said level 2. Level 4 moved the exam when it was
-  added; the rule was never updated to follow it. A constraint that disagrees
-  with its own enforcement costs more than a missing one — it makes the careful
-  reader wrong.
+    are the two rungs that fill it, and THE EYE moved to dl 610, level 6's
+    floor. The guards moved with it and none of them is indexed by a literal
+    any more: `check.mjs` derives the boundary from `ends[ends.length-1]`
+    (every level but the last carries a numeric `end`, so that count IS the
+    number of teaching levels), `curriculum.mjs` reads `EXAM = LV.length` and
+    fails if a tier banner fires inside the exam level, and `smoke.mjs` pins
+    the last tier to `LV[LV.length-2].end` — so a rung can be inserted
+    anywhere below THE EYE but never appended after it. If you move a tier,
+    all three must pass.
+  - **Orbs** spread across levels 1–5, taught by `firstMeet` at first
+    contact: the intro trio on level 1, then one guaranteed home apiece —
+    hypernova level 2, spotlight level 3, mirror level 4, scorch level 5 —
+    with the black hole guaranteed once on level 4 and otherwise left to its
+    rare roll from level 3 on, because guaranteeing something rare early to
+    satisfy a boundary would have destroyed the thing that makes it work.
+  This is the owner's decision and not an inference from the code. Level 6 is
+  the exam: it introduces nothing, and everything the game has is in play
+  when it opens. Do not read the latitude on orbs as permission to scatter
+  formations into the exam — that half is enforced three ways. And this entry
+  has drifted before, twice, always the same way: it said "the end of level
+  2" while every guard said level 3, then said dl 340 while the guards said
+  dl 520 — each time the exam moved and the prose stayed. A constraint that
+  disagrees with its own enforcement costs more than a missing one, because
+  it makes the careful reader wrong. The guards are derived from the tables
+  now precisely so the next move drags them along; nothing derives this
+  paragraph, so update it in the same commit.
 
 - **Adding a tier is wider than it looks, and the twelve hardcoded ordinals
   are gone now.** `curriculum.mjs` used to hardcode the last tier's index
@@ -72,6 +63,22 @@ any player-facing sentence.*
   have fired at DIVERS. They are derived from the table by NAME now (`T_VOICE`
   and `T_SKY`), so the next insert costs nothing and a renamed row fails
   loudly instead of quietly re-timing the audio ladder.
+
+- **Ceremonies are per RUN, never per level.** `startGame` runs at every level
+  advance, not only when a run begins, so any "first time" flag it resets
+  unconditionally becomes a per-level ceremony. Everything that introduces —
+  the hint-ladder flags (`didReverse`, `didHop`, `didDodge`, `sawDrop` and
+  kin), the shield→slow-mo→nova intro trio (`G.introN`), the four
+  orb-guarantee flags — resets only under `!carried`, the same signal `bhRun`
+  uses. (`carried`, not `G.carryScore`: the latter is consumed and zeroed
+  before the resets run, so reading it there is always false.) Unguarded,
+  every back-half level replayed "tap anywhere to turn around" and re-paraded
+  every guaranteed orb — HYPERNOVA guaranteed on L2 through L6, level 5
+  opening with six marquee arrivals in 54 seconds — burying SCORCH and THE
+  NARROWS, the only two things level 5 actually introduces. On a picked
+  start the guarantee flags begin pre-spent for every home level already
+  behind the run, so a REDSHIFT start owes level 2 nothing. `G.powN` stays
+  per-level on purpose: it is pacing and telemetry, not a ceremony.
 
 - **No aimed input.** There is no target to hit anywhere in this game. Landing
   the beat drop is *any* move in the window, wherever the thumb is.
@@ -94,8 +101,9 @@ any player-facing sentence.*
   `LAB_ORBS[].n` must appear somewhere in `MECHANICS.md`, matched
   case-insensitively because the code shouts and the ledger is prose. It was a
   sentence asking people to remember until the guard was written, and the guard
-  failed on its first run: THE EYE — the last rung of the tier ladder, dl 340,
-  level 4's floor — had shipped with no ledger row at all. The check runs
+  failed on its first run: THE EYE — the last rung of the tier ladder, then at
+  dl 340 on level 4's floor, dl 610 now — had shipped with no ledger row at
+  all. The check runs
   FORWARD only, because "every mechanic the code ships is in the ledger" is
   precise, while asking which of the ledger's hundred rows ought to name a code
   symbol would guess, and a guard that guesses gets deleted the first time it
@@ -218,13 +226,26 @@ any event property.*
   simulation delta to measure wall time is. `smoke.mjs` advances its clock
   without running a frame, which is what a locked phone does.
 
-- **Two ladders, two names.** `G.tier` is the ten-rung *unlock* ladder (what has
-  been introduced); `G.level` is the 1–3 structure the player is told about.
-  Everything player-facing — the HUD, the death headline, the pips, the share
-  text, `FURTHEST YET` — uses `G.level`. Never call the tier ladder a level, in
-  UI or in telemetry.
+- **Two ladders, two names.** `G.tier` is the thirteen-rung *unlock* ladder
+  (what has been introduced); `G.level` is the 1–6 structure the player is told
+  about. Everything player-facing — the HUD, the death headline, the pips, the
+  share text, `FURTHEST YET` — uses `G.level`. Never call the tier ladder a
+  level, in UI or in telemetry.
 
-- **Telemetry: one name per ordinal.** `game_level` is the 1–3 level on every
+- **One name per thing, and the level's name is the level's.** The standing
+  HUD line, the death screen subtitle and the share text all print
+  `LV[G.level-1].name`; `tierLabel()` survives in telemetry only, as
+  `tier_name`. This rule replaced a channel that kept manufacturing
+  collisions: tier-ladder labels leaked into player-facing surfaces beside a
+  level ordinal, so every level-4 run printed "LEVEL 4 · STORM" under a level
+  the card had just named EVENT HORIZON, while level 3 was THE STORM — and the
+  black hole's banner wore EVENT HORIZON, level 4's own name, as its eyebrow
+  (it says SINGULARITY now). Each collision — STORM, THE EYE, the eyebrow —
+  was first answered with a rename, which spends a good name to keep a bad
+  channel; the channel was the bug. A new surface that wants a name prints the
+  level's own, and two different things never share one.
+
+- **Telemetry: one name per ordinal.** `game_level` is the 1–6 level on every
   event; `tier` is the only name for the unlock ladder. Retire ambiguous
   property names rather than redefining them — a redefined property silently
   corrupts historical rows. The difficulty mode is `play_mode` on every event
@@ -296,13 +317,29 @@ audio path.*
 - **Audio is optional everywhere.** The game must be completable with no
   WebAudio at all. Every audio path is guarded; keep it that way.
 
+- **The sub register turns around at 40Hz.** `subF()` octave-doubles any sub
+  voice below 40Hz — the drop's boom, the payoff floor, the braam, the black
+  hole's swallow, the layer-three drone all pass through it, and any new sub
+  voice must. Bought with the six-key descent: the whole-tone walk down had
+  pushed the drop's boom to 23–26Hz on levels 5 and 6, below what any phone
+  speaker reproduces, so the game's biggest hits were inaudible on the levels
+  that lean on them hardest. The pitch CLASS keeps descending, which is what
+  the ear tracks; only the sounding register folds back up. And the interval
+  rule above is now actually true of the in-run reward cues: the orbit payout
+  arpeggio, the score milestone, the shield save and pickup, the ring unlock
+  and the level-start chime are written `CH[0][0]*(old/110)` — an interval
+  over the level's tonic, bit-identical on level 1 where the tonic IS the old
+  literal — where they used to be absolute A-minor/C-major pitches, chromatic
+  on most levels. `musiccheck.mjs` tracks the 40Hz floor; never write a bare
+  frequency into a cue.
+
 - **Every chord is diatonic to its level's natural minor, and every pitch is
   written as an interval over the level's tonic.** These are one rule seen from
   two sides. The SFX pentatonic is scaled into each level's key and every sound
   in the game speaks through it, so a chord borrowed from outside the mode —
   a major dominant being the obvious temptation — puts the entire effects layer
   a semitone out against the band. And an absolute pitch is a chord from
-  outside the mode on three levels out of four: the beat drop, the snare body
+  outside the mode on five levels out of six: the beat drop, the snare body
   and the tom fill were each hardcoded to A-minor pitches and each rang wrong
   everywhere else, unnoticed for as long as the levels differed only by
   transposition. Never write a bare frequency into the audio path. `PROG` and
@@ -408,7 +445,7 @@ render scale.*
 
   **THE CLOSED SET IS NOW A PRODUCT, AND THE WORLD TABLE IS WHY IT IS STILL
   CLOSED.** "One lap is every sky" was true when there was one structure.
-  There are six now — `WORLDS` — and the reachable set is (drift orbit) x
+  There are eight now — `WORLDS` — and the reachable set is (drift orbit) x
   (adjacent world pair). It stays finite and sweepable because of three
   properties, and all three are enforced in `fxcheck.mjs` rather than trusted:
   every row's four structure weights SUM TO 1, so a world is a blend and never
@@ -416,7 +453,7 @@ render scale.*
   factor in 0..1 and the gate enters as `mix(1.0, gate, cov)`, which can only
   ever RAISE the never-black floor and never lower it; and the exponents are
   >= 1, because `pow(0.0, 0.0)` is undefined in GLSL ES and both of those
-  bases reach 0. `fxcheck.mjs` sweeps all six worlds AND three points along
+  bases reach 0. `fxcheck.mjs` sweeps all eight worlds AND three points along
   each morph between neighbours over the full drift orbit — the midpoint alone
   was not enough, because the first cut of this found a transition measuring
   0.238 mean against 0.166 and 0.164 at its two ends: **a blend of two safe
@@ -429,7 +466,7 @@ render scale.*
   component is FINITE, because a NaN reaching a uniform renders as black on a
   real GPU and throws nowhere. **DRIFT is the anchor and is held to the
   historical numbers to four decimals** (0.1490 mean, 0.0374 darkest, against
-  the measured 0.149/0.038 of the sky that shipped); the other five are held
+  the measured 0.149/0.038 of the sky that shipped); the other seven are held
   only to "does not black out, does not flood, does not stop resting", because
   a world brighter or fuller than DRIFT is a world rather than a regression.
   If you retune the sky, the port retunes with you; if you restructure the

@@ -14,15 +14,18 @@ first five have finish lines; the sixth does not:
 | 1 | LIFT OFF | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor | i–♭VI–♭III–♭VII · ♭VI–♭VII–v–i | the original groove |
 | 2 | INTO THE RINGS | gates, drifters, blinkers, hypernova | G minor | i–♭VII–♭VI–iv · ♭VI–♭VII–i–i | swung sixteenths, bass off the beat |
 | 3 | THE STORM | the two compounds — sliding gates, flicker pairs — plus THE SAUCER and the spotlight, then a finish line | F minor | i–♭III–v–♭VI · i–i–♭III–♭VII | rolling four-on-the-floor |
-| 4 | EVENT HORIZON | the same storm, one black hole guaranteed — and a finish line, which it did not have when it was last | E♭ minor | i–♭VI–♭VII–i · iv–i–♭III–v, both over a tonic pedal | octave bass, open offbeat hat |
-| 5 | REDSHIFT | everything running away and stretching as it goes | D♭ minor | i–iv–♭VII–♭III · ♭VI–♭III–♭VII–i | the 3+3+2 push, in the bass and the hats |
+| 4 | EVENT HORIZON | DIVERS and THE MIRROR, with the black hole's one guaranteed offer — and a finish line, which it did not have when it was last | E♭ minor | i–♭VI–♭VII–i · iv–i–♭III–v, both over a tonic pedal | octave bass, open offbeat hat |
+| 5 | REDSHIFT | THE NARROWS and scorch, everything running away and stretching as it goes | D♭ minor | i–iv–♭VII–♭III · ♭VI–♭III–♭VII–i | the 3+3+2 push, in the bass and the hats |
 | 6 | HEAT DEATH | **no new formations** — everything at once, speed climbing toward the 4.2 rad/s ceiling. Endless. | B minor | i–iv–v–♭VI · ♭III–♭VII–iv–i | continuous sixteenths, the floor on 2 and 6 |
 
 ### BLACK HOLE MODE
 
-BLACK HOLE MODE runs across levels 3 and 4 and is neither a level nor a
-power-up: a rare dark orb you may take or decline, and 17 seconds of somewhere
-else if you take it. The band stops, a preset piece plays, you stop being an
+BLACK HOLE MODE is neither a level nor a power-up: a rare dark orb you may
+take or decline, and 17 seconds of somewhere else if you take it. It is
+guaranteed to be **offered** once on level 4 — a guarantee to offer, not to
+run, which is the only kind an optional thing can carry — and an ordinary 5%
+roll runs on every level from 3 on, so EVENT HORIZON owns the introduction
+and the mode stays rare everywhere else. The band stops, a preset piece plays, you stop being an
 instrument, everything runs at 0.42×, the reds run 1.5× to 3.5× — and a fourth
 orbit opens while all four re-space. See `MECHANICS.md` for the geometry and the
 measurements; the short version is that the fourth ring works because the
@@ -46,12 +49,21 @@ The lesson worth keeping is that none of this was visible from the code: every
 feature read correctly at its own site, and each was disabled by something
 somewhere else. Only measurement found them.
 
-Level 3 used to be the endless one. Giving it a finish line and handing
-"endless" to level 4 keeps *the last level is the exam* true, rather than
-making level 3 both the exam and the middle of the game. Neither introduces
-anything, so the curriculum rule below is untouched by the extra level.
+"Endless" has moved twice, for the same reason each time. Level 3 was the
+endless one first; giving it a finish line and handing endless to level 4
+kept *the last level is the exam* true rather than making level 3 both the
+exam and the middle of the game — and at that step the new level introduced
+nothing, so the curriculum rule survived unread. Then the six-level rebuild
+moved the exam again: level 4 has a finish line of its own now and introduces
+DIVERS and THE MIRROR, level 5 adds THE NARROWS and scorch, and HEAT DEATH —
+level 6 — is the endless exam. Each move is the same correction: the level
+that never ends must be the one with nothing left to teach.
 
 ### Four of the six worlds were content nobody ever saw
+
+(Six then — the sky table has since grown to eight, GRID and DEEPFIELD
+joining the six nebulae, with `LEVEL_HOME` flooring each level's opening
+world and DUSTLANE and GRID left as journey-only discoveries.)
 
 Orbits buy the journey (`ORB_PER_WORLD` = 7, seven of them per world). Two
 lines made that unreachable:
@@ -68,7 +80,9 @@ lines made that unreachable:
   reversing bought 27 orbits — 3.86 worlds of travel — and delivered 0.83, the
   trickle and nothing else.
 
-The scoring lap still resets on a reversal: the streak and its multiplier are
+The scoring lap still resets on a reversal: the streak and its bonus (additive,
+up to +28 — the streak is deliberately not a multiplier, and no channel prints
+it as ×N) are
 the price of turning around, and gates exist to charge it. What is banked is
 the **distance actually covered**, which is the one quantity here that is
 simply true — the comet went that far, whichever way it was pointing when it
@@ -123,14 +137,15 @@ answer. And GATES had no mirror: a gate blocks every lane and is answered by a
 TAP, so THE NARROWS blocks every lane but one and is answered by a HOP. The
 syllabus closes by asking for the other half of the control scheme against the
 same object it opened with, 420 difficulty-seconds later. By the start of
-level 4 the player knows how everything works and all of it is in play —
-level 4 is the exam, not a syllabus. The four storm shapes used to unlock
-at dl 205–340 with no level 4 to hold them: a level whose banner promised
+HEAT DEATH the player knows how everything works and all of it is in play —
+the last level is the exam, not a syllabus. The shape of this move is older
+than the six-level game: the four storm shapes originally unlocked at
+dl 205–340 with no level 4 to hold them — a level whose banner promised
 "no new tricks" still owed four brand-new tricks, delivered at the game's
-most hostile density. Adding level 4 moved the exam rather than the syllabus,
-so teaching now runs to dl 340 — three shapes in level 2 and three in level 3,
-each ~35 dl apart, each with its banner and first-encounter lesson, and THE EYE
-sits exactly on level 4's floor. Difficulty is untouched — every pressure term
+most hostile density — and adding level 4 moved the exam rather than the
+syllabus, putting THE EYE on level 4's floor at dl 340. The six-level rebuild
+is the same correction one size up, and THE EYE moved with it to dl 610.
+Difficulty is untouched — every pressure term
 still keys off the same clock — this changes *what* arrives, never *how much*.
 
 This paragraph said "the end of level 2" for as long as level 4 has existed,
@@ -148,28 +163,35 @@ next level, and lists the mechanics it will introduce — teaching moved to a
 calm screen instead of mid-combat. A genuine first run passes through
 level 1's card too (once per device — it was dead data before: the one calm
 screen written to pre-teach the verbs never actually rendered), and a death
-on level 2 or 3 retries *through that level's card*, so the syllabus for
+on a later level retries *through that level's card*, so the syllabus for
 exactly the mechanics that just killed you is re-read from a calm screen at
 the moment it is most relevant. Each level's key drops a whole step
-(A → G → F → E♭): going deeper into the game literally deepens the music, with
+(A → G → F → E♭ → D♭ → B): going deeper into the game literally deepens the
+music, with
 the same 104bpm grid so the dub delay never falls out of time. The keys
 descend but the songs are not transpositions of each other — each level walks
-a *different* progression, which is the difference between four keys and four
-songs. Every visit
-starts at level 1 — the game used to resume a device's highest unlock from
+a *different* progression, which is the difference between six keys and six
+songs. Every page load opens on level 1 — the game used to resume a device's
+highest unlock from
 the menu, and playtesters on shared or borrowed phones read that as "the
-game skipped level 1," so the resume was cut. Within a run nothing is
+game skipped level 1," so the resume was cut. What replaced it is a *choice*,
+not a memory: from run 2 a level picker names all six and the selection is
+never persisted, so a borrowed phone still begins at LIFT OFF unless the
+person holding it picks otherwise (see the difficulty record's "Where you
+start"). Within a run nothing is
 lost: death retries the level you died on, and the best score and deepest
 level reached are still remembered (`cometloop:best`, `cometloop:gl`) as
 records on the death screen. Score carries across a single run's levels;
-by level 3 every current mechanic has been introduced.
+by the end of level 5 every mechanic has been introduced.
 
 Playtest round three on levels: **1 and 2 run longer again** (finish lines
 now at dl 90 and 215 — about 2:05 for level 1 and a further ~2:40 for
 level 2; they sat at 75/190 until the teaching pass needed the room, the
 owner's call being "just make the first and second level longer if
 needed") so each song has time to land and each introduction gets air;
-gates and the storm threats all live in level 2 now, and level 1's back
+gates, drifters and blinkers all live in level 2 (that pass put the storm
+threats there too, before the six-level ladder moved the compounds out to
+level 3), and level 1's back
 half belongs to the musical curriculum.
 
 ### The arranging pass
@@ -209,8 +231,12 @@ five or seven. The register does *not* keep descending with it — level 6's
 tonic at 61.74Hz is the lowest root in the game and a bassline sitting on it
 all bar would give the level people spend the most time inside the thinnest
 bottom end of the six, so its line rides an octave up and touches the low root
-only on the downbeat. `musiccheck.mjs` pins a 60Hz floor under every chord
-tone in both tables so the next key added cannot fall through it.
+only on the downbeat. The same turnaround is enforced in code for the fixed
+sub voices: anything below 40Hz octave-doubles through `subF()`, and
+`musiccheck.mjs` derives its level loops from the table's own length (`NLV`)
+and mirrors that 40Hz floor in the level-4 sub-drone check, so the next key
+added is checked the day it exists rather than falling through a hardcoded
+count.
 
 Measured across all six, verse and chorus: six distinct progression shapes in
 semitones from the tonic (L1 `0 -4 3 -2`, L2 `0 -2 -4 -7`, L3 `0 3 7 8`,
@@ -226,7 +252,9 @@ one part of the song that never actually changed. Each level owns a different
 minor-mode cadence now: level 2 walks the descending tetrachord down past its
 own tonic and hands the loop back unresolved, level 3's roots climb F–A♭–C–D♭
 so its bass is a line rather than a set of leaps, and level 4 pedals home every
-four bars, which is what the level with no finish line should sound like.
+four bars — written when it was the level with no finish line, and kept now
+that it has one, because a tonic pedal is the right sound for the event
+horizon: the bottom of the arrangement refusing to move.
 
 The constraint that picks them is not taste. The SFX pentatonic is scaled into
 each level's key and every sound in the game speaks through it, so a chord from
@@ -259,8 +287,8 @@ band's own tempo — one iv–i–♭III–V loop for the whole song, the lift p
 textural), and **Protovision** (E♭ minor — one asymmetric i–i–♭III–V cell,
 two bars of tonic then a ramp). So level 1's chorus walks the shape
 Nightcall's does, in the key the level shares with it; level 4 rides Odd
-Look's loop shape in the key they share, launched on the subdominant, endless
-as the level; level 3 runs Protovision's ramp; and level 2 — whose verse walks the descending tetrachord — gets the
+Look's loop shape in the key they share, launched on the subdominant, looping
+as the song does; level 3 runs Protovision's ramp; and level 2 — whose verse walks the descending tetrachord — gets the
 Aeolian cadence, the same chords climbing the other way, dovetailing back
 into its verse with a zero-glide seam. The one thing the records do that this
 game cannot copy is their single borrowed chord: Odd Look's and Protovision's
@@ -287,11 +315,15 @@ third, every glide including the section seams inside an octave.
 ### Level 4's own arrangement
 
 Its bassline branch fell through to
-level 3's, it had no kit block at all, and the endless level — the one good
-players spend most of a session inside — was the only one whose bottom end and
-percussion were second-hand. It has an octave-jumping bass, an open offbeat
-hat, a doubled floor, and a sub drone pinned to the tonic under its pedal
-progression, so the bottom never moves at all.
+level 3's, it had no kit block at all, and the then-endless level — the one
+good players spent most of a session inside — was the only one whose bottom
+end and percussion were second-hand. It has an octave-jumping bass, an open
+offbeat hat, a doubled floor, and a sub drone pinned to the tonic under its
+pedal progression, so the bottom never moves at all. (The doubled floor —
+kicks on beats 2 and 6 — yields to the inner-ring kit when the run is riding
+the innermost ring, the same one-tenant-per-slot rule level 3's kick keeps
+with its outer-ring guard; level 6's floor on the same beats yields
+identically.)
 
 **Three things were in the wrong key on three levels out of four.** All
 pre-existing, all found by auditing every absolute pitch in the audio path
@@ -372,7 +404,8 @@ So the mid-game now keeps the early game's discipline, one thing at a time:
   waits ~18s after each unlock.
 
 Mechanics unlock on a schedule, each announced with a banner — and the whole
-ladder fits inside levels 1–3, with level 4 as the exam (the curriculum rule).
+ladder fits inside levels 1–5, with HEAT DEATH as the exam (the curriculum
+rule).
 `dl` is difficulty-seconds: wall time plus the nudge good play earns, so a
 strong run reaches each rung sooner than a struggling one. Each banner's `sub`
 is word-for-word the lesson that fires when the shape first spawns; they are
@@ -398,9 +431,10 @@ nudge at all sees the slowest the schedule ever runs; scoring well pulls
 everything forward by up to 40 seconds. Every gap clears the 9-second lesson
 spacing and a banner's full display, so each shape still gets its solo
 introduction. A crossing
-never fires during a finale — the exam must not be announced over the
-graduation ceremony — and the level-3 start owns the STORM crossing
-silently, because its intro card is the announcement.
+never fires during a finale or a level's endgame window — the exam must not
+be announced over the graduation ceremony — and any crossing a boundary
+swallows is owned by the next level's silent pre-climb in `startGame`,
+because that level's intro card is the announcement.
 
 ### The new shape insists until its lesson lands
 
@@ -417,7 +451,8 @@ unlessoned is re-placed, and picking one up counts as the introduction —
 using it beats any sentence about it. Veterans have seen everything, so
 none of this runs for them; density is untouched — same spawn, different
 shape. `tools/curriculum.mjs` plays the whole run headlessly and fails the
-build if level 3 ever opens with anything left untaught.
+build if the exam level — the last one, read off `LV` rather than written
+down — ever opens with anything left untaught.
 
 ### The exam waits for the lesson
 

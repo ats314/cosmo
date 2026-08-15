@@ -175,14 +175,14 @@ try {
   for (let i = 0; i < 900; i++) frame(16.7);
   console.log('menu+demo ok');
   // start the game from the title screen's START — a FRESH device passes
-  // through the swipe chooser, then the level picker, then the LIFT OFF card
-  // (the calm pre-teaching screen), one tap each, once per device
+  // through the swipe chooser and lands directly on the LIFT OFF card: a
+  // device with zero runs has nothing to pick a level with, so the picker
+  // appears from run 2 (enterRunStart). The picker itself is exercised in
+  // its own section below, on a device with runs behind it.
   let mpid = passMenu(st, frame, fire, pev, 900);
   mpid = passSwipeChooser(st, frame, fire, pev, mpid);
-  if (st('G.state') !== 'levelsel') throw new Error('the swipe chooser did not hand off to the level picker, state=' + st('G.state'));
-  mpid = passPowerSelect(st, frame, fire, pev, mpid);
-  mpid = passLevelSelect(st, frame, fire, pev, mpid);
   if (st('G.state') !== 'lvend') throw new Error('fresh device did not get the level-1 card, state=' + st('G.state'));
+  if (st('G.lvCard&&G.lvCard.next') !== 1) throw new Error('the fresh-device card is not level 1\'s');
   for (let i = 0; i < 60; i++) frame(16.7);
   fire('pointerdown', pev(1, 200, 400, 'pointerdown'));
   fire('pointerup', pev(1, 200, 400, 'pointerup'));
@@ -358,8 +358,11 @@ try {
   st("G.teach=0;G.teachHint=null;G.teachType=null");
   console.log('lesson survives a hop ok');
   // a level-2 start is honest: no forged didHop, three rings, tier pre-climbed,
-  // and the layer ladder seeded from the carried score (no false NEW LAYER)
-  st("G.level=2;G.carryScore=2000");
+  // and the layer ladder seeded from the carried score (no false NEW LAYER).
+  // didHop is per RUN now — a carried boundary keeps whatever this run's
+  // thumbs actually did — so the forge-guard is: startGame must never turn
+  // it true on its own. Cleared going in, it must still be false coming out.
+  st("G.level=2;G.carryScore=2000;G.didHop=false");
   st('startGame()');
   if (st('G.didHop') !== false) throw new Error('level-2 start forged didHop');
   if (st('G.nRings') !== 3) throw new Error('level-2 must open with three rings');
