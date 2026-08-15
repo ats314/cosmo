@@ -13364,8 +13364,15 @@ function drawHUD(){
     text(lbs,labX+labH*1.16,labY+labH*0.80,
       fitSz(lbs,lbz*0.80,'600',labW-labH*1.9),'600','rgba(190,178,235,0.6)',0);
     ctx.textAlign='right';
+    ctx.globalAlpha=0.75;
+    text('›',labX+labW-labH*0.5,labY+labH*0.68,labH*0.5,'700',COL.warp,0);
+    ctx.globalAlpha=1;
+    ctx.restore();
+    /* which build this is, provable from a screenshot — bottom-RIGHT, out of
+       the centre column where landscape clamps the stats-disclosure line onto
+       the same baseline and the two printed through each other */
+    ctx.textAlign='right';
     text('build '+BUILD,W-12*u,H-safeBot-8*u,8.5*u,'600','rgba(160,175,205,0.30)',1);
-    ctx.textAlign='center';
     ctx.textAlign='center';
     /* FOUR ROWS, NOT NINE. This is the densest block of text in the game and
        the first thing anybody reads \u2014 the playtester who counted "like eight
@@ -13485,7 +13492,10 @@ function drawHUD(){
          this always clears the button AND stays on the screen; the min is a
          belt for a future layout that moves bottomY down. */
       text('anonymous play stats collected',cx,
-        Math.min(H-18*u-safeBot,(labRoom?labY+labH:sbY+sbH)+15*u),
+        /* the deeper clamp is safe again now the build stamp sits bottom-
+           right: at H-18u the landscape fallback printed this line through
+           the START pill's own lower edge */
+        Math.min(H-6*u-safeBot,(labRoom?labY+labH:sbY+sbH)+15*u),
         10*u,'600','rgba(200,215,255,0.32)',0);
     }
   }else if(G.state==='levelsel'){
