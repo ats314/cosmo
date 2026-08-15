@@ -3955,8 +3955,8 @@ function useMode(m){
    differently-worded description of the same six things. */
 const LAB_ORBS=[
  {id:'shield',   n:'SHIELD',    d:'a shield takes one hit for you'},
- {id:'warp',     n:'SLOW-MO',   d:'this one slows everything down'},
- {id:'nova',     n:'NOVA',      d:'this one turns every red into a star'},
+ {id:'warp',     n:'SLOW-MO',   d:'the whole board slows down'},
+ {id:'nova',     n:'NOVA',      d:'every red on screen becomes a star'},
  {id:'spot',     n:'SPOTLIGHT', d:'the light is on you: stars and taps pay double'},
  {id:'hyper',    n:'PINK STAR', d:'untouchable and fast'},
  {id:'blackhole',n:'BLACK HOLE',d:'everything slows, the reds pile up'}
@@ -5491,7 +5491,15 @@ const MEET={
      then visibly breaking it, which is the fastest way to make a player stop
      trusting anything else it tells them. The lethal half is taught where it
      becomes true: the LAST SHIELD popup, at the moment the bank empties. */
-  single:  {t:'red costs a shield — get out of its way',g:'shard'},
+  /* NAMES THE TWO VERBS, because this is the sentence where the player most
+     needs to know what their options ARE. "get out of its way" shipped here
+     and in the hint ladder for a long time, and it is the same defect this
+     table's own note diagnoses twice below: it describes a manoeuvre rather
+     than an input. There is no getting out of the way in this game — there is
+     turning around and there is changing ring, and at the moment red is first
+     explained those two facts are the whole of what is useful. Longer than
+     what it replaces; fitSz already handles that. */
+  single:  {t:'red costs a shield — turn around or change ring',g:'shard'},
   /* THIS GAME HAS NO AIMED MOVEMENT. The comet travels a fixed circle at a
      fixed speed and there are exactly two verbs: turn around, change ring.
      There is no positioning, no threading, no stopping, no aiming. So a lesson
@@ -11121,12 +11129,28 @@ function draw(){
      a linear fade is the least alive curve there is. Big lines get the same
      one-pixel dark offset the hint text uses, so they stay crisp over bloom. */
   ctx.textAlign='center';
+  /* POPUPS ARE CLAMPED TO THE SCREEN NOW. They spawn at the object that
+     caused them — the comet, a shard, an orb — which is in orbit, so a good
+     fraction of them are born within half a string's width of an edge. They
+     draw centred and were clamped by nothing at all: measured by wrapping
+     text() and reading ctx.measureText across four viewports, "SHIELD USED ·
+     1 LEFT" rendered from x=-99 to x=135 on a 390px phone. A quarter of the
+     sentence was off the glass, on the one popup that fires at the moment a
+     player most needs to read it, and the same on every viewport tested.
+     Shrink first so a long line stays as large as it can, then slide the box
+     inside the margins — sliding alone cannot save a string wider than the
+     screen, and shrinking alone leaves it hanging off the edge. */
   for(const p of G.pops){
     const lf=Math.max(p.life,0);
     ctx.globalAlpha=Math.min(1,lf*3);
-    const fs=14*u*(p.sz||1)*(RM?1:1+0.4*Math.max(0,lf-0.88)/0.12);
-    if((p.sz||1)>1.2)text(p.str,p.x+1.5,p.y+1.5,fs,'800','rgba(4,8,20,0.85)',1);
-    text(p.str,p.x,p.y,fs,'800',p.col,1);
+    let fs=14*u*(p.sz||1)*(RM?1:1+0.4*Math.max(0,lf-0.88)/0.12);
+    const mg=8*u;
+    fs=fitSz(p.str,fs,'800',W-mg*2,1);
+    ctx.font='800 '+Math.round(fs)+'px '+F;
+    const hw=ctx.measureText(p.str).width/2+1*p.str.length/2;
+    const px=Math.max(mg+hw,Math.min(W-mg-hw,p.x));
+    if((p.sz||1)>1.2)text(p.str,px+1.5,p.y+1.5,fs,'800','rgba(4,8,20,0.85)',1);
+    text(p.str,px,p.y,fs,'800',p.col,1);
   }
   ctx.globalAlpha=1;
   ctx.restore();
@@ -11436,8 +11460,8 @@ function hintText(){
        hint ladder already explains it") was the one the ladder never
        actually explained */
     if(pw.type==='shield'&&!G.gotShield&&!G.didShield)return {t:'a shield takes one hit for you',g:'shield'};
-    if(pw.type==='warp'&&!G.gotWarp)return {t:'this one slows everything down',g:'warp'};
-    if(pw.type==='nova'&&!G.gotNova)return {t:'this one turns every red into a star',g:'nova'};
+    if(pw.type==='warp'&&!G.gotWarp)return {t:'slow-mo \u2014 the whole board slows down',g:'warp'};
+    if(pw.type==='nova'&&!G.gotNova)return {t:'nova \u2014 every red on screen becomes a star',g:'nova'};
   }
   /* Only once there is somewhere to hop TO. A run opens on a single ring for
      its first 20 seconds, so without this the prompt asks a new player to
@@ -11460,7 +11484,7 @@ function hintText(){
   }
   if(!G.didLap&&a<22)return {t:'collect stars, then finish a lap',g:'star'};
   /* the same sentence MEET.single uses, because it is the same rule */
-  if(!G.didDodge&&G.spikes.length)return {t:'red costs a shield \u2014 get out of its way',g:'shard'};
+  if(!G.didDodge&&G.spikes.length)return {t:'red costs a shield \u2014 turn around or change ring',g:'shard'};
   /* Named after the ring now visibly contracting onto the comet, and phrased
      as an invitation rather than an instruction — a struggling player does not
      need another demand. */
@@ -11473,7 +11497,11 @@ function hintText(){
   if(G.bestGroove<2&&a>28&&G.groove<2)return {t:'tap as the ring lands — that is the beat',g:'beat'};
   /* Named at the ARC, where the answer actually is, and earlier — waiting
      until 34s meant most players never saw why a drop happened. */
-  if(!G.sawDrop&&G.build>0.15)return {t:'play well \u2014 you\u2019re building toward a beat drop',g:'beat'};
+  /* NAMES WHAT FEEDS IT. "play well" was the only row in this ladder asking
+     for something the player cannot actually do — every other row names an
+     input. The meter takes sparks, ring changes, on-beat taps and clean laps;
+     two of those is the most that fits and the most anyone can act on at once. */
+  if(!G.sawDrop&&G.build>0.15)return {t:'gather sparks, tap in time \u2014 a drop is coming',g:'beat'};
   return null;
 }
 
@@ -11628,15 +11656,26 @@ function drawHUD(){
        names the action and states the target it is climbing towards. */
     /* A short viewport cannot hold the explanatory column without it reaching
        down into the arena, so the sub-lines are earned by having the room. */
-    const roomy=(top+186*u)<(cy-R);
+    /* THE ARENA'S TOP IS cy - R*AY, NOT cy - R, and every line in this block
+       had it wrong. R is the HORIZONTAL semi-axis; the rings are drawn as
+       ellipses with a vertical semi-axis of R*AY, and AY is 1.413 on every
+       phone the game ships to (ARENA_STRETCH 0.75 against a 0.46 aspect).
+       So "just above the outer ring" was computed 41% short of the ring, and
+       measured on three viewports the tier banner printed 38px, 41px and 45px
+       INSIDE the arena — over the tracks, over the shards, over the comet. It
+       is in every screenshot of this game anyone has ever taken, which is most
+       of what "the text is a mess" was pointing at: not the wording, the
+       placement. One expression, five readers, all of them wrong together. */
+    const arenaTop=cy-R*AY;
+    const roomy=(top+186*u)<arenaTop;
     /* THE CENTRE IS ONE SLOT. Since the beat-target moved in, the middle of
        the arena is no longer "the one region nothing ever occupies" — so
        exactly one thing may claim it per frame: the drop payoff, then the
        target, then a banner or armFx or sayFx that a vertically-bound
        viewport has squeezed out of the HUD band, then the tutorial hint.
        Landscape used to overprint all of them through the IN TIME counter. */
-    const bannerCentred=G.banner&&(cy-R-30*u)<top+177*u;
-    const sayCentred=G.sayFx&&(cy-R-16*u)<top+152*u;
+    const bannerCentred=G.banner&&(arenaTop-30*u)<top+177*u;
+    const sayCentred=G.sayFx&&(arenaTop-16*u)<top+152*u;
     const counting=MU&&MU.landT&&!MU.landDone&&AC&&
       MU.landT-(AC.currentTime-PLAY.bias)<=SPB*3;
     const centreBusy=counting||G.landFx||G.secFx||bannerCentred||(!roomy&&G.armFx)||sayCentred;
@@ -11713,7 +11752,7 @@ function drawHUD(){
       ctx.globalAlpha=Math.max(0,a)*0.9;
       /* squeezed viewports hand it the centre instead of the IN TIME line */
       const sgold=G.sayFx.str.indexOf('NEW ')===0||G.sayFx.str.indexOf('OVERDRIVE')===0;
-      textFx(G.sayFx.str,cx,sayCentred?cy-8*u:cy-R-16*u,
+      textFx(G.sayFx.str,cx,sayCentred?cy-8*u:arenaTop-16*u,
         fitSz(G.sayFx.str,17*u,'800',W-16*u,5),'800',
         sgold?'#ffe9b0':'#f4f8ff',
         G.sayFx.str==='YOUR TURN'?COL.warp:sgold?COL.ember:'#b9cdf2',
@@ -11734,7 +11773,7 @@ function drawHUD(){
          band and the old clamp printed the gold LEVEL header straight
          through IN TIME. There it takes the centre slot instead, which the
          hint system yields for exactly this. */
-      const by=bannerCentred?cy-8*u:cy-R-30*u;
+      const by=bannerCentred?cy-8*u:arenaTop-30*u;
       /* GOLD, NOT RED. This drew in COL.shard — the shard fill, the danger
          outline, and the exact colour GAME OVER is printed in. The one moment
          the game announces that you have got somewhere was painted in its
