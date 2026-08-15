@@ -11,6 +11,58 @@ second ring does not arrive for ~20 seconds, so until it does, a prompt to
 swipe would be asking for the one gesture the game will not answer — the
 hints skip it until there is somewhere to hop to.
 
+### The text was in the wrong place, not only in the wrong words
+
+Two placement bugs did more damage to legibility than any sentence did, and
+both were invisible to reading because both are arithmetic.
+
+**The tier banner printed 41px inside the arena, on every device.** It sat at
+`cy - R - 30u`. `R` is the arena's HORIZONTAL semi-axis; the rings are drawn as
+ellipses with a vertical semi-axis of `R*AY`, and `AY` is 1.413 on every phone
+the game ships to. So "just above the outer ring" was computed 41% short of the
+ring. Measured on three viewports the banner block landed 38px, 41px and 45px
+*inside* the tracks — over the rings, over the shards, over the comet, every
+time a tier unlocked or a black hole opened. Five expressions read that one
+wrong quantity (`roomy`, `bannerCentred`, `sayCentred`, the say line and the
+banner itself), so they were wrong together and consistently, which is why it
+read as a style problem rather than a bug. There is one `arenaTop = cy - R*AY`
+now.
+
+**Popups had no clamp at all.** They spawn at the object that caused them — the
+comet, a shard, an orb — which is in orbit, so a good fraction are born within
+half a string's width of an edge, and they draw centred. Measured by wrapping
+`text()` and reading `ctx.measureText` across four viewports, `SHIELD USED · 1
+LEFT` rendered from x=-99 to x=135 on a 390px phone: a quarter of the sentence
+off the glass, on the one popup a player most needs to read. They shrink to fit
+and then slide inside the margins — shrinking alone leaves a line hanging off
+the edge, sliding alone cannot save a string wider than the screen.
+
+The audit that found the second is worth keeping: wrap `text`/`textFx`, record
+the real box for every string the game draws, and walk the states. It reports
+zero overflow across 390x844, 360x780, 430x932 and 844x390.
+
+### Four sentences that failed this document's own test
+
+The rule below — *a lesson may only reference actions and objects the game
+actually has* — was being broken by the first thing the game ever says about
+red.
+
+- **`red costs a shield — get out of its way`** → **`red costs a shield — turn
+  around or change ring`**. There is no getting out of the way in this game.
+  There is turning around and there is changing ring, and at the moment red is
+  first explained those two facts are the whole of what is useful. This is the
+  same defect the two retired twin wordings were diagnosed for, sitting in the
+  lesson that fires before either of them.
+- **`this one slows everything down`** → **`slow-mo — the whole board slows
+  down`**, and **`this one turns every red into a star`** → **`nova — every red
+  on screen becomes a star`**. Both sat in a loop whose third row names its
+  object (`a shield takes one hit for you`); "this one" names nothing, and the
+  powerup lab copies these strings verbatim by design, so it inherited the
+  vagueness.
+- **`play well — you're building toward a beat drop`** → **`gather sparks, tap
+  in time — a drop is coming`**. The only row in the ladder that asked for
+  something a player cannot perform. Every other row names an input.
+
 ### The menu demonstrates both verbs
 
 The title-screen comet was already
