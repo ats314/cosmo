@@ -344,6 +344,11 @@ const WORLDS=[
   {n:'TIDE',    bill:0.26,broad:0.24,cont:0.50,fil:0.00,
    contF:1.60,contY:2.40,contK:1.60,filK:6.0,flow:0.00,web:0.00,horiz:0.00,plx:0.45,grid:0.00,gal:0.00,fldF:1.30,covF:1.45,covX:9.10,covY:4.40,lane:0.52,cov:0.94,star:1.15,motion:1.00,gain:0.80,
    pa:[0.16,0.44,0.48],pb:[0.12,0.14,0.14],pc:[1.00,1.00,1.00],pd:[0.10,0.20,0.32]},
+  /* DUSTLANE — mass everywhere, cut to ribbons by the deepest lanes in the
+     table. Warm grey and amber; the stars do the work. */
+  {n:'DUSTLANE',bill:0.55,broad:0.30,cont:0.05,fil:0.10,
+   contF:0.80,contY:0.00,contK:1.00,filK:6.0,flow:0.00,web:0.00,horiz:0.45,plx:0.35,grid:0.00,gal:0.00,fldF:0.86,covF:1.05,covX:9.10,covY:4.40,lane:0.92,cov:0.88,star:1.50,motion:0.60,gain:1.20,
+   pa:[0.54,0.42,0.21],pb:[0.11,0.10,0.07],pc:[1.00,1.00,1.00],pd:[0.00,0.09,0.20]},
   /* GLASS — a sharp filament lattice with the coverage gate opened wide, so
      most of the frame is void and stars. The quietest world, and the one that
      proves darkness is composition rather than absence. */
@@ -355,12 +360,14 @@ const WORLDS=[
   {n:'EMBERFALL',bill:0.20,broad:0.12,cont:0.10,fil:0.58,
    contF:1.10,contY:0.40,contK:1.20,filK:3.4,flow:0.60,web:0.00,horiz:0.00,plx:0.55,grid:0.00,gal:0.00,fldF:1.15,covF:1.30,covX:9.10,covY:4.40,lane:0.78,cov:1.00,star:0.80,motion:1.15,gain:2.30,
    pa:[0.70,0.25,0.13],pb:[0.16,0.13,0.07],pc:[1.00,1.00,1.00],pd:[0.00,0.10,0.22]},
-  /* DUSTLANE — mass everywhere, cut to ribbons by the deepest lanes in the
-     table. Warm grey and amber; the stars do the work. */
-  {n:'DUSTLANE',bill:0.55,broad:0.30,cont:0.05,fil:0.10,
-   contF:0.80,contY:0.00,contK:1.00,filK:6.0,flow:0.00,web:0.00,horiz:0.45,plx:0.35,grid:0.00,gal:0.00,fldF:0.86,covF:1.05,covX:9.10,covY:4.40,lane:0.92,cov:0.88,star:1.50,motion:0.60,gain:1.20,
-   pa:[0.54,0.42,0.21],pb:[0.11,0.10,0.07],pc:[1.00,1.00,1.00],pd:[0.00,0.09,0.20]},
-  /* VEIL — broad violet storm, the fastest thing in the table. */
+  /* VEIL — broad violet storm, the fastest thing in the table. IT STAYS NEXT
+     TO GRID. When the table was reordered to make the level homes climb, VEIL
+     moved to position 2 and GRID lost its bright neighbour: DUSTLANE>GRID@0.25
+     came out at mean 0.0897, under fxcheck's 0.105 floor. Raising GRID's own
+     gain does not fix it and is not the lever — at 1.15 that blend rose only
+     to 0.0970 while GRID>DEEPFIELD@0.25 overshot the ceiling at 0.3300, and at
+     1.40 four samples left the band. GRID is a dim world by construction and
+     survives on its neighbours, so it keeps the two it was tuned against. */
   {n:'VEIL',    bill:0.30,broad:0.48,cont:0.12,fil:0.10,
    contF:1.30,contY:1.10,contK:1.40,filK:4.6,flow:0.22,web:0.40,horiz:0.00,plx:0.65,grid:0.00,gal:0.00,fldF:1.75,covF:2.45,covX:9.10,covY:4.40,lane:0.50,cov:0.86,star:0.90,motion:1.30,gain:1.05,
    pa:[0.50,0.19,0.64],pb:[0.13,0.09,0.13],pc:[1.00,1.00,1.00],pd:[0.30,0.02,0.56]},
@@ -399,7 +406,27 @@ const WORLDS=[
    is that orbiting is how you travel, not one of two ways. */
 const ORB_PER_WORLD=7, ORB_WORLD_SECS=150;
 /* which world each level opens on, as a FLOOR on the journey — see startGame */
-const LEVEL_HOME=[0,1,5,3,2,7];   /* DRIFT TIDE VEIL EMBERFALL GLASS DEEPFIELD */
+/* IT HAS TO CLIMB, AND IT DID NOT. This read [0,1,5,3,2,7], and because the
+   floor is a `Math.max` against a journey that never goes backwards, LEVEL 3
+   floored the sky at world 5 and levels 4 and 5 then asked for 3 and 2 — both
+   already behind. Their entries were DEAD: in a real run from level 1 nobody
+   ever saw EMBERFALL or GLASS as a level's opening image, and the promise this
+   constant exists to keep ("every level has a guaranteed distinct opening
+   image") was true for three levels out of six. It only looked right from the
+   level select, which starts a level with skyW at 0 — which is exactly how it
+   was screenshotted when it was written.
+   The fix is the journey order, so the table climbs and each level's home is
+   reachable. And with the order partly free, it was spent on making the names
+   agree: THE STORM opens on DUSTLANE (mass everywhere, cut to ribbons — a dust
+   storm), EVENT HORIZON on GLASS (void and stars: the world whose own note
+   says darkness is composition rather than absence), REDSHIFT on EMBERFALL
+   (the warm one — it had been handed the COLD one), HEAT DEATH on DEEP FIELD.
+   Only partly free, because VEIL cannot move: it is GRID's bright neighbour
+   and the sky-brightness gate fails without it — see the note on VEIL. So
+   VEIL and GRID are not homes; they are what you travel THROUGH between
+   REDSHIFT and HEAT DEATH by orbiting, which is the point of a journey that
+   is bought rather than assigned. */
+const LEVEL_HOME=[0,1,2,3,4,7];   /* DRIFT TIDE VEIL GLASS EMBERFALL DEEPFIELD */
 /* Contrast moderation in the annulus the orbits occupy — see the red-ban note
    above. 0 disables it and gives the unmoderated sky. */
 const SKY_ARENA_CALM=0.10;

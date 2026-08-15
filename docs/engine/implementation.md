@@ -350,8 +350,29 @@ framebuffer and program made against the old one is dead.
   sets of fBm are curtains, so an aurora world costs zero noise evaluations —
   and the **filament** network (the ridged field as light, at a per-world
   sharpness). `WORLDS` says which of them a world is made of, plus its dust
-  depth, void, star gain, temperament and palette. Six of them: DRIFT, TIDE,
-  GLASS, EMBERFALL, DUSTLANE, VEIL.
+  depth, void, star gain, temperament and palette. Eight of them, in journey
+  order: DRIFT, TIDE, DUSTLANE, GLASS, EMBERFALL, VEIL, GRID, DEEP FIELD.
+
+  **That order is the level order, and it has to climb.** `LEVEL_HOME` puts a
+  FLOOR under each level's opening sky, and a floor is a `Math.max` against a
+  journey that never runs backwards — so a table that dips is a table with
+  dead entries. It read `[0,1,5,3,2,7]`: level 3 floored the sky at world 5,
+  and levels 4 and 5 then asked for 3 and 2, both already behind. In a real
+  run from level 1 nobody ever saw either level's home. It only looked right
+  from the level select, which starts with `skyW` at 0 — which is exactly how
+  it was screenshotted when it was written. `[0,1,2,3,4,7]` climbs, so every
+  home is reachable, and the freedom left over was spent on making the names
+  agree: THE STORM opens on DUSTLANE, EVENT HORIZON on GLASS, REDSHIFT on
+  EMBERFALL (it had been handed the *cold* one), HEAT DEATH on DEEP FIELD.
+
+  **VEIL cannot move, and that is measured.** It is GRID's bright neighbour.
+  With VEIL relocated to position 2, `DUSTLANE>GRID@0.25` swept to mean
+  0.0897, under fxcheck's 0.105 floor. GRID's own gain is not the lever: at
+  1.15 that blend came up only to 0.0970 while `GRID>DEEPFIELD@0.25` overshot
+  the ceiling at 0.3300, and at 1.40 four samples left the band. GRID is a dim
+  world by construction and lives on its neighbours, so it keeps the two it
+  was tuned against — which is why VEIL and GRID are the two worlds you travel
+  *through* rather than open on.
 
   The weights are **lerped on the CPU**, so the shader never branches on a
   world and never evaluates two. A transition is therefore filaments
