@@ -57,12 +57,15 @@ Deployed to GitHub Pages from `main`. The published page is the product.
 | Path | What it is |
 |---|---|
 | `index.html` | The whole game. The distributed artifact. |
-| `README.md` | Design record — why the game is the way it is. |
+| `README.md` | The front door: what this is, and an index of everything below. Short on purpose. |
 | `MECHANICS.md` | The mechanics ledger: one row per player-facing mechanic, where it is introduced, every channel that explains it. |
 | `LICENSE` | All-rights-reserved proprietary grant. |
+| `docs/README.md` | The map of the documents — start here when you do not know which file you need. |
 | `docs/invariants.md` | The rules that are load-bearing, grouped by what you'd be touching. Indexed below. |
-| `docs/harnesses.md` | What each check covers, and where a new test belongs. |
+| `docs/harnesses.md` | What each check covers, where a new test belongs, and what each assertion was bought with. |
 | `docs/review.md` | The two halves of a review here, including the hygiene half people skip. |
+| `docs/design/*.md` | The design record — why the game is the way it is, one file per system: `difficulty`, `levels`, `ladders`, `teaching`, `powerups`, `audio`. |
+| `docs/engine/*.md` | How it works: `implementation` (render path, glow, sky, collision), `telemetry`, `delivery`. |
 | `tools/all.mjs` | Runs every check in CI's order, or `--fast` for the quick four. Holds no list — it reads the workflow. |
 | `tools/*.mjs` | The CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
 | `tools/lib/rng.mjs` | The seeded `Math.random` every harness runs on. Determinism lives here, not in the game. |
@@ -104,19 +107,22 @@ and needs no seed: it is static and touches no RNG.)
 
 ## What to read before you change something
 
-Find the row your change lands in and read that group in `docs/invariants.md`
-before you start. If your change spans two rows, read both. If nothing here
-matches, you are probably doing repository or documentation work and
-`docs/review.md` is the relevant file.
+Find the row your change lands in, read that group in `docs/invariants.md`
+before you start, and read the design document beside it if you need to know
+*why* the thing is the way it is — the design record keeps the attempts that
+were abandoned, which is what stops a session re-proposing one. If your change
+spans two rows, read both. If nothing here matches, you are probably doing
+repository or documentation work and `docs/review.md` is the relevant file.
+`docs/README.md` maps every document if you do not know which one you want.
 
-| If you are touching… | Read this group | Because |
-|---|---|---|
-| a formation, an orb, a level boundary, a lesson, or any sentence shown to a player | **Curriculum, teaching and the ledger** | The curriculum rule splits by KIND — formations complete by level 3, orbs and modes may run to level 4 — and three harnesses enforce the half you are most likely to breach. A lesson may only name verbs the game actually has. |
-| `MODES`, the level select, a stored record, or anything reachable from POWERUP TESTING | **Modes, records and the powerup lab** | One mode ships and the table stays anyway; the unsuffixed storage keys are SKILL's; a lab session must be unable to *create* a key, and every guard behind that is one `!LAB.on` on an ordinary-looking line. |
-| pause, `G.t` / `G.vt`, ring indices, difficulty numbers, or a telemetry property | **Simulation, state and telemetry** | Ring index 0 is the OUTERMOST orbit and has shipped inverted three times. Pause is a flag one line above `G.t+=dt`. Difficulty is measured per ring, never per board. |
-| `PROG`, `PROGB`, a voice, a kit, the pad, or any pitch | **Audio and the arrangement** | Every pitch is an interval over the level's tonic — a bare frequency is wrong on three levels out of four. Silencing the scheduler does not silence the band. A moment that must be immediate cannot be a section. |
-| a draw pass, a shader, a uniform, the glow chain, the render scale | **Graphics, shaders and the sky** | A screen-space warp's sign is the opposite of what it reads like; a halo's bound must be in pixels, not fractions; the sky can never go black and the set of skies is closed. Nothing here is caught by reading — measure it, and `drawcheck.mjs` is where a 2D draw belongs. |
-| the deploy, the build stamp, the freshness check | **Delivery** | The plain play URL is a contract: it must serve the newest build. |
+| If you are touching… | Read this group in `invariants.md` | And this for the reasoning | Because |
+|---|---|---|---|
+| a formation, an orb, a level boundary, a lesson, or any sentence shown to a player | **Curriculum, teaching and the ledger** | [`design/teaching.md`](docs/design/teaching.md), [`design/levels.md`](docs/design/levels.md) | The curriculum rule splits by KIND — formations complete by level 3, orbs and modes may run to level 4 — and three harnesses enforce the half you are most likely to breach. A lesson may only name verbs the game actually has. |
+| `MODES`, the level select, a stored record, or anything reachable from POWERUP TESTING | **Modes, records and the powerup lab** | [`design/difficulty.md`](docs/design/difficulty.md), [`design/powerups.md`](docs/design/powerups.md) | One mode ships and the table stays anyway; the unsuffixed storage keys are SKILL's; a lab session must be unable to *create* a key, and every guard behind that is one `!LAB.on` on an ordinary-looking line. |
+| pause, `G.t` / `G.vt`, ring indices, difficulty numbers, or a telemetry property | **Simulation, state and telemetry** | [`design/ladders.md`](docs/design/ladders.md), [`engine/telemetry.md`](docs/engine/telemetry.md) | Ring index 0 is the OUTERMOST orbit and has shipped inverted three times. Pause is a flag one line above `G.t+=dt`. Difficulty is measured per ring, never per board. |
+| `PROG`, `PROGB`, a voice, a kit, the pad, or any pitch | **Audio and the arrangement** | [`design/audio.md`](docs/design/audio.md) | Every pitch is an interval over the level's tonic — a bare frequency is wrong on three levels out of four. Silencing the scheduler does not silence the band. A moment that must be immediate cannot be a section. |
+| a draw pass, a shader, a uniform, the glow chain, the render scale | **Graphics, shaders and the sky** | [`engine/implementation.md`](docs/engine/implementation.md) | A screen-space warp's sign is the opposite of what it reads like; a halo's bound must be in pixels, not fractions; the sky can never go black and the set of skies is closed. Nothing here is caught by reading — measure it, and `drawcheck.mjs` is where a 2D draw belongs. |
+| the deploy, the build stamp, the freshness check | **Delivery** | [`engine/delivery.md`](docs/engine/delivery.md) | The plain play URL is a contract: it must serve the newest build. |
 
 Two rules sit above all of them and are not negotiable:
 

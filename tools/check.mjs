@@ -427,9 +427,15 @@ for (const f of present) {
    Whole-file, not near-the-name: a harness FILENAME cannot appear in prose by
    accident the way a bare number can (the doc-value guard below has to work
    much harder for exactly that reason). The weak version is sufficient here,
-   and a guard that cannot cry wolf is a guard that survives. */
+   and a guard that cannot cry wolf is a guard that survives.
+
+   ONE ROUTING DOCUMENT, NOT TWO. This guard originally read README.md as well,
+   because README.md carried a second copy of the harness list. That copy is
+   what rotted — both lists went stale in the same way at the same time, which
+   is the argument against keeping two. The harness documentation lives in
+   docs/harnesses.md now and README.md links to it. */
 {
-  const routing = ['docs/harnesses.md', 'README.md'];
+  const routing = ['docs/harnesses.md'];
   for (const doc of routing) {
     const body = await readFile(new URL(doc, root), 'utf8').catch(() => null);
     if (body === null) {
@@ -578,7 +584,28 @@ if (!cp) {
   for (const m of src.matchAll(/\bconst\s+([A-Z][A-Z0-9_]{4,})\s*=\s*(-?\d+\.?\d*)\s*[;,]/g)) {
     consts.set(m[1], m[2]);
   }
-  for (const doc of ['CLAUDE.md', 'README.md', 'docs/invariants.md', 'docs/harnesses.md', 'MECHANICS.md']) {
+  /* THE LIST IS WALKED, NOT WRITTEN DOWN, and that is the whole point after the
+     split. This used to be five hard-coded filenames. README.md was then broken
+     up into docs/design/ and docs/engine/ — and every constant those 2,300 lines
+     discussed (GL_MOTION, SKY_ARENA_CALM, MASTER, LAB_DL …) moved into files
+     this guard had never heard of, so the staleness check would have gone on
+     passing while covering almost none of the prose it was written for. A guard
+     whose scope is a hard-coded list stops covering the thing it guards the
+     moment somebody reorganises. Walking the tree means a new document is
+     covered the day it is created, by nobody remembering anything. */
+  const docs = ['CLAUDE.md', 'README.md', 'MECHANICS.md', 'AGENTS.md'];
+  const walk = async (dir) => {
+    for (const e of await readdir(new URL(dir, root), { withFileTypes: true })) {
+      if (e.isDirectory()) await walk(`${dir}${e.name}/`);
+      else if (e.name.endsWith('.md')) docs.push(`${dir}${e.name}`);
+    }
+  };
+  await walk('docs/');
+  if (docs.length < 8) {
+    fail.push(`the doc-staleness guard found only ${docs.length} documents — the walk over docs/ `
+      + 'has stopped matching the tree, and a guard covering nothing reports success');
+  }
+  for (const doc of docs) {
     let body;
     try { body = await readFile(new URL(doc, root), 'utf8'); } catch { continue; }
     for (const [name, val] of consts) {

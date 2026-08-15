@@ -1,0 +1,186 @@
+# Difficulty
+
+*The clock, the knobs, and the one mode that ships.*
+
+Part of the [Cosmo design record](../../README.md#where-everything-is).
+
+---
+
+Difficulty is a clock, not a score. Playing well nudges it forward slightly,
+but the nudge is capped, so a good run can never accelerate you into a wall.
+The first ~80 seconds advance at 55% rate to give a new player room to find
+the controls, the opening speed is a glide rather than a chase, the first
+threat arrives alone (the shard cap starts at one), early warning pulses run
+almost half a second longer, and spawns open at 2.6s apart instead of 2.1 —
+all of it converging on the same late game, none of it touching the ceiling.
+
+## One mode, and the table that survives it
+
+### CHILL is retired for now
+
+The owner's call: one mode until the game is
+perfected, and then a difficulty conversation from a settled baseline rather
+than alongside one. What is *not* retired is the mechanism.
+
+`MODES` stays, with a single row, and that row is still the **identity**:
+every knob 1, or 0 for the additive shield. So every expression the knobs
+appear in — `dl()`, `speedAt()`, `warnTime()`, `shardCap()`, `spawnGap()`, the
+shield bank — still reduces to exactly what shipped, and the table still
+cannot quietly become the place the real game is tuned.
+
+Keeping it costs one row and buys the thing that was expensive to get right:
+the rule that a second difficulty is a **derivative** and never a second
+implementation. That rule was arrived at, not obvious, and it is written into
+the shape of the table and its guards. Deleting the table would delete the
+rule and leave a future second mode to rediscover it — most likely as a branch
+on a flag somewhere in the game code, which is exactly what the table exists
+to prevent. Bringing chill back is adding a row, not re-deriving a design.
+
+The clock stays the intended main lever, and the reasoning is kept because a
+second mode will need it. Everything that presses on the player — speed, shard
+cap, arrival rate, warning length, the tier ladder, the finish line — is
+already keyed off `dl()`, so slowing that one number eases all six together
+*and in the proportions they were tuned in*, which is the only way "easier"
+stays recognisably the same game rather than a differently-broken one. The
+other knobs are trims on top of it, never a second difficulty curve. And a
+mode must never touch the curriculum, the music or the scoring: orbs and
+lessons are gated on `G.level` and tiers on `dl`, so any mode meets every
+formation in the same order at the same points and merely takes a different
+number of seconds to get there.
+
+The guards stay armed. `check.mjs` still fails the build if the row stops
+being the neutral element, if any knob is declared and never read, or if a
+future second row grows a knob skill lacks. `smoke.mjs` goes further and is
+the reason this is more than a comment: it **injects a synthetic mode** with
+every knob off neutral and measures every curve through the real functions, at
+the same difficulty second, so a table of multipliers wired to nothing cannot
+pass. Deleting that test along with chill would have meant discovering the
+plumbing was dead on the day someone added a row — the worst possible day.
+
+### No player loses a record
+
+Every value ever written to `cometloop:best` and
+`cometloop:gl` was SKILL's, because chill's went to `:chill`-suffixed keys
+precisely so an easier mode could never redefine what the plain key meant (the
+failure the retired `cometloop:level` key is remembered for). So the plain
+keys mean exactly what they always meant, on every device, with nothing to
+migrate. The `:chill` keys are **left on disk deliberately** — they cost a few
+bytes, nothing reads them, and they are somebody's record. `cometloop:mode` is
+likewise left but no longer read: a device that last played chill has `chill`
+sitting under it, and honouring that would select a mode that no longer
+exists.
+
+The title screen loses its cards and gets its best line back under the title,
+where it lived before there were two records to tell apart. It answers a tap
+anywhere again — with no selection on the screen, there is nothing a stray tap
+can cost you, which is the only thing the select-don't-start rule existed to
+prevent. The lab door stays exactly as it was; it was never a card.
+
+## Where you start
+
+The screen after the title picks the starting level. All four are selectable on any device, including levels never
+reached — the screen exists so a level can be reached without playing to it,
+which is what makes testing level 4 possible at all. Rows the device has
+actually got to are marked *reached*, so picked and earned stay visibly
+different things.
+
+This reverses a decision the menu used to enforce, and the reason it is safe
+to is narrower than it looks. Every menu tap used to force level 1, because
+shared and borrowed phones kept inheriting a device's unlock and friends
+thought the game had skipped level 1. That complaint was about a start nobody
+*chose*. So the selection is deliberately **not persisted** — it lives in
+memory and every page load opens on LEVEL 1 — and a borrowed phone still
+begins at LIFT OFF unless the person holding it picks otherwise on a screen
+that names all four levels. Saving the pick is what would bring the original
+bug back with the picker as its new hiding place.
+
+The cost of that freedom is bounded in exactly one place. `G.startLevel`
+records the level a run opened on, and the level record only moves for a run
+that began at level 1 — so choosing EVENT HORIZON and dying on the first shard
+prints no FURTHEST YET and writes nothing. A run that started at level 1 and
+climbed keeps counting, including across the retries that put it on a later
+level, because `startLevel` is where the run opened and not where it is now.
+
+## Pause
+
+Players asked for it. A small icon top-left, mirroring mute top-right at the
+same size and inset. Small and inset is the whole placement argument: the arena
+answers a tap *anywhere* with a reversal, so every pixel given to a pause
+control is a pixel where a reversal silently becomes a pause — and in a
+reaction game that is a death.
+
+The freeze itself is one early return in `update()`, placed before `G.t+=dt`.
+Every deadline in the game is written against that one clock, so stopping it
+stops all of them in step: invulnerability, spawn timers, cooldowns, lesson
+spacing, the tier ladder, the difficulty clock, and the black hole's own tick.
+It is the same argument the difficulty modes make for using `dl()` as their
+lever — one number, so nothing drifts out of step with anything else. Paused
+seconds also leave the reported run time for free, because run time is measured
+on the same clock.
+
+**The board is hidden while paused, and that is a balance decision rather than
+a style one.** Shards telegraph for between one and 2.35 seconds. A button that
+freezes a warning mid-flight and lets you read the board at leisure is a
+difficulty change wearing a convenience label, so the panel is opaque: you
+cannot study what is not drawn. Resuming brings the frozen board back for a
+three-second count-in — enough to find the comet again — and only then does
+time restart. Pause re-arms five seconds later, because without a cooldown
+pause–resume–pause is an unlimited supply of three-second frozen looks at a
+live board, which is the hidden board's protection reassembled out of its own
+escape hatch.
+
+Nothing is done to the audio context. `musicTick` already survives an arbitrary
+gap — it notices the schedule falling behind, abandons the section rather than
+replaying it compressed, and restarts on the next grid line — which is the path
+a backgrounded tab has always taken. Pause does what the visibility handler
+does and no more. The one thing it *must* do is take the pad down explicitly:
+the pad is eight continuously running oscillators whose gain is written every
+frame, so freezing the update loop does not silence it, it freezes it, droning
+one chord for as long as the panel is up.
+
+## POWERUP TESTING
+
+Under the two mode cards is a third option, and it is deliberately not a third
+mode. Five of the six orbs sit behind a curriculum ladder, and the sixth —
+the black hole — is rare on purpose: three `blackhole_entered` events in the
+game's entire recorded history, every one of them on level 4. Finding out what
+an orb actually feels like meant playing until the game decided to hand you
+one. The bar opens a picker of all six; choosing one starts a run where that
+orb, and only that orb, arrives every few seconds.
+
+The board it arrives on is quiet and stays quiet. `dl()` — the difficulty
+clock every pressure term in the game reads — returns a constant and never
+moves, which freezes speed, shard cap, arrival rate, telegraph length, the
+tier ladder and the finish line together and in the proportions they were
+tuned in. The constant is 40, chosen because it is exactly the clock value
+that opens the third ring: the black hole adds a *fourth* orbit on entry and
+restores what it found on the way out, so a lab with fewer rings would have
+demonstrated that against nothing. Level 1's finish line is 90, so a lab run
+is endless and no tier can arrive to interrupt what you came to look at.
+
+*red cannot touch you* is on by default and switchable on the picker. It is
+read at the one lethal-contact site, so nothing downstream fires: no shield is
+spent, no pip moves, no popup. The shard keeps travelling and passes through
+you, which is how you can tell it is on without a line of HUD claiming it.
+Switch it off and the lab is the real game with one orb in it — which is the
+only way to find out what taking that orb is worth. Because a ghosted run
+cannot end by itself, there is a door in the top-left of the arena (and
+Escape) back to the picker.
+
+### Nothing a lab session does reaches the device
+
+No score becomes a best, no
+level record moves, the run count does not advance, the struggle streak that
+lengthens future openings is not fed, and no first-encounter lesson is spent —
+that last one matters more than it sounds, because *taking* a musical orb
+normally counts as having been taught it, so one unguarded black hole session
+would have permanently retired the black hole's lesson on a device that had
+never met one. Nor does hopping in the lab count as having hopped: `hop()`
+persists a lifetime flag that gates the once-ever first-hop rehearsal, so a
+fresh player who opened the lab and swiped would otherwise have met the real
+second ring with the game's tutorial for its hardest gesture already spent. There is no share button on a lab death: the share text has no
+room to say any of the above, and a boast the game knows to be false should not
+be one tap away. Telemetry is suppressed rather than tagged — a lab run cannot
+reach the funnel at all, and one event records that the lab was opened and with
+which orb. `smoke.mjs` snapshots `localStorage` across a whole lab session and
+fails if one key changes.
