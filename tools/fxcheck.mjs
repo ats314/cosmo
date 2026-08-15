@@ -665,13 +665,34 @@ function crossFront(st, frame, fire, pid) {
          this reduces to very nearly the old expression, which is deliberate:
          the opening sky had to survive the overhaul unchanged. */
       const lumAt = (u, v, drx, dry, W) => {
-        const px = u * 1.35, py = v * 1.35;
+        /* THE FIELD SCALE, THE FLOW GRAIN, THE COVERAGE FREQUENCY AND THE
+           PARALLAX DRIFT ARE ALL PER-WORLD NOW, and this port went stale on the
+           first three for a whole commit before anyone noticed — because the
+           tripwire regexes below still matched the lines they were watching,
+           so nothing failed while the port quietly measured a chain the game
+           no longer runs. That is the precise failure invariants.md warns
+           about ("update the port in the same commit or the parse tripwires
+           fail loudly"), and the lesson is that a tripwire only guards the
+           line it names. New tripwires for the new lines are below. */
+        const fld = W.fldF === undefined ? 1 : W.fldF;
+        const px = u * 1.35 * fld, py = v * 1.35 * fld;
         const q = [fbmN(px + drx, py + dry, 6), fbmN(px + 5.2 - drx, py + 1.3 - dry, 6)];
         const r = [fbmN(px + 3.2 * q[0] + 1.7 + drx * 1.7, py + 3.2 * q[1] + 9.2 + dry * 1.7, 6),
                    fbmN(px + 3.2 * q[0] + 8.3 - drx * 1.3, py + 3.2 * q[1] + 2.8 - dry * 1.3, 6)];
-        const f = fbmN(px + 3.0 * r[0] + drx * 0.6, py + 3.0 * r[1] + dry * 0.6, 6);
-        const p2x = u * 0.62 + 3.7, p2y = v * 0.62 + 1.1;
-        const q2x = fbmN(p2x - drx * 0.5, p2y - dry * 0.5, 4), q2y = fbmN(p2x + 2.1 + drx * 0.4, p2y + 7.4 + dry * 0.4, 4);
+        /* FLOW: compress the sample along the (curling) warp direction */
+        let pfx = px + 3.0 * r[0] + drx * 0.6, pfy = py + 3.0 * r[1] + dry * 0.6;
+        if (W.flow > 0) {
+          let dx = r[0] - 0.5 + 1e-5, dy = r[1] - 0.5;
+          const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+          const d = pfx * dx + pfy * dy;
+          pfx -= dx * d * W.flow * 0.62; pfy -= dy * d * W.flow * 0.62;
+        }
+        const f = fbmN(pfx, pfy, 6);
+        /* PARALLAX: the far field drifts slower than the near one */
+        const plx = W.plx || 0;
+        const d2x = drx * (1 - plx * 0.65), d2y = dry * (1 - plx * 0.65);
+        const p2x = u * 0.62 * fld + 3.7, p2y = v * 0.62 * fld + 1.1;
+        const q2x = fbmN(p2x - d2x * 0.5, p2y - d2y * 0.5, 4), q2y = fbmN(p2x + 2.1 + d2x * 0.4, p2y + 7.4 + d2y * 0.4, 4);
         const f2 = fbmN(p2x + 2.4 * q2x, p2y + 2.4 * q2y, 4);
         const rg = rid(px * 1.6 + r[0] * 1.2 + drx, py * 1.6 + r[1] * 1.2 + dry);
         const dust = Math.pow(rg, 2.2);
@@ -685,8 +706,14 @@ function crossFront(st, frame, fire, pid) {
         let band = bill * W.bill + broad * W.broad + cont * W.cont + fil * W.fil;
         band *= W.gain;
         band *= (1 - W.lane * dust);
-        const covA = fbmN(u * 0.75 + 9.1 + drx * 0.35, v * 0.75 + 4.4 + dry * 0.35, 4);
+        const cf = W.covF === undefined ? 0.75 : W.covF;
+        const cx0 = W.covX === undefined ? 9.1 : W.covX, cy0 = W.covY === undefined ? 4.4 : W.covY;
+        let covA = fbmN(u * cf + cx0 + drx * 0.35, v * cf + cy0 + dry * 0.35, 4);
         const covB = fbmN(u * 1.9 + 2.7 - drx * 0.5, v * 1.9 + 8.8 - dry * 0.5, 4);
+        /* WEB: the void becomes filamentary rather than blobby */
+        covA = covA + (rg - covA) * (W.web || 0);
+        /* HORIZON: a linear term gives the world an orientation */
+        covA += (W.horiz || 0) * (u * 0.60 + v * 0.80) * 0.60;
         const gate = GF0 + GF1 * ss(COV, COV + 0.20, covA - 0.18 * (covB - 0.5));
         band *= 1 + (gate - 1) * W.cov;                       /* mix(1,gate,cov) */
         return Math.pow(Math.min(1, Math.max(0, band)), EXP);

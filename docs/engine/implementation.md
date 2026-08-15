@@ -447,25 +447,36 @@ Two causes, both structural:
   frequency for every world, so six worlds shared not only their outline but
   the scale of every structure inside it.
 
-Both are per-world now (`uWD` = covF, covX, covY, fldF). GLASS states a few
-large forms at 0.72 and VEIL breaks into many small ones at 1.70; the coverage
-frequency rises to 1.7–3.2 on five of the six, which is what turns the gate
-from a global dimmer into an actual shape with edges. **DRIFT is 1.00/0.75 and
-therefore bit-identical**, which is what keeps it usable as `fxcheck`'s
-historical anchor — that assertion still passes at 0.1490 mean and 0.0374
-darkest.
+The machinery is in place (`uWD` = covF, covX, covY, fldF; `uWE` = flow, web,
+horiz, plx) and **every world currently sets it to the shared, calibrated
+values.** The decorrelation is NOT shipped, and the reason is worth writing
+down because it cost a full round trip.
 
-Measured after, same method: **max pair 0.63, mean 0.09.**
+**It was shipped once, briefly, and it was not safe.** Per-world coverage
+frequencies (1.7–3.2) and field scales (0.72–1.70) went in and measured
+beautifully — max pair 0.63, mean 0.09 — and `fxcheck` passed. It passed
+because **the port was stale**: `lumAt` still modelled the old single-frequency
+chain, so the guard was measuring a sky the game no longer rendered. Its
+tripwire regexes all still matched, because a tripwire only guards the line it
+names. When the port was brought level with the shader, the same table failed
+immediately and hard — VEIL at mean 0.4071 against a 0.235 ceiling, several
+morphs under the 0.020 blackout floor. It has been reverted.
 
-A wrong turn worth recording. The first attempt raised the per-world *offsets*
-while leaving the frequency at 0.75, which moved each world onto a different
-stretch of a field the screen barely samples — and dropped several of them into
-barren territory, i.e. straight back into the blackout this section is about.
-`fxcheck` caught it, though not for that reason: the new `uWD` uniform had not
-been registered in the lookup table, so it arrived as all-zeros, `nuv*1.35*0`
-collapsed the field to a constant, and the harness reported *870 uniform writes
-went to a null location*. A flat field correlates with any other flat field at
-1.0, which is exactly what the probe then showed.
+**Why it is hard, stated precisely.** The six worlds share `f`, `f2` and `rg`;
+they differ only in how those are *weighted* and coloured. The silhouette is
+therefore common by construction, and the only levers that change it are the
+field scale and the coverage frequency. Both change the luminance
+*distribution* rather than only its scale, which moves worlds and their
+eighteen morphs out of a band calibrated for a single shared field. A
+coordinate-descent tuner over gain, lane, cov and star (DRIFT pinned) plateaued
+at four to six marginal violations and would not close them; tuning the
+coverage *offsets* alone does nothing at all, because at covF 0.75 a phone
+screen spans a quarter of one coverage cell and the gate is a near-global
+dimmer rather than a shape.
+
+**What it needs is a decision, not more tuning:** the band encodes "never
+black, never milky" for a chain with one shared field, and a chain with
+per-world fields needs its safe envelope re-derived rather than inherited.
 
 ### The sky provably cannot go black
 
