@@ -441,7 +441,7 @@ render scale.*
   "danger". The owner lifted both, deliberately and against a stated risk, so
   that worlds like EMBERFALL could exist and the backdrop could stop being
   four recolours of one picture. The contract is now held where it is actually
-  read: `SKY_ARENA_CALM` (currently 0.34) compresses local contrast in the annulus the orbits
+  read: `SKY_ARENA_CALM` (currently **0.10**, was 0.34) compresses local contrast in the annulus the orbits
   occupy (0.09–0.20 of screen height), so a hot sky burns at the rim while the
   band a shard is read against stays quiet. **Hue is free everywhere;
   brightness and contrast directly behind the rings are not.** If a playtest

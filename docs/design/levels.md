@@ -51,6 +51,53 @@ Level 3 used to be the endless one. Giving it a finish line and handing
 making level 3 both the exam and the middle of the game. Neither introduces
 anything, so the curriculum rule below is untouched by the extra level.
 
+### Four of the six worlds were content nobody ever saw
+
+Orbits buy the journey (`ORB_PER_WORLD` = 7, seven of them per world). Two
+lines made that unreachable:
+
+- **`reverse()` zeroed `G.lapAcc`.** Reversing is the game's *primary verb*, so
+  a player who taps is a player who never completes a lap and therefore never
+  travels. Measured across seeded runs: never reversing — the upper bound —
+  reached world 2 of 6; reversing every three seconds reached world 1 and
+  stayed, because a lap needs ~4.5s at opening speed and the reset beat it
+  every time.
+- **`startGame()` zeroed `G.skyW`,** and it runs on every *level advance* as
+  well as every new run. A player climbing to level 4 had the sky sent back to
+  DRIFT three times on the way. Measured before the fix: 120s of never
+  reversing bought 27 orbits — 3.86 worlds of travel — and delivered 0.83, the
+  trickle and nothing else.
+
+The scoring lap still resets on a reversal: the streak and its multiplier are
+the price of turning around, and gates exist to charge it. What is banked is
+the **distance actually covered**, which is the one quantity here that is
+simply true — the comet went that far, whichever way it was pointing when it
+stopped. And the journey now survives a level boundary, gated on `carried`, the
+same signal the black hole's once-per-run guarantee uses.
+
+Measured after, over 120s of play: **2.27 worlds/min never reversing, 1.18
+reversing every three seconds** (which previously earned nothing but the
+trickle), 0.84 reversing every six. A ~60s run sees two to three worlds on any
+playstyle, and the whole table is reachable.
+
+### The events mostly did not arrive
+
+- **Flares:** placed on a *circle* of radius 0.34–0.62 in uv units, but uv is
+  normalised by height so x only spans ±0.231 on a phone — **77% fired
+  somewhere the player could never see**, which is why "a distant star flares"
+  had never been reported by anyone. Now placed on an ellipse matching the
+  viewport, 35–92% out: **100% on screen**, never dead centre.
+- **Meteors:** every one aimed back at (0,0) with ±0.45 jitter, so about half
+  ran through the dead middle where `evOut` forbade them outright. They aim at
+  a point drawn from the visible ellipse now — 96% land somewhere visible, and
+  the target offset supplies the variety the jitter used to.
+- **The passing body:** 181 seconds to cross, and reset on every death.
+  Unreachable in a run of ordinary length, which is a strange property for the
+  sky's one set piece. 47 seconds now, and it survives a death — meteors and
+  flares are still cleared, because a streak frozen on the death screen reads
+  as a stuck pixel, but a slow thing passing behind the whole session is
+  allowed to keep passing.
+
 ### The curriculum rule
 
 (this is the load-bearing design decision): every

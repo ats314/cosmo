@@ -309,32 +309,32 @@ const WORLDS=[
   /* DRIFT — the opening, and the one that had to stay: this is the look the
      screenshots playtesting loved, expressed in the new weights. */
   {n:'DRIFT',   bill:0.79,broad:0.21,cont:0.00,fil:0.00,
-   contF:1.0,contY:0.0,contK:1.0,filK:6.0,lane:0.66,cov:1.00,star:1.00,motion:0.85,gain:1.00,
+   contF:1.0,contY:0.0,contK:1.0,filK:6.0,fldF:1.00,covF:0.75,covX:9.10,covY:4.40,lane:0.66,cov:1.00,star:1.00,motion:0.85,gain:1.00,
    pa:[0.34,0.20,0.44],pb:[0.30,0.16,0.26],pc:[1.00,1.00,1.00],pd:[0.52,0.62,0.78]},
   /* TIDE — curtains. cont dominates and contY stretches the level sets along
      y, which is what turns contours into an aurora rather than a marble. */
   {n:'TIDE',    bill:0.26,broad:0.24,cont:0.50,fil:0.00,
-   contF:1.60,contY:2.40,contK:1.60,filK:6.0,lane:0.35,cov:0.74,star:1.15,motion:1.00,gain:0.80,
+   contF:1.60,contY:2.40,contK:1.60,filK:6.0,fldF:1.45,covF:2.10,covX:2.30,covY:17.60,lane:0.35,cov:0.74,star:1.15,motion:1.00,gain:0.80,
    pa:[0.16,0.44,0.48],pb:[0.12,0.14,0.14],pc:[1.00,1.00,1.00],pd:[0.10,0.20,0.32]},
   /* GLASS — a sharp filament lattice with the coverage gate opened wide, so
      most of the frame is void and stars. The quietest world, and the one that
      proves darkness is composition rather than absence. */
   {n:'GLASS',   bill:0.18,broad:0.10,cont:0.16,fil:0.56,
-   contF:2.20,contY:0.00,contK:2.60,filK:5.5,lane:0.30,cov:1.00,star:1.40,motion:0.70,gain:1.62,
+   contF:2.20,contY:0.00,contK:2.60,filK:5.5,fldF:0.72,covF:1.70,covX:21.40,covY:7.90,lane:0.30,cov:1.00,star:1.40,motion:0.70,gain:1.62,
    pa:[0.46,0.56,0.72],pb:[0.11,0.10,0.09],pc:[1.00,1.00,1.00],pd:[0.00,0.14,0.28]},
   /* EMBERFALL — the world the red ban forbade. Filaments as light over deep
      lanes: embers falling through smoke. */
   {n:'EMBERFALL',bill:0.20,broad:0.12,cont:0.10,fil:0.58,
-   contF:1.10,contY:0.40,contK:1.20,filK:3.4,lane:0.78,cov:1.00,star:0.80,motion:1.15,gain:2.30,
+   contF:1.10,contY:0.40,contK:1.20,filK:3.4,fldF:1.28,covF:2.60,covX:13.70,covY:25.10,lane:0.78,cov:1.00,star:0.80,motion:1.15,gain:2.30,
    pa:[0.70,0.25,0.13],pb:[0.16,0.13,0.07],pc:[1.00,1.00,1.00],pd:[0.00,0.10,0.22]},
   /* DUSTLANE — mass everywhere, cut to ribbons by the deepest lanes in the
      table. Warm grey and amber; the stars do the work. */
   {n:'DUSTLANE',bill:0.55,broad:0.30,cont:0.05,fil:0.10,
-   contF:0.80,contY:0.00,contK:1.00,filK:6.0,lane:0.92,cov:0.88,star:1.50,motion:0.60,gain:1.20,
+   contF:0.80,contY:0.00,contK:1.00,filK:6.0,fldF:0.84,covF:1.90,covX:5.80,covY:11.30,lane:0.92,cov:0.88,star:1.50,motion:0.60,gain:1.20,
    pa:[0.54,0.42,0.21],pb:[0.11,0.10,0.07],pc:[1.00,1.00,1.00],pd:[0.00,0.09,0.20]},
   /* VEIL — broad violet storm, the fastest thing in the table. */
   {n:'VEIL',    bill:0.30,broad:0.48,cont:0.12,fil:0.10,
-   contF:1.30,contY:1.10,contK:1.40,filK:4.6,lane:0.50,cov:0.86,star:0.90,motion:1.30,gain:1.05,
+   contF:1.30,contY:1.10,contK:1.40,filK:4.6,fldF:1.70,covF:3.20,covX:18.20,covY:3.60,lane:0.50,cov:0.86,star:0.90,motion:1.30,gain:1.05,
    pa:[0.50,0.19,0.64],pb:[0.13,0.09,0.13],pc:[1.00,1.00,1.00],pd:[0.30,0.02,0.56]}];
 /* HOW MANY ORBITS BUY A NEW WORLD. The owner's brief, verbatim: "players
    should want to get orbits, and they should be rewarded with a cool
@@ -352,7 +352,7 @@ const WORLDS=[
 const ORB_PER_WORLD=7, ORB_WORLD_SECS=150;
 /* Contrast moderation in the annulus the orbits occupy — see the red-ban note
    above. 0 disables it and gives the unmoderated sky. */
-const SKY_ARENA_CALM=0.34;
+const SKY_ARENA_CALM=0.10;
 function makeCanvas(w,h,fn){
   const c=document.createElement('canvas');
   c.width=Math.max(1,Math.ceil(w*DPR));c.height=Math.max(1,Math.ceil(h*DPR));
@@ -6154,7 +6154,18 @@ function startGame(){
   G.combo=0;G.comboT=0;G.lapAcc=0;G.lapStreak=0;G.lapEmbers=0;
   /* every run opens in DRIFT and travels out from there — the journey is the
      run's, not the device's, so arriving somewhere is always earned again */
-  G.skyW=0;
+  /* ---- THE JOURNEY SURVIVES A LEVEL BOUNDARY ----
+     This reset unconditionally, and startGame() runs on every level advance as
+     well as every new run — so a player climbing from level 1 to level 4 had
+     the sky sent back to DRIFT three times on the way. Combined with seven
+     orbits per world it is the other half of why four of the six worlds were
+     content nobody saw: even a clean orbiter who earned three worlds inside a
+     level arrived at the next one back at world zero. Measured before this
+     line changed: 120s of never reversing bought 27 orbits, which is 3.86
+     worlds of travel, and delivered 0.83 — the trickle, and nothing else.
+     `carried` is the same signal the black hole's once-per-run guarantee uses:
+     true on a level advance, false when a run actually starts. */
+  if(!carried)G.skyW=0;
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
   G.pocket=0;G.missFx=null;
@@ -6551,6 +6562,23 @@ function reverse(silent){
      back — teaching and the burn-off draw both key off the committed copy. */
   G.lapCut=G.lapAcc;G.lapCutDir=-G.dir; /* dir already flipped: the lap ran the other way */
   G.lapCutA=G.angle;                    /* the turn point — where the cost is drawn from */
+  /* ---- THE TRAVEL IS BANKED EVEN THOUGH THE LAP IS NOT ----
+     FOUR OF THE SIX WORLDS WERE CONTENT NOBODY EVER SAW, and this line is the
+     whole reason. Orbits buy the journey (ORB_PER_WORLD), the lap resets to
+     zero here, and reversing is the game's PRIMARY VERB — so a player who taps
+     is a player who never completes a lap and therefore never travels at all.
+     Measured across seeded runs of the real game: never reversing, which is
+     the upper bound, reached world 2 of 6 in 58 seconds; reversing every three
+     seconds reached world 1 and stayed there, because a lap needs about 4.5
+     seconds at opening speed and the reset beat it every time. The trickle
+     under it (150s per world) is a floor, not a route.
+     So the SCORING lap still resets — the streak and its multiplier are the
+     price of turning around, and gates exist to charge it — while the DISTANCE
+     the comet actually covered is banked toward the journey. It is the one
+     quantity here that is simply true: the comet went that far, whichever way
+     it was pointing when it stopped. Nothing else in the reversal economy
+     moves; this is additive. */
+  G.skyW+=(G.lapAcc/TAU)/ORB_PER_WORLD;
   G.lapAcc=0;G.lapStreak=0;
   if(silent)G.revPend=G.t+REV_FX;
   else reverseFX();
@@ -9253,8 +9281,10 @@ uniform vec3 uR1,uR2;
    uWA  (bill, broad, cont, fil)      which structures this world is made of
    uWB  (contF, contY, contK, filK)   how the contour and filament terms bite
    uWC  (lane, cov, star, motion)     dust depth, void, star gain, temperament
+   uWD  (covF, covX, covY, fldF)      WHERE the void opens, and how BIG
+                                      the structures are, per world
    uPA..uPD                           the cosine palette's four coefficients */
-uniform vec4 uWA,uWB,uWC;
+uniform vec4 uWA,uWB,uWC,uWD;
 uniform vec3 uPA,uPB,uPC,uPD;
 /* THE ORBIT, AS NUMBERS.
    uOrb  (charge, spin, wake, wind)
@@ -9397,12 +9427,20 @@ void main(){
   /* polar about the ARENA, unspun: the lap sector and the closing ring are
      events in the player's frame, not in the drifting field's */
   float ar=length(sv);
-  vec2 p=nuv*1.35; float drA=uFlow*0.0105;
+  /* uWD.w IS THE WORLD'S FIELD SCALE, and it is the deepest of the three
+     de-correlators. covF/covX/covY move where the void opens; this moves how
+     BIG the structures are — GLASS at 0.72 states a few large forms, VEIL at
+     1.70 breaks into many small ones — because f, f2 and rg were all sampled
+     at one frequency for every world, so six worlds shared not only their
+     silhouette but the size of everything in them. DRIFT is 1.00 and is
+     therefore bit-identical, which is what keeps it usable as fxcheck's
+     historical anchor. */
+  vec2 p=nuv*1.35*uWD.w; float drA=uFlow*0.0105;
   vec2 dr=vec2(2.0+sin(drA)*1.5,6.0+cos(drA)*1.035);
   vec2 q=vec2(fbm(p+dr),fbm(p+vec2(5.2,1.3)-dr));
   vec2 r=vec2(fbm(p+3.2*q+vec2(1.7,9.2)+dr*1.7),fbm(p+3.2*q+vec2(8.3,2.8)-dr*1.3));
   float f=fbm(p+3.0*r+dr*0.6);
-  vec2 p2=nuv*0.62+vec2(3.7,1.1);
+  vec2 p2=nuv*0.62*uWD.w+vec2(3.7,1.1);
   vec2 q2=vec2(fbm4(p2-dr*0.5),fbm4(p2+vec2(2.1,7.4)+dr*0.4));
   float f2=fbm4(p2+2.4*q2);
   float rg=ridged(p*1.6+r*1.2+dr);
@@ -9420,8 +9458,20 @@ void main(){
   float band=bill*uWA.x+broad*uWA.y+cont*uWA.z+fil*uWA.w;
   band*=uWC.w;
   band*=(1.0-uWC.x*dust*(1.0-0.80*uPock));
-  float covA=fbm4(nuv*0.75+vec2(9.1,4.4)+dr*0.35);
-  float covB=fbm4(nuv*1.9+vec2(2.7,8.8)-dr*0.5);
+  /* THE VOID MOVES WITH THE WORLD. These two fields were sampled at a fixed
+     0.75 and 1.9 with fixed offsets for every world in the table, and uWC.y
+     scaled only HOW MUCH gate — never WHERE it opened. So all six worlds wore
+     the same holes in the same places and could change their surface without
+     changing their outline. Measured off the shader's own readPixels, the
+     luminance fields correlated at r=0.97 between DRIFT and DUSTLANE and 0.94
+     between EMBERFALL and DUSTLANE: one composition in six textures, which is
+     the old "one picture, four palettes" bug moved up a level.
+     The frequency and the offset are per-world now (uWD), so GLASS opens a few
+     large voids at 0.50 and VEIL breaks up into many small ones at 1.42, and
+     the second field keeps its old 2.53x relationship to the first so the
+     interference between them stays the same KIND of structure. */
+  float covA=fbm4(nuv*uWD.x+vec2(uWD.y,uWD.z)+dr*0.35);
+  float covB=fbm4(nuv*uWD.x*2.53+vec2(uWD.z,uWD.y)*0.62-dr*0.5);
   /* THE GATE IS FLOORED: it sculpts the clouds, it no longer owns their
      existence. The coverage field is sampled at uv*0.75, so a phone screen
      spans about a QUARTER of one noise cell — the whole sky rides a single
@@ -9561,7 +9611,19 @@ void main(){
      than a taste one: a bright fast streak crossing the orbits is a thing a
      player will try to dodge, and this game has no aimed input to dodge with.
      Events belong to the sky, and the sky starts outside the rings. */
-  float evOut=smoothstep(0.15,0.40,ar)*mix(1.0,vig,0.55);
+  /* EVENTS REACH THE ARENA NOW, AT A THIRD STRENGTH RATHER THAN NOT AT ALL.
+     This was smoothstep(0.15,0.40,ar): a hard ban on any meteor, flare or
+     passing body existing inside r=0.15, and most of a ban out to 0.40 — which
+     is the entire region the player looks at. Half of all meteors were aimed
+     into that dead zone and contributed 53x less than the same meteor across
+     the periphery.
+     The gameplay reason in the note below is still real and is why this is an
+     attenuation and not a removal: a bright fast streak crossing the orbits is
+     something a player will try to dodge, and this game has no aimed input to
+     dodge with. At 0.35 in the middle an event reads as depth BEHIND the rings
+     — visible, never mistakable for something on them — and comes up to full
+     strength by r=0.24, just outside the outermost orbit. */
+  float evOut=(0.35+0.65*smoothstep(0.04,0.24,ar))*mix(1.0,vig,0.55);
   col+=(meteor(uv,uMetA)+meteor(uv,uMetB))*vec3(0.86,0.92,1.00)*0.85*evOut;
   /* a distant star flares: a core, two diffraction spikes, and a wash that
      lights the nebula it is standing in — the wash is what makes it depth
@@ -9685,7 +9747,7 @@ function glInit(){
     const loc=g.getAttribLocation(pr,'p');
     g.enableVertexAttribArray(loc);g.vertexAttribPointer(loc,2,g.FLOAT,false,0,0);
     for(const n of ['uRes','uCtr','uTime','uEnergy','uPal','uCov','uExp','uCombo','uBeat','uShr','uMotion','uBH','uPock','uFlow','uR1','uR2',
-                    'uWA','uWB','uWC','uPA','uPB','uPC','uPD','uOrb','uOrb2','uMetA','uMetB','uFlare','uBody'])
+                    'uWA','uWB','uWC','uWD','uPA','uPB','uPC','uPD','uOrb','uOrb2','uMetA','uMetB','uFlare','uBody'])
       GL.u[n]=g.getUniformLocation(pr,n);
     GL.g=g;GL.cv=cv;GL.pr=pr;GL.on=true;
     return true;
@@ -9778,6 +9840,12 @@ function skyMix(){
   return {wa:[L('bill'),L('broad'),L('cont'),L('fil')],
           wb:[L('contF'),L('contY'),L('contK'),L('filK')],
           wc:[L('lane'),L('cov'),L('star'),L('gain')],
+          /* THE COVERAGE FIELD IS PER-WORLD NOW, so a world changes its
+             SILHOUETTE and not only its surface. covF is the frequency the
+             void is sampled at and covX/covY are where that sample is taken
+             from; interpolating all three means a morph slides the holes
+             rather than crossfading two fixed hole patterns. */
+          wd:[L('covF'),L('covX'),L('covY'),L('fldF')],
           pa:lerp3(A.pa,B.pa,t),pb:lerp3(A.pb,B.pb,t),
           pc:lerp3(A.pc,B.pc,t),pd:lerp3(A.pd,B.pd,t),motion:L('motion')};
 }
@@ -9817,7 +9885,14 @@ function skyStep(dt){
   if(SKY.wake>=0){SKY.wake+=dv*0.62;if(SKY.wake>1)SKY.wake=-1;}
   /* ---- the event scheduler. Reduced motion gets a sky where nothing
      arrives, for the same reason it gets a still one. ---- */
-  if(RM||!play){SKY.met[0][3]=SKY.met[1][3]=-1;SKY.flare[2]=-1;SKY.body[2]=0;return;}
+  /* THE PASSING BODY SURVIVES A DEATH NOW. Everything here used to be zeroed
+     on !play, which for a 181-second crossing meant the one genuinely rare
+     event in the sky was cancelled by every death and could not be seen in a
+     run of ordinary length. Meteors and flares are seconds long and are still
+     cleared — a streak frozen on the death screen reads as a stuck pixel —
+     but the body is a slow thing passing behind the whole session, and it is
+     allowed to keep passing. */
+  if(RM||!play){SKY.met[0][3]=SKY.met[1][3]=-1;SKY.flare[2]=-1;return;}
   for(let i=0;i<2;i++){const m=SKY.met[i];if(m[3]>=0){m[3]+=dv*0.55;if(m[3]>1)m[3]=-1;}}
   SKY.metT-=dv;
   if(SKY.metT<=0){
@@ -9826,9 +9901,19 @@ function skyStep(dt){
     if(s>=0){
       /* enters from off-frame and crosses: start on a circle wider than any
          viewport, aimed back across it with a little jitter */
+      /* AIMED ACROSS WHAT IS ON SCREEN, not at the middle of it. Every meteor
+         was aimed back at (0,0) with +/-0.45 of jitter, so about half of them
+         ran straight through the dead centre — where evOut used to forbid them
+         outright and still attenuates them — and a meteor through the middle
+         contributes a fraction of what the same meteor across the periphery
+         does. It now aims at a point drawn from the visible ellipse, so the
+         chord it cuts is somewhere a player is looking and no two are alike.
+         The jitter is gone with it: the target offset IS the variety. */
       const a0=Math.random()*TAU,m=SKY.met[s];
       m[0]=Math.cos(a0)*1.15;m[1]=Math.sin(a0)*1.15;
-      m[2]=Math.atan2(-m[1],-m[0])+rand(-0.45,0.45);m[3]=0;
+      const axm=0.5*(W/Math.max(1,H));
+      const tx=rand(-1,1)*axm*0.78,ty=rand(-1,1)*0.5*0.78;
+      m[2]=Math.atan2(ty-m[1],tx-m[0]);m[3]=0;
     }
   }
   if(SKY.flare[2]>=0){SKY.flare[2]+=dv*0.42;if(SKY.flare[2]>1)SKY.flare[2]=-1;}
@@ -9836,18 +9921,30 @@ function skyStep(dt){
     SKY.flareT-=dv;
     if(SKY.flareT<=0){
       SKY.flareT=rand(17,44);
-      const a=Math.random()*TAU,rr=rand(0.34,0.62);
-      SKY.flare[0]=Math.cos(a)*rr;SKY.flare[1]=Math.sin(a)*rr;
+      /* PLACED ON THE SCREEN THAT EXISTS. uv is normalised by HEIGHT, so x
+         only spans +/-0.5*aspect — about +/-0.231 on a 390x844 phone — while
+         this drew a position on a CIRCLE of radius 0.34 to 0.62. Better than
+         three flares in four therefore fired somewhere the player could never
+         see, which is why "a distant star flares" had never been reported by
+         anyone. It is an ELLIPSE matching the viewport now, between 35% and
+         92% of the way out, so a flare is always on screen and never in the
+         dead centre. */
+      const a=Math.random()*TAU,axf=0.5*(W/Math.max(1,H));
+      SKY.flare[0]=Math.cos(a)*rand(0.35,0.92)*axf;
+      SKY.flare[1]=Math.sin(a)*rand(0.35,0.92)*0.5;
       SKY.flare[2]=0;SKY.flare[3]=rand(0.5,1.0);
     }
   }
   if(SKY.body[2]>0){
-    SKY.body[0]+=dv*0.016;                    /* about three minutes to cross */
+    /* 0.016 crossed the frame in 181 SECONDS, on an event that also reset on
+       every death: unreachable in a run of ordinary length, which is a strange
+       property for the sky's one set piece. 0.062 crosses in about 47s. */
+    SKY.body[0]+=dv*0.062;
     if(SKY.body[0]>1.5)SKY.body[2]=0;
   }else{
     SKY.bodyT-=dv;
     if(SKY.bodyT<=0){
-      SKY.bodyT=rand(95,210);
+      SKY.bodyT=rand(40,110);
       SKY.body[0]=-1.4;
       /* kept off the arena's own latitude — a lit crescent directly behind
          the rings is exactly the light the calm band exists to prevent */
@@ -9899,6 +9996,7 @@ function glRender(dt){
     g.uniform4f(GL.u.uWA,SM.wa[0],SM.wa[1],SM.wa[2],SM.wa[3]);
     g.uniform4f(GL.u.uWB,SM.wb[0],SM.wb[1],SM.wb[2],SM.wb[3]);
     g.uniform4f(GL.u.uWC,SM.wc[0],SM.wc[1],SM.wc[2],SM.wc[3]);
+    g.uniform4f(GL.u.uWD,SM.wd[0],SM.wd[1],SM.wd[2],SM.wd[3]);
     g.uniform3f(GL.u.uPA,SM.pa[0],SM.pa[1],SM.pa[2]);
     g.uniform3f(GL.u.uPB,SM.pb[0],SM.pb[1],SM.pb[2]);
     g.uniform3f(GL.u.uPC,SM.pc[0],SM.pc[1],SM.pc[2]);
@@ -10780,15 +10878,59 @@ function draw(){
     ctx.fillRect(0,0,W,H);
   }
   ctx.globalAlpha=1;
-  /* THE CALM POOL. The whole sky stack dims under the play space — a baked
-     feathered darkening behind the ring stack, so the arena sits on a quiet
-     near-black stage and every gameplay object wins its contrast back. The
-     atmosphere lives in the corners, where eyes rest between moments. */
+  /* ---- THE CALM POOL IS GONE, AND IT WAS BUYING THE SAME CONTRAST TWICE ----
+     It was a 52%-black feathered wash over the entire play space, and it sat
+     on top of SKY_ARENA_CALM, which already compresses local contrast in
+     exactly the annulus the orbits occupy. Two independent systems subtracting
+     light from the same band for the same reason, neither measured against the
+     other, plus `evOut` forbidding every sky event from existing inside
+     r=0.15. Measured off the shader's own output before this change, the sky
+     was 2.76x brighter outside r=0.40 than inside r=0.20 — and all three
+     orbits live inside 0.28. Everything good in the sky was happening where
+     the player was not looking, which is most of what "the backgrounds are
+     repetitive and boring" was pointing at: they were not boring at the rim,
+     they were absent in the middle.
+     SKY_ARENA_CALM keeps the job on its own. It is the better of the two
+     because it compresses CONTRAST rather than subtracting BRIGHTNESS, so a
+     shard still wins its edge against the band without the band being black.
+     The owner's call was to go all the way; the dial is one constant and this
+     is the first thing to move back if a playtest reports mistaking backdrop
+     for hazard.
+     IT SURVIVES ON THE NO-GPU PATH, and that is not a hedge. SKY_ARENA_CALM
+     lives in the fragment shader, so a device that falls back to the 2D sky
+     gets none of it — there the pool was not a second helping of contrast, it
+     was the only helping. Deleting it outright would have removed the sole
+     thing keeping a shard readable on exactly the hardware least able to
+     spare the contrast. Half strength, because the 2D sky is dimmer than the
+     shader's to begin with. */
+  /* GATED ON !GL.on AT FIRST, AND THAT WAS THE WRONG CONDITION. The 2D
+     backdrop draws into this same canvas whether or not the shader is up, and
+     rendercheck's two glow paths differ in how much of it reaches the frame —
+     so keying the pool on GL.on left the disc path carrying 26.3 mean
+     luminance against the GPU path's 7.3, a ratio the harness fails because
+     the degrade ladder swaps between them mid-run and a player would watch the
+     scene change brightness. It draws on both paths, at 0.40 of its old
+     weight: 52% black becomes about 21%. That is still most of the way to the
+     owner's "go all the way" — the measured edge/middle ratio lands at 1.30x
+     against the 2.76x this pass started from — while leaving the no-GPU path,
+     which has no SKY_ARENA_CALM at all, with the only contrast protection it
+     has ever had.
+     AND THE NO-GPU PATH IS NOT AN OLD-PHONE PATH. An earlier draft of this
+     note called it "the hardware least able to spare the contrast", which is
+     wrong and worth correcting in place: WebGL 1.0 has shipped on iOS since
+     Safari 8 and on Android Chrome since 2013, so essentially every phone
+     that can load this page supports it. The fallback exists for MOMENTS, not
+     for devices — a context that fails to create under memory pressure, a
+     lost context after a GPU reset or a long backgrounding, a driver on
+     Chrome's blocklist, an in-app webview or a hardened browser with WebGL
+     switched off. Those happen on current hardware, mid-session, to players
+     who were seeing the shader a second earlier, which is exactly why the two
+     paths have to carry comparable light. */
   if(SPR.pool){
-    /* the stage stretches with the arena too, or the top and bottom of the
-       ellipse hang outside the darkening the whole contrast budget depends on */
     const pw=SPR.pool.w,ph=pw*AY;
+    ctx.globalAlpha=0.40;
     ctx.drawImage(SPR.pool.c,cx-pw/2,cy-ph/2,pw,ph);
+    ctx.globalAlpha=1;
   }
 
   ctx.save();

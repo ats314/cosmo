@@ -392,7 +392,7 @@ framebuffer and program made against the old one is dead.
 
   **The red ban is gone, and `GL_MOTION` went back up.** Both were the owner's
   call against a stated risk. What replaces the ban is narrower and sits where
-  the "red means danger" contract is actually read — `SKY_ARENA_CALM` (0.34)
+  the "red means danger" contract is actually read — `SKY_ARENA_CALM` (**0.10**, was 0.34)
   compresses contrast in the annulus the orbits occupy, so EMBERFALL burns at
   the rim while the band a shard is read against stays quiet. Hue is free;
   contrast behind the rings is not. `GL_MOTION` 0.42 → 0.72, now multiplied by
@@ -428,12 +428,55 @@ framebuffer and program made against the old one is dead.
   fake now records the *values* written to each uniform, not only the names,
   so a check can assert what actually reached the GPU.
 
+### The worlds were one composition in six textures
+
+Six worlds, and the luminance fields correlated at **r = 0.97** between DRIFT
+and DUSTLANE, 0.94 between EMBERFALL and DUSTLANE, with a mean of 0.77 across
+all fifteen pairs — measured off the shader's own `readPixels`, averaged over a
+full drift orbit so the number is a property of the composition and not of the
+minute it was sampled in. They were one picture wearing six palettes, which is
+the same bug the world table was built to fix, one level up.
+
+Two causes, both structural:
+
+- **The void never moved.** `covA`/`covB` were sampled at fixed frequencies
+  (0.75, 1.9) with fixed offsets for every row, and `cov` scaled only *how
+  much* gate — never *where* it opened. A world could change its surface and
+  not its silhouette.
+- **Everything was the same size.** `f`, `f2` and `rg` were all sampled at one
+  frequency for every world, so six worlds shared not only their outline but
+  the scale of every structure inside it.
+
+Both are per-world now (`uWD` = covF, covX, covY, fldF). GLASS states a few
+large forms at 0.72 and VEIL breaks into many small ones at 1.70; the coverage
+frequency rises to 1.7–3.2 on five of the six, which is what turns the gate
+from a global dimmer into an actual shape with edges. **DRIFT is 1.00/0.75 and
+therefore bit-identical**, which is what keeps it usable as `fxcheck`'s
+historical anchor — that assertion still passes at 0.1490 mean and 0.0374
+darkest.
+
+Measured after, same method: **max pair 0.63, mean 0.09.**
+
+A wrong turn worth recording. The first attempt raised the per-world *offsets*
+while leaving the frequency at 0.75, which moved each world onto a different
+stretch of a field the screen barely samples — and dropped several of them into
+barren territory, i.e. straight back into the blackout this section is about.
+`fxcheck` caught it, though not for that reason: the new `uWD` uniform had not
+been registered in the lookup table, so it arrived as all-zeros, `nuv*1.35*0`
+collapsed the field to a constant, and the harness reported *870 uniform writes
+went to a null location*. A flat field correlates with any other flat field at
+1.0, which is exactly what the probe then showed.
+
 ### The sky provably cannot go black
 
 The coverage
-gate that carves the nebula into clouds is sampled at `uv*0.75` — a phone
-screen spans about a *quarter of one coverage cell*, so the whole sky rides
-one wandering sample. The drift clock (`G.vt`) never resets, and as a
+gate that carves the nebula into clouds was sampled at `uv*0.75` for every
+world — a phone screen spans about a *quarter of one coverage cell*, so the
+whole sky rode one wandering sample. (It is per-world now, `uWD.x`, and mostly
+much higher: see *The worlds were one composition in six textures* below. A
+frequency that low does not carve clouds at all, it dims the entire frame at
+once, which is both why the blackout was possible and why no world had a
+silhouette.) The drift clock (`G.vt`) never resets, and as a
 straight line it eventually parked that sample in barren stretches of the
 field: whole-screen nebula blackouts lasting 10+ minutes, the first inside
 the first quarter hour of page life, with the stars alive — which reads as
