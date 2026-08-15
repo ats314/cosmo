@@ -17,8 +17,17 @@ any player-facing sentence.*
   change to balance power up introduction, mechanics, and difficulty all the
   way the level 4."* So the boundary now differs by KIND, and the split is
   deliberate rather than a loophole:
-  - **Formations** — the shard shapes on the tier ladder — still complete by
-    dl 340. They compound with each other, they are what the death coach
+  - **Formations** — the shard shapes on the tier ladder — now complete by
+    **dl 520**, level 5's finish line, NOT dl 340. That boundary moved when the
+    run went to six levels: teaching that stopped at level 3 left levels 4, 5
+    and 6 introducing nothing for twelve minutes, which is a plateau rather
+    than an exam. DIVERS (dl 395, level 4) and THE NARROWS (dl 520, level 5)
+    are the two rungs that fill it, and THE EYE moved to dl 610. The guards
+    moved with it and none of them is indexed by a literal any more:
+    `check.mjs` derives the boundary from `ends[ends.length-1]` (every level
+    but the last carries a numeric `end`, so that IS the last teaching level),
+    `curriculum.mjs` reads `EXAM = LV.length`, and `smoke.mjs` pins the last
+    tier to `LV[LV.length-2].end`. The previous text of this entry said dl 340. They compound with each other, they are what the death coach
     explains, and meeting a new one at the speed ceiling is the density
     problem the ladder was rebuilt to avoid. `curriculum.mjs` still fails if a
     tier banner fires inside level 4, and that guard stays.
@@ -49,12 +58,20 @@ any player-facing sentence.*
   with its own enforcement costs more than a missing one — it makes the careful
   reader wrong.
 
-- **Adding a tier is wider than it looks.** `curriculum.mjs` used to hardcode
-  the last tier's index (`G.tier !== 9`), so inserting a row anywhere failed the
-  build with a message about the wrong thing; it now derives it from
-  `TIERS.length`. Twelve places in `index.html` still hardcode tier ordinals for
-  the sky band, the NEW SOUND ladder and the star instrument — inserting below
-  the highest of them shifts every one.
+- **Adding a tier is wider than it looks, and the twelve hardcoded ordinals
+  are gone now.** `curriculum.mjs` used to hardcode the last tier's index
+  (`G.tier !== 9`), so inserting a row anywhere failed the build with a message
+  about the wrong thing; it derives it from `TIERS.length`. The other half of
+  this entry used to end "twelve places in `index.html` still hardcode tier
+  ordinals for the sky band, the NEW SOUND ladder and the star instrument —
+  inserting below the highest of them shifts every one", and then DIVERS and
+  THE NARROWS were inserted and did exactly that: THE EYE moved from index 10
+  to index 12, so every `G.tier>=10` silently stopped meaning "the last rung"
+  and started meaning "two rungs early" — the sky's deepest band, the electric
+  guitar, the NEW SOUND announcement and the death screen's teaser would all
+  have fired at DIVERS. They are derived from the table by NAME now (`T_VOICE`
+  and `T_SKY`), so the next insert costs nothing and a renamed row fails
+  loudly instead of quietly re-timing the audio ladder.
 
 - **No aimed input.** There is no target to hit anywhere in this game. Landing
   the beat drop is *any* move in the window, wherever the thumb is.

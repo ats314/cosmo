@@ -258,33 +258,47 @@ for (const k of ['best', 'gl']) {
   }
 }
 
-/* THE FORMATION HALF of the curriculum rule: every tier unlocks by level 3's
-   finish line, so level 4 — the exam — introduces no new shape. See
-   docs/invariants.md and MECHANICS.md. The finish line is read from the LV
-   table itself so lengthening a level cannot break the guard.
+/* THE FORMATION HALF of the curriculum rule: every tier unlocks by the LAST
+   TEACHING LEVEL's finish line, so the final level — the exam — introduces no
+   new shape. See docs/invariants.md and MECHANICS.md. The finish line is read
+   from the LV table itself so lengthening a level cannot break the guard.
 
    This comment said "level 2's finish line, so level 3 introduces nothing"
    for as long as the code below read ends[2], which is level 3's. Level 4
    moved the exam when it was added and the prose never followed; the guard
    was right and its own explanation was a level out, which is worse than no
    explanation — a reader who trusts it goes looking for room to add a shape
-   in the wrong place. The code was already correct and is untouched. */
+   in the wrong place.
+
+   AND THEN THE SAME MISTAKE HAPPENED IN THE CODE. `ends[2]` was written to
+   mean "the last teaching level" and spelled as "index 2", which were the
+   same thing for exactly as long as there were four levels. Six made them
+   different: a guard still reading ends[2] failed the build for DIVERS at
+   dl 395 — correctly placed inside level 4 — while quoting a rule nobody had
+   broken. The two facts are separate now and both come from the table: every
+   level but the last carries a numeric end, so ends.length IS the number of
+   teaching levels and its final entry is the boundary. */
 const tiers = src.match(/const TIERS=\[([\s\S]*?)\];/);
 const lv = src.match(/const LV=\[([\s\S]*?)\];/);
 if (!tiers || !lv) fail.push('TIERS or LV table not found');
 else {
   const ats = [...tiers[1].matchAll(/at:\s*(\d+)/g)].map(m => +m[1]);
   const ends = [...lv[1].matchAll(/end:\s*(\d+)/g)].map(m => +m[1]);
-  /* THE LAST TEACHING LEVEL's finish line, read positionally — NOT max(ends).
-     Teaching now runs through level 3 and level 4 is the exam, so the boundary
-     is ends[2]. It is read by index rather than as max() because the final
-     level's end is Infinity and never matches the numeric regex: with three
-     levels max(ends) happened to equal the right answer, and with four it
-     silently became the wrong one. Index it, and adding a fifth level cannot
-     quietly move the line. */
-  const teachEnd = ends[2];
+  /* The last level's end is Infinity and never matches the numeric regex, so
+     ends.length is the count of levels that HAVE a finish line — the teaching
+     levels — and its last entry is the boundary. Derived, never indexed by a
+     literal, because a literal is what went stale last time. */
+  const teachEnd = ends[ends.length - 1];
+  const lastTeaching = ends.length;
   if (!ats.length || ends.length < 3 || Math.max(...ats) > teachEnd) {
-    fail.push(`a tier unlocks after dl ${teachEnd} — nothing may be introduced past level 3 (ats: ${ats})`);
+    fail.push(`a tier unlocks after dl ${teachEnd} — nothing may be introduced past level ${lastTeaching} (ats: ${ats})`);
+  }
+  /* ...and the exam must open on the last rung rather than somewhere inside
+     the ladder: the top tier sits exactly on the exam level's floor, which is
+     the same number. smoke.mjs asserts this against the live tables; this is
+     the static tripwire so a table edit alone cannot slide the exam. */
+  if (ats.length && Math.max(...ats) !== teachEnd) {
+    fail.push(`the last tier is at dl ${Math.max(...ats)}, not on the exam level's floor (dl ${teachEnd})`);
   }
 }
 

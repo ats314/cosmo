@@ -54,7 +54,28 @@ anything, so the curriculum rule below is untouched by the extra level.
 ### The curriculum rule
 
 (this is the load-bearing design decision): every
-mechanic is introduced and explained **by the end of level 3**. By the start of
+mechanic is introduced and explained **by the end of level 5**.
+
+**It used to end at level 3, and six levels is what broke that.** The rule was
+written when level 4 was the only level after the syllabus, and it was right
+then. With three levels after it, the same rule meant LIFT OFF through THE
+STORM taught nine formations in 340 difficulty-seconds and then EVENT HORIZON,
+REDSHIFT and HEAT DEATH taught nothing at all for the next twelve minutes — a
+second half that introduces nothing is not an exam, it is a plateau, which is
+the exact complaint that produced level 4 in the first place, restated one
+level further on. Stretching the old ladder over six levels would have
+reproduced it, so the ladder was rebuilt: **DIVERS** lands in level 4 and
+**THE NARROWS** in level 5, and THE EYE moves from dl 340 to dl 610, level 6's
+floor. The owner's call was "complete overhaul from the ground up".
+
+The two new shapes are chosen to close gaps rather than to add volume. Drift
+moves a shard *along* its ring and nothing in the game moved one *across*
+rings, so DIVERS does — it arms on one orbit and transfers to another 55%
+through its own telegraph, which is late enough to be news and early enough to
+answer. And GATES had no mirror: a gate blocks every lane and is answered by a
+TAP, so THE NARROWS blocks every lane but one and is answered by a HOP. The
+syllabus closes by asking for the other half of the control scheme against the
+same object it opened with, 420 difficulty-seconds later. By the start of
 level 4 the player knows how everything works and all of it is in play —
 level 4 is the exam, not a syllabus. The four storm shapes used to unlock
 at dl 205–340 with no level 4 to hold them: a level whose banner promised
@@ -321,7 +342,9 @@ one sentence, and `smoke.mjs` fails the build if they drift apart:
 | 240 | 3 | sliding gates — *the wall slides — turn around early* |
 | 275 | 3 | the saucer — *turn back and it blocks your ring — swipe off* |
 | 310 | 3 | flicker pairs — *only one is solid — cross the dim one* |
-| 340 | 4 | the eye — *no new tricks — just more of everything* |
+| 395 | 4 | divers — *it changes ring — watch where it lands* |
+| 520 | 5 | the narrows — *one ring is open — swipe to it* |
+| 610 | 6 | the eye — *no new tricks — just more of everything* |
 
 Because the ladder is keyed to `dl` rather than the clock, a player earning no
 nudge at all sees the slowest the schedule ever runs; scoring well pulls

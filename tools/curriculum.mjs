@@ -185,11 +185,15 @@ tap(pid++);                                       // card -> level 1
 
 const levelAt = { 1: 0 };
 let guard = 0, placedByEndL2 = null, placedByEndL3 = null;
-/* THE EXAM IS LEVEL 4 NOW. Teaching runs through level 3 — the two compound
-   shapes moved there so they get room instead of arriving 22 dl-seconds apart
-   at the end of level 2 — so the acceptance criterion moved with them. */
-while (st('G.level') < 4 || st('age()') < 30) {
-  if (++guard > 90000) { fail.push('never reached level 4 + 30s in 25 sim minutes'); break; }
+/* THE EXAM IS THE LAST LEVEL, WHICHEVER ONE THAT IS. This was `< 4` when four
+   was all there was; teaching now runs through level 5 (DIVERS in level 4, THE
+   NARROWS in level 5) and level 6 is the exam. Read off LV so the next level
+   added moves the criterion with it instead of leaving this harness quietly
+   grading the wrong boundary — which is exactly what a hardcoded 4 did to
+   check.mjs the day levels 5 and 6 landed. */
+const EXAM = st('LV.length');
+while (st('G.level') < EXAM || st('age()') < 30) {
+  if (++guard > 260000) { fail.push(`never reached level ${EXAM} + 30s in the sim budget`); break; }
   frame(16.7);
   if (guard % 30 === 0) st('G.invuln=1e12');      // an immortal playtester
   if (guard % 300 === 0 && st("G.state==='playing'") && st('G.nRings') > 1) {
@@ -229,13 +233,16 @@ while (st('G.level') < 4 || st('age()') < 30) {
   if (st("G.state==='dead'")) { fail.push('the invulnerable player died'); break; }
 }
 
-/* the acceptance criterion: level 4 opens with nothing left to teach —
-   every formation AND every musical orb has had its lesson */
+/* the acceptance criterion: the exam level opens with nothing left to teach —
+   every formation AND every musical orb has had its lesson. DIVERS and THE
+   NARROWS join the list because they are formations like any other; a new
+   shape that is not added here is a shape the harness will happily let ship
+   untaught, which is the one thing this file exists to prevent. */
 const TAUGHT = ['single', 'twin', 'gate', 'drift', 'blink', 'driftgate', 'saucer',
-  'blinktwin', 'spot', 'hyper'];
+  'blinktwin', 'dive', 'funnel', 'spot', 'hyper'];
 const seenAtExam = st('Object.keys(G.seen).join(",")');
 for (const f of TAUGHT) {
-  if (!st(`G.seen['${f}']||G.seen2['${f}']`)) fail.push(`level 4 started without the ${f} lesson (seen: ${seenAtExam})`);
+  if (!st(`G.seen['${f}']||G.seen2['${f}']`)) fail.push(`level ${EXAM} started without the ${f} lesson (seen: ${seenAtExam})`);
 }
 if (!placedByEndL2) fail.push('level 2 completion card never observed');
 else if (!placedByEndL2.hyper) fail.push('level 2 ended without the hypernova ever placed');
@@ -246,13 +253,13 @@ else if (!placedByEndL3.spot) fail.push('level 3 ended without the spotlight eve
    thing. The assertion that matters is that level 4 opens on the LAST rung —
    that every unlock has already happened — not that the ladder is ten long. */
 const lastTier = st('TIERS.length') - 1;
-if (st('G.tier') !== lastTier) fail.push(`level 4 did not open on the last tier (${lastTier}), tier=` + st('G.tier'));
-if (st('G.level') !== 4) fail.push('run is not on level 4, level=' + st('G.level'));
+if (st('G.tier') !== lastTier) fail.push(`level ${EXAM} did not open on the last tier (${lastTier}), tier=` + st('G.tier'));
+if (st('G.level') !== EXAM) fail.push(`run is not on level ${EXAM}, level=` + st('G.level'));
 
 /* banners arrive in ladder order, none of them during level 4 */
 const order = banners.filter(([, b]) => b !== 'THE FINALE').map(([, b]) => b);
 const ladder = ['SECOND RING', 'TWIN SHARDS', 'THIRD RING', 'GATES', 'DRIFTERS',
-  'BLINKERS', 'SLIDING GATES', 'THE SAUCER', 'FLICKER PAIRS'];
+  'BLINKERS', 'SLIDING GATES', 'THE SAUCER', 'FLICKER PAIRS', 'DIVERS', 'THE NARROWS'];
 const posOf = n => order.indexOf(n);
 for (let i = 1; i < ladder.length; i++) {
   if (posOf(ladder[i]) >= 0 && posOf(ladder[i - 1]) >= 0 && posOf(ladder[i]) < posOf(ladder[i - 1])) {
@@ -260,7 +267,7 @@ for (let i = 1; i < ladder.length; i++) {
   }
 }
 for (const [lv, b] of banners) {
-  if (lv >= 4 && ladder.includes(b)) fail.push(`tier banner "${b}" fired inside level 4 — the exam introduced something`);
+  if (lv >= EXAM && ladder.includes(b)) fail.push(`tier banner "${b}" fired inside level ${EXAM} — the exam introduced something`);
 }
 
 /* THE CURRICULUM IS THE SAME CURRICULUM IN CHILL, and the run above only
@@ -298,5 +305,5 @@ if (fail.length) {
   for (const f of fail) console.error('FAIL ', f);
   process.exit(1);
 }
-console.log('OK  the curriculum holds: every formation lessoned and every orb placed by level 4');
+console.log(`OK  the curriculum holds: every formation lessoned and every orb placed by level ${EXAM}`);
 console.log('    banners:', banners.map(([lv, b]) => `L${lv}:${b}`).join(' · '));

@@ -2237,7 +2237,7 @@ function musicStep(i,t,k){
      early, a detuned synth pair by level 4, a sawtooth lead by level 7 —
      same key, same degrees, a band that grows up with the run. And heat can
      open every layer the clock would: playing hard means hearing more NOW. */
-  const av=G.tier>=6?'sawtooth':'square';
+  const av=G.tier>=T_VOICE[2]?'sawtooth':'square';
   if((k>0.18||PLAY.heat>0.30||hot)&&beat%2===0){
     /* AN OCTAVE DOWN — and ONE tenant per band: when the riff layer
        unlocks it REPLACES the arp in this register instead of stacking on
@@ -4780,8 +4780,53 @@ const TIERS=[
      'THE STORM'; two different things cannot share it. Renamed rather than
      deleted: smoke.mjs asserts the last tier's `at` equals level 3's finish
      line, so removing the entry fails the build. */
-  {at:340,type:null,    name:'THE EYE',     sub:'no new tricks \u2014 just more of everything'}
+  /* DIVERS \u2014 LEVEL 4, and the first formation the game has ever taught above
+     dl 340. Every other shard in the game answers the question "where is it?"
+     once and then keeps the answer; this one arms on one orbit and lands on
+     another, so the lane it telegraphs in is not the lane it kills in. That
+     is the one thing the existing nine cannot say: drift moves a shard ALONG
+     its ring, and nothing until now moved one ACROSS rings.
+     It is deliberately the level-4 shape rather than the level-5 one. Level 4
+     is also the black hole's level, and the black hole's whole geometry is
+     orbits moving under the player \u2014 a shard that changes orbit is the same
+     idea at the scale of a single threat, met first. */
+  {at:395,type:'dive',  name:'DIVERS',      sub:'it changes ring \u2014 watch where it lands'},
+  /* THE NARROWS \u2014 LEVEL 5, and the last thing the game teaches. It is a gate
+     with exactly one lane left open, which makes it the mirror of GATES: a
+     gate blocks every ring and is answered by a TAP, this blocks every ring
+     but one and is answered by a HOP. The two verbs, one wall each, four
+     hundred difficulty-seconds apart \u2014 the syllabus closes by asking for the
+     other half of the control scheme against the same object it opened with.
+     The open lane is always adjacent to the player's, so exactly one hop
+     answers it; it is never the lane they are already on, or it would be a
+     wall that asks for nothing. */
+  {at:520,type:'funnel',name:'THE NARROWS', sub:'one ring is open \u2014 swipe to it'},
+  /* THE EYE sits on level 6's floor now rather than level 4's. Same job: the
+     rung that introduces nothing and marks the end of teaching. smoke.mjs
+     pins it to the last level's floor, so it cannot be appended past. */
+  {at:610,type:null,    name:'THE EYE',     sub:'no new tricks \u2014 just more of everything'}
 ];
+/* THE THREE RUNGS THE BAND ANSWERS TO, BY NAME RATHER THAN BY ORDINAL.
+   `invariants.md` warned that twelve places hardcoded tier ordinals for the
+   sky band, the NEW SOUND ladder and the star instrument, and that inserting a
+   tier below the highest of them shifts every one. Inserting DIVERS and THE
+   NARROWS is exactly that insert: THE EYE moved from index 10 to index 12, so
+   every `G.tier>=10` in the file silently stopped meaning "the last rung" and
+   started meaning "two rungs early". Derived from the table now, so the next
+   insert costs nothing and a renamed row fails loudly in check.mjs rather
+   than quietly re-timing the audio ladder. */
+const T_VOICE=[0,
+  TIERS.findIndex(function(t){return t.name==='THIRD RING';}),
+  TIERS.findIndex(function(t){return t.name==='BLINKERS';}),
+  TIERS.findIndex(function(t){return t.name==='THE EYE';})];
+/* and the same for the sky's four palette bands, for the same reason. These
+   two rungs happen not to have shifted this time — the insert went in above
+   them — but "happens not to have shifted" is the property that made the
+   audio ladder's twelve ordinals safe right up until they were not. */
+const T_SKY=[0,
+  TIERS.findIndex(function(t){return t.name==='GATES';}),
+  TIERS.findIndex(function(t){return t.name==='SLIDING GATES';}),
+  TIERS.findIndex(function(t){return t.name==='THE EYE';})];
 function tierIndex(){
   const d=dl();
   let i=0;
@@ -4849,7 +4894,10 @@ function pickType(){
     if(!ty||G.seen[ty])continue;
     if(k===feat&&G.t-G.featT<4)break;   /* the newest gets its banner first */
     if((ty==='twin'||ty==='blinktwin')&&G.nRings<2)continue;
-    if((ty==='gate'||ty==='driftgate')&&G.spikes.some(function(s){return s.gate;}))continue;
+    /* a dive needs somewhere to dive TO, and a funnel needs a lane to leave
+       open — both are meaningless on one orbit */
+    if((ty==='dive'||ty==='funnel')&&G.nRings<2)continue;
+    if((ty==='gate'||ty==='driftgate'||ty==='funnel')&&G.spikes.some(function(s){return s.gate;}))continue;
     if(ty==='saucer'&&!saucerOK())continue;
     /* A GATE AND A SAUCER MAY NEVER SHARE A BOARD. The gate exists to force
        a reversal and the saucer exists to make one cost something, so the
@@ -4857,7 +4905,7 @@ function pickType(){
        punish it in the same breath. Held apart here rather than solved with
        a placement check, because there is no placement that makes them
        compatible — the conflict is in what they mean, not in where they are. */
-    if((ty==='gate'||ty==='driftgate')&&G.spikes.some(function(s){return s.saucer;}))continue;
+    if((ty==='gate'||ty==='driftgate'||ty==='funnel')&&G.spikes.some(function(s){return s.saucer;}))continue;
     return ty;
   }
   const pool=[];
@@ -4866,14 +4914,15 @@ function pickType(){
     if(!ty)continue;                       /* ring unlocks carry no formation */
     /* nothing to hop over onto */
     if((ty==='twin'||ty==='blinktwin')&&G.nRings<2)continue;
-    /* one wall at a time, whether it slides or not */
-    if((ty==='gate'||ty==='driftgate')&&G.spikes.some(function(s){return s.gate;}))continue;
+    if((ty==='dive'||ty==='funnel')&&G.nRings<2)continue;
+    /* one wall at a time, whether it slides or leaves a lane open */
+    if((ty==='gate'||ty==='driftgate'||ty==='funnel')&&G.spikes.some(function(s){return s.gate;}))continue;
     /* both halves of the gate/saucer exclusion — see the note in the insist
        loop. The two filters are duplicated across these loops by an existing
        convention; a precondition added to one and not the other lets the
        insist path spawn what the pool path refuses. */
     if(ty==='saucer'&&!saucerOK())continue;
-    if((ty==='gate'||ty==='driftgate')&&G.spikes.some(function(s){return s.saucer;}))continue;
+    if((ty==='gate'||ty==='driftgate'||ty==='funnel')&&G.spikes.some(function(s){return s.saucer;}))continue;
     pool.push(ty);
     /* the newest formation is featured — but only once it has been on the
        ladder ~18s. You meet ONE drifter before you meet three. */
@@ -5370,6 +5419,20 @@ const MEET={
      the test the two twin wordings failed. */
   saucer:  {t:'turn back and it blocks your ring — swipe off',g:'swipe'},
   blinktwin:{t:'only one is solid — cross the dim one',g:'shard'},
+  /* NAMES THE ONE THING THAT IS NEW AND NOTHING ELSE. Every other shard in
+     the game answers "which ring?" once; this is the only one whose answer
+     changes, so the sentence is about the answer changing and about where to
+     look — not about speed, not about dodging, not about a manoeuvre. "watch
+     where it lands" is a thing the player can literally do, on the chevron
+     the telegraph draws for them, inside one specimen. */
+  dive:    {t:'it changes ring — watch where it lands',g:'swipe'},
+  /* THE MIRROR OF THE GATE LESSON, DELIBERATELY WORDED AS ONE. gates says
+     "every ring is blocked — tap to turn around"; this says the same shape of
+     sentence with the other verb, because the formations are the same shape
+     of idea with the other verb. A player who learned the first reads the
+     second in one glance, which is the entire reason THE NARROWS is the last
+     thing the game teaches rather than a fifth kind of wall. */
+  funnel:  {t:'one ring is open — swipe to it',g:'swipe'},
   spot:  {t:'spotlight — the light is on you: stars and taps pay double',g:'beat',soft:1},
   /* NOT "gold", and not "double". COL.hyper is '#ff4fd8' and SPR.powHyper
      fills with it — the orb is magenta. Gold is COL.ember, the colour of the
@@ -5522,6 +5585,40 @@ function spawnSpike(){
        allowed and still safe — it just costs a swipe every four seconds,
        which is the "harder and easier simultaneously" the pitch asked for. */
     if(BH.phase===2&&Math.random()<0.45)ring=Math.min(G.nRings-1,ring+1);
+    /* THE NARROWS — a wall with one lane left open, answered by a HOP where a
+       gate is answered by a TAP. Placed against the PLAYER's ring rather than
+       against the board, which is why it does not use the gate's
+       reverseEscape check: the escape it has to guarantee is a lane, not an
+       arc. The open lane is adjacent to the comet's current ring, so exactly
+       one swipe answers it, and it is never the ring the comet is already on
+       — that would be a wall demanding nothing. */
+    if(type==='funnel'){
+      if(G.nRings<2)break;
+      if(angDist(a,G.angle)<1.7)continue;
+      const open=G.ringI+(G.ringI===0?1:G.ringI===G.nRings-1?-1:(Math.random()<0.5?1:-1));
+      let ok=true;
+      for(let k=0;k<G.nRings;k++){
+        /* the open lane is held to a WIDER clearance than the walls: it is
+           the only way out, so a shard sitting in it turns the formation
+           from a demand into a trap */
+        if(!farFromAll(a,k,k===open?2.2:1.7,sep(k,3.5),sep(k,2.5)))ok=false;
+      }
+      if(!ok)continue;
+      const flife=rand(2.0,3.0);
+      const fw=G.seen[type]?{}:{warn:warnTime()*1.6};
+      firstMeet(type);
+      const ftag=(G.teach>0&&G.teachType===type)?1:0;
+      let anchor=1;
+      for(let k=0;k<G.nRings;k++){
+        if(k===open)continue;
+        /* `bar` marks the one segment the rung is drawn from — a plain gate
+           anchors on ring 0, which a funnel may not have */
+        G.spikes.push(mkSpike(a,k,Object.assign({gate:true,funnel:true,gap:open,
+          bar:anchor,life:flife,spot:ftag},fw)));
+        anchor=0;
+      }
+      return;
+    }
     if(type==='gate'||type==='driftgate'){
       /* blocks the same angle on EVERY ring: hopping will not save you */
       if(angDist(a,G.angle)<1.7)continue;
@@ -5583,6 +5680,18 @@ function spawnSpike(){
       firstMeet(type);
       G.spikes.push(mkSpike(a,ring,Object.assign({blink:true,life:rand(4.0,6.0),
         spot:(G.teach>0&&G.teachType===type)?1:0},bw)));
+    }else if(type==='dive'){
+      /* THE LANE IT LEAVES AND THE LANE IT LANDS IN MUST BOTH BE CLEAR. The
+         dive is only fair because the arrival is readable, and an arrival on
+         top of an existing shard is neither readable nor survivable — so the
+         placement is rejected outright rather than downgraded, the same way a
+         gate's is. */
+      const dto=ring+(ring===0?1:ring===G.nRings-1?-1:(Math.random()<0.5?1:-1));
+      if(!farFromAll(a,dto,clear,sep(dto,3.5),sep(dto,2.5),bp))continue;
+      const vw=G.seen['dive']?{}:{warn:warnTime()*1.6};
+      firstMeet(type);
+      G.spikes.push(mkSpike(a,ring,Object.assign({dive:1,diveTo:dto,life:rand(3.0,4.6),
+        spot:(G.teach>0&&G.teachType===type)?1:0},vw)));
     }else{
       firstMeet(type);
       G.spikes.push(mkSpike(a,ring,{spot:(G.teach>0&&G.teachType===type)?1:0}));
@@ -5853,18 +5962,18 @@ function startGame(){
      the GPU path quietly carried on. Levels 4, 5 and 6 all floor at the
      deepest band; past that the sky belongs to the world table, not to the
      level number. */
-  skyI=Math.min(3,Math.max(G.level-1,G.tier>=10?3:G.tier>=7?2:G.tier>=4?1:0));
+  skyI=Math.min(3,Math.max(G.level-1,G.tier>=T_SKY[3]?3:G.tier>=T_SKY[2]?2:G.tier>=T_SKY[1]?1:0));
   /* a pre-climbed start owns its voice announcement: the crossing that used
      to announce it can no longer happen in-run (STORM sits on level 3's
      floor and endgame crossings hold), so without this the death screen
      kept promising an electric guitar no path could ever announce. Once
      per visit per voice — a retry of the same level stays quiet. */
   if(G.level>=2){
-    const vt=G.tier>=10?10:G.tier>=6?6:G.tier>=3?3:0;
+    const vt=G.tier>=T_VOICE[3]?3:G.tier>=T_VOICE[2]?2:G.tier>=T_VOICE[1]?1:0;
     if(vt&&!SND_SEEN[vt]){
       SND_SEEN[vt]=1;G.sndAt=G.t+4.5;
-      G.sndStr=vt>=9?'NEW SOUND: ELECTRIC GUITAR':
-               vt>=6?'NEW SOUND: SYNTH LEAD':'NEW SOUND: TWIN SYNTHS';
+      G.sndStr=vt>=3?'NEW SOUND: ELECTRIC GUITAR':
+               vt>=2?'NEW SOUND: SYNTH LEAD':'NEW SOUND: TWIN SYNTHS';
     }
   }
   beep(440,0.12,'sine',0.05,880);
@@ -6894,6 +7003,21 @@ function updateSpikes(sdt,lethal){
     const s=G.spikes[i];s.t+=sdt;
     if(s.va)s.a=(s.a+s.va*sdt)%TAU;
     if(s.blink)s.bt+=sdt;
+    /* THE DIVE, and it happens INSIDE the telegraph on purpose. The shard
+       changes orbit 55% of the way through its own warning, so the transfer
+       is something the player watches happen with time left to answer it —
+       not a shard that arms in one lane and is lethal in another before
+       anyone could read either. The remaining 45% of the warn is the whole
+       lesson: where it lands is where it kills, and you were shown.
+       Announced in the level's own key like every other shard event, and
+       arc-flashed on the ARRIVAL ring, because the arrival is the news. */
+    if(s.dive===1&&s.phase===0&&s.t>=(s.warn||WARN)*0.55){
+      s.dive=2;s.ring=s.diveTo;
+      const dp=posAt(s.a,radiusOf(s.ring));
+      arcFlash(s.a,s.ring,COL.shard);
+      if(!RM)ripple(dp[0],dp[1],COL.shard);
+      beep(PENT[4],0.09,'square',0.024,PENT[1],0,panAt(dp[0]),0.25);
+    }
     if(s.phase===0&&s.t>=(s.warn||WARN)){s.phase=1;s.t=0;s.bt=0;}
     else if(s.phase===1&&s.t>=s.life){s.phase=2;s.t=0;}
     /* survived one ON YOUR OWN RING: the "red is lethal" prompt has done
@@ -7019,8 +7143,9 @@ function updateSpikes(sdt,lethal){
         /* the tw stamp carries the pairing a lone shard cannot infer, so a
            twin death coaches the hop instead of reporting 'single' */
         G.lastHit=s.saucer?'saucer':
-                  s.gate?(s.va?'driftgate':'gate'):
-                  (s.tw?s.tw:(s.blink?'blink':(s.va?'drift':'single')));
+                  s.gate?(s.funnel?'funnel':(s.va?'driftgate':'gate')):
+                  (s.dive?'dive':
+                  (s.tw?s.tw:(s.blink?'blink':(s.va?'drift':'single'))));
         die();
       }
     }
@@ -7496,7 +7621,7 @@ function update(dt){
        STORM over its own graduation. The next level's silent pre-climb
        owns any crossing the window swallows. */
     G.tier++;G.featT=G.t;      /* the featuring grace clock — see pickType */
-    skyI=Math.min(3,Math.max(G.level-1,G.tier>=10?3:G.tier>=7?2:G.tier>=4?1:0));  /* the sky deepens; each level floors it, clamped to the four bands */
+    skyI=Math.min(3,Math.max(G.level-1,G.tier>=T_SKY[3]?3:G.tier>=T_SKY[2]?2:G.tier>=T_SKY[1]?1:0));  /* the sky deepens; each level floors it, clamped to the four bands */
     const T=TIERS[G.tier];
     if(T.rings&&T.rings>G.nRings){
       G.nRings=T.rings;
@@ -7528,11 +7653,11 @@ function update(dt){
     }
     /* the star voice steps up at levels 4, 7 and 10 — announced after the
        level banner has had the screen (see update), as its own moment */
-    if(G.tier===3||G.tier===6||G.tier===10){
+    if(G.tier===T_VOICE[1]||G.tier===T_VOICE[2]||G.tier===T_VOICE[3]){
       SND_SEEN[G.tier]=1;   /* a later level start must not repeat it */
       G.sndAt=G.t+3.8;
-      G.sndStr=G.tier>=10?'NEW SOUND: ELECTRIC GUITAR':
-               G.tier>=6?'NEW SOUND: SYNTH LEAD':'NEW SOUND: TWIN SYNTHS';
+      G.sndStr=G.tier>=T_VOICE[3]?'NEW SOUND: ELECTRIC GUITAR':
+               G.tier>=T_VOICE[2]?'NEW SOUND: SYNTH LEAD':'NEW SOUND: TWIN SYNTHS';
     }
   }
   if(G.banner){G.banner.t+=dt;if(G.banner.t>3.2)G.banner=null;}
@@ -7820,18 +7945,18 @@ function update(dt){
           note(PENT[d0],tt,0.14,'square',0.030,2200,cpan,A.perf);
           note(PENT[Math.min(9,d0+2)],tt+S16,0.13,'square',0.026,2400,cpan*0.5,A.perf);
           note(PENT[Math.min(9,d0+4)],tt+2*S16,0.16,'square',0.030,2600,-cpan,A.perf);
-        }else if(G.tier>=10){
-          /* level ten: the stars are an electric guitar */
+        }else if(G.tier>=T_VOICE[3]){
+          /* the top rung: the stars are an electric guitar */
           gtr(f,tt,0.20,0.040+0.004*cb,cpan);
           note(f*0.5,tt,0.18,'sine',0.032+0.004*cb,520,cpan);
           if(cb>=3)gtr(f*2,tt+S16,0.14,0.020,-cpan);
-        }else if(G.tier>=6){
-          /* levels 7-9: the sawtooth lead, now with the sub underneath */
+        }else if(G.tier>=T_VOICE[2]){
+          /* above BLINKERS: the sawtooth lead, with the sub underneath */
           note(f,tt,0.20,'sawtooth',0.036+0.005*cb,1500+260*cb,cpan,undefined,0.5);
           note(f*0.5,tt,0.18,'sine',0.032+0.004*cb,520,cpan);
           beep(f*0.94,0.05,'sawtooth',0.012,f,w,cpan,0.2);
-        }else if(G.tier>=3){
-          /* levels 4-6: the detuned pair, grown a floor */
+        }else if(G.tier>=T_VOICE[1]){
+          /* above THIRD RING: the detuned pair, grown a floor */
           note(f,tt,0.20,'square',0.038+0.005*cb,1300+240*cb,cpan,undefined,0.5);
           note(f*1.007,tt,0.20,'sawtooth',0.024,1100+240*cb,-cpan*0.5,undefined,0.4);
           note(f*0.5,tt,0.18,'sine',0.032+0.004*cb,520,cpan);
@@ -10374,26 +10499,75 @@ function draw(){
      past". Built as a wide soft pass under a tight core so it registers as
      energy rather than a drawn line, and overhangs both ends of the ring
      stack so it reads as a barrier across the field, not a chord within it. */
+  /* THE ANCHOR IS NOT ALWAYS RING 0. This loop drew one rung across the whole
+     stack from the segment sitting on ring 0, which is correct for a gate —
+     a gate always has one — and wrong for THE NARROWS, whose open lane may BE
+     ring 0. There the bar would simply never have drawn: a wall with no
+     picture, on the formation whose entire read is which lane is missing.
+     So the anchor is tagged at spawn (`bar`) and the span is computed from
+     the gap: contiguous runs of blocked rings, one rung each, with the open
+     lane left as a visible hole. A gate is the degenerate case — one run
+     covering every ring — and draws exactly as it always did. */
   for(const s of G.spikes){
-    if(!s.gate||s.ring!==0||s.phase===2)continue;
-    const i0=posAt(s.a,radiusOf(0)+11*u);
-    const i1=posAt(s.a,Math.max(5*u,radiusOf(G.nRings-1)-11*u));
+    if(!s.gate||s.phase===2)continue;
+    if(s.funnel?!s.bar:s.ring!==0)continue;
+    const runs=[];
+    let run=[];
+    for(let k=0;k<G.nRings;k++){
+      if(s.funnel&&k===s.gap){if(run.length)runs.push(run);run=[];}
+      else run.push(k);
+    }
+    if(run.length)runs.push(run);
     const live=s.phase===1&&armed(s);
     const base=live?0.52:0.16+0.14*Math.sin(s.t*12);
     ctx.save();
     ctx.globalCompositeOperation='lighter';
     ctx.strokeStyle=COL.shard;ctx.lineCap='round';
-    ctx.globalAlpha=base*0.30;ctx.lineWidth=10*u;
-    ctx.beginPath();ctx.moveTo(i0[0],i0[1]);ctx.lineTo(i1[0],i1[1]);ctx.stroke();
-    ctx.globalAlpha=base*0.9;ctx.lineWidth=2.2*u;
-    ctx.beginPath();ctx.moveTo(i0[0],i0[1]);ctx.lineTo(i1[0],i1[1]);ctx.stroke();
-    if(live&&!RM){
-      /* rungs crawling along the span sell it as powered rather than painted
-         — STEPPING once per eighth, so even the wall marches in time */
-      ctx.globalAlpha=0.45;ctx.lineWidth=2.6*u;
-      ctx.setLineDash([5*u,9*u]);
-      ctx.lineDashOffset=-(Math.floor(G.t/(SPB/2))*7*u)%(14*u);
+    for(const rn of runs){
+      /* index 0 is the OUTERMOST orbit, so rn[0] is the widest radius of the
+         run and rn[last] the tightest — the overhang goes outward at the top
+         and inward at the bottom, which is what it has always done.
+         WHERE A RUN STOPS IS THE WHOLE PICTURE. The first cut ended every run
+         11u either side of its own rings, which for a funnel meant two 22u
+         stubs sitting around two diamonds — measured on a 390px phone, a
+         formation whose entire read is "one lane is open" drew as two
+         ordinary shards that happened to line up, and the gap it is named for
+         was not a gap in anything. A run that ends at the OPEN LANE instead
+         stops halfway between the last blocked orbit and the free one, so the
+         wall visibly runs up to the hole and stops. Only the outermost and
+         innermost ends keep the overhang; every other end is a cut edge. */
+      const o0=rn[0],o1=rn[rn.length-1];
+      const rOut=o0===0?radiusOf(0)+11*u:(radiusOf(o0)+radiusOf(o0-1))/2;
+      const rIn=o1===G.nRings-1?Math.max(5*u,radiusOf(o1)-11*u)
+                               :(radiusOf(o1)+radiusOf(o1+1))/2;
+      const i0=posAt(s.a,rOut);
+      const i1=posAt(s.a,rIn);
+      ctx.globalAlpha=base*0.30;ctx.lineWidth=10*u;
       ctx.beginPath();ctx.moveTo(i0[0],i0[1]);ctx.lineTo(i1[0],i1[1]);ctx.stroke();
+      ctx.globalAlpha=base*0.9;ctx.lineWidth=2.2*u;
+      ctx.beginPath();ctx.moveTo(i0[0],i0[1]);ctx.lineTo(i1[0],i1[1]);ctx.stroke();
+      if(live&&!RM){
+        /* rungs crawling along the span sell it as powered rather than painted
+           — STEPPING once per eighth, so even the wall marches in time */
+        ctx.globalAlpha=0.45;ctx.lineWidth=2.6*u;
+        ctx.setLineDash([5*u,9*u]);
+        ctx.lineDashOffset=-(Math.floor(G.t/(SPB/2))*7*u)%(14*u);
+        ctx.beginPath();ctx.moveTo(i0[0],i0[1]);ctx.lineTo(i1[0],i1[1]);ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+    /* THE OPEN LANE IS DRAWN AS AN INVITATION, not merely as an absence. A
+       hole in a red wall is only readable if the eye is told it is a hole —
+       two short safe-coloured brackets facing into the gap, on the beat, in
+       the comet's own colour so it reads as "go here" rather than "danger". */
+    if(s.funnel&&live&&!RM){
+      const gr=radiusOf(s.gap);
+      ctx.strokeStyle=COL.comet;ctx.lineWidth=2.4*u;
+      ctx.globalAlpha=0.30+0.35*G.beat;
+      for(const d of [-1,1]){
+        const e0=posAt(s.a,gr+d*9*u),e1=posAt(s.a,gr+d*3.5*u);
+        ctx.beginPath();ctx.moveTo(e0[0],e0[1]);ctx.lineTo(e1[0],e1[1]);ctx.stroke();
+      }
     }
     ctx.restore();
   }
@@ -10462,6 +10636,33 @@ function draw(){
       ctx.beginPath();
       ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,Math.min(s.a,s.a+back),Math.max(s.a,s.a+back));
       ctx.stroke();ctx.globalAlpha=1;
+    }
+    /* A DIVER TELEGRAPHS ITS DESTINATION, NOT JUST ITS ARRIVAL. The whole
+       formation is only fair because the lane it lands in is readable before
+       it lands, so the pending transfer is drawn as a radial run from the
+       shard to the orbit it is heading for, with a chevron sitting ON that
+       orbit. Before the transfer it points where the shard is going; after
+       it, the trace fades from where the shard came from — so a player who
+       looked away for the moment itself can still reconstruct it. */
+    if(s.dive&&s.phase===0){
+      const from=radiusOf(s.dive===1?s.ring:s.diveTo),to=radiusOf(s.dive===1?s.diveTo:s.ring);
+      const going=s.dive===1;
+      const q=going?Math.min(1,s.t/Math.max(0.001,(s.warn||WARN)*0.55))
+                   :Math.max(0,1-(s.t-(s.warn||WARN)*0.55)/Math.max(0.001,(s.warn||WARN)*0.45));
+      ctx.save();
+      ctx.strokeStyle=COL.shard;ctx.lineCap='round';
+      ctx.globalAlpha=0.22+0.30*q*(going?(0.5+0.5*Math.sin(s.t*14)):1);
+      ctx.lineWidth=2.2*u;
+      const r0=posAt(s.a,from),r1=posAt(s.a,to);
+      ctx.beginPath();ctx.moveTo(r0[0],r0[1]);ctx.lineTo(r1[0],r1[1]);ctx.stroke();
+      /* the chevron sits on the destination orbit and opens along the travel
+         direction — outward-bound points out, inward-bound points in */
+      const dir=to<from?-1:1;
+      const w0=posAt(s.a-0.055,to-dir*5.5*u),w1=posAt(s.a+0.055,to-dir*5.5*u);
+      const tip=posAt(s.a,to+dir*1.5*u);
+      ctx.globalAlpha=0.30+0.45*q;ctx.lineWidth=2.6*u;
+      ctx.beginPath();ctx.moveTo(w0[0],w0[1]);ctx.lineTo(tip[0],tip[1]);ctx.lineTo(w1[0],w1[1]);ctx.stroke();
+      ctx.restore();
     }
     if(s.phase===0){
       const k=s.t/(s.warn||WARN);
@@ -12198,14 +12399,14 @@ function drawHUD(){
        the collision returns. This is the most droppable row on the screen —
        the score, the level, the coach and RETRY are all load-bearing — so on a
        viewport with no room for both, it is the one that goes. */
-    if(G.tier<10&&cy+94*u<shareRect().y-9*u){
+    if(G.tier<T_VOICE[3]&&cy+94*u<shareRect().y-9*u){
       /* 4, 7 and 10 were one-based TIER rungs printed with the word "level",
          two lines below "LEVEL n" on a four-level ladder — the last surviving
          breach of the two-ladders invariant, and the exact failure the retired
          cometloop:level key exists because of. The correct numbers (1, 2, 4)
          are non-monotonic against the player's own progress and would read as
          a bug, so the ordinal goes; the ladder is drawn on this same screen. */
-      const nx=G.tier>=6?'electric guitar':G.tier>=3?'synth lead':'twin synths';
+      const nx=G.tier>=T_VOICE[2]?'electric guitar':G.tier>=T_VOICE[1]?'synth lead':'twin synths';
       ctx.globalAlpha=el(lvAt+0.6)*0.9;
       text('next sound: '+nx+' \u2014 keep climbing',cx,cy+94*u,10.5*u,'600',
         'rgba(200,215,255,0.42)',0);
