@@ -92,6 +92,35 @@ entered three times in the game's whole recorded history.
   the number that means something; the spread is the game's unseeded
   `Math.random`, not the effect.
 
+- **The Mirror** (blue) — a second comet, opposite you on your own ring,
+  for eight beats. It gathers what it passes and shatters red on contact; it
+  cannot be hurt and it does **not** protect you, so red on your own half of
+  the ring is exactly as lethal as it ever was. Presence, not immunity — and
+  on a circular board presence is the one thing no existing orb offers, since
+  every other powerup changes what happens to *you* rather than how much of
+  the ring is yours at once. Its angle is derived (`G.angle + π`) rather than
+  integrated: a chaser that accumulates its own position drifts and needs a
+  controller, and the magnetar died twice proving a first-order chase never
+  arrives. **It pays but does not advance the combo** — the chain is the
+  game's measure of the player's own hand, and a second collector feeding it
+  would let an orb farm the one number that says how well you are playing.
+  Named THE MIRROR, not THE TWIN (the working name), because TWIN SHARDS is a
+  formation met at dl 18; ECHO was the other candidate and is a banned string
+  that fails the build.
+- **Scorch** (orange) — your wake burns. For eight seconds the arc of your
+  own ring you have travelled stays lit behind you, and any red standing in it
+  or arming into it is destroyed through the nova's own conversion path, so
+  the lane you cleared pays you for clearing it. **A full lap makes a full lap
+  safe; sitting still makes almost nothing safe** — that asymmetry is the whole
+  design, and it is the saucer's problem answered from the reward side. The
+  saucer prices camping by putting a threat behind a player who will not
+  travel; scorch pays travelling by making distance covered literally the size
+  of the benefit. Stored as 72 sectors per ring rather than a list of arcs
+  (sectors cannot overlap or leak), painted from the previous angle to the
+  current one because a per-frame point sample leaves gaps at 4.2 rad/s, and
+  drawn *under* the shards so a red standing in fire is still read as a red.
+  Warm orange and deliberately not warm red: red belongs to death alone.
+
 The musical orbs join the spawn rotation after the intro curriculum
 (shield → slow-mo → nova) has run, each named by a first-encounter hint.
 On level 2 and up the FIRST placement after the curriculum is the

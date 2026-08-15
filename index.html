@@ -128,7 +128,19 @@ const RM=(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matc
    hypernova now at ~318deg, far enough from the shard that the two never trade
    places at speed, and nowhere near anything that means "collect me". */
 const COL={comet:'#5df0ff',ember:'#ffc857',shard:'#ff5d73',shield:'#7bffc8',
-  warp:'#b48bff',nova:'#ffffff',hyper:'#ff4fd8',bh:'#8f5cff'};
+  warp:'#b48bff',nova:'#ffffff',hyper:'#ff4fd8',bh:'#8f5cff',
+  /* TWO NEW ORBS, AND THEIR COLOURS ARE THE CONSTRAINT THEY WERE CHOSEN
+     AGAINST. Every hue the board already spends is spoken for — gold means
+     collect, pink-red means death, cyan is the comet, mint is a shield,
+     violet is slow-mo, magenta is the star — so a new orb has to land in a
+     family none of those occupy or it inherits a meaning it does not have.
+     Blue is free and reads as "another one of you", which is exactly what the
+     mirror is. Orange is free and is the only honest colour for a burn; it is
+     deliberately warm-ORANGE rather than warm-red, because the invariant that
+     red belongs to death alone is not negotiable and #ff5d73 is a pink, so
+     the two do not sit in the same family at a glance. Verified on a rendered
+     frame rather than argued from hex values. */
+  mirror:'#4d8cff',scorch:'#ff8a2b'};
 const LAP_EMB_MAX=4; /* embers per orbit that still raise the payout */
 
 /* THE ARENA IS AN ELLIPSE (playtest, near-verbatim: "I wonder if the orbits
@@ -3959,6 +3971,8 @@ const LAB_ORBS=[
  {id:'nova',     n:'NOVA',      d:'every red on screen becomes a star'},
  {id:'spot',     n:'SPOTLIGHT', d:'the light is on you: stars and taps pay double'},
  {id:'hyper',    n:'PINK STAR', d:'untouchable and fast'},
+ {id:'mirror',   n:'THE MIRROR', d:'a second you, gathering the far side'},
+ {id:'scorch',   n:'SCORCH',     d:'keep moving, your wake burns red away'},
  {id:'blackhole',n:'BLACK HOLE',d:'everything slows, the reds pile up'}
 ];
 /* THE CALM BOARD, CHOSEN RATHER THAN PICKED OUT OF THE AIR. dl 40 is exactly
@@ -5075,6 +5089,22 @@ const UPG=[
     g.globalAlpha=1;g.fillStyle='#fff';g.beginPath();g.arc(0,-16,6.4,0,TAU);g.fill();}},
  /* REDRAWN. It was a bracket that read as a book. A metronome with a WIDE
     sweep is the picture of a forgiving timing window. */
+ /* TWO NEW TILES, ONE PER NEW ORB, because the draft has to keep offering a
+    live choice as the roster grows. Seven tiles across five draws meant the
+    last draw was nearly deterministic; nine keeps the pool genuinely random to
+    the end, and every tile still upgrades something the player has met. */
+ {id:'longmirror',n:'LONG MIRROR',d:'the mirror lasts longer',c:'#4d8cff',
+  ic:function(g,c){g.fillStyle=c;
+    for(const d of [-1,1]){g.beginPath();
+      g.arc(d*2.4,0,7.6,d>0?-Math.PI/2:Math.PI/2,d>0?Math.PI/2:Math.PI*1.5);g.fill();}
+    g.strokeStyle='#fff';g.lineWidth=2.4;g.lineCap='round';
+    g.beginPath();g.arc(0,0,17,-Math.PI/2,Math.PI*0.9);g.stroke();}},
+ {id:'deepburn',n:'DEEP BURN',d:'scorch burns longer',c:'#ff8a2b',
+  ic:function(g,c){g.strokeStyle=c;g.lineCap='round';
+    for(let q=0;q<3;q++){g.globalAlpha=0.85-q*0.24;g.lineWidth=4.2-q*1.0;
+      g.beginPath();g.moveTo(-19+q*2,-6+q*6);g.lineTo(4,-6+q*6);g.stroke();}
+    g.globalAlpha=1;g.fillStyle='#fff0dc';
+    g.beginPath();g.arc(11,0,6.2,0,TAU);g.fill();}},
  {id:'steadyhand',n:'STEADY HAND',d:'a wider beat window',c:'#ffc857',
   ic:function(g,c){g.strokeStyle=c;g.lineWidth=2.6;g.lineJoin='round';
     g.beginPath();g.moveTo(-13,18);g.lineTo(-6,-16);g.lineTo(6,-16);g.lineTo(13,18);
@@ -5140,7 +5170,9 @@ const G={
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,slowD:4,shMax:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
   didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,gotShield:false,
-  gotSpot:false,gotBH:false,hyperPlaced:false,bhPlaced:false,bhRun:false,
+  gotSpot:false,gotBH:false,gotMirror:false,gotScorch:false,
+  hyperPlaced:false,bhPlaced:false,bhRun:false,mirrorPlaced:false,scorchPlaced:false,
+  mirror:0,mirrorD:0,mirrorA:0,scorch:0,scorchD:0,burn:null,
   bhCool:0,bhT:0,bhN:0,   /* black hole: rarity gate, entry stamp, count this run */
   dropsEarned:0,loopN:0,nearN:0,bestCombo:0,holdTimeout:false, /* play-style aggregates for run_ended */
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
@@ -5552,6 +5584,17 @@ const MEET={
      "double" rounded up on a value that spends a fifth of its life below even
      1.9x. */
   hyper: {t:'the pink star — untouchable and fast',g:'star',soft:1},
+  /* NAMES WHAT IT DOES, NOT WHAT IT IS MADE OF. "a second comet" is a fact
+     about the implementation; "it gathers and it shatters" is the two things
+     the player will watch it do. Soft, because it is a pure reward — dilation
+     is protection from threats, not ceremony for gifts. */
+  mirror:{t:'the mirror — a second you, gathering the far side',g:'star',soft:1},
+  /* THE ONE SENTENCE THAT HAS TO CARRY THE ASYMMETRY. Scorch is the only orb
+     whose value is decided by how the player behaves while it runs — a lap
+     makes a lap safe and standing still makes almost nothing safe — so the
+     lesson has to say "keep going", which is a thing they can do, rather than
+     "your wake burns", which is a thing that happens to them. */
+  scorch:{t:'scorch — keep moving, your wake burns red away',g:'swipe',soft:1},
   /* NOT soft. Every other orb lesson is soft:1 — dilation is protection from
      threats, not ceremony for rewards — and this is the one orb that is not a
      reward. Taking it starts a mode that is slower, four times as crowded and
@@ -5821,6 +5864,34 @@ function spawnSpike(){
    that keeps you alive and the one the hint ladder already explains, then
    slow-mo, then nova last because it is the spectacle and it wants a board
    with something on it to convert. */
+/* ---------- THE MIRROR ----------
+   A second comet, opposite you on your own ring, for eight beats. It gathers
+   what it passes and shatters red on contact, and it cannot be hurt and cannot
+   hurt you — it is presence, not protection. On a circular board that is a
+   thing no other orb can offer: every existing powerup changes what happens to
+   YOU, and this one changes how much of the ring is yours at once. It is
+   called THE MIRROR and not THE TWIN, which was the working name, because
+   TWIN SHARDS is a formation the player met at dl 18 and two unrelated things
+   called twin is the kind of collision this file has paid for before. (ECHO
+   was the other candidate and is a banned string — check.mjs fails the build
+   on it, because an orb by that name was cut and its teaching data outlived
+   it.) */
+const MIRROR_BEATS=8;
+/* ---------- SCORCH ----------
+   Your wake burns. While it lasts, the arc of your own ring you have travelled
+   stays lit behind you and destroys any red that is standing in it or arms
+   into it — so a full lap makes a full lap safe, and sitting still makes
+   almost nothing safe. That asymmetry is the whole design: it is the saucer's
+   problem answered from the reward side. The saucer prices camping by putting
+   a threat behind a player who will not travel; this pays travelling by making
+   distance covered literally the size of the benefit.
+   The burn is stored per ring as a ring of sectors rather than as a list of
+   arcs, because sectors cannot overlap, cannot leak, and cost one array. */
+const SCORCH_SECS=8, BURN_SECT=72, BURN_LIFE=2.6;
+function burnIdx(a){return ((Math.floor(((a%TAU)+TAU)%TAU/TAU*BURN_SECT))%BURN_SECT+BURN_SECT)%BURN_SECT;}
+function burning(ring,a){
+  return !!(G.burn&&G.burn[ring]&&G.burn[ring][burnIdx(a)]>0);
+}
 const POW_INTRO=['shield','warp','nova'];
 function spawnPow(){
   let type;
@@ -5891,6 +5962,15 @@ function spawnPow(){
        without seeing one. On level 2+ the first placement after the
        curriculum is the star, guaranteed, once per run. */
     type='hyper';
+  }else if(G.level>=4&&!G.mirrorPlaced){
+    /* THE MIRROR IS LEVEL 4'S ORB, guaranteed once, the same way the star is
+       level 2's and the spotlight level 3's. Levels 4 and 5 introduce a
+       formation each now; they introduce an orb each too, so the back half of
+       the game is taught at the same cadence as the front instead of being
+       three levels of the same inventory. */
+    type='mirror';
+  }else if(G.level>=5&&!G.scorchPlaced){
+    type='scorch';
   }else if(G.level>=3&&!G.spotPlaced){
     /* SPOTLIGHT MOVED TO LEVEL 3. Six of the seven orbs used to be met by the
        end of level 2 and levels 3 and 4 introduced nothing at all, which is
@@ -5911,8 +5991,14 @@ function spawnPow(){
        weaker nova (a third of the board, no invulnerability, same conversion
        pipeline) and the owner cut it. Shares stay .31/.18/.15/.13/.08
        relative — renormalised over 0.85. */
-    type=rr<0.36?'shield':rr<0.58?'warp':rr<0.75?'nova':
-         rr<0.91?'spot':'hyper';
+    /* THE FAMILY IS SEVEN NOW. The magnetar's and the bass bomb's shares were
+       each redistributed PROPORTIONALLY when they were cut — removal changes
+       what can appear, never how often the survivors appear relative to each
+       other — and adding follows the same rule in reverse: the five existing
+       orbs keep their ratios exactly (.36/.22/.17/.16/.09 of the old space)
+       and the two new ones take a flat 0.16 between them off the top. */
+    type=rr<0.302?'shield':rr<0.487?'warp':rr<0.630?'nova':
+         rr<0.764?'spot':rr<0.840?'hyper':rr<0.920?'mirror':'scorch';
   }
   for(let i=0;i<24;i++){
     const a=Math.random()*TAU,ring=Math.floor(Math.random()*G.nRings);
@@ -5928,7 +6014,9 @@ function spawnPow(){
       if(type==='blackhole'){G.bhPlaced=true;G.bhRun=true;G.bhCool=G.t+20;}
       if(type==='hyper')G.hyperPlaced=true;
       if(type==='spot')G.spotPlaced=true;
-      if(type==='spot'||type==='hyper')firstMeet(type);
+      if(type==='mirror')G.mirrorPlaced=true;
+      if(type==='scorch')G.scorchPlaced=true;
+      if(type==='spot'||type==='hyper'||type==='mirror'||type==='scorch')firstMeet(type);
       G.sinceShield=(type==='shield')?0:G.sinceShield+1;
       /* counts PLACEMENTS, not pickups: a player who misses the slow-mo still
          advances the curriculum, or a run spent dodging would serve nothing
@@ -6058,7 +6146,12 @@ function startGame(){
   BH.phase=0;BH.on=false;BH.warp=0;BH.t=0;BH.rings0=3;
   for(let i=0;i<4;i++)RADII[i]=RAD_OFF[i];
   G.dropsEarned=0;G.loopN=0;G.nearN=0;G.bestCombo=0;G.holdTimeout=false;
-  G.hyperPlaced=false;G.spotPlaced=false;
+  G.hyperPlaced=false;G.spotPlaced=false;G.mirrorPlaced=false;G.scorchPlaced=false;
+  G.mirror=0;G.mirrorD=0;G.scorch=0;G.scorchD=0;
+  /* allocated once and cleared per run: four rings of sectors, so a burn
+     laid on ring 2 cannot be read off ring 1 and nothing has to be freed */
+  if(!G.burn){G.burn=[];for(let bi=0;bi<4;bi++)G.burn.push(new Float32Array(BURN_SECT));}
+  for(let bi=0;bi<4;bi++)G.burn[bi].fill(0);
   G.didReverse=false;G.didHop=false;G.didLap=false;
   G.stars=[];G.spikes=[];G.pows=[];G.trail=[];G.rings=[];G.pops=[];G.arcs=[];G.laps=[];G.novas=[];
   G.stop=0;
@@ -7658,6 +7751,81 @@ function update(dt){
   }
   G.hyperGlow+=(((G.hyper>0)?1:0)-G.hyperGlow)*Math.min(1,dt*3);
   G.spotGlow+=(((G.spot>0)?1:0)-G.spotGlow)*Math.min(1,dt*3);
+  /* ---- THE MIRROR: a second comet, exactly opposite, on your own ring ----
+     Its angle is DERIVED every frame rather than integrated. A chaser that
+     accumulates its own position drifts, needs a controller, and the magnetar
+     died twice proving a first-order chase never arrives; a reflection has no
+     such problem because it is not chasing anything — it is G.angle + pi, and
+     it is on G.ringI, and both of those are already correct.
+     It gathers and it shatters. It cannot be hurt and it does not protect you:
+     red on YOUR half of the ring is exactly as lethal as it was, which is what
+     keeps the orb presence rather than immunity. */
+  if(G.mirror>0){
+    G.mirror=Math.max(0,G.mirror-dt);
+    G.mirrorA=G.angle+Math.PI;
+    if(G.state==='playing'){
+      const mr=G.ringI,ma=G.mirrorA,mtol=(22*u)/radiusOf(mr);
+      for(let i=G.stars.length-1;i>=0;i--){
+        const st=G.stars[i];
+        if(st.ring!==mr||angDist(st.a,ma)>mtol)continue;
+        G.stars.splice(i,1);
+        const mp=posAt(ma,radiusOf(mr));
+        /* IT PAYS, BUT IT DOES NOT ADVANCE THE CHAIN. The combo is the game's
+           measure of the player's own hand — chain stars, up to +6 each — and
+           a second collector that fed it would let the orb farm the one number
+           that is supposed to say how well YOU are playing. So the mirror pays
+           at the chain's current rate and leaves the chain where it found it:
+           worth taking, never a substitute for taking them yourself. */
+        const mpaid=Math.max(1,G.combo);
+        G.score+=mpaid;G.diff+=1;G.scorePop=1;
+        popup(mp[0],mp[1]-16*u,'+'+mpaid,COL.mirror);
+        burst(mp[0],mp[1],COL.mirror,8,150);
+        if(AC&&MU)beep(PENT[Math.min(9,3+G.combo)],0.09,'square',0.016,PENT[5],0,panAt(mp[0]),0.2);
+      }
+      for(let i=G.spikes.length-1;i>=0;i--){
+        const sp=G.spikes[i];
+        if(sp.ring!==mr||sp.phase!==1||!armed(sp)||sp.saucer)continue;
+        if(angDist(sp.a,ma)>mtol)continue;
+        novaConvert(G.spikes.splice(i,1)[0]);
+        const mp=posAt(ma,radiusOf(mr));
+        burst(mp[0],mp[1],COL.mirror,10,170);
+        if(!RM)G.shake=Math.max(G.shake,3);
+      }
+    }
+  }
+  /* ---- SCORCH: the ground you have covered burns ----
+     Painted from the previous angle to the current one rather than at a point,
+     so the wake is continuous at every speed the game reaches — at 4.2 rad/s a
+     per-frame point sample leaves gaps between sectors, and a burn with holes
+     in it is a mechanic the player cannot trust. */
+  if(G.burn){
+    let anyBurn=false;
+    if(G.scorch>0&&G.state==='playing'){
+      G.scorch=Math.max(0,G.scorch-dt);
+      const arc=G.burn[Math.min(3,G.ringI)];
+      const step=TAU/BURN_SECT;
+      const travel=Math.abs(G.speed||0)*dt+step;
+      const n=Math.min(BURN_SECT,Math.ceil(travel/step)+1);
+      for(let q=0;q<n;q++)arc[burnIdx(G.angle-(G.dir||1)*q*step)]=BURN_LIFE;
+    }else if(G.scorch>0)G.scorch=Math.max(0,G.scorch-dt);
+    for(let r2=0;r2<G.burn.length;r2++){
+      const arc=G.burn[r2];
+      for(let q=0;q<BURN_SECT;q++)if(arc[q]>0){arc[q]=Math.max(0,arc[q]-dt);anyBurn=true;}
+    }
+    /* red standing in burnt ground, or arming into it, is destroyed. Read at
+       the same place the nova reads: it converts rather than deletes, so the
+       lane the player just cleared pays them for clearing it. */
+    if(anyBurn&&G.state==='playing'){
+      for(let i=G.spikes.length-1;i>=0;i--){
+        const sp=G.spikes[i];
+        if(sp.saucer||sp.phase===2)continue;
+        if(!burning(Math.min(3,sp.ring),sp.a))continue;
+        novaConvert(G.spikes.splice(i,1)[0]);
+        const bp=posAt(sp.a,radiusOf(sp.ring));
+        burst(bp[0],bp[1],COL.scorch,12,190);
+      }
+    }
+  }
   /* THE PROMISE IS WITHDRAWN ON A CLOCK, SO SAY SO. shieldMax() steps 3->4->5
      at dl 160 and 320. A bank sitting full at 3/3 stops being full the instant
      the clock crosses, the ember doubling stops with it, and nothing was ever
@@ -8137,7 +8305,8 @@ function update(dt){
         s.type==='shield'?COL.shield:
         s.type==='warp'||s.type==='spot'?COL.warp:
         s.type==='hyper'?COL.hyper:
-        s.type==='blackhole'?COL.bh:COL.nova);
+        s.type==='blackhole'?COL.bh:
+        s.type==='mirror'?COL.mirror:s.type==='scorch'?COL.scorch:COL.nova);
       if(s.type==='shield'){
         const span=panAt(p[0]);
         G.gotShield=true;   /* the naming hint retires on first pickup */
@@ -8222,6 +8391,37 @@ function update(dt){
           note(PENT[11],AC.currentTime+w+S16,0.24,'sawtooth',0.026,3600,-0.2,A.perf);
         });
         try{if(navigator.vibrate)navigator.vibrate(14);}catch(e){}
+      }else if(s.type==='mirror'){
+        /* eight beats, so it is measured in the same unit as the star and the
+           spotlight and lands on the grid rather than on a stopwatch */
+        G.mirrorD=SPB*(upgOn('longmirror')?14:MIRROR_BEATS);G.mirror=G.mirrorD;G.gotMirror=true;
+        /* it opens exactly opposite and then holds that relationship — the
+           mirror is a reflection, not a chaser, so its angle is derived every
+           frame rather than integrated */
+        G.mirrorA=G.angle+Math.PI;
+        popup(p[0],p[1]-22*u,'THE MIRROR',COL.mirror,1.4);
+        say('THE MIRROR \u2014 two of you',3,5);
+        burst(p[0],p[1],COL.mirror,18,220);
+        ripple(p[0],p[1],COL.mirror);
+        /* the level's own tonic and its fifth, sounded together and detuned a
+           breath apart: one voice heard as two, which is the orb */
+        cueTone(function(w){
+          note(PENT[4],AC.currentTime+w,0.30,'square',0.026,3000,-0.28,A.perf);
+          note(PENT[4]*1.004,AC.currentTime+w,0.30,'square',0.024,3000,0.28,A.perf);
+          note(PENT[7],AC.currentTime+w+S16*2,0.26,'square',0.022,3400,0.2,A.perf);
+        });
+        try{if(navigator.vibrate)navigator.vibrate([16,26,16]);}catch(e){}
+      }else if(s.type==='scorch'){
+        G.scorchD=upgOn('deepburn')?13:SCORCH_SECS;G.scorch=G.scorchD;G.gotScorch=true;
+        popup(p[0],p[1]-22*u,'SCORCH',COL.scorch,1.4);
+        say('SCORCH \u2014 your wake burns',3,5);
+        burst(p[0],p[1],COL.scorch,20,240);
+        ripple(p[0],p[1],COL.scorch);
+        cueTone(function(w){
+          note(PENT[2],AC.currentTime+w,0.34,'sawtooth',0.028,1800,0,A.perf);
+          note(PENT[0],AC.currentTime+w,0.40,'triangle',0.024,900,0.2,A.perf);
+        });
+        try{if(navigator.vibrate)navigator.vibrate([12,18,34]);}catch(e){}
       }else if(s.type==='hyper'){
         /* HYPERNOVA (Hunter: "temporary invincibility... speed cranks up
            significantly... making beautiful music in the zone at hyper
@@ -8335,6 +8535,37 @@ function drawPow(x,y,s,al){
     ctx.beginPath();ctx.arc(x,y,2.9*u*pulse,0,TAU);ctx.fill();
     ctx.fillStyle=COL.warp;
     ctx.beginPath();ctx.arc(x,y,1.6*u,0,TAU);ctx.fill();
+    ctx.restore();
+  }else if(s.type==='mirror'){
+    /* TWO OF THE SAME THING, facing each other across a seam. Drawn as two
+       half-discs with a gap down the middle rather than as one shape, because
+       the orb has to say "a second you" before any sentence does. */
+    ctx.save();ctx.globalAlpha=al;
+    ctx.rotate?0:0;
+    ctx.fillStyle=COL.mirror;
+    for(const d of [-1,1]){
+      ctx.beginPath();
+      ctx.arc(x+d*1.5*u*pulse,y,4.6*u*pulse,d>0?-Math.PI/2:Math.PI/2,d>0?Math.PI/2:Math.PI*1.5);
+      ctx.fill();
+    }
+    ctx.globalAlpha=al*0.85;ctx.strokeStyle='#dbe9ff';ctx.lineWidth=1.5*u;
+    ctx.beginPath();ctx.arc(x,y,7.6*u*pulse,0,TAU);ctx.stroke();
+    ctx.restore();
+  }else if(s.type==='scorch'){
+    /* a wake, not a flame: three tapering strokes trailing one bright head,
+       which is the shape the effect actually makes on the ring */
+    ctx.save();ctx.globalAlpha=al;
+    ctx.strokeStyle=COL.scorch;ctx.lineCap='round';
+    for(let q=0;q<3;q++){
+      ctx.globalAlpha=al*(0.75-q*0.2);
+      ctx.lineWidth=(3.0-q*0.7)*u;
+      const off=(q+1)*2.2*u, ph2=RM?0:Math.sin(s.t*3+q)*0.6*u;
+      ctx.beginPath();
+      ctx.moveTo(x-off-3.4*u,y+ph2);ctx.lineTo(x-off+1.2*u,y+ph2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha=al;ctx.fillStyle='#fff0dc';
+    ctx.beginPath();ctx.arc(x+3.0*u,y,3.4*u*pulse,0,TAU);ctx.fill();
     ctx.restore();
   }else if(s.type==='blackhole'){
     /* THE ONLY DARK OBJECT IN THE GAME. Everything else on the board emits;
@@ -8560,7 +8791,9 @@ function drawBloom(){
     const p=posAt(pw.a,radiusOf(pw.ring));
     bloomDot(g,p[0],p[1],10*u,
       pw.type==='shield'?COL.shield:
-      pw.type==='warp'||pw.type==='spot'?COL.warp:COL.nova);
+      pw.type==='warp'||pw.type==='spot'?COL.warp:
+      pw.type==='mirror'?COL.mirror:
+      pw.type==='scorch'?COL.scorch:COL.nova);
   }
   for(const pt of G.parts){
     if(pt.life<=0)continue;
@@ -10584,6 +10817,35 @@ function draw(){
   ctx.globalCompositeOperation='source-over';
   drawRingGlow();
 
+  /* ---- SCORCH: the ground that is still burning ----
+     Drawn on the ring itself and UNDER the shards, so a red standing in the
+     fire is still read as a red first — the burn is information about the
+     lane, not a thing competing with the hazard for attention. Each sector
+     fades on its own clock, which is what makes a wake look like a wake:
+     the far end of it is always going out while the near end is being laid. */
+  if(G.burn&&G.state==='playing'){
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    ctx.lineCap='butt';
+    const step=TAU/BURN_SECT;
+    for(let r2=0;r2<G.burn.length&&r2<G.nRings;r2++){
+      const arc=G.burn[r2],rr2=radiusOf(r2);
+      if(rr2<=0)continue;
+      for(let q=0;q<BURN_SECT;q++){
+        const v=arc[q];
+        if(v<=0.01)continue;
+        const f=Math.min(1,v/BURN_LIFE);
+        ctx.globalAlpha=0.16+0.52*f*f;
+        ctx.strokeStyle=COL.scorch;
+        ctx.lineWidth=(1.6+3.4*f)*u;
+        const a0=q*step;
+        ctx.beginPath();
+        ctx.ellipse(ecx(rr2),ecy(rr2),rr2,rr2*AY,0,a0,a0+step*1.04);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();ctx.globalAlpha=1;
+  }
   /* lap progress arc — colour reports how well fed this orbit is */
   if(G.state==='playing'&&G.lapAcc>0.05){
     const lr=curR()+6*u;
@@ -11015,6 +11277,37 @@ function draw(){
     }
     ctx.globalAlpha=1;
     ctx.restore();
+    /* ---- THE MIRROR, DRAWN AS THE OTHER HALF OF YOU ----
+       Same silhouette, same size, in the orb's blue, at G.angle + pi on the
+       same ring — and drawn BEFORE the comet's own furnace pass below, so if
+       the two ever overlap on screen the real one is the one on top. It gets
+       a countdown ring like the star and the spotlight, because a timed state
+       whose end is invisible is the exact complaint two playtesters raised
+       about the hypernova and the spotlight in turn; there is no reason to
+       ship a third one and wait to be told a third time. */
+    if(G.mirror>0){
+      const mp=posAt(G.mirrorA,radiusOf(G.ringI));
+      ctx.save();
+      ctx.globalCompositeOperation='lighter';
+      const mf=Math.min(1,G.mirror/0.45);       /* it fades out, never cuts */
+      ctx.globalAlpha=0.85*mf;
+      ctx.translate(mp[0],mp[1]);
+      ctx.rotate(G.mirrorA+Math.PI/2*(G.dir>0?1:-1));
+      const md=SPR.comet.s;
+      ctx.drawImage(SPR.comet.c,-md/2,-md/2,md,md);
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha=0.55*mf;
+      ctx.fillStyle=COL.mirror;
+      ctx.beginPath();ctx.arc(mp[0],mp[1],4.4*u,0,TAU);ctx.fill();
+      ctx.globalAlpha=0.9*mf;
+      ctx.strokeStyle=COL.mirror;ctx.lineWidth=2.0*u;ctx.lineCap='round';
+      const mfr=Math.max(0,Math.min(1,G.mirror/Math.max(0.001,G.mirrorD)));
+      ctx.beginPath();
+      ctx.arc(mp[0],mp[1],13*u,-Math.PI/2,-Math.PI/2+TAU*mfr);
+      ctx.stroke();
+      ctx.restore();ctx.globalAlpha=1;
+    }
     drawBeat(p);
     for(let k=0;k<G.shields;k++)
       blit(SPR.shieldRing,p[0],p[1],
@@ -11709,7 +12002,9 @@ function drawHUD(){
     const timed=BH.phase===2?['BLACK HOLE · '+Math.max(0,Math.ceil(BH_DUR-BH.t))+'s',COL.bh]:
                 G.hyper>0?['HYPERNOVA','rgba(255,220,130,0.98)']:
                 G.od>0   ?['OVERDRIVE ×2','rgba(255,200,87,0.95)']:
-                G.spot>0 ?['SPOTLIGHT ×2','rgba(234,241,255,0.95)']:null;
+                G.spot>0 ?['SPOTLIGHT ×2','rgba(234,241,255,0.95)']:
+                G.mirror>0?['THE MIRROR',COL.mirror]:
+                G.scorch>0?['SCORCH',COL.scorch]:null;
     if(timed&&roomy){
       ctx.globalAlpha=0.7+0.3*G.beat;
       text(timed[0],cx,top+154*u,11*u,'800',timed[1],3);

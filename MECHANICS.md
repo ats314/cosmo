@@ -125,6 +125,70 @@ there were exactly three levels.
 | THE NARROWS | **The mirror of GATES, and the last thing the game teaches.** A wall across every ring but one. A gate blocks every lane and is answered by a TAP; this leaves exactly one lane and is answered by a HOP — the two verbs, one wall each, 420 difficulty-seconds apart. The open lane is always **adjacent to the comet's current ring and never the ring it is already on**, so exactly one swipe answers it and it can never be a wall that demands nothing. The open lane is held to a wider clearance (2.2 rad) than the walls (1.7), because it is the only way out and a shard sitting in it turns the formation from a demand into a trap. It does **not** use the gate's `reverseEscape` check — the escape it must guarantee is a lane, not an arc — and like every wall it may never share a board with another gate or with the saucer. Drawn as contiguous runs of blocked rings with the gap left as a visible hole, plus two comet-coloured brackets opening into it on the beat: a hole in a red wall is only readable if the eye is told it is a hole. | dl 520 — inside level 5 | banner + MEET lesson, one sentence: "one ring is open — swipe to it", death coach |
 | THE EYE | Not a shape — the **last rung of the tier ladder**, and the only one that introduces nothing. Its banner marks the end of teaching: every formation is known and active from here, and level 6 is the exam. `type:null`, so it adds no spawn kind and no ring; the ladder simply stops. Its `sub` can never render, because a dl 610 crossing is also the level-6 boundary and the level card owns the screen at that moment. | dl 610 — `LV[4].end`, level 6's floor *(moved from dl 340 when teaching was extended through level 5)* | banner only: **THE EYE**. No MEET lesson and no death coach, because there is no new object to explain *(added: it shipped with no ledger row at all, and `check.mjs` now fails on any TIERS or LAB_ORBS name the ledger does not know)* |
 
+### THE MIRROR *(new)* — level 4's orb
+
+A second comet, opposite you on your own ring, for eight beats. It **gathers
+what it passes and shatters red on contact**, it cannot be hurt, and it does
+**not** protect you: red on your own half of the ring is exactly as lethal as it
+ever was. That is what keeps it *presence* rather than immunity, and on a
+circular board presence is a thing no other orb can offer — every existing
+powerup changes what happens to YOU, and this one changes how much of the ring
+is yours at once.
+
+Its angle is **derived** (`G.angle + π`, on `G.ringI`) rather than integrated. A
+chaser that accumulates its own position drifts and needs a controller, and the
+magnetar died twice proving a first-order chase never arrives; a reflection has
+no such problem, because it is not chasing anything.
+
+**It pays but does not advance the combo.** The chain is the game's measure of
+the player's own hand, and a second collector feeding it would let an orb farm
+the one number that is supposed to say how well *you* are playing. It pays at
+the chain's current rate and leaves the chain where it found it.
+
+Called THE MIRROR and not THE TWIN — the working name — because TWIN SHARDS is
+a formation the player met at dl 18, and two unrelated things called twin is a
+collision this file has paid for before. ECHO was the other candidate and is a
+**banned string**: `check.mjs` fails the build on it, because an orb by that
+name was cut and its teaching data outlived it.
+
+| | |
+|---|---|
+| Introduced | level 4, guaranteed once per run (`mirrorPlaced`) |
+| Duration | 8 beats · 14 with LONG MIRROR |
+| Taught by | MEET lesson, one sentence: "the mirror — a second you, gathering the far side" |
+| Reads with sound off | yes — a second comet, a countdown ring, a HUD label |
+
+### SCORCH *(new)* — level 5's orb
+
+**Your wake burns.** For 8 seconds the arc of your own ring you have travelled
+stays lit behind you, and any red standing in it — or arming into it — is
+destroyed, converted through the same `novaConvert` path the nova uses, so the
+lane you cleared pays you for clearing it.
+
+**A full lap makes a full lap safe; sitting still makes almost nothing safe.**
+That asymmetry is the entire design: it is the saucer's problem answered from
+the reward side. The saucer prices camping by putting a threat behind a player
+who will not travel; scorch pays travelling by making distance covered
+literally the size of the benefit.
+
+Stored per ring as a ring of **72 sectors** rather than as a list of arcs —
+sectors cannot overlap, cannot leak, and cost one array. Painted from the
+previous angle to the current one rather than at a point, because at 4.2 rad/s
+a per-frame point sample leaves gaps between sectors, and a burn with holes in
+it is a mechanic the player cannot trust. Drawn on the ring and **under** the
+shards, so a red standing in the fire is still read as a red first.
+
+Its colour is warm **orange**, deliberately not warm red: the rule that red
+belongs to death alone is not negotiable, and `#ff5d73` is a pink, so the two
+do not sit in the same family at a glance.
+
+| | |
+|---|---|
+| Introduced | level 5, guaranteed once per run (`scorchPlaced`) |
+| Duration | 8s · 13s with DEEP BURN |
+| Taught by | MEET lesson, one sentence: "scorch — keep moving, your wake burns red away" |
+| Reads with sound off | yes — the burning arc, a HUD label |
+
 ## Level 3+ — BLACK HOLE MODE (rare, optional, not a power-up)
 
 **How often it arrives, rewritten for six levels.** The guarantee is once per

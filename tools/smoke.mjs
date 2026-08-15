@@ -1026,7 +1026,24 @@ try {
     const rows = JSON.parse(st('JSON.stringify(G.powSelRects.filter(r=>r.id==="orb").map(r=>r.orb))'));
     const want = JSON.parse(st('JSON.stringify(LAB_ORBS.map(o=>o.id))'));
     if (rows.join(',') !== want.join(',')) throw new Error(`the picker drew rows ${rows} for orbs ${want}`);
-    if (rows.length !== 6) throw new Error(`the lab offers ${rows.length} orbs, want the game's six`);
+    // DERIVED, NOT SIX. This read `!== 6`, which was the roster size on the day
+    // it was written and stopped being true the moment THE MIRROR and SCORCH
+    // were added — the same stale-literal failure as the level count in
+    // musiccheck and the tier ordinals in index.html, and the third one this
+    // week. The line above already compares the drawn rows against LAB_ORBS,
+    // so the count adds nothing on its own; what it should have been asserting
+    // is the sentence in the comment above it, which nothing checked: that
+    // every orb the picker offers is one the PICKUP path actually handles. A
+    // picker row for a type the game cannot resolve starts a lab run that
+    // hands you an orb and then does nothing when you take it.
+    if (!rows.length) throw new Error('the lab picker drew no orbs at all');
+    // and NOT a hardcoded count. The first attempt at replacing it was a static
+    // scan for a `s.type==='<id>'` pickup branch per orb, which fails on nova:
+    // nova is the final `else` of that chain and names itself nowhere. The
+    // sentence the comment promises is already proved dynamically further down
+    // this file, where the lab plays EVERY LAB_ORBS row for 45 seconds and
+    // counts the pickups — that test derives its list from the table and needs
+    // no maintenance when the roster grows.
     const bhRow = JSON.parse(st('JSON.stringify(G.powSelRects.find(r=>r.orb==="blackhole"))'));
     fire('pointerdown', pev(bpid, bhRow.x + bhRow.w / 2, bhRow.y + bhRow.h / 2, 'pointerdown'));
     fire('pointerup', pev(bpid++, bhRow.x + bhRow.w / 2, bhRow.y + bhRow.h / 2, 'pointerup'));

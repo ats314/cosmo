@@ -239,7 +239,7 @@ while (st('G.level') < EXAM || st('age()') < 30) {
    shape that is not added here is a shape the harness will happily let ship
    untaught, which is the one thing this file exists to prevent. */
 const TAUGHT = ['single', 'twin', 'gate', 'drift', 'blink', 'driftgate', 'saucer',
-  'blinktwin', 'dive', 'funnel', 'spot', 'hyper'];
+  'blinktwin', 'dive', 'funnel', 'spot', 'hyper', 'mirror', 'scorch'];
 const seenAtExam = st('Object.keys(G.seen).join(",")');
 for (const f of TAUGHT) {
   if (!st(`G.seen['${f}']||G.seen2['${f}']`)) fail.push(`level ${EXAM} started without the ${f} lesson (seen: ${seenAtExam})`);
