@@ -164,10 +164,10 @@ And six wordings:
 |---|---|---|
 | the **gold** star — untouchable at double speed | the **pink** star — untouchable and fast | `COL.hyper` is `#ff4fd8`; gold is the colour of the ordinary embers |
 | SHIELDS FULL — **everything** pays double | SHIELDS FULL — **stars** pay double | the orbit payout, up to 86, is untouched |
-| combo — each star pays more than the last | combo — chain stars, **up to +6 each** | the chain caps at 6 and the lesson fires at 3 |
+| combo — each star pays more than the last | COMBO — stars in a row, **up to +6 each** | the combo caps at 6 and the lesson fires at 3; each counter names itself with the HUD's own label |
 | red starts arriving in shapes | red starts blocking whole rings | twins unlock at dl 18, inside level 1 |
 | next sound: X at **level 7 / 10** | next sound: X — keep climbing | those are tier rungs, which the player is never told as numbers |
-| LAPS **×**7 | ORBITS 7 IN A ROW | the streak bonus saturates at five laps — and "orbit" is the one player-facing word for the act now, so the chip stopped saying LAPS too |
+| LAPS **×**7 | CLEAN ORBITS · 7 | the streak bonus saturates at five laps — and "orbit" is the one player-facing word for the act now, so the chip stopped saying LAPS too |
 
 Two more, from the bug hunt rather than the copy audit. `shieldMax()` steps
 3→4→5 on the difficulty clock, so a bank sitting full silently stopped being

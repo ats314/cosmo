@@ -109,6 +109,87 @@ any player-facing sentence.*
   symbol would guess, and a guard that guesses gets deleted the first time it
   is wrong.
 
+- **THE HOUSE STYLE — three rules, and they are what "cohesive" meant.** The
+  owner playtested six levels and reported, verbatim: *"the game feels exactly
+  like 50 different agents have worked on it ... very pieced together, not
+  cohesive, not well thought out. If I played, my first thought would be 'ai
+  made this'."* No individual feature was the fault. Every feature had arrived
+  with its own vocabulary, because nothing in the repository said what the
+  vocabulary WAS — so each session invented one more, and the composite read
+  as a committee. The rules now live at the top of `index.html` beside `COL`,
+  where anything adding a player-facing string will pass them:
+
+  1. **One name per thing.** The player is on a LEVEL, and the level has a
+     name. That name appears on the card, in the header, on the death screen
+     and in the share text, and nothing else is printed alongside it. The
+     tier ladder is real and is not furniture: it speaks by *arriving* — a
+     banner — never by sitting in the corner. A mode may not borrow a level's
+     name for its eyebrow. What this replaced, screenshotted: the header read
+     `LEVEL 4 · FLICKER PAIRS` (a tier) while the card that opened the level
+     said EVENT HORIZON, the music was in E♭ because of EVENT HORIZON, the
+     sky was EVENT HORIZON's — and then the black hole arrived carrying
+     `EVENT HORIZON` as its eyebrow, directly above a header label reading
+     `BLACK HOLE · 17s` and a banner reading `BLACK HOLE`. Four names for one
+     situation, two of them duplicated, none agreeing. An earlier session met
+     exactly this collision and fixed it by *renaming the tier* (see the note
+     on THE EYE in `TIERS`); the collision came back one level later, because
+     the defect was printing two ladders side by side, not the words chosen.
+  2. **One counter idiom.** `NOUN ×N` is a multiplier — `COMBO ×3`,
+     `ON BEAT ×8`, `OVERDRIVE ×2`, `SPOTLIGHT ×2`. `NOUN · N` is a count or a
+     clock — `SHIELDS · 3`, `CLEAN ORBITS · 3`, `BLACK HOLE · 12s`,
+     `LEVEL 4 · REDSHIFT`. The middot is already this file's connector
+     everywhere else, so the two symbols carry the whole distinction and no
+     label has to spell it out in words. **A lesson names a counter with the
+     exact string the HUD prints for it.** What this replaced: the word
+     *chain* named three unrelated mechanics — the star combo's lesson said
+     "chain stars", the on-beat counter's lesson said "the chain climbs", and
+     the finale paid `+60 CHAIN` on a fourth rule again — while the header
+     printed `×2 COMBO`, written backwards from the two labels immediately
+     under it. A player cannot learn a word that means three things.
+  3. **One colour per meaning, and the list is closed.** cyan = you; gold =
+     earned; violet = the music; pink-red = death, and death only; mint =
+     shield; white = the peak. Everything past that is an *orb's* identity
+     (magenta hypernova, violet-blue black hole, blue mirror, orange scorch)
+     and is spent on that orb alone — never on a readout, never on a reward.
+     A new colour needs a meaning nothing above already owns. This half was
+     already being followed; it is written down so it keeps being followed.
+
+- **A HUD METER APPEARS WHEN IT HAS A READING, NOT WHEN THE RUN STARTS.**
+  Screenshotted at second three of level 1: eight band dots with one lit,
+  above four hollow ember diamonds, under a gold line — three instrumentation
+  rows on a board holding one ring, one comet and one star, for a player who
+  had not yet turned around. None of them was readable yet; what *was*
+  readable is that the game has a lot of dials. `G.bandSeen` and `G.embSeen`
+  latch on the first real reading and never clear inside a run, so a meter
+  cannot flicker out mid-glance. Nothing was deleted — it arrives when it is
+  true. The same rule is why the timed-state label yields to its own banner
+  for the banner's first 3.2s instead of printing the state's name twice, 25px
+  apart, on the same frame.
+
+- **THE FRONT DOOR RANKS BY WHAT IT IS FOR: the name, what you do, START,
+  then side doors.** `POWERUP TESTING` sat *second* on the title screen —
+  directly under the game's name, above the four lines that say what the game
+  is and above the button that plays it — so the loudest object on the front
+  door was a developer sandbox that keeps no record and pins the difficulty
+  clock. Nothing had decided that; it was the last thing added and the layout
+  had a slot free where the mode cards used to be. It hangs off the START
+  pill's bottom edge now, and the key rows take the band it vacated (which
+  also closed a 119px dead gap above them). The bar itself is unchanged —
+  the reasoning that made it a violet bar rather than a card still holds.
+  **It falls back to the old slot when there is no room under the button**
+  (`labRoom`): on a short landscape viewport `bottomY` collapses onto the
+  bottom safe area and the pill *is* the last row, and a door nobody can
+  reach is worse than a door in the wrong place.
+
+- **ONE THING OWNS THE CENTRE, AND BOTH SET PIECES COUNT.** `hintText()`
+  returns null inside the black hole *and* inside the star dive. This was
+  described in that function's comment and implemented for only one of them,
+  which is worse than either: the comment said the dive owned the screen while
+  the code tested `bhActive()` alone. Screenshotted mid-finale — *"tap anywhere
+  to turn around"* dead centre through the guide line, over the constellation,
+  under a banner reading THE FINALE. If you add a third set piece, it goes in
+  that guard in the same commit.
+
 ## Modes, records and the powerup lab
 
 *You are touching MODES, the level select, a stored record, or anything
@@ -240,7 +321,7 @@ any event property.*
   level ordinal, so every level-4 run printed "LEVEL 4 · STORM" under a level
   the card had just named EVENT HORIZON, while level 3 was THE STORM — and the
   black hole's banner wore EVENT HORIZON, level 4's own name, as its eyebrow
-  (it says SINGULARITY now). Each collision — STORM, THE EYE, the eyebrow —
+  (it says NO ESCAPE now). Each collision — STORM, THE EYE, the eyebrow —
   was first answered with a rename, which spends a good name to keep a bad
   channel; the channel was the bug. A new surface that wants a name prints the
   level's own, and two different things never share one.

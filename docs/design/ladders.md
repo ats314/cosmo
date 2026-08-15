@@ -48,6 +48,30 @@ rung's name kept colonising the level-subtitle slot: the header read
 collision that had already forced two tier renames. `smoke.mjs` asserts all
 of it.
 
+**And then it stopped standing next to the level at all.** Not calling itself
+a level was necessary and it was not enough: the header printed
+`LEVEL 4 · FLICKER PAIRS` and the death screen printed `LEVEL 6` over
+`THE EYE`, so the permanent line naming where you are named *both* ladders,
+one of which the player has never been shown. Playtested, the composite was
+worse than the pairing: the header said FLICKER PAIRS while the card that
+opened the level said EVENT HORIZON, the music was in E♭ because of EVENT
+HORIZON, the sky was EVENT HORIZON's — and then the black hole arrived
+carrying `EVENT HORIZON` as its own eyebrow. Four names, one situation.
+
+An earlier session hit this exact collision and fixed it by renaming the
+*tier* — the note on THE EYE in `TIERS` records it — and it came back one
+level later, because the defect was never the words. It was printing two
+ladders side by side and expecting the player to know which was which.
+
+So `levelName()` now feeds the header, the death screen and the share text,
+and it returns `LV[G.level-1].name`: the same string the level card just
+showed, the same string the key and the sky are chosen by. **The tier ladder
+is not hidden and is not deleted — it speaks by arriving.** A rung landing
+still fires a banner, still names the shape, still teaches it, which is the
+moment it is news. It just no longer sits in the corner competing with a
+different ladder's number for the rest of the run. `tierLabel()` is still
+what telemetry records, because telemetry wants the unlock rung.
+
 The empty pips are the point as much as the filled ones: a player who dies on
 level 1 can see that five more exist, which is the one thing a bare score can
 never tell them.
