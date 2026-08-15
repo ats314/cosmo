@@ -216,7 +216,8 @@ entire time.
   ```sh
   # chromium + playwright are installed; index.html needs no server
   /opt/pw-browsers/chromium-1194/chrome-linux/chrome   # --enable-unsafe-swiftshader
-  # playwright: /opt/node22/lib/node_modules/playwright   (ESM: import by full path)
+  # playwright: import('/opt/node22/lib/node_modules/playwright/index.mjs')
+  #   index.mjs, not index.js — index.js resolves but exports nothing
   # page.goto('file:///path/to/index.html') then screenshot
   ```
 

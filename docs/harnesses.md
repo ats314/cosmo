@@ -90,9 +90,7 @@ a different game; it also fails if glWatch or GL.scale ever come back. Then it
 runs the whole game again with no WebGL and fails unless the drawn-disc
 fallback takes over with zero GPU calls. **Anything that touches a shader, a
 uniform, the glow chain or the scale dial belongs in this harness** — as long as
-what you are asserting is that a call was ISSUED with the right arguments. All
-of its assertions were mutation-tested when it was written; keep that habit — a
-render check that cannot fail is worse than none, because it reads as coverage.
+what you are asserting is that a call was ISSUED with the right arguments.
 
 **`rendercheck.mjs` is the only harness that looks at a PIXEL, and it is the
 eighth check rather than a spare.** Every other harness in this file — fxcheck

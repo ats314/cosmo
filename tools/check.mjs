@@ -485,10 +485,7 @@ if (wired.has('rendercheck.mjs') && !/playwright[^\n]*install/i.test(wf)) {
    still copying files into a directory nobody uploads, while the deploy
    publishes the entire repository again. Every internal document goes public
    and this file says OK — the precise regression the guard was written to
-   prevent, waved through by the guard.
-   It was missed because the mutation test that "covered" it changed the
-   staging step and the path together, so the two were never separated. Mutate
-   one thing at a time, or a mutation test agrees with whatever it is shown. */
+   prevent, waved through by the guard. Both halves are checked below. */
 const up = wf.match(/upload-pages-artifact@[\w.]+\s*\n\s*with:\s*\n\s*path:\s*(\S+)/);
 if (!up) {
   fail.push('could not read the upload-pages-artifact `path:` from pages.yml — the guard that '

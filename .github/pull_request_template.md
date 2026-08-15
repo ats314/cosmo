@@ -27,7 +27,6 @@
 - [ ] Invariant group(s) in `docs/invariants.md` for what this touches: <!-- name them -->
 - [ ] `MECHANICS.md` updated, or this changes no player-facing mechanic
 - [ ] `README.md` updated, or this changes no behaviour
-- [ ] New guard is mutation-tested, or this adds no guard
 
 ## What I could not verify
 
