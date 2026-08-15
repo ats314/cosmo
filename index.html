@@ -141,6 +141,34 @@ const COL={comet:'#5df0ff',ember:'#ffc857',shard:'#ff5d73',shield:'#7bffc8',
      the two do not sit in the same family at a glance. Verified on a rendered
      frame rather than argued from hex values. */
   mirror:'#4d8cff',scorch:'#ff8a2b'};
+/* ---------- THE HOUSE STYLE ----------
+   Playtest, verbatim, after six levels: "the game feels exactly like 50
+   different agents have worked on it ... very pieced together, not cohesive
+   ... my first thought would be 'ai made this'." No single feature was
+   wrong. What was wrong is that each one had brought its own vocabulary,
+   and nothing in this file said what the vocabulary WAS, so every session
+   invented one more. Three rules, written down once, so the next thing added
+   here inherits them instead of adding a fourth idiom.
+
+   1. ONE NAME PER THING. The player is on a LEVEL and the level has a name;
+      that name appears on the card, in the header, on the death screen and
+      in the share text, and nothing else is printed beside it. The tier
+      ladder is real and is not player-facing furniture — it speaks by
+      arriving (a banner), never by sitting in the corner. A mode may not
+      borrow a level's name for its eyebrow.
+   2. ONE COUNTER IDIOM. "NOUN ×N" is a multiplier — COMBO ×3, ON BEAT ×8,
+      OVERDRIVE ×2, SPOTLIGHT ×2. "NOUN · N" is a count or a clock —
+      SHIELDS · 3, SHIELD USED · 2 LEFT, CLEAN LAPS · 3, BLACK HOLE · 12s,
+      LEVEL 4 · REDSHIFT. The dot
+      is already this file's connector everywhere else, so the two symbols
+      carry the whole distinction and no label has to spell it out in words.
+      A lesson names a counter with the exact string the HUD prints for it.
+   3. ONE COLOUR PER MEANING, and the list is closed. cyan = you; gold =
+      earned; violet = the music; pink-red = death, and death only; mint =
+      shield; white = the peak. Everything past that is an ORB's identity
+      (magenta hypernova, violet-blue black hole, blue mirror, orange
+      scorch) and is spent on that orb alone — never on a readout, never on
+      a reward. A new colour needs a meaning nothing above already owns. */
 const LAP_EMB_MAX=4; /* embers per orbit that still raise the payout */
 
 /* THE ARENA IS AN ELLIPSE (playtest, near-verbatim: "I wonder if the orbits
@@ -2981,7 +3009,12 @@ function startBlackHole(){
      every ring unlock, every formation and the star dive. The mode that
      re-spaces the orbits, stops the band and opens a fourth ring got a 0.92s
      floating popup. Every noun in the sub is one the game has. */
-  G.banner={str:'BLACK HOLE',eyebrow:'EVENT HORIZON',
+  /* NOT "EVENT HORIZON". That is the NAME OF LEVEL 4, printed on the card
+     ninety seconds earlier and now printed in the header for the whole run,
+     so the banner announcing the mode was announcing the place the player was
+     already standing. The eyebrow says what is happening instead, and it says
+     it in a word the mode already uses — the escape bonus is called ESCAPED. */
+  G.banner={str:'BLACK HOLE',eyebrow:'NO ESCAPE',
     sub:'everything slows — the reds pile up — a fourth ring',t:0};
   /* a live hard lesson would otherwise run the reveal at 6% speed behind a
      dim veil — the finale already flushes for exactly this reason */
@@ -5293,6 +5326,7 @@ const G={
   hyper:0,hyperD:0,hyperGlow:0,        /* hypernova: seconds left, full duration, backdrop envelope */
   upg:{},offered:{},offer:[],offerRects:[],picks:[],  /* the upgrade draft */
   layerN:0,bandN:0,bandFx:0,           /* score layers unlocked; band-meter dot count + pulse */
+  bandSeen:false,embSeen:false,        /* each HUD meter appears once it has a reading, then stays */
   sndAt:0,sndStr:null,                 /* a NEW SOUND announcement waiting for its banner to clear */
   flashT:0,meetNext:0,teachSoft:false, /* flash rate-limit; lesson spacing; lesson-without-slowmo */
   holdD:0,hopHintT:0,                   /* the hop lesson: gate, hint clock */
@@ -5343,7 +5377,13 @@ function arcFlash(a,ring,col){G.arcs.push({a:a,ring:ring,life:1,col:col});}
 function popup(x,y,str,col,sz){
   /* cap the cloud: at mid-game density 6-8 texts floated at once. Oldest
      yields — the newest popup is the one narrating what just happened. */
-  if(G.pops.length>=6)G.pops.shift();
+  /* FOUR, NOT SIX, AND THE OLDER ONES STEP BACK. Screenshotted in the
+     finale: four identical "+60" floating in a column down the left margin
+     at equal weight, none of them the news. Six was a cap on the crash, not
+     on the noise. Four still lets a nova cascade read as a cascade, and the
+     survivors dim by age at the draw so the eye lands on the newest without
+     a second of them being lost. */
+  if(G.pops.length>=4)G.pops.shift();
   G.pops.push({x,y,str,col,life:1,sz:sz||1});
 }
 /* NOVA. A front that expands from the pickup and turns what it touches into
@@ -5718,11 +5758,15 @@ const MEET={
      by new players"). Three event-triggered lessons name the rhythm layer
      the moment the player first touches it. */
   music: {t:'your moves play the music — every tap is a note',g:'beat',soft:1},
-  beat:  {t:'that was on the beat — tap as the ring lands and the chain climbs',g:'beat',soft:1},
-  /* the chain caps at 6 (G.combo=Math.min(G.combo+1,6)) and the lesson fires
+  /* EACH COUNTER NAMES ITSELF WITH THE LABEL THE HUD PRINTS FOR IT, and no
+     two of them share a noun. This one taught "the chain climbs" while the
+     HUD called it ON BEAT; the one below taught "chain stars" while the HUD
+     called it COMBO; the finale paid "+60 CHAIN" for a third rule again. */
+  beat:  {t:'that was on the beat — tap as the ring lands and ON BEAT climbs',g:'beat',soft:1},
+  /* the combo caps at 6 (G.combo=Math.min(G.combo+1,6)) and the lesson fires
      at 3, so it promised an unbounded climb three rungs before it flattened
      and no player-facing string named the ceiling */
-  combo: {t:'combo — chain stars, up to +6 each',g:'star',soft:1}};
+  combo: {t:'COMBO — stars in a row, up to +6 each',g:'star',soft:1}};
 function firstMeet(type){
   if(G.seen[type]||!MEET[type])return;
   /* AND NEVER IN THE LAB, which is the difference between a testing rig and a
@@ -6222,7 +6266,7 @@ function startGame(){
   FIN.on=false;FIN.pend=false;FIN.done=false;FIN.step=0;FIN.score=0;FIN.got=0;FIN.voices=0;FIN.t0=0;FIN.trail.length=0;
   PLAY.tape.length=0;
   LOOP.pat=null;LOOP.n=0;LOOP.until=0;LOOP.heard=false;
-  G.bandN=0;G.bandFx=0;G.sndAt=0;G.sndStr=null;
+  G.bandN=0;G.bandFx=0;G.sndAt=0;G.sndStr=null;G.bandSeen=false;G.embSeen=false;
   G.flashT=0;G.meetNext=0;G.teachSoft=false;G.teachType=null;ANN.length=0;annNext=0;
   G.lapCut=0;G.lapCutDir=1;G.lapFx=null;G.beatPop=false;G.lsnN=0;G.said8=false;
   G.chorusN=0;G.chorusBars=0;   /* per level, the scale `seconds` uses; saidChor is per run, above */
@@ -6894,6 +6938,23 @@ function tierLabel(){
   for(let i=G.tier;i>=0;i--)if(TIERS[i].name)return TIERS[i].name;
   return 'FIRST ORBIT';
 }
+/* ONE NAME FOR WHERE YOU ARE, AND THE LEVEL OWNS IT. This is the fix the
+   comment on THE EYE's tier row was reaching for and could not reach by
+   renaming things: the header printed LEVEL 4 next to a TIER name, so the
+   permanent line in the corner of the screen named a ladder the player has
+   never been shown, in the same breath as the one they have. Playtested, the
+   screen said LEVEL 4 · FLICKER PAIRS while the card that opened it said
+   EVENT HORIZON, the music was in E-flat because of EVENT HORIZON, the sky
+   was EVENT HORIZON's — and then the black hole arrived carrying EVENT
+   HORIZON as its eyebrow. Four names, one situation, none of them agreeing:
+   the single loudest reason the game read as assembled rather than authored.
+   The tier ladder is not deleted and is not hidden — it still gets a banner
+   the moment a rung lands, which is when it is news. It just stops being
+   printed permanently beside a different ladder's number. */
+function levelName(){
+  const L=LV[Math.min(LV.length-1,Math.max(0,G.level-1))];
+  return (L&&L.name)||'';
+}
 /* THE ORDINAL, AND WHICH ONE. A tester put the case for naming one at all
    better than the design did: "reaching level XYZ seems more memorable and
    rewarding than just a highest score. Levels are more distinct." A score is a
@@ -6929,8 +6990,8 @@ function runSummary(){
      the share text lying on the player's behalf. */
   const tag=(G.startLevel>1?' · from L'+G.startLevel:'');
   return 'Cosmo · LEVEL '+G.level+'/'+LEVEL_MAX+tag+'\n'+
-    bar+' '+tierLabel()+'\n'+
-    G.score+' points · '+G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime()+'\n'+
+    bar+' '+levelName()+'\n'+
+    G.score+' points · '+G.orbits+' orbits · '+G.bestStreak+' clean laps · '+runTime()+'\n'+
     (G.bestGroove>=2?'on beat ×'+G.bestGroove+'\n':'')+
     (G.lands>0?G.lands+' drops landed\n':'')+
     /* a deep link to index.html shares worse than the directory it lives in */
@@ -7790,7 +7851,7 @@ function update(dt){
          player clearing a level read UNLOCKED / THE FINALE at the moment the
          level was being taken away. One hardcoded eyebrow served two opposite
          events, which no wording can fix. */
-      G.banner={str:'THE FINALE',eyebrow:'FINISH LINE',sub:'chase the brightest star \u2014 quick chains pay double',t:0};
+      G.banner={str:'THE FINALE',eyebrow:'FINISH LINE',sub:'chase the brightest star \u2014 quick pickups pay double',t:0};
       /* a hypernova carried into the dive would fight the dive's own
          momentum curve — the star gets a graceful second to wind down */
       G.hyper=Math.min(G.hyper,1.0);
@@ -7819,7 +7880,15 @@ function update(dt){
       const chain=G.t-FIN.lastAt<1.3;FIN.lastAt=G.t;
       const pts=chain?60:30;
       G.score+=pts;FIN.score+=pts;G.scorePop=Math.max(G.scorePop,0.6);
-      popup(p2[0],p2[1]-20*u,chain?'+60 CHAIN':'+30',COL.ember,chain?1.1:0.85);
+      /* "+60 ×2", not "+60 CHAIN". THE WORD "CHAIN" NAMED THREE DIFFERENT
+         MECHANICS. The star combo's own lesson called itself "chain stars",
+         the on-beat counter's lesson said "the chain climbs", and this — a
+         fourth thing, on a 1.3s window, none of them the same rule — printed
+         CHAIN in gold over the arena while the header printed COMBO in gold
+         two inches above it. A player has no way to learn a word that means
+         three things. So the word is gone from everything the player reads:
+         one multiplier symbol, used the same way everywhere. */
+      popup(p2[0],p2[1]-20*u,chain?'+60 ×2':'+30',COL.ember,chain?1.1:0.85);
       /* THE HANDOFF: the moment one star is taken the next visibly
          IGNITES — a ripple and a small ring at its position — so the eye
          is pulled to the new target without reading anything */
@@ -8482,7 +8551,11 @@ function update(dt){
             note(chTone(4),AC.currentTime+w+S16,0.24,'sine',0.020,2200,-span);
           });
         }else{
-          G.shields++;popup(p[0],p[1]-20*u,'SHIELD \u00d7'+G.shields,COL.shield);
+          G.shields++;
+          /* a COUNT, not a multiplier: this says how many you now hold, and
+             the pips under the arena say the same number. See the house
+             style at COL — the cross is reserved for things that multiply. */
+          popup(p[0],p[1]-20*u,'SHIELDS \u00b7 '+G.shields,COL.shield);
           if(G.shields>=shieldMax()){
             /* NOT "everything". Exactly one score source doubles on a full
                bank — the ember at the pickup above. The orbit, which is the
@@ -11889,9 +11962,13 @@ function draw(){
      Shrink first so a long line stays as large as it can, then slide the box
      inside the margins — sliding alone cannot save a string wider than the
      screen, and shrinking alone leaves it hanging off the edge. */
-  for(const p of G.pops){
+  for(let pi=0;pi<G.pops.length;pi++){
+    const p=G.pops[pi];
     const lf=Math.max(p.life,0);
-    ctx.globalAlpha=Math.min(1,lf*3);
+    /* newest at full weight, each older one a step back — the column reads
+       as one statement with its history behind it rather than four claims */
+    const rank=G.pops.length-1-pi;
+    ctx.globalAlpha=Math.min(1,lf*3)*(rank?Math.max(0.34,1-0.26*rank):1);
     let fs=14*u*(p.sz||1)*(RM?1:1+0.4*Math.max(0,lf-0.88)/0.12);
     const mg=8*u;
     fs=fitSz(p.str,fs,'800',W-mg*2,1);
@@ -12186,8 +12263,13 @@ function hintText(){
      centre already carries the banner, the countdown label, the horizon
      popup and the display itself; a hint ladder sentence printed over the
      top of all of it (screenshotted: "tap anywhere to turn around" across
-     the singularity). The star dive takes the screen the same way. */
-  if(bhActive())return null;
+     the singularity). The star dive takes the screen the same way — and it
+     was NOT guarded, only described: this comment claimed the dive owned the
+     centre while the code tested one of the two set pieces. Screenshotted
+     again, this time mid-finale: "tap anywhere to turn around" printed dead
+     centre through the guide line, over the constellation, under a banner
+     reading THE FINALE, while four +60 popups ran down the left margin. */
+  if(bhActive()||FIN.on)return null;
   const a=age();
   /* First match wins, so this list IS the curriculum and its order is the
      lesson plan. Two escape valves keep it honest: the orb-naming loop sits
@@ -12341,7 +12423,11 @@ function drawHUD(){
     /* The level replaces BEST here. The score directly above is already the
        live number, and a second number you cannot affect this second is worth
        less than the one that says where in the game you are. */
-    text('LEVEL '+G.level+' \u00b7 '+tierLabel(),cx,top+76*u,13*u,'700',
+    /* And it names the LEVEL, not the tier \u2014 see levelName(). This line, the
+       card that opened the level, the death screen, the share text, the key
+       the music is in and the sky overhead now all say the same word. */
+    const hl='LEVEL '+G.level+' \u00b7 '+levelName();
+    text(hl,cx,top+76*u,fitSz(hl,13*u,'700',W-90*u,2),'700',
       'rgba(255,200,87,0.72)',2);
     /* THE BAND METER (playtest: nobody could tell there was more band to
        unlock). One dot per layer, lit as it joins the record: five violet
@@ -12359,8 +12445,19 @@ function drawHUD(){
       let bn=0;for(let li=0;li<lit.length;li++)if(lit[li])bn++;
       if(bn>G.bandN)G.bandFx=1;
       G.bandN=bn;
+      /* A METER SAYS NOTHING UNTIL IT HAS MOVED. Screenshotted at second
+         three of level 1: eight dots with one lit, above four hollow
+         diamonds, under a gold line naming a ladder — three instrumentation
+         rows on a board holding one ring, one comet and one star. A player
+         who has not yet turned around cannot read any of them, and what they
+         DO read is that the game has a lot of dials. The row appears the
+         first time the band actually grows and stays for the rest of the run
+         (bandSeen latches, so a layer dropping out cannot make the meter
+         vanish mid-glance); the ember pips below it appear on the first
+         ember banked. Nothing is removed — it arrives when it is true. */
+      if(bn>1)G.bandSeen=true;
       const bsp=8*u,bx=cx-(lit.length-1)*bsp/2,by2=top+84*u;
-      for(let li=0;li<lit.length;li++){
+      for(let li=0;G.bandSeen&&li<lit.length;li++){
         const rr=1.8*u*((li===bn-1&&G.bandFx>0)?(1+0.5*G.bandFx):1);
         ctx.beginPath();ctx.arc(bx+li*bsp,by2,rr,0,TAU);
         if(lit[li]){ctx.globalAlpha=0.8;
@@ -12372,7 +12469,7 @@ function drawHUD(){
          playing a captured phrase back, a cyan dot joins the row and
          blinks exactly when the ghost sings — the player's recorded
          rhythm, visible, muted play included */
-      if(LOOP.pat&&AC&&AC.currentTime<LOOP.until){
+      if(G.bandSeen&&LOOP.pat&&AC&&AC.currentTime<LOOP.until){
         ctx.beginPath();ctx.arc(bx+lit.length*bsp,by2,1.8*u*(1+0.7*G.loopFx),0,TAU);
         ctx.globalAlpha=0.45+0.5*G.loopFx;
         ctx.fillStyle=COL.comet;ctx.fill();
@@ -12388,9 +12485,12 @@ function drawHUD(){
         ctx.globalAlpha=1;
       }
     }
-    /* embers banked toward this orbit's payout */
+    /* embers banked toward this orbit's payout — see the note on the band
+       meter above: four hollow diamonds on an empty board are a dial, not a
+       reading, so the row arrives with the first ember and then stays */
     const pipW=10*u,x0=cx-(LAP_EMB_MAX-1)*pipW/2,py=top+92*u;
-    for(let i=0;i<LAP_EMB_MAX;i++){
+    if(G.lapEmbers>0)G.embSeen=true;
+    for(let i=0;G.embSeen&&i<LAP_EMB_MAX;i++){
       ctx.save();ctx.translate(x0+i*pipW,py);ctx.rotate(Math.PI/4);
       const on=i<G.lapEmbers;
       ctx.globalAlpha=on?0.95:0.22;
@@ -12461,7 +12561,15 @@ function drawHUD(){
                 G.spot>0 ?['SPOTLIGHT ×2','rgba(234,241,255,0.95)']:
                 G.mirror>0?['THE MIRROR',COL.mirror]:
                 G.scorch>0?['SCORCH',COL.scorch]:null;
-    if(timed&&roomy){
+    /* NOTHING SAYS ITS OWN NAME TWICE ON ONE FRAME. The banner announcing a
+       state and the header label tracking it both print the state's name,
+       and for the banner's first three seconds they printed it 25px apart —
+       screenshotted as BLACK HOLE · 17s stacked directly over a banner
+       reading BLACK HOLE. The banner is the louder and the more temporary of
+       the two, so the tracker waits for it and then takes over. */
+    const bnrOwns=G.banner&&G.banner.t<3.2&&timed&&
+      timed[0].indexOf(G.banner.str)===0;
+    if(timed&&roomy&&!bnrOwns){
       ctx.globalAlpha=0.7+0.3*G.beat;
       text(timed[0],cx,top+154*u,11*u,'800',timed[1],3);
       ctx.globalAlpha=1;
@@ -12471,7 +12579,10 @@ function drawHUD(){
          base+min(7*(streak-1),28), saturated at five laps, so x5, x7 and x20
          all pay the same +28 while the number climbs on in the same slot and
          the same idiom as OVERDRIVE x2, which is a real multiplier. */
-      text('LAPS '+G.lapStreak+' IN A ROW',cx,top+154*u,9*u,'700',
+      /* "·" not "×", and no sentence: the separator says COUNT where the
+         cross says MULTIPLIER, which is the distinction this label was
+         spelling out in five words while every neighbour used a symbol. */
+      text('CLEAN LAPS · '+G.lapStreak,cx,top+154*u,9*u,'700',
         'rgba(255,200,120,0.85)',2);
       ctx.globalAlpha=1;
     }else if(MU&&MU.sect===1&&roomy){
@@ -12512,7 +12623,12 @@ function drawHUD(){
     }
     if(G.combo>=2&&G.comboT>0){
       ctx.globalAlpha=0.35+0.65*(G.comboT/CW);
-      text('\u00d7'+G.combo+' COMBO',cx,top+116*u,14*u,'800',COL.ember,2);
+      /* NOUN \u00d7N, like every other multiplier on this screen. It read
+         "\u00d72 COMBO" while the two lines directly under it read "ON BEAT \u00d78"
+         and "OVERDRIVE \u00d72" \u2014 the same idea written backwards from its own
+         neighbours, in the one band of the screen where they are all
+         visible at once. See the counter vocabulary note at COL. */
+      text('COMBO \u00d7'+G.combo,cx,top+116*u,14*u,'800',COL.ember,2);
       ctx.globalAlpha=1;
     }
     if(G.banner){
@@ -12828,8 +12944,13 @@ function drawHUD(){
        screen rule it stays pinned upward. Swipe, watch, switch, swipe again. */
     const selA=Math.min(1,(G.t-G.lvT)/0.35);
     ctx.globalAlpha=selA;
-    const sTop=top+46*u;
-    textFx('WHICH WAY IS OUT?',cx,sTop,fitSz('WHICH WAY IS OUT?',24*u,'800',W-30*u),'800',
+    const sTop=top+62*u;   /* below the mute/pause band — see the headline note */
+    /* CLEAR OF THE MUTE ICON. At 46u this headline ran straight under the
+       speaker glyph in the top-right corner on a 390-wide phone \u2014 the first
+       screen a new player is asked to make a decision on, with its title
+       colliding with a control. It sits below the icon band now and fits
+       inside the width the two corner controls leave. */
+    textFx('WHICH WAY IS OUT?',cx,sTop,fitSz('WHICH WAY IS OUT?',24*u,'800',W-96*u,4),'800',
       '#ffffff','#9fd8ff','rgba(125,228,255,0.45)',4);
     text('swipe the rings to try it \u2014 both work',cx,sTop+22*u,
       fitSz('swipe the rings to try it \u2014 both work',11.5*u,'600',W-30*u),'600',
@@ -13337,7 +13458,9 @@ function drawHUD(){
     if(la>0){
       ctx.globalAlpha=la;
       textFx('LEVEL '+G.level,cx,cy-72*u,30*u*(skip?1:1+0.35*(1-la)),'800','#ffe9b0',COL.ember,'rgba(255,200,87,0.5)',5);
-      text(tierLabel(),cx,cy-52*u,11*u,'700','rgba(255,200,87,0.6)',3);
+      /* the level's own name, matching the header and the card — the tier
+         name here was the same collision the header had, one screen later */
+      text(levelName(),cx,cy-52*u,fitSz(levelName(),11*u,'700',W-40*u,3),'700','rgba(255,200,87,0.6)',3);
       ctx.globalAlpha=1;
     }
     ctx.globalAlpha=el(0.15);
@@ -13367,7 +13490,7 @@ function drawHUD(){
         'rgba(200,215,255,0.5)',2);
     }
     ctx.globalAlpha=el(lvAt+0.5);
-    text(G.orbits+' orbits · ×'+G.bestStreak+' streak · '+runTime(),
+    text(G.orbits+' orbits · '+G.bestStreak+' clean laps · '+runTime(),
       cx,cy+62*u,12*u,'600','rgba(200,215,255,0.45)',0);
     /* Landed drops are the rarest thing a run can contain, so they get the
        line — sharing it with the groove rather than adding a row, because
