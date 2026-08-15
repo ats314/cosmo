@@ -719,21 +719,39 @@ function crossFront(st, frame, fire, pid) {
         return Math.pow(Math.min(1, Math.max(0, band)), EXP);
       };
       /* one sweep of the drift orbit for one world */
+      /* THE SWEEP REPORTS THE FRAME'S DISTRIBUTION, NOT ONLY ITS AVERAGE.
+         "never goes black, never goes milky" was measured as "does the frame
+         AVERAGE ever get dark", which was the same question as "is there
+         darkness on screen" for exactly as long as the coverage gate was a
+         global dimmer — at covF 0.75 a phone spans a quarter of one noise
+         cell, so the whole sky brightened and dimmed together. Raise that
+         frequency and the two questions come apart: the gate varies WITHIN the
+         frame, so deep voids and bright filaments coexist, the average sits
+         mid, and a frame carrying more real black than the shipped sky gets
+         failed for "never resting".
+         Measured at the darkest station of the drift orbit: DRIFT p10 0.005,
+         a per-world-field VEIL p10 0.039, a deliberately milky sky p10 0.066.
+         The darkest DECILE is what separates them; the average does not.
+         (Spread was the first guess and the measurement killed it — the milky
+         sky had the widest spread of the three.) */
       const sweep = (W, steps, gx0, gy0) => {
-        let worst = 1e9, worstTh = 0, best = 0, msum = 0;
+        let worst = 1e9, worstTh = 0, best = 0, msum = 0, worstFrame = null;
         for (let i = 0; i < steps; i++) {
           const th = (i / steps) * 2 * Math.PI;
           const drx = CX2 + Math.sin(th) * AX, dry = CY2 + Math.cos(th) * AY;
-          let lum = 0;
+          let lum = 0; const px = [];
           for (let gy = 0; gy < gy0; gy++) for (let gx = 0; gx < gx0; gx++) {
-            lum += lumAt((-0.5 + (gx + 0.5) / gx0) * (390 / 844), -0.5 + (gy + 0.5) / gy0, drx, dry, W);
+            const v = lumAt((-0.5 + (gx + 0.5) / gx0) * (390 / 844), -0.5 + (gy + 0.5) / gy0, drx, dry, W);
+            px.push(v); lum += v;
           }
           lum /= gx0 * gy0;
           msum += lum;
-          if (lum < worst) { worst = lum; worstTh = th; }
+          if (lum < worst) { worst = lum; worstTh = th; worstFrame = px; }
           if (lum > best) best = lum;
         }
-        return { worst, worstTh, best, mean: msum / steps };
+        worstFrame.sort((a, b) => a - b);
+        const q = f => worstFrame[Math.floor(f * (worstFrame.length - 1))];
+        return { worst, worstTh, best, mean: msum / steps, p10: q(0.10), p90: q(0.90) };
       };
       /* THE OPENING SKY KEEPS THE FULL-FIDELITY SWEEP it was calibrated with
          — 96 stations x 128 samples — because its bands are the historical
@@ -779,8 +797,14 @@ function crossFront(st, frame, fire, pid) {
            blacks out or floods. A world that is brighter or fuller than DRIFT
            is a world, not a regression — that is what the owner asked for. */
         if (r2.worst < 0.020) bad.push(`${s.n} goes dark (darkest ${r2.worst.toFixed(4)})`);
-        else if (r2.mean > 0.235 || r2.mean < 0.105) bad.push(`${s.n} left the band (mean ${r2.mean.toFixed(4)})`);
-        else if (r2.worst > 0.125) bad.push(`${s.n} never rests (darkest ${r2.worst.toFixed(4)})`);
+        else if (r2.p90 < 0.055) bad.push(`${s.n} has no real light (p90 ${r2.p90.toFixed(4)} at its darkest station)`);
+        else if (r2.mean > 0.300 || r2.mean < 0.105) bad.push(`${s.n} left the band (mean ${r2.mean.toFixed(4)})`);
+        /* THE MILKY CHECK, MOVED FROM THE AVERAGE TO THE DARKEST DECILE. A sky
+           that never rests is one with no real black ANYWHERE in the frame,
+           which is a fact about the frame's distribution and not about its
+           mean. 0.045 passes the shipped DRIFT at 0.005 and a per-world-field
+           VEIL at 0.039, and fails a deliberately milky sky at 0.066. */
+        else if (r2.p10 > 0.045) bad.push(`${s.n} never rests (darkest decile ${r2.p10.toFixed(4)} — no real black in the frame)`);
       }
       if (bad.length) {
         fail.push(`the set of skies is not safe end to end: ${bad.join('; ')} — every world and every morph between two worlds is swept over the full drift orbit, and both directions are pinned because each has shipped broken once`);

@@ -447,36 +447,47 @@ Two causes, both structural:
   frequency for every world, so six worlds shared not only their outline but
   the scale of every structure inside it.
 
-The machinery is in place (`uWD` = covF, covX, covY, fldF; `uWE` = flow, web,
-horiz, plx) and **every world currently sets it to the shared, calibrated
-values.** The decorrelation is NOT shipped, and the reason is worth writing
-down because it cost a full round trip.
+Both are per-world now — `uWD` (covF, covX, covY, fldF) and `uWE` (flow, web,
+horiz, plx). GLASS states a few large forms at 0.74 and VEIL breaks into many
+small ones at 1.75; EMBERFALL streams along its own warp vector; DUSTLANE gains
+an orientation. **DRIFT is 1.00/0.75 with every new term at zero and is
+therefore bit-identical**, which keeps it usable as `fxcheck`'s anchor — that
+assertion still passes at 0.1490 mean, 0.0374 darkest.
 
-**It was shipped once, briefly, and it was not safe.** Per-world coverage
-frequencies (1.7–3.2) and field scales (0.72–1.70) went in and measured
-beautifully — max pair 0.63, mean 0.09 — and `fxcheck` passed. It passed
-because **the port was stale**: `lumAt` still modelled the old single-frequency
-chain, so the guard was measuring a sky the game no longer rendered. Its
-tripwire regexes all still matched, because a tripwire only guards the line it
-names. When the port was brought level with the shader, the same table failed
-immediately and hard — VEIL at mean 0.4071 against a 0.235 ceiling, several
-morphs under the 0.020 blackout floor. It has been reverted.
+Measured over a full drift orbit: **max pair 0.65, mean 0.21** (from 0.97 and
+0.77), and the edge/middle brightness ratio **1.05x** (from 2.76x).
 
-**Why it is hard, stated precisely.** The six worlds share `f`, `f2` and `rg`;
-they differ only in how those are *weighted* and coloured. The silhouette is
-therefore common by construction, and the only levers that change it are the
-field scale and the coverage frequency. Both change the luminance
-*distribution* rather than only its scale, which moves worlds and their
-eighteen morphs out of a band calibrated for a single shared field. A
-coordinate-descent tuner over gain, lane, cov and star (DRIFT pinned) plateaued
-at four to six marginal violations and would not close them; tuning the
-coverage *offsets* alone does nothing at all, because at covF 0.75 a phone
-screen spans a quarter of one coverage cell and the gate is a near-global
-dimmer rather than a shape.
+**Getting here required changing what the guard measures, and that is the part
+worth reading.** The first attempt shipped and passed CI while being unsafe,
+because the port was stale — see below. When the port caught up, the same table
+failed hard, and no amount of tuning gain/lane/cov would fit it: a
+coordinate-descent search over those knobs, evaluated through the port itself,
+plateaued at four to six violations.
 
-**What it needs is a decision, not more tuning:** the band encodes "never
-black, never milky" for a chain with one shared field, and a chain with
-per-world fields needs its safe envelope re-derived rather than inherited.
+The reason was the metric. "Never goes milky" was measured as *does the frame
+AVERAGE ever get dark*, which is the same question as *is there darkness on
+screen* only while the coverage gate is a global dimmer — at covF 0.75 a phone
+spans a quarter of one noise cell, so the whole sky brightened and dimmed
+together. Raise that frequency and the questions come apart: the gate varies
+*within* the frame, voids and filaments coexist, the average sits mid, and a
+frame carrying **more** real black than the shipped sky gets failed for never
+resting.
+
+Measured at the darkest station of the drift orbit:
+
+| | frame-mean | p10 | p90 |
+|---|---|---|---|
+| DRIFT (shipped) | 0.041 | **0.005** | 0.108 |
+| VEIL with per-world field | 0.129 | **0.039** | 0.315 |
+| a deliberately milky sky | 0.212 | **0.066** | 0.425 |
+
+The darkest **decile** separates them; the average does not. (Spread was the
+first guess and the measurement killed it — the milky sky had the widest spread
+of the three.) So the guard now asserts, at the darkest station, that the frame
+contains real light (`p90 >= 0.055`) and real black (`p10 <= 0.045`). Both
+original failures stay caught and high-contrast composition becomes
+expressible. The frame-average band is kept as well, with its ceiling widened
+to 0.300 since a high-contrast frame legitimately averages higher.
 
 ### The sky provably cannot go black
 
