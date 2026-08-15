@@ -2277,11 +2277,12 @@ node tools/curriculum.mjs  # nothing is left untaught by level 3
 node tools/musiccheck.mjs  # four levels, four songs, all in their own key
 node tools/fxcheck.mjs     # the glow actually reaches a pixel, on a GPU and without one
 node tools/drawcheck.mjs   # every 2D draw call is one a real canvas would honour
+node tools/rendercheck.mjs # real Chromium, real shader — the frame a player sees
 ```
 
 Every check runs on every pull request; only `main` goes on to publish.
 
-`all.mjs` is a runner, not a seventh check, and it holds no list of its own: it
+`all.mjs` is a runner, not a check of its own, and it holds no list of its own: it
 parses `pages.yml` and runs exactly the harnesses CI runs, in CI's order. A list
 in two places is the thing that rots, and the way it rots is the worst one
 available — "all checks passed locally" followed by a red pull request. The
@@ -2366,10 +2367,10 @@ the verse chord (the section revert has to reach the oscillators, not just
 the tables), and holds `chorus_bars` still through a black hole and a
 payoff, where the section flag is frozen but the chorus is not sounding.
 
-`fxcheck.mjs` is the one that runs the *render* path, and it exists for the
-same reason `musiccheck.mjs` does: the other five stub the canvas and WebGL
-away, so the entire draw layer was uncovered by construction. That is not a
-theoretical gap — it is how thirteen black hole features shipped with one of
+`fxcheck.mjs` is the first of two that run the *render* path, and it exists for
+the same reason `musiccheck.mjs` does: every other harness stubs the canvas and
+WebGL away, so the entire draw layer was uncovered by construction. That is not
+a theoretical gap — it is how thirteen black hole features shipped with one of
 them perceptible.
 
 So this one stubs WebGL as a *recording fake* rather than removing it. Shaders
@@ -2411,6 +2412,34 @@ each fail the harness with the right message. The first attempt at that last
 mutation silently failed to apply — the regex missed a character — and the
 harness "passed", which is its own lesson about mutation tests: confirm the
 mutation landed before believing the result.
+
+`rendercheck.mjs` is the eighth check, and everything above it — `fxcheck.mjs`
+included — is blind to the thing it exists for. A recording fake can prove a
+call was issued with finite arguments in the right order. It cannot prove the
+frame is not ruined, because `drawImage` at the wrong translate is the same
+call, with the same finite arguments, in the same order. That gap is not
+hypothetical: a build reached real playtesters carrying a hairline rim down
+every screen edge, every halo oscillating off its own light, and six world
+palettes collapsed into three, with every other check green and the merge
+taking seconds.
+
+So this one launches real Chromium, runs the real backdrop shader under
+SwiftShader — `GL.on` comes up true, so it is the shipped path and not the 2D
+fallback — and reads the framebuffer back. Three measurements, one per defect
+that got out: the outer screen columns against the interior, which catches a
+rim; the glow's light against the disc-halo's, which catches a composite in the
+wrong coordinate space; and the six worlds' hues against each other, which
+catches a palette buried by a white highlight. It samples each world in its own
+page load, because screenshotting several in one leaves the previous world's
+pixels in the frame.
+
+It is the only harness with a dependency, which is why it runs last and why the
+workflow installs both halves — the browser and the playwright package. Miss
+either and it cannot drive anything. It SKIPS rather than fails when no browser
+is present, which is correct on a developer's machine and would be fatal in the
+build, so under CI it fails instead, and `check.mjs` fails if the install step
+ever leaves the workflow: the only check in this repository that can see a
+pixel must not be able to quietly stop running.
 
 ## License
 

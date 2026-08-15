@@ -4,11 +4,11 @@ Every one of them runs on every pull request and must pass. Run them locally bef
 pushing — they are fast and need nothing installed.
 
 ```sh
-node tools/all.mjs --fast   # the four quick checks, ~4s — the editing loop
-node tools/all.mjs          # all seven, ~50s — before you push
+node tools/all.mjs --fast   # the four quick checks, ~5s — the editing loop
+node tools/all.mjs          # all eight, ~110s — before you push
 ```
 
-`all.mjs` is not a seventh check and holds no list of its own. It **parses the
+`all.mjs` is not a check of its own and holds no list of its own. It **parses the
 workflow** and runs exactly the harnesses `.github/workflows/pages.yml` runs, in
 that order, so "what CI runs" and "what I ran locally" cannot disagree — the
 usual way that pair rots is a list maintained in two places. Run the individual
@@ -22,15 +22,25 @@ node tools/curriculum.mjs  # nothing is left untaught by level 3
 node tools/musiccheck.mjs  # four levels, four songs, each in its own key
 node tools/fxcheck.mjs     # the glow reaches a pixel, with a GPU and without one
 node tools/drawcheck.mjs   # every 2D draw call is one a real canvas would honour
+node tools/rendercheck.mjs # the frame a player sees, rendered in real Chromium
 ```
 
 **Adding a harness is three edits, and `check.mjs` fails until all three are
 made.** Write `tools/<name>.mjs`, add its `- run: node tools/<name>.mjs` step to
-`pages.yml`, and list it in the table above. A harness that exists but is not
-wired into CI is worse than no harness: it reads as coverage in the tree and
-never runs on a pull request, which is the same failure class as a guard that
-cannot fail. `check.mjs` compares the two sets and names whichever side is
-missing.
+`pages.yml`, and name it in the table above and in `README.md`'s list. A harness
+that exists but is not wired into CI is worse than no harness: it reads as
+coverage in the tree and never runs on a pull request, which is the same failure
+class as a guard that cannot fail. `check.mjs` compares tools/ against the
+workflow and names whichever side is missing.
+
+**That third edit went unenforced for as long as this file claimed it was
+enforced, and it had already failed.** `rendercheck.mjs` was absent from the
+table above and from `README.md`, while both documents went on saying
+`fxcheck.mjs` was the only harness that runs the render path — so a session
+with a rim or a detached halo to test would have filed it in the harness that
+stubs the canvas. `check.mjs` reads both documents now and fails on a harness
+neither one names. A sentence claiming a guard exists is worse than no
+sentence: the reader checks, finds the claim, and stops looking.
 
 `smoke.mjs` is the one that catches real bugs: it loads the game into a stubbed
 DOM and actually plays it — the three front screens, menu demo, taps, swipes,
@@ -54,10 +64,18 @@ harnesses carry `passPowerSelect` anyway, returning untouched. That is not
 redundancy: it was exactly true of the swipe chooser the day before it stalled
 everything, and the helper costs one function. `fxcheck.mjs` crosses the front
 too and needs the same treatment — it is a fourth harness on that route.
+`rendercheck.mjs` is the exception and deliberately so: it drives a real browser
+and calls `startGame()` outright, so it never meets a front screen and a fifth
+one cannot stall it. That buys immunity at a price worth knowing — it also means
+nothing in this repository ever looks at a front screen's pixels.
 
-`fxcheck.mjs` is the only harness that runs the RENDER path, and it is the
-answer to the "not shipped until something proves it reaches a pixel" rule
-below. It stubs WebGL as a RECORDING FAKE instead of removing it: shaders
+**Two harnesses run the render path and they see different things.**
+`fxcheck.mjs` runs it against a fake and `rendercheck.mjs` runs it against a
+real GPU; between them they are the answer to the "not shipped until something
+proves it reaches a pixel" rule below. Which one your change belongs in is the
+question this section exists to answer, and getting it wrong is silent.
+
+`fxcheck.mjs` stubs WebGL as a RECORDING FAKE instead of removing it: shaders
 compile, framebuffers complete, and it asserts on what was issued. Its most
 important assertion is the uniform-name check — real WebGL returns null from
 `getUniformLocation` for a name the shader does not declare, and a write
@@ -70,10 +88,31 @@ glow still on, the sky still on, the resolution unmoved — because the degrade
 ladder was deleted and a device in trouble now drops frames rather than getting
 a different game; it also fails if glWatch or GL.scale ever come back. Then it
 runs the whole game again with no WebGL and fails unless the drawn-disc
-fallback takes over with zero GPU calls. **Anything that touches a shader, a uniform, the glow
-chain or the scale dial belongs in this harness.** All of its assertions were
-mutation-tested when it was written; keep that habit — a render check that
-cannot fail is worse than none, because it reads as coverage.
+fallback takes over with zero GPU calls. **Anything that touches a shader, a
+uniform, the glow chain or the scale dial belongs in this harness** — as long as
+what you are asserting is that a call was ISSUED with the right arguments. All
+of its assertions were mutation-tested when it was written; keep that habit — a
+render check that cannot fail is worse than none, because it reads as coverage.
+
+**`rendercheck.mjs` is the only harness that looks at a PIXEL, and it is the
+eighth check rather than a spare.** Every other harness in this file — fxcheck
+included — runs on a stubbed canvas, so `drawImage` at the wrong translate is
+indistinguishable from `drawImage` at the right one: same call, same finite
+arguments, same count. That blind spot shipped a hairline rim down every screen
+edge, every halo oscillating off its own light, and six world palettes buried
+into three, with every other check green. So this one launches real Chromium,
+runs the real shader under SwiftShader, and asserts on the framebuffer: the
+outer columns against the interior (the rim), the glow's light against the
+disc-halo's (the composite), and the six worlds' hues against each other (the
+palettes). **If your assertion is about how the frame LOOKS rather than which
+call was made, it belongs here and fxcheck cannot host it.**
+
+It is the one harness with a dependency — Chromium and the playwright package,
+both installed by the workflow — and the reason it runs last. It SKIPS when it
+cannot find a browser, which is right on a developer's machine and fatal in the
+build, so it fails rather than skips under CI and `check.mjs` fails if the
+install step ever leaves the workflow. A check that can quietly not run is not
+a check.
 
 It also owns **the sky as a set rather than as a picture**. It reads `WORLDS`
 out of `index.html` instead of copying it, validates the properties that keep

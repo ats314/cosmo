@@ -404,6 +404,49 @@ for (const f of present) {
       + 'CI rotates SEED per run, so a failure without it cannot be reproduced');
   }
 }
+/* EVERY HARNESS IS NAMED IN THE DOCUMENTS THAT ROUTE PEOPLE TO IT, and this
+   guard is written because docs/harnesses.md SAID it already existed.
+
+   Its own words were: "Adding a harness is three edits, and `check.mjs` fails
+   until all three are made" — write the file, wire it into pages.yml, and list
+   it in the table. Only the first two were ever enforced; the two sets being
+   compared above are tools/ and the workflow, and nothing in this repository
+   had ever read a documentation file looking for a harness name. So the third
+   edit was an honour-system step wearing a guard's clothes, which is the one
+   arrangement worse than no rule at all — a reader checks whether the build
+   enforces it, finds a sentence saying yes, and stops looking.
+
+   It had already failed. rendercheck.mjs — the eighth harness, the only one in
+   the repository that looks at a pixel — was absent from the table in
+   docs/harnesses.md AND from the list in README.md, and both documents went on
+   asserting that fxcheck.mjs was "the only harness that runs the RENDER path".
+   A session with a rim, a detached halo or a buried palette to test would have
+   read that, filed its new test in the harness that stubs the canvas, and
+   proved nothing — with all eight checks green, because nothing was checking.
+
+   Whole-file, not near-the-name: a harness FILENAME cannot appear in prose by
+   accident the way a bare number can (the doc-value guard below has to work
+   much harder for exactly that reason). The weak version is sufficient here,
+   and a guard that cannot cry wolf is a guard that survives. */
+{
+  const routing = ['docs/harnesses.md', 'README.md'];
+  for (const doc of routing) {
+    const body = await readFile(new URL(doc, root), 'utf8').catch(() => null);
+    if (body === null) {
+      fail.push(`${doc} is missing — the guard that keeps every harness named in the `
+        + 'documents that route people to it cannot run');
+      continue;
+    }
+    for (const f of present) {
+      if (!body.includes(f)) {
+        fail.push(`tools/${f} runs in CI but ${doc} never names it — add it, and say what `
+          + 'kind of regression belongs in it. A harness the routing documents have never '
+          + 'heard of gets its tests filed in some other harness, which is how the only '
+          + 'check that looks at a pixel spent its life absent from both lists');
+      }
+    }
+  }
+}
 /* THE ONE HARNESS WITH A DEPENDENCY MUST HAVE IT INSTALLED IN CI. rendercheck
    skips when no browser is present, which is right on a developer's machine
    and fatal in the build: a guard that can quietly not run is not a guard, and
@@ -419,8 +462,8 @@ if (wired.has('rendercheck.mjs') && !/playwright[^\n]*install/i.test(wf)) {
 
 /* THE PUBLISHED SITE IS AN ALLOWLIST, AND THIS IS WHAT KEEPS IT ONE.
    The deploy used to upload `path: .`, so every file in the repository was
-   served from the Pages URL — CLAUDE.md, README.md, MECHANICS.md and all six
-   harnesses among them. Repository visibility never covered that: Pages serves
+   served from the Pages URL — CLAUDE.md, README.md, MECHANICS.md and every
+   harness among them. Repository visibility never covered that: Pages serves
    the artifact, so turning the repo private would have left the operating doc
    and the design record readable at their public URLs, which is the opposite
    of what anyone would have assumed.

@@ -20,7 +20,7 @@
    So this one renders. Real Chromium, real WebGL under SwiftShader (GL.on
    comes up true, so the actual backdrop shader runs rather than the 2D
    fallback), the real game driven into a real run, and assertions on the
-   framebuffer. It is the seventh harness and it is slow on purpose: it is the
+   framebuffer. It is the eighth harness and it is slow on purpose: it is the
    difference between "somebody should look at the game" being an instruction
    a person has to remember and being something the build does.
 

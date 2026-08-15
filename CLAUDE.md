@@ -73,20 +73,24 @@ Deployed to GitHub Pages from `main`. The published page is the product.
 ## Before you push
 
 ```sh
-node tools/all.mjs --fast   # ~4s, while you are editing
-node tools/all.mjs          # ~50s, before you push
+node tools/all.mjs --fast   # ~5s, while you are editing
+node tools/all.mjs          # ~110s, before you push
 ```
 
 Every check, in CI's order, stopping at the first failure. Needs nothing
-installed. `--fast` skips the three harnesses that play whole games and keeps
-the four that are static or targeted; each harness declares its own lane and
-`check.mjs` fails if one declares none. See `docs/harnesses.md` for what each
-harness covers and — this matters when you add a test — which one a given kind
-of regression belongs in. **Anything touching a shader, a uniform or the glow
-goes in `fxcheck.mjs`; anything touching a pitch, a kit or the progression goes
-in `musiccheck.mjs`; anything touching a 2D draw call goes in `drawcheck.mjs`.**
-Those three exist because those three areas were invisible to CI by
-construction.
+installed except the browser the eighth check drives, and it says so rather
+than skipping quietly. `--fast` runs the four harnesses that are static or
+targeted and skips the four that play a whole game or launch a browser; each
+harness declares its own lane and `check.mjs` fails if one declares none. See
+`docs/harnesses.md` for what each harness covers and — this matters when you
+add a test — which one a given kind of regression belongs in. **Anything
+touching a pitch, a kit or the progression goes in `musiccheck.mjs`; anything
+touching a 2D draw call goes in `drawcheck.mjs`; anything touching a shader, a
+uniform or the glow goes in `fxcheck.mjs` if you are asserting that a call was
+issued, and in `rendercheck.mjs` if you are asserting how the frame LOOKS.**
+Those four exist because those areas were invisible to CI by construction, and
+the last two are not interchangeable: fxcheck runs against a recording fake and
+cannot see a frame at all.
 
 **The harnesses are deterministic, and the seed is how.** Each one drives the
 game through a seeded `Math.random` injected at the sandbox boundary

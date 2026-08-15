@@ -1,6 +1,6 @@
 /* One command for every check — and deliberately not a list of them.
 
-   The six harnesses were six things to remember, in an order nobody wrote
+   The harnesses were a list of things to remember, in an order nobody wrote
    down, and the failure that costs a session is not running one of them: the
    pull request goes up, CI finds it, and the fix costs a round trip that a
    local run of two seconds would have saved. So there is one command now.
@@ -29,7 +29,7 @@ const wf = await readFile(new URL('.github/workflows/pages.yml', root), 'utf8');
 const steps = [...wf.matchAll(/^[ \t]*-[ \t]+run:[ \t]+node[ \t]+(tools\/[\w.-]+\.mjs)[ \t]*$/gm)]
   .map(m => m[1]);
 
-/* A floor, not an exact count: adding a seventh check should not have to edit
+/* A floor, not an exact count: adding another check should not have to edit
    this file. Zero or one means the parse has stopped matching the workflow's
    shape, and a runner that silently runs nothing reports success — which is
    the worst possible answer from a thing whose whole job is to say no. */
@@ -42,11 +42,11 @@ if (steps.length < 2) {
 
 /* TWO LANES, AND THE HARNESS DECIDES WHICH IT IS IN.
 
-   The full run is ~50 seconds and three harnesses are 90% of it, because they
-   play whole games; the other four are static or targeted and finish together
-   in under four. Paying fifty seconds to find out you left a typo in a shader
-   is the loop that makes an editing session slow, so `--fast` runs the quick
-   four and leaves the game-playing three for the run before you push.
+   The full run is ~110 seconds and four harnesses are ~95% of it, because they
+   play whole games or launch a browser; the other four are static or targeted
+   and finish together in about five. Paying two minutes to find out you left a
+   typo in a shader is the loop that makes an editing session slow, so `--fast`
+   runs the quick four and leaves the slow four for the run before you push.
 
    The lane is declared IN each harness (`@lane fast` / `@lane full`) rather
    than listed here, for the same reason this file parses the workflow instead
