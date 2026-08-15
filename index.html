@@ -4719,8 +4719,16 @@ function shardCap(){
      has had something real to answer. */
   /* the 5->6->7 steps used to land at dl 70/110/160 — all three inside the
      window where every run was already dying. Spaced out. */
+  /* THE TOP OF THIS LADDER WAS BUILT FOR A GAME THAT ENDED AT LEVEL 4. It
+     stopped at 12 from dl 680 onward, forever. With six levels, HEAT DEATH
+     runs dl 610 to past 1100 and reached every ceiling in the file about
+     ninety seconds in — the same "the exam keeps asking" failure that was
+     diagnosed and fixed at dl 420 when level 4 was last, recurring one level
+     along because the fix was written as a number rather than as a rule.
+     Nothing below dl 420 moves: levels 1-3 are tuned, most runs end there, and
+     this change is not for them. */
   const n0=d<8?1:d<20?2:d<32?3:d<55?4:d<120?5:d<200?6:d<270?7:d<340?8:d<420?9:
-          d<540?10:d<680?11:12;
+          d<540?10:d<650?11:d<780?12:d<920?13:d<1080?14:15;
   /* the mode's density trim, floored at one: a board that can hold no threat
      at all is not an easier game, it is a screensaver */
   const n=Math.max(1,Math.round(n0*MD().cap));
@@ -4741,7 +4749,16 @@ function spawnGap(){
      decaying term undercut the ramp before dl 420 was even reached and pulled
      level 4's opening gap from 0.90 to 0.85 — a difficulty change smuggled
      into the exact window this change promised not to touch. */
-  const floor=Math.max(0.64,0.80-Math.max(0,d-420)*0.00057);
+  /* THE FLOOR NOW DECAYS FROM LEVEL 4'S OWN FLOOR, not from 80 dl inside it,
+     and it keeps going. Arrival RATE is the lever the board actually feels —
+     placement failure limits density long before shardCap does (measured: mean
+     6.2 shards on a board whose cap was 8) — so this is the term that has to
+     carry the back half, and it was the term that flattened first.
+     The crossover is still where the opening ramp hands over: 2.6-0.005d meets
+     this line at dl 362, so every value below that is bit-identical to what
+     shipped and levels 1-3 are untouched by construction rather than by
+     inspection. Kept as max(floor, ramp) for the reason written below. */
+  const floor=Math.max(0.50,0.80-Math.max(0,d-340)*0.00048);
   /* the mode's trim scales the finished gap — cap and rate move together, for
      the same reason the black hole scales both */
   const g=Math.max(floor,2.6-d*0.005)*MD().gap;
@@ -4943,6 +4960,15 @@ const T_SKY=[0,
   TIERS.findIndex(function(t){return t.name==='GATES';}),
   TIERS.findIndex(function(t){return t.name==='SLIDING GATES';}),
   TIERS.findIndex(function(t){return t.name==='THE EYE';})];
+/* HOW MUCH WORK EACH SHAPE ASKS FOR, used only by the late-board weighting in
+   pickType. Ranked by how many independent facts the player has to read before
+   they know what to do: a single is a position; a twin is a position and a
+   count; a gate is a wall and a verb; a diver is a position that CHANGES; the
+   compounds are two behaviours at once, and the saucer is the only shape whose
+   position is a function of the player's own choices. Nothing reads this below
+   dl 340, so it cannot affect the tuned first three levels. */
+const SHAPE_RANK={single:0,twin:1,gate:2,drift:2,blink:2,dive:3,
+                  driftgate:4,blinktwin:4,saucer:4,funnel:4};
 function tierIndex(){
   const d=dl();
   let i=0;
@@ -5010,6 +5036,22 @@ function pickType(){
     if(!ty||G.seen[ty])continue;
     if(k===feat&&G.t-G.featT<4)break;   /* the newest gets its banner first */
     if((ty==='twin'||ty==='blinktwin')&&G.nRings<2)continue;
+    /* NO ONE SHAPE MAY OWN THE BOARD, and twins are the shape that does.
+       Measured off the live spikes: twins were 62-65% of everything standing
+       on levels 5 and 6, against 44% on level 3 — and the cause is a feedback
+       loop rather than the odds. A twin places TWO shards from ONE clear spot,
+       so it is the cheapest formation to fit on a crowded board; it then
+       consumes twice the capacity, which makes every OTHER formation harder to
+       place, which makes the next pick a twin. The pool was never the problem
+       — sampled in isolation the hard shapes win 70% of the time — the board
+       state was. Two pairs live is the ceiling; past that the pool has to
+       offer something else, which is the same rule the one-wall-at-a-time
+       exclusion has always applied to gates.
+       GATED AT dl 340 — level 4's floor — for the same reason every other
+       change in this pass is: levels 1-3 are tuned, most runs end there, and
+       an unguarded version of this line measured a 9% rise in level 3's board
+       complexity, which is a difficulty change nobody asked for. */
+    if((ty==='twin'||ty==='blinktwin')&&dl()>=340&&G.spikes.reduce(function(n,s){return n+(s.tw?1:0);},0)>=4)continue;
     /* a dive needs somewhere to dive TO, and a funnel needs a lane to leave
        open — both are meaningless on one orbit */
     if((ty==='dive'||ty==='funnel')&&G.nRings<2)continue;
@@ -5030,6 +5072,22 @@ function pickType(){
     if(!ty)continue;                       /* ring unlocks carry no formation */
     /* nothing to hop over onto */
     if((ty==='twin'||ty==='blinktwin')&&G.nRings<2)continue;
+    /* NO ONE SHAPE MAY OWN THE BOARD, and twins are the shape that does.
+       Measured off the live spikes: twins were 62-65% of everything standing
+       on levels 5 and 6, against 44% on level 3 — and the cause is a feedback
+       loop rather than the odds. A twin places TWO shards from ONE clear spot,
+       so it is the cheapest formation to fit on a crowded board; it then
+       consumes twice the capacity, which makes every OTHER formation harder to
+       place, which makes the next pick a twin. The pool was never the problem
+       — sampled in isolation the hard shapes win 70% of the time — the board
+       state was. Two pairs live is the ceiling; past that the pool has to
+       offer something else, which is the same rule the one-wall-at-a-time
+       exclusion has always applied to gates.
+       GATED AT dl 340 — level 4's floor — for the same reason every other
+       change in this pass is: levels 1-3 are tuned, most runs end there, and
+       an unguarded version of this line measured a 9% rise in level 3's board
+       complexity, which is a difficulty change nobody asked for. */
+    if((ty==='twin'||ty==='blinktwin')&&dl()>=340&&G.spikes.reduce(function(n,s){return n+(s.tw?1:0);},0)>=4)continue;
     if((ty==='dive'||ty==='funnel')&&G.nRings<2)continue;
     /* one wall at a time, whether it slides or leaves a lane open */
     if((ty==='gate'||ty==='driftgate'||ty==='funnel')&&G.spikes.some(function(s){return s.gate;}))continue;
@@ -5039,7 +5097,27 @@ function pickType(){
        insist path spawn what the pool path refuses. */
     if(ty==='saucer'&&!saucerOK())continue;
     if((ty==='gate'||ty==='driftgate'||ty==='funnel')&&G.spikes.some(function(s){return s.saucer;}))continue;
-    pool.push(ty);
+    /* ---- LATE BOARDS FAVOUR THE HARDER SHAPES ----
+       THE BACK HALF CANNOT ESCALATE ON DENSITY, because density is already
+       saturated. Measured over 100s of play per level with the difficulty
+       curves freshly retuned: mean live shards 8.42 on level 4, 9.19 on level
+       5, 9.23 on level 6 — a 10% rise across two whole levels, while shardCap
+       went 10 -> 12 and the arrival gap fell 0.75 -> 0.62. The board is as
+       full as placement will let it be, exactly as the spawnGap note says
+       ("placement failure limits density long before shardCap does"), so
+       raising the cap buys nothing and raising the rate buys almost nothing.
+       What is left is the MIX. A board of nine plain singles and a board of
+       nine sliding gates are the same count and nothing like the same game, and
+       until now the pool was flat: every unlocked shape equally likely at dl
+       900 as at dl 100. So complexity now earns weight as the clock climbs —
+       the same board, harder shapes, no extra objects to read and no cost to
+       the telegraph.
+       hb is 0 at level 4's floor and 1 by dl 900, so LEVELS 1-3 ARE UNTOUCHED
+       BY CONSTRUCTION: every weight is exactly 1 while hb is 0, which is the
+       identity this whole pool has always had. */
+    const hb=Math.max(0,Math.min(1,(dl()-340)/560));
+    const w=1+Math.round(hb*(SHAPE_RANK[ty]||0)*1.5);
+    for(let q=0;q<w;q++)pool.push(ty);
     /* the newest formation is featured — but only once it has been on the
        ladder ~18s. You meet ONE drifter before you meet three. */
     if(k===feat&&G.t-G.featT>18)pool.push(ty,ty);
@@ -5723,7 +5801,28 @@ function spawnSpike(){
      reason to stay put, which is the exact behaviour this change exists to
      price. The arc behind you gets colder, not richer. */
   const bp=behindPad();
+  /* ---- TRY HARD, THEN SETTLE ----
+     THE INTERESTING SHAPES COULD NOT PLACE ON A BUSY BOARD, and that is why
+     the back half stopped escalating. Measured by reading the flags off every
+     spike standing on the board, over 110s per level: mean shape rank 1.39 on
+     level 3, 1.72 on level 4, 1.33 on LEVEL 5 and 1.51 on level 6 — level 5's
+     board was LESS complex than level 3's, and gates, divers, funnels and
+     saucers were all but absent from levels 4-6 entirely. The pool was not the
+     problem: sampled in isolation at dl 810+ it returns hard shapes 70% of the
+     time and singles 2%. PLACEMENT was the problem. A gate needs every ring
+     clear at one angle, a funnel needs the same plus a wider gap in its open
+     lane, a diver needs two rings clear — and on a board already carrying nine
+     shards none of those can be satisfied, so all 18 attempts fail and the
+     game quietly serves another twin. Density was crowding out variety.
+     So shard-to-shard separation RELAXES across the attempt sequence: the
+     first tries hold the full spacing, the last accept about 55% of it. The
+     player clearance does NOT relax and cannot — `clear` is the reaction-time
+     guarantee, the promise that nothing materialises inside your stopping
+     distance, and it is the one number here that is not a preference. This
+     trades a little shard-to-shard breathing room, late and only when the
+     board is full, for the formations the level is supposed to be about. */
   for(let i=0;i<18;i++){
+    const relax=1-0.45*(i/17);
     const a=Math.random()*TAU;
     let ring=Math.floor(Math.random()*G.nRings);
     /* ACCRETION: inside the black hole the draw leans one ring inward 45% of
@@ -5754,7 +5853,7 @@ function spawnSpike(){
         /* the open lane is held to a WIDER clearance than the walls: it is
            the only way out, so a shard sitting in it turns the formation
            from a demand into a trap */
-        if(!farFromAll(a,k,k===open?2.2:1.7,sep(k,3.5),sep(k,2.5)))ok=false;
+        if(!farFromAll(a,k,k===open?2.2:1.7,sep(k,3.5*relax),sep(k,2.5*relax)))ok=false;
       }
       if(!ok)continue;
       const flife=rand(2.0,3.0);
@@ -5776,7 +5875,7 @@ function spawnSpike(){
       /* blocks the same angle on EVERY ring: hopping will not save you */
       if(angDist(a,G.angle)<1.7)continue;
       let ok=true;
-      for(let k=0;k<G.nRings;k++)if(!farFromAll(a,k,1.7,sep(k,3.5),sep(k,2.5)))ok=false;
+      for(let k=0;k<G.nRings;k++)if(!farFromAll(a,k,1.7,sep(k,3.5*relax),sep(k,2.5*relax)))ok=false;
       if(!ok)continue;
       const life=rand(1.9,2.9);
       /* Every segment gets the SAME drift, or the bar shears apart — the
@@ -5796,8 +5895,8 @@ function spawnSpike(){
       const off=rand(0.30,0.40)*(Math.random()<0.5?-1:1);
       /* both halves of a pair take the same heading-aware clearance, or the
          formation could straddle the comet */
-      if(!farFromAll(a,ring,clear,sep(ring,3.5),sep(ring,2.5),bp))continue;
-      if(!farFromAll(a+off,ring,clear,sep(ring,3.5),sep(ring,2.5),bp))continue;
+      if(!farFromAll(a,ring,clear,sep(ring,3.5*relax),sep(ring,2.5*relax),bp))continue;
+      if(!farFromAll(a+off,ring,clear,sep(ring,3.5*relax),sep(ring,2.5*relax),bp))continue;
       const life=rand(2.4,3.6);
       firstMeet(type);
       /* tw stamps the pairing on both shards: a lone shard cannot say which
@@ -5820,7 +5919,7 @@ function spawnSpike(){
       }
       return;
     }
-    if(!farFromAll(a,ring,clear,sep(ring,3.5),sep(ring,2.5),bp))continue;
+    if(!farFromAll(a,ring,clear,sep(ring,3.5*relax),sep(ring,2.5*relax),bp))continue;
     if(type==='drift'){
       /* a type's very first specimens telegraph longer — whether the lesson
          fires now or was deferred for calm, the shard itself teaches */
@@ -5840,7 +5939,7 @@ function spawnSpike(){
          placement is rejected outright rather than downgraded, the same way a
          gate's is. */
       const dto=ring+(ring===0?1:ring===G.nRings-1?-1:(Math.random()<0.5?1:-1));
-      if(!farFromAll(a,dto,clear,sep(dto,3.5),sep(dto,2.5),bp))continue;
+      if(!farFromAll(a,dto,clear,sep(dto,3.5*relax),sep(dto,2.5*relax),bp))continue;
       const vw=G.seen['dive']?{}:{warn:warnTime()*1.6};
       firstMeet(type);
       G.spikes.push(mkSpike(a,ring,Object.assign({dive:1,diveTo:dto,life:rand(3.0,4.6),

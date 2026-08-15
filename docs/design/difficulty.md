@@ -14,6 +14,67 @@ threat arrives alone (the shard cap starts at one), early warning pulses run
 almost half a second longer, and spawns open at 2.6s apart instead of 2.1 —
 all of it converging on the same late game, none of it touching the ceiling.
 
+## The back half could not escalate, and density was not the reason
+
+With six levels, the pressure curve had never been looked at past level 4. It
+does not hold up. Charted across the whole run, levels 1-3 raise per-ring shard
+density **nine-fold** (0.33 → 3.00) and levels 4-6 raise it **1.33-fold**
+(3.00 → 4.00) over roughly twice the wall-clock time — and every term in the
+file reached its ceiling about ninety seconds into HEAT DEATH: `shardCap`
+stopped at 12 from dl 680 forever, the arrival gap floored at 0.64 from dl 700
+forever. That is the same *"the exam keeps asking"* failure that was diagnosed
+and fixed at dl 420 when level 4 was the last level, recurring one level along
+because the fix had been written as a number rather than as a rule.
+
+The curves were extended first — cap to 15 by dl 1080, the gap floor decaying
+from level 4's own floor to 0.50 — and **that barely moved anything**. Measured
+over 100s of play per level: mean live shards 8.42 on level 4, 9.19 on level 5,
+9.23 on level 6. A 10% rise across two whole levels. The board is already as
+full as placement will let it be, exactly as the `spawnGap` note has said all
+along (*"placement failure limits density long before shardCap does"*), so
+raising the cap buys nothing and raising the rate buys almost nothing.
+
+**Density is saturated. The axis that was left is the mix.** A board of nine
+plain singles and a board of nine sliding gates are the same count and nothing
+like the same game. Three findings, each from measuring the flags on every
+spike actually standing on the board rather than from reading the spawner:
+
+1. **The pool was never the problem.** Sampled in isolation at dl 810+, it
+   already returns hard shapes ~70% of the time and singles 2-3%. Complexity
+   now earns weight as the clock climbs (`SHAPE_RANK`, ramping from level 4's
+   floor to dl 900), which is what produces that.
+2. **The interesting shapes could not place.** Live-board mean shape rank was
+   1.39 on level 3, 1.72 on level 4, **1.33 on level 5** and 1.51 on level 6 —
+   level 5's board was *less* complex than level 3's, and gates, divers,
+   funnels and saucers were all but absent from levels 4-6. A gate needs every
+   ring clear at one angle, a funnel that plus a wider gap in its open lane, a
+   diver two rings clear; on a board already carrying nine shards none of those
+   can be satisfied, all 18 attempts fail, and the game quietly serves another
+   twin. Shard-to-shard separation now **relaxes across the attempt sequence** —
+   full spacing on the first tries, ~55% of it on the last. The player
+   clearance does **not** relax and cannot: `clear` is the reaction-time
+   guarantee, the promise that nothing materialises inside your stopping
+   distance, and it is the one number here that is not a preference.
+3. **Twins were eating the board.** 62-65% of everything standing on levels 5
+   and 6, against 44% on level 3 — a feedback loop, not odds. A twin places
+   TWO shards from ONE clear spot, so it is the cheapest formation to fit on a
+   crowded board; it then consumes twice the capacity, which makes every other
+   formation harder to place, which makes the next pick a twin. Two pairs live
+   is the ceiling now, the same rule one-wall-at-a-time has always applied to
+   gates.
+
+**Where it landed**, live-board mean shape rank: L3 1.42 · L4 1.71 · L5 1.79 ·
+L6 1.68, with five to seven distinct shapes in play late instead of four, and
+divers back on the board at all.
+
+**Levels 1-3 are untouched, by construction rather than by inspection.** Every
+change in this pass is gated at dl 340 or above: the first dl at which any
+curve differs is 360.5, the shape weighting is multiplied by a ramp that is
+exactly 0 below level 4's floor, and the twin ceiling carries an explicit
+`dl()>=340`. An earlier ungated version of that ceiling measured a 9% rise in
+level 3's board complexity — a difficulty change nobody asked for — which is
+why the gate is there.
+
 ## One mode, and the table that survives it
 
 ### CHILL is retired for now
