@@ -11259,21 +11259,32 @@ function draw(){
      plus a second rim trailing slightly so it reads as a shell with
      thickness rather than an expanding hoop. */
   ctx.globalCompositeOperation='lighter';
+  /* ---- THE NOVA FRONT IS A SHOCK, NOT A DRAWN CIRCLE ----
+     This was three concentric STROKES — a 26u soft one, a hard white 1.5-5.5u
+     one at 0.85 alpha, and a thin inner echo — and screenshotted mid-cascade
+     on a 390x844 phone the middle one dominates completely: a flat white
+     wireframe circle sweeping across the arena. It is the same defect the
+     black hole's accretion disc had, in the game's single most spectacular
+     moment. A stroke of constant colour has hard edges on BOTH sides no
+     matter how wide it is, so widening it made a thicker band rather than a
+     softer one.
+     A radial gradient used AS the stroke style fixes it in one pass: the
+     gradient is evaluated in user space, so a wide stroke centred on the
+     front reads dark-to-hot-to-dark across its own width. One expanding band
+     of light with a bright leading edge and no boundary anywhere. */
   for(const n of G.novas){
     const lf=Math.max(n.life,0);
-    ctx.strokeStyle=COL.nova;
-    ctx.globalAlpha=lf*0.30;
-    ctx.lineWidth=26*u*lf;
-    ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,TAU);ctx.stroke();
-    ctx.strokeStyle='#ffffff';
-    ctx.globalAlpha=lf*0.85;
-    ctx.lineWidth=(1.5+4*lf)*u;
-    ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,TAU);ctx.stroke();
-    if(n.r>34*u){
-      ctx.globalAlpha=lf*0.30;
-      ctx.lineWidth=(1+2.5*lf)*u;
-      ctx.beginPath();ctx.arc(n.x,n.y,n.r-22*u,0,TAU);ctx.stroke();
-    }
+    const inner=Math.max(0.001,n.r-30*u),outer=n.r+12*u;
+    const g=ctx.createRadialGradient(n.x,n.y,inner,n.x,n.y,outer);
+    g.addColorStop(0,'rgba(120,200,255,0)');
+    g.addColorStop(0.45,'rgba(170,225,255,'+(0.30*lf).toFixed(3)+')');
+    g.addColorStop(0.80,'rgba(235,247,255,'+(0.72*lf).toFixed(3)+')');
+    g.addColorStop(0.92,'rgba(255,255,255,'+(0.95*lf).toFixed(3)+')');
+    g.addColorStop(1,'rgba(190,235,255,0)');
+    ctx.globalAlpha=1;
+    ctx.strokeStyle=g;
+    ctx.lineWidth=(outer-inner);
+    ctx.beginPath();ctx.arc(n.x,n.y,(inner+outer)/2,0,TAU);ctx.stroke();
   }
   /* ORBIT IGNITION: a head runs the full circumference in the direction you
      were travelling, with the wake burning behind it. Drawn as a body arc
