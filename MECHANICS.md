@@ -127,6 +127,20 @@ there were exactly three levels.
 
 ## Level 3+ — BLACK HOLE MODE (rare, optional, not a power-up)
 
+**How often it arrives, rewritten for six levels.** The guarantee is once per
+RUN now, not once per level. `bhPlaced` is cleared by every `startGame()` —
+including a level advance — and the guarantee read `G.level>=4`, which was
+exactly one level when it was written. With six levels that became a guaranteed
+black hole on level 4, another on 5 and another on 6, on top of the ordinary
+roll: `curriculum.mjs`'s own trace showed BLACK HOLE banners on L3, L4, L5 *and*
+L6 of a single playthrough. The orb whose entire design is that it is rare —
+*"a thing you meet twice a minute is a mechanic, not an event"* — had become the
+most reliable pickup in the back half of the game. `G.bhRun` survives level
+transitions and clears only when a run starts fresh; the ordinary roll drops
+from 10% to 5% and still runs from level 3, so a second one is possible and
+never promised. Same trace after: L4 and L5, one guaranteed and one rolled.
+
+
 From a playtester, and built close to the pitch: *"It's not a power up. It's
 something you hit in orbit and trigger. It's a rare mode. And it's optional…
 It actually does things to make it both harder and easier simultaneously."*

@@ -5140,7 +5140,7 @@ const G={
   nRings:3,ringI:0,hopFromI:0,hopFrom:0,hopP:1,
   shields:0,invuln:0,slow:0,slowD:4,shMax:0,tsCur:1,sinceShield:0,revPend:0,didShield:false,
   didDodge:false,sawDrop:false,gotWarp:false,gotNova:false,gotHyper:false,gotShield:false,
-  gotSpot:false,gotBH:false,hyperPlaced:false,bhPlaced:false,
+  gotSpot:false,gotBH:false,hyperPlaced:false,bhPlaced:false,bhRun:false,
   bhCool:0,bhT:0,bhN:0,   /* black hole: rarity gate, entry stamp, count this run */
   dropsEarned:0,loopN:0,nearN:0,bestCombo:0,holdTimeout:false, /* play-style aggregates for run_ended */
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
@@ -5825,7 +5825,7 @@ function spawnPow(){
     type=LAB.type;
   }else if(G.powN<POW_INTRO.length){
     type=POW_INTRO[G.powN];
-  }else if(G.level>=4&&!G.bhPlaced&&G.t>=G.bhCool&&!bhActive()){
+  }else if(G.level>=4&&!G.bhRun&&!G.bhPlaced&&G.t>=G.bhCool&&!bhActive()){
     /* AND LEVEL 4 FINALLY INTRODUCES SOMETHING. The exam still teaches no new
        FORMATION — that half of the curriculum rule is untouched and
        curriculum.mjs still enforces it — but the black hole is guaranteed to
@@ -5836,7 +5836,7 @@ function spawnPow(){
        a second orb while the first was still on the board or while the mode
        was already running. */
     type='blackhole';
-  }else if(G.level>=3&&G.t>=G.bhCool&&!bhActive()&&Math.random()<0.10){
+  }else if(G.level>=3&&G.t>=G.bhCool&&!bhActive()&&Math.random()<0.05){
     /* THE BLACK HOLE. Rare by design and gated behind its own cooldown as
        well as its roll, because the pitch's whole premise is that it is "a
        rare mode" and "something cool to look forward to" — a thing you meet
@@ -5917,7 +5917,7 @@ function spawnPow(){
          kind of guarantee an optional thing can carry; bhPlaced still marks
          that offer as spent. A decline now arms a short cooldown instead of
          the full one, and the ordinary 10% roll takes over from there. */
-      if(type==='blackhole'){G.bhPlaced=true;G.bhCool=G.t+20;}
+      if(type==='blackhole'){G.bhPlaced=true;G.bhRun=true;G.bhCool=G.t+20;}
       if(type==='hyper')G.hyperPlaced=true;
       if(type==='spot')G.spotPlaced=true;
       if(type==='spot'||type==='hyper')firstMeet(type);
@@ -6030,6 +6030,23 @@ function startGame(){
   G.didDodge=false;G.sawDrop=false;G.gotWarp=false;G.gotNova=false;G.gotHyper=false;G.gotShield=false;
   G.gotSpot=false;G.gotBH=false;
   G.bhCool=0;G.bhT=0;G.bhN=0;G.bhPlaced=false;
+  /* ONCE PER RUN, NOT ONCE PER LEVEL. bhPlaced is cleared on every startGame
+     — including a level advance — and the guarantee reads `G.level>=4`, which
+     was exactly one level when it was written. With six levels that became a
+     guaranteed black hole on level 4, another on 5 and another on 6, on top of
+     the ordinary roll: curriculum.mjs's own trace showed BLACK HOLE banners on
+     L3, L4, L5 AND L6 of a single playthrough. The orb whose entire design is
+     that it is rare — "a thing you meet twice a minute is a mechanic, not an
+     event", per the note at its spawn branch — had quietly become the most
+     reliable pickup in the back half of the game.
+     bhRun survives level transitions and clears only when a run actually
+     starts fresh, which is what `carried` distinguishes. The ordinary 5% roll
+     still runs everywhere from level 3, so meeting a second one is possible
+     and never promised. */
+  /* `carried`, not G.carryScore — the latter is consumed and zeroed ~100 lines
+     above this, so reading it here is always false and the flag would have
+     reset on every level advance, which is the exact bug it exists to fix. */
+  if(!carried)G.bhRun=false;
   BH.phase=0;BH.on=false;BH.warp=0;BH.t=0;BH.rings0=3;
   for(let i=0;i<4;i++)RADII[i]=RAD_OFF[i];
   G.dropsEarned=0;G.loopN=0;G.nearN=0;G.bestCombo=0;G.holdTimeout=false;
@@ -8546,8 +8563,15 @@ function drawBloom(){
     bloomDot(g,p[0],p[1],17*u,'#7ce9ff');
     bloomDot(g,p[0],p[1],8*u,'#ffffff');
   }
-  /* the hub lamp blooms too, harder while the drop is landing */
-  bloomDot(g,cx,cy,(9+9*G.dropFx)*u,'#9db9ff');
+  /* the hub lamp blooms too, harder while the drop is landing — and NOT AT
+     ALL inside a black hole. Gating the lamp's own draw was not enough: this
+     is a second, independent light at dead centre, and it is the one the
+     screenshot after that fix was still showing burning in the middle of the
+     shadow. The singularity is the one object in the game whose entire read is
+     that light goes in and does not come out; two separate passes had to be
+     told. Rides BH.warp so it leaves and returns with the orbits. */
+  const hubLamp=1-Math.min(1,BH.warp);
+  if(hubLamp>0.004)bloomDot(g,cx,cy,(9+9*G.dropFx)*u*hubLamp,'#9db9ff');
   g.setTransform(1,0,0,1,0,0);
   /* THE GPU PATH, when it is up: two gaussian levels and the lens, off the
      buffer that was just filled. It can fail on this very frame (a lost
@@ -10213,7 +10237,14 @@ function draw(){
          gradients carry their own alpha, so the context has to be handed back
          at full first or the beams inherit ~0.23 and vanish (they did) */
       ctx.globalAlpha=Math.min(1,k);
-      const jet=Math.min(1,0.34*lit+0.9*ig);
+      /* A STANDING JET, not one that only exists after the horizon is claimed.
+         This read 0.34*lit + 0.9*ig, and `lit` is zero until the player reaches
+         the fourth ring while `ig` is a 1.9s flash — so for most of a black
+         hole, and for ALL of one the player never dives into, the axis fired
+         nothing. The jets are half the silhouette of the thing; they are what
+         makes the shape read as a black hole from the first frame. There is a
+         floor under them now, and claiming the horizon still doubles it. */
+      const jet=Math.min(1,0.15+0.34*lit+0.9*ig);
       if(jet>0.01){
         /* A JET IS A CONE, NOT A LINE. The first pass drew a 0.045R base with a
            1.6px core and it read on screen as a hairline scratch through the
@@ -10227,7 +10258,7 @@ function draw(){
         for(let d=-1;d<=1;d+=2){
           /* outer sheath, then the hot inner beam inside it */
           for(let s=0;s<2;s++){
-            const w0=s?rr*0.055:rr*0.15,w1=s?rr*0.16:rr*0.42;
+            const w0=s?rr*0.018:rr*0.05,w1=s?rr*0.17:rr*0.44;
             const g2=ctx.createLinearGradient(cx,cy,cx,cy+d*L);
             const a0=(s?0.62:0.24)*jet*flick,a1=(s?0.34:0.12)*jet*flick;
             g2.addColorStop(0,'rgba(240,234,255,'+a0.toFixed(3)+')');
@@ -10242,34 +10273,88 @@ function draw(){
           }
         }
       }
-      /* the disc: two leaning ellipses turning at different rates, bright on
-         the side rotating toward the viewer, which is the one detail that
-         makes a black hole read as spinning rather than as a dark circle.
-         It blazes through the ignition and settles back. */
+      /* ---- THE ACCRETION DISC, REBUILT AS LIGHT RATHER THAN AS WIREFRAME ----
+         It was two STROKED ellipses, 9u and 5u wide, at 0.62R and 0.78R, spun
+         at different rates and rotated against each other. Screenshotted on a
+         390x844 phone at full mode, that is not a disc: it is two big thin
+         purple loops crossing in the middle of the arena, and it reads as a
+         scribble over the board — which is most of what "the effects don't
+         look good" was pointing at. An accretion disc is a BAND OF LIGHT with
+         a hot inner edge, not an outline of where a band would be.
+         So it is filled now: a radial gradient from the photon ring outward,
+         squashed to the viewing angle, white-gold where the gas is hottest at
+         the inner edge and falling through the mode's violet to nothing. One
+         disc rather than two, because the second was only ever there to make
+         the first look less like a line.
+         THE DOPPLER SIDE IS THE DETAIL THAT SELLS THE SPIN. Real discs are
+         brightly asymmetric — the side rotating toward you is beamed — so a
+         second pass runs a linear gradient across the same shape, hot on the
+         approaching limb and gone by the far one. That, not the rotation
+         rate, is what makes it read as turning. */
       const blaze=1+2.1*ig+0.35*lit;
-      for(let d=0;d<2;d++){
-        const sp2=G.vt*(0.22+d*0.13),ry=0.20+d*0.07;
-        ctx.globalAlpha=Math.min(1,k*(0.30-d*0.10)*blaze);
-        ctx.strokeStyle=d?'#c9a4ff':COL.bh;
-        ctx.lineWidth=(9-d*4)*u;
-        ctx.beginPath();
-        ctx.ellipse(cx,cy,rr*(0.62+d*0.16),rr*ry*AY,Math.sin(sp2)*0.30,0,TAU);
-        ctx.stroke();
-      }
-      /* ---- THE LENSED HALO: the far side of the disc, bent up over the top.
+      const tilt=Math.sin(G.vt*0.16)*0.22;         /* the disc leans, slowly */
+      const flat=0.30;                              /* how near edge-on it sits */
+      const dA=Math.min(1,k*1.0*blaze);
+      ctx.save();
+      ctx.translate(cx,cy);ctx.rotate(tilt);ctx.scale(1,flat*AY);
+      const dg=ctx.createRadialGradient(0,0,rr*0.30,0,0,rr*0.98);
+      dg.addColorStop(0,'rgba(255,244,222,'+(0.95*dA).toFixed(3)+')');
+      dg.addColorStop(0.14,'rgba(255,206,150,'+(0.72*dA).toFixed(3)+')');
+      dg.addColorStop(0.42,'rgba(186,150,255,'+(0.52*dA).toFixed(3)+')');
+      dg.addColorStop(0.76,'rgba(122,132,255,'+(0.24*dA).toFixed(3)+')');
+      dg.addColorStop(1,'rgba(110,140,255,0)');
+      ctx.fillStyle=dg;
+      ctx.beginPath();ctx.arc(0,0,rr*0.98,0,TAU);ctx.fill();
+      /* THE BEAMED LIMB IS A CRESCENT, NOT A WASH. The first cut filled the
+         whole disc ellipse a second time under a left-to-right gradient, and
+         on screen that is a grey wedge the width of the arena — it read as a
+         smear over the board rather than as one side of a ring being brighter
+         than the other. A Doppler limb is ANNULAR: it belongs to the band, so
+         it is stroked along the band's own ellipse, thick, over the ~140
+         degrees facing the viewer, with the colour fading out across x so it
+         dies before it reaches the receding side. */
+      const bg2=ctx.createLinearGradient(-rr*0.9,0,rr*0.2,0);
+      bg2.addColorStop(0,'rgba(255,246,228,'+(0.50*dA).toFixed(3)+')');
+      bg2.addColorStop(0.55,'rgba(226,196,255,'+(0.20*dA).toFixed(3)+')');
+      bg2.addColorStop(1,'rgba(150,160,255,0)');
+      ctx.strokeStyle=bg2;ctx.lineWidth=rr*0.34;ctx.lineCap='butt';
+      ctx.beginPath();ctx.arc(0,0,rr*0.60,Math.PI*0.62,Math.PI*1.38);ctx.stroke();
+      ctx.restore();
+      /* ---- THE SHADOW OCCLUDES THE DISC, which is the whole silhouette ----
+         Drawn AFTER the disc on purpose. The well at the top of this block
+         goes down first so the arena darkens behind everything; this second,
+         much harder disc is what the far side of the ring passes behind, and
+         without it the band simply crosses the middle and the hole stops being
+         a hole. Measured before this change: the arena's inner band sat at
+         0.0704 mean luminance against 0.0784 outside it — the shadow was one
+         percent darker than the sky and read as nothing at all. */
+      ctx.globalCompositeOperation='source-over';
+      const sh=ctx.createRadialGradient(cx,cy,rr*0.16,cx,cy,rr*0.335);
+      sh.addColorStop(0,'rgba(0,0,0,1)');
+      sh.addColorStop(0.72,'rgba(0,0,0,0.98)');
+      sh.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.globalAlpha=Math.min(1,k);
+      ctx.fillStyle=sh;
+      ctx.beginPath();ctx.ellipse(cx,cy,rr*0.335,rr*0.335*AY,0,0,TAU);ctx.fill();
+      ctx.globalCompositeOperation='lighter';
+      /* the photon ring — thin, bright, exactly circular, and sitting ON the
+         shadow's edge now rather than floating inside it, because that edge is
+         what it physically is: the last orbit light can take and still escape */
+      ctx.globalAlpha=Math.min(1,k*0.72*(1+1.4*ig));
+      ctx.strokeStyle='#f4ecff';ctx.lineWidth=(2.0+2.4*ig)*u;
+      ctx.beginPath();ctx.ellipse(cx,cy,rr*0.318,rr*0.318*AY,0,0,TAU);ctx.stroke();
+      /* ---- THE LENSED HALO: the far side of the disc, bent up over the poles.
          This is the Interstellar silhouette and the thing that makes the shape
          read as a black hole and not as a ringed planet — light from BEHIND
-         the hole arriving over its poles. Top arc only, and a matching one
-         under the bottom, both wrapping a circle rather than the flat disc. */
-      const halo=Math.min(1,k*(0.34+0.5*ig+0.14*lit));
+         the hole arriving over the top and under the bottom. It wraps the
+         SHADOW rather than the disc, so it has to sit just outside the photon
+         ring; at 0.40R it was drawing out in the middle of the disc band where
+         nothing could tell what it was. */
+      const halo=Math.min(1,k*(0.50+0.5*ig+0.14*lit));
       ctx.globalAlpha=halo;
-      ctx.strokeStyle='#f0e4ff';ctx.lineWidth=(3.4+3*ig)*u;
-      ctx.beginPath();ctx.ellipse(cx,cy,rr*0.40,rr*0.40*AY,0,Math.PI*1.06,Math.PI*1.94);ctx.stroke();
-      ctx.beginPath();ctx.ellipse(cx,cy,rr*0.40,rr*0.40*AY,0,Math.PI*0.06,Math.PI*0.94);ctx.stroke();
-      /* the photon ring — thin, bright, and exactly circular */
-      ctx.globalAlpha=Math.min(1,k*0.5*(1+2*ig));
-      ctx.strokeStyle='#e6d4ff';ctx.lineWidth=(1.6+2.4*ig)*u;
-      ctx.beginPath();ctx.ellipse(cx,cy,rr*0.30,rr*0.30*AY,0,0,TAU);ctx.stroke();
+      ctx.strokeStyle='#ffeede';ctx.lineWidth=(2.6+3*ig)*u;ctx.lineCap='round';
+      ctx.beginPath();ctx.ellipse(cx,cy,rr*0.345,rr*0.345*AY,tilt,Math.PI*1.10,Math.PI*1.90);ctx.stroke();
+      ctx.beginPath();ctx.ellipse(cx,cy,rr*0.345,rr*0.345*AY,tilt,Math.PI*0.10,Math.PI*0.90);ctx.stroke();
       /* ---- EVERY LIGHT ON THE BOARD BLEEDS TOWARD THE MIDDLE ----
          A tapered smear from each star and each power-up orb toward the
          singularity, brightest at the object and gone a third of the way in.
@@ -10477,8 +10562,16 @@ function draw(){
   ctx.globalCompositeOperation='lighter';
   if(SPR.core){
     const S=Math.min(1,radiusOf(G.nRings-1)/(50*u));
-    blit(SPR.core,cx,cy,RM?S:S*(1+0.18*G.beat+0.5*G.dropFx),0,
-      RM?0.42:Math.min(1,0.42+0.22*G.beat+0.3*G.pay));
+    /* AND IT GOES OUT INSIDE A BLACK HOLE. This lamp is the light source the
+       whole scene answers to and it sits at dead centre — which is precisely
+       where the singularity's shadow is. Screenshotted at full mode, the hole
+       had a bright white star burning in the middle of it: the one object in
+       the game whose entire read is that light goes IN and does not come out,
+       lit from inside. It fades with BH.warp, so it leaves and returns with
+       the orbits. */
+    const lamp=1-Math.min(1,BH.warp);
+    if(lamp>0.004)blit(SPR.core,cx,cy,RM?S:S*(1+0.18*G.beat+0.5*G.dropFx),0,
+      lamp*(RM?0.42:Math.min(1,0.42+0.22*G.beat+0.3*G.pay)));
   }
   ctx.globalCompositeOperation='source-over';
   drawRingGlow();
