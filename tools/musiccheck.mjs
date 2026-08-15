@@ -390,8 +390,15 @@ console.log('--- the song settles back to the verse when the play cools ---');
   /* stepped singly so the EXIT STEP is observable: a settle that fired at
      any half-beat would leave the last-four-bars check green, and a
      mutation doing exactly that passed every check until this loop */
+  /* LONG ENOUGH TO OUTLAST THE HOLD. This was 72 half-beats — 9 bars — which
+     was ample when the chorus settled at the first seam after the heat went.
+     An earned chorus now holds CHOR_HOLD bars before it hands back (see the
+     constant in index.html), so a 9-bar window measured the hold and reported
+     it as a stuck section. Read the hold from the game rather than copying
+     it, and give it two seams of headroom. */
+  const holdSteps = ($('CHOR_HOLD') + 8) * 8;
   let exitStep = -1;
-  for (let s2 = 0; s2 < 72; s2++) {
+  for (let s2 = 0; s2 < holdSteps; s2++) {
     AUDIO_T += $('SPB') / 2;
     vm.runInContext('musicTick()', ctx);
     if (exitStep < 0 && $('MU').sect === 0) exitStep = ($('MU').step + 31) % 32;
@@ -405,7 +412,7 @@ console.log('--- the song settles back to the verse when the play cools ---');
     const verseRoots = PROG[1].map(c => c[0]);
     const settled = [0, 1, 2, 3].some(k => tail.every((f, i2) => Math.abs(f - verseRoots[(i2 + k) % 4]) < 0.02));
     if (!settled) fail(`after cooling, the pad walked ${tail.join(', ')} — not the verse row`);
-    else ok('cooling off returns the walk to the verse at the next seam');
+    else ok(`cooling off returns the walk to the verse at the first seam past the ${$('CHOR_HOLD')}-bar hold`);
   }
 }
 
@@ -635,10 +642,12 @@ console.log('--- the lift itself is measured, not just the harmony ---');
   tick(2, 16);
   vm.runInContext('PLAY.heat = 0.5; bedTick(0.05);', ctx);
   const chorPump = $('__pumpMin'), chorCut = $('__cut');
-  /* 0.5 is under the 0.62 threshold, so the next seam settles to the verse
-     on its own — the first version forced applySect(0) with the heat still
-     hot and the following seam simply lifted it straight back */
-  tick(2, 40);
+  /* 0.5 is not ABOVE the 0.50 threshold, so the song settles to the verse on
+     its own — the first version forced applySect(0) with the heat still hot
+     and the following seam simply lifted it straight back. The window has to
+     clear the chorus hold as well as the seam, or it samples the tail of the
+     lift it is trying to measure the absence of. */
+  tick(2, ($('CHOR_HOLD') + 8) * 8);
   if ($('MU').sect !== 0) fail('lean probe: the verse window is not the verse');
   vm.runInContext('__pumpMin = 1; PLAY.heat = 0.5;', ctx);
   tick(2, 16);

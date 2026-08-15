@@ -28,7 +28,77 @@ going unused — that, and not clipping, was why it sounded thin on a phone.
 2.6 put a nova cascade three samples over full scale; 2.15 peaks at 0.93 on
 the loudest event with the limiter barely working.
 
-### The drop
+### How much of the run is the payoff, and why it is a quarter rather than a half
+
+**The section the whole arrangement exists to set up was the most-heard music
+in it.** Measured over six minutes of natural play — a bot that hops, taps on
+the beat and survives, with nothing force-fed into the meter — the bars divided
+33% verse, 26% chorus, **41% payoff hook**, with a drop every 34.6 seconds and
+a modal gap of exactly 34.6s. That flatness is the whole diagnosis: 34.6s is
+`PAYLEN + PAYREST` plus the rise, so the build meter was full every single time
+the cooldown lifted and the only thing gating the biggest moment in the game
+was its own cooldown. "Earn a drop" was a fiction. The owner's report was that
+the beat drop happened too often and the sound was repetitive and annoying;
+both halves were that one fact.
+
+Three changes, measured after each:
+
+- **A section may no longer pre-fill its successor.** `build()` capped the
+  meter at 0.96 while a drop was in flight, which is the single line that made
+  it a timer. It caps at 0.5 now — nothing earned during a section is
+  discarded, so the economy stays live, but the second half of the next drop
+  has to be actually earned.
+- **The first drop of a run is a gift; the rest are earned.** A flat higher
+  threshold would have fixed the share and broken the opening, since most runs
+  are short and a player who never hears a drop has lost the feature rather
+  than had it rationed. The cost escalates within a run instead — 1.0, then
+  +0.8 each, capped at 4.2 — so drop one still lands around 43s and the steady
+  state moves past a minute. `hairtrig` scales the curve rather than
+  subtracting from its base, or it would be worth 15% of the first drop and 5%
+  of the fourth.
+- **The skill contributions halve; the trickle does not.** `build(dt/50)` is
+  untouched, so a drop still always arrives for a player who is merely
+  surviving.
+
+**Then the chorus collapsed, and that was the more interesting bug.** With
+drops rarer, chorus bars fell from 26% to 10% and the verse rose to 62% —
+because `t < MU.glow`, the payoff afterglow, had quietly been almost the only
+road in. Trading "the payoff hook over and over" for "the verse loop over and
+over" is the same complaint one table along.
+
+The first fix tried was a form clock that lifted the record on its own after
+sixteen bars. `musiccheck.mjs` rejected it in one line — *"the chorus engaged
+at heat 0 — the lift is free"* — and it was right: a chorus nobody earns is
+wallpaper, and the harness holds that at heat 0 a level voices its verse row
+and nothing else, forever. What shipped instead keeps entry earned and changes
+which earning counts and how long it lasts:
+
+- **`G.lapStreak` joins the hot set.** A clean orbit is the other thing this
+  game measures skill with, and it is *sustainable* where `PLAY.heat` is not:
+  heat is +0.26 a tap against 0.34/s of decay, so it spikes and collapses, and
+  only frantic input holds it — which is the exact behaviour the saucer exists
+  to discourage. The player who travels now gets the song, not the player who
+  mashes.
+- **An earned chorus holds for `CHOR_HOLD` (12) bars** after the hot state
+  lapses instead of settling at the next seam, so a lift lasts long enough to
+  be a section rather than a flicker. Two harness windows measured 9 and 5 bars
+  and had to grow past the hold; they read `CHOR_HOLD` out of the game rather
+  than copying it.
+
+**And the hook itself now has three readings.** Cutting the frequency fixed how
+often it was heard and did nothing about bars 0, 1 and 7 being note-for-note
+identical on every section a run ever played. The statement rotates on a
+three-cycle — plain, then fifth-doubled and dark, then octave-lit with every
+pickup ornament open — while the tune stays the level's own. Three readings of
+one melody is how an arrangement restates a hook; three melodies is a medley.
+The inner-ring crown stays an independent axis on top, so the pair gives six
+textures rather than three.
+
+**Where it landed**, same six-minute measurement, level 1 → verse 43%, chorus
+30%, payoff 27%, mean gap 56.3s (was 33/26/41 at 34.6s). Level 4: 54/19/27 at
+58.0s. Level 6: 55/29/16 at 65.8s.
+
+## The drop
 
 The arrangement builds and, when you earn it, releases. A drop
 needs three things and the third is the one usually missed: a rise, a

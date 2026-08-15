@@ -1214,7 +1214,7 @@ const LAYER_NAME=['NEW LAYER: PULSE','NEW LAYER: SYNTH RIFF',
    the first — beyond what most runs survive, so in practice a run's meter
    only ever paid once and "keep playing to fill the build" read as broken.
    Four bars of ordinary arrangement is still a real breath between sections. */
-const PAY=64,S16=SPB/4,PAYLEN=PAY*(SPB/2),PAYREST=9.24;
+const PAY=64,S16=SPB/4,PAYLEN=PAY*(SPB/2),PAYREST=13.85;
 /* 8 bars x 16 sixteenths of PENT degrees, -1 = rest. The accents are 3+3+2 and
    share not one position with ARP's straight eighths, which is what makes it
    read as a different piece of music rather than the same music louder. */
@@ -1371,6 +1371,7 @@ function buildBed(){
   NOISE=n;
   MU={next:0,step:0,chord:-1,armed:false,cool:0,
       sect:0,       /* 0 verse, 1 chorus — see PROGB and applySect */
+      sectAt:0,     /* MU.barN when the section last changed — the form clock */
       chainT:0,     /* audio time the current groove chain began */
       crown:0,      /* the ring the drop fired from — sets section richness */
       landT:0,      /* audio time the drop lands — the moment to move on */
@@ -1599,6 +1600,33 @@ const DROPQ=[];
    rather than how long you have been alive. */
 const BUILD_SRC={ember:'GATHERING SPARKS',hop:'WORKING THE RINGS',
                  time:'PLAYING IN TIME',orbit:'CLEAN ORBITS'};
+/* ---------- WHAT A DROP COSTS, AND WHY IT GOES UP ----------
+   THE PAYOFF WAS 41% OF EVERY BAR IN THE GAME. Measured, not guessed: six
+   minutes of natural play — a bot that hops, taps on the beat and survives,
+   with nothing force-fed — divided into 33% verse, 26% chorus and 41% payoff
+   hook, with a drop every 34.6 seconds and a modal gap of exactly 34.6s. That
+   flatness is the diagnosis. 34.6s is PAYLEN + PAYREST + the rise, so the
+   meter was full every single time the cooldown lifted and the ONLY thing
+   gating the biggest moment in the game was its own cooldown. The owner's
+   report was "the beat drop happens too frequently and the sound is
+   repetitive and annoying", and both halves were the same bug: the section
+   the entire arrangement exists to set up was the most-heard music in it.
+
+   THE FIRST DROP OF A RUN IS A GIFT; THE REST ARE EARNED. A flat, much higher
+   threshold would have fixed the share and broken the opening — most runs are
+   short, and a player who never hears a drop at all has lost the feature
+   rather than had it rationed. So the cost escalates within a run and stops
+   escalating quickly: drop 1 at 1.0, then +0.8 each, capped at 4.2. Drop one
+   still lands around 30 seconds in, exactly as it always did, and the steady
+   state moves out past a minute.
+   HAIRTRIG scales the whole curve rather than subtracting from its base. As a
+   flat -0.15 it was worth 15% of the first drop and 5% of the fourth, which is
+   an upgrade that quietly retires itself over a run; as a multiplier it is
+   worth the same 15% forever. */
+const DROP_STEP=0.8, DROP_STEP_MAX=4;
+function dropNeed(){
+  return (1+DROP_STEP*Math.min(DROP_STEP_MAX,G.dropsEarned))*(upgOn('hairtrig')?0.85:1);
+}
 function build(amount,src){
   if(!MU||G.state!=='playing')return;
   /* NOTHING EARNED IS DISCARDED — including while a drop is pending. The old
@@ -1614,10 +1642,19 @@ function build(amount,src){
      the violet arc visibly fills toward the next one, and the countdown
      handles the rest. No decay, no segments, no attribution chatter. */
   const busy=MU.pay>0||MU.rise||MU.armed||MU.pend;
-  G.build=Math.min(busy?0.96:1.5,G.build+amount);
+  /* THE SECTION MAY NO LONGER PRE-FILL ITS OWN SUCCESSOR. This cap was 0.96,
+     which is the single line that made the drop a fixed timer: by the moment
+     the cooldown lifted the meter was already a rounding error from full, so
+     the next section fired on the next contribution no matter how anyone had
+     been playing. Measured over six minutes of natural play, drops arrived
+     every 34.6s — and 34.6s is exactly PAYLEN + PAYREST + the rise, which is
+     the tell. 0.5 keeps the promise the 0.96 was written for (nothing earned
+     during a section is discarded, the economy stays live) while leaving the
+     second half of the next drop to be actually earned. */
+  G.build=Math.min(busy?0.5:2.9,G.build+amount);
   if(amount>=0.01)G.buildFx=1;   /* real contributions blink the arc */
   G.buildSrc[src]=(G.buildSrc[src]||0)+amount;
-  if(!busy&&G.build>=(upgOn('hairtrig')?0.85:1)){
+  if(!busy&&G.build>=dropNeed()){
     G.build=0;
     let best='ember',bv=-1;
     for(const k in G.buildSrc)if(G.buildSrc[k]>bv){bv=G.buildSrc[k];best=k;}
@@ -1871,6 +1908,21 @@ function payoffStep(t,ch,k){
   const pan=(pb%2)?0.30:-0.30,gh=(0.048+0.014*k)*w;
   /* every other section takes the second ending in bars 4-5 */
   const alt=(MU.payN%2===0)&&(pb===4||pb===5);
+  /* THE SAME TUNE, A DIFFERENT BAND EACH TIME. Cutting the drop's frequency
+     fixed how OFTEN the hook was heard and did nothing about the other half of
+     the report — "the sound is repetitive and annoying" — because bars 0, 1
+     and 7 were noteatoms identical on every section a run ever played. The
+     second ending already varied bars 4-5 on alternate drops; that is one bar
+     pair out of five sounding bars, restated maybe six times a run.
+     So the STATEMENT rotates on a three-cycle. Not the tune — the tune is the
+     level's identity and changing it would make six levels into eighteen — but
+     the scoring of it: plain, then fifth-doubled and dark, then octave-lit
+     with every pickup ornament open. Three readings of one melody is how an
+     arrangement restates a hook; three different melodies is a medley.
+     `voice` is deliberately NOT the crown (the ring you fired from), which
+     stays an independent axis on top of this — a crowned v1 and an uncrowned
+     v1 are still different, so the pair gives six textures rather than three. */
+  const voice=MU.payN%3;
   /* the level's own hook — see HOOKL. Clamped because payoffStep is reachable
      from the menu demo and from a section still draining after a level change,
      and a hook table is not something to read off the end of. */
@@ -1881,15 +1933,28 @@ function payoffStep(t,ch,k){
     const d=alt?hb[(pb-4)*16+s16]:hk[ix];
     if(d<0)continue;
     /* the pickups are earned: someone fighting for their life gets the tune's
-       bones, someone working the controls gets it with all its ornaments */
-    if((s16===3||s16===11)&&PLAY.heat<=0.30)continue;
+       bones, someone working the controls gets it with all its ornaments —
+       except on the lit restatement, which opens them unconditionally */
+    if((s16===3||s16===11)&&PLAY.heat<=0.30&&voice!==2)continue;
     const tt=t+j*S16,gap=alt?hbg[(pb-4)*16+s16]:hkg[ix];
     lead(PENT[d],tt,gap>8?0.50:Math.min(0.34,0.06+0.075*gap),gh,5200,pan);
+    /* v1 — THE DARK RESTATEMENT. A fifth under the tune for its whole length,
+       where the plain reading only reaches down on the late bars. Same notes,
+       heavier floor. */
+    if(voice===1)
+      note(PENT[Math.max(0,d-2)],tt,0.26,'triangle',gh*0.34,3200,-pan);
+    /* v2 — THE LIT RESTATEMENT. What the inner-ring crown does, taken off the
+       crown and given to every third section, so the brightest reading of the
+       hook is something a run arrives at rather than something only a player
+       who happened to be on the inside lane ever hears. */
+    if(voice===2)
+      note(PENT[Math.min(13,d+5)],tt,0.18,'square',gh*0.30,6600,pan*0.5);
     /* the inner-ring crown: the hook doubled at the octave (five pentatonic
-       degrees up), quieter and brighter — the fattest the record ever gets */
+       degrees up), quieter and brighter — the fattest the record ever gets.
+       Still its own axis: a crowned v1 and an uncrowned v1 differ. */
     if(MU.crown>=2)
       note(PENT[Math.min(13,d+5)],tt,0.20,'square',gh*0.40,6400,-pan*0.5);
-    if(late&&k>0.30)
+    if(late&&k>0.30&&voice!==1)
       note(PENT[Math.max(0,d-2)],tt,0.24,'triangle',gh*0.30,3400,-pan);
   }
   /* THE BAND COVERS AN EMPTY RESPONSE BAR — decided a full beat in, so the
@@ -1990,10 +2055,38 @@ function musicStep(i,t,k){
      while a drop is anywhere in flight (the payoff owns its eight bars),
      and the first eight bars of a level are always the verse — the song
      states its home before it leaves it. */
+  /* THE LIFT IS STILL EARNED; WHAT CHANGED IS WHICH EARNING COUNTS AND HOW
+     LONG IT LASTS. Making the drop rarer took the chorus down with it —
+     measured over six minutes of natural play, chorus bars fell from 26% to
+     10% and the verse rose to 62% — because `t<MU.glow`, the payoff
+     afterglow, was quietly doing almost all the work. Trading "the payoff
+     hook over and over" for "the verse loop over and over" is the same
+     complaint one table along.
+     The first fix tried was a form clock that lifted the record on its own
+     after sixteen bars, and musiccheck rejected it in one line: "the chorus
+     engaged at heat 0 — the lift is free". It was right. A chorus nobody
+     earns is wallpaper, and the harness holds that at heat 0 a level voices
+     its verse row and nothing else, forever. So the clock is gone.
+     Two changes instead, and neither hands anything out. G.lapStreak joins
+     the hot set: a clean orbit is the other thing this game measures skill
+     with, it is SUSTAINABLE where PLAY.heat is not (heat is +0.26 a tap
+     against 0.34/s of decay, so it spikes and collapses — only frantic input
+     holds it, which is the exact behaviour the saucer exists to discourage),
+     and it means the player who travels rather than the player who mashes
+     gets the song. And the chorus now HOLDS for twelve bars after the hot
+     state lapses instead of settling at the next seam, so an earned lift
+     lasts long enough to be a section rather than a flicker.
+     Entry is unchanged in kind: cold play never lifts, which is what the
+     harness checks and what keeps the section worth arriving at. */
   if(i===0&&MU.pay<=0&&!MU.rise&&!MU.armed&&!FIN.on&&!bhActive()&&MU.barN>=8){
-    const wantB=(G.od>0||G.hyper>0||t<MU.glow||G.groove>=4||PLAY.heat>0.62)?1:0;
+    const hotSect=(G.od>0||G.hyper>0||t<MU.glow||G.groove>=4||G.lapStreak>=2||
+                   PLAY.heat>0.50);
+    let wantB=MU.sect;
+    if(hotSect)wantB=1;
+    else if(MU.sect&&MU.barN-MU.sectAt>=CHOR_HOLD)wantB=0;
     if(wantB!==MU.sect){
       applySect(wantB);
+      MU.sectAt=MU.barN;
       if(wantB&&G.state==='playing'){
         G.chorusN++;
         if(!G.saidChor){G.saidChor=true;say('THE SONG LIFTS — chorus',2,8);}
@@ -3228,7 +3321,7 @@ function judgeTiming(x,y){
     if(G.groove>was){
       G.score+=G.groove;
       if(G.groove===1&&MU)MU.chainT=AC.currentTime;
-      build(0.021,'time');
+      build(0.011,'time');
       /* THE CLIMB IS HEARD. +10% gain per rung was ~0.6dB — under the JND on
          a phone speaker — so rungs one to four were inaudible and the ladder
          only spoke through HUD text. Now the tap that raises the chain
@@ -3244,7 +3337,7 @@ function judgeTiming(x,y){
          the ladder became a dead end paying the same 0.021 as any rung. The
          lift is the tier-unlock fanfare — earned, not a chorus — and the
          bonus makes a full chain worth about a quarter of the meter. */
-      if(G.groove===8){fireLift();build(0.12,'time');}
+      if(G.groove===8){fireLift();build(0.06,'time');}
     }
     G.grooveFx=1;
     /* Once per RUN, on the exact tap that proved it. This was once-per-
@@ -4157,6 +4250,15 @@ const PROGB=[
 /* where each chorus's walk begins in its row — the rotation that lets a
    chorus open off-tonic while row slot 0 stays the i chord */
 const CHOFF=[1,2,0,3,1,1];
+/* HOW LONG AN EARNED CHORUS LASTS AFTER THE EARNING STOPS, in bars. The
+   section used to settle back at the very next four-bar seam the moment the
+   hot state lapsed, which is why it read as a flicker rather than a section:
+   PLAY.heat is +0.26 a tap against 0.34/s of decay, so it collapses within a
+   second of the player's hands going quiet, and the chorus went with it.
+   Twelve bars is ~28s — a section length rather than a gust. Entry is
+   untouched and still has to be earned; this only governs the exit, and
+   musiccheck asserts both halves separately. */
+const CHOR_HOLD=12;
 /* THE COLOR TONE: each chorus chord's own stacked-third seventh, sustained
    once a bar an octave up — m7 on the minor chords, maj7 on III and VI, and
    on VII the stacked third lands a minor seventh over a major triad: the
@@ -6488,7 +6590,7 @@ function hop(step){
     note(PENT[out?4:8],tt,0.12,'sawtooth',0.018,out?2200:4800,hpan);
   });
   arcFlash(G.angle,t,COL.comet);
-  build(0.042,'hop');           /* navigating by ring change is a style, not a fallback */
+  build(0.021,'hop');           /* navigating by ring change is a style, not a fallback */
   /* during a drum break the hop is the KICK — the deep gold ring pairs the
      reverse's white snare flash, so the fill is visible with the sound off */
   if(MU&&MU.brk>0&&!RM){const pk=posPlayer();G.rings.push({x:pk[0],y:pk[1],r:12*u,life:0.5,col:COL.ember});}
@@ -7167,7 +7269,7 @@ function updateSpikes(sdt,lethal){
       popup(gp[0],gp[1]-20*u,'CLOSE +3','rgba(230,240,255,0.9)',0.85);
       burst(gp[0],gp[1],'#bef4ff',8,220);
       PLAY.heat=Math.min(1,PLAY.heat+0.10);
-      build(0.012,'orbit');
+      build(0.006,'orbit');
       cueTone(function(w){hat(AC.currentTime+w,0.010,6500,0.03,0.3);
         note(PENT[10]*0.5,AC.currentTime+w,0.08,'sine',0.012,3500,panAt(gp[0]));});
       try{if(navigator.vibrate)navigator.vibrate(7);}catch(e){}
@@ -7797,7 +7899,7 @@ function update(dt){
          run and half the run turned into payoff. Growing the requirement is
          what keeps the section rare without the cooldown throwing earnings
          away: 4 orbits, then 9, then 16, then 25. */
-      build(0.085,'orbit');
+      build(0.043,'orbit');
       if(st>=3){
         /* Earned tier: the comet stops dead for a beat while the ring burns
            round. Short enough not to break the rhythm of a 2.5s orbit. */
@@ -7969,7 +8071,7 @@ function update(dt){
         if(cb>=4&&!(MU&&MU.pay>0))
           note(chTone(5),tt+S16,0.12,'square',0.022,1500,cpan);
       });
-      build(0.016,'ember');
+      build(0.008,'ember');
       checkMile();
     }
   }
