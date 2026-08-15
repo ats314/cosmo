@@ -50,6 +50,22 @@ if (!/<title>[^<]+<\/title>/.test(html)) fail.push('missing <title>');
    nobody re-checks. These are static text checks (the smoke test asserts the
    runtime behavior); they exist so stale teaching DATA fails the build. */
 const src = scripts.length === 1 ? scripts[0][1] : '';
+
+/* A BACKTICK INSIDE THE SHADER ENDS THE SHADER. GL_FS is a JS template
+   literal, so one backtick in a GLSL comment terminates the string and the
+   rest of the shader is parsed as JavaScript — which fails with a message
+   about whatever identifier happens to come next ("Unexpected identifier
+   'fil'", "Unexpected identifier 'far'"), naming a line hundreds of lines from
+   the actual mistake. It cost two debugging rounds in one session, both times
+   from writing a term in backticks the way the surrounding prose does. The
+   script-parse check above does catch it; this one says WHY. */
+{
+  const fsm = src.match(/const GL_FS=`([\s\S]*?)`;/);
+  if (fsm && fsm[1].includes('\u0060')) {
+    fail.push('GL_FS contains a backtick — it is a template literal, so that ends the shader mid-source');
+  }
+}
+
 for (const dead of ['echo', 'meteor']) {
   if (new RegExp(`(MEET\\s*=|teachSoft\\s*=)[^;]*'${dead}'`).test(src)) {
     fail.push(`teaching data references cut orb '${dead}'`);

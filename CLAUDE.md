@@ -126,12 +126,6 @@ repository or documentation work and `docs/review.md` is the relevant file.
 
 Two rules sit above all of them and are not negotiable:
 
-- **A visual or audio feature is not shipped until something proves it reaches a
-  pixel or a speaker.** Port the maths and evaluate it, or instrument the voice
-  and total the energy, and put the number in the commit message. "It is in the
-  source" is not evidence that it is in the game. Thirteen black hole features
-  shipped with one of them perceivable, each individually correct at its own
-  site and disabled by something elsewhere.
 - **`MECHANICS.md` and the code move together.** Change a mechanic, update the
   ledger row and the level card text in the same commit. `check.mjs` enforces
   it: a formation or orb that ships without a ledger row fails the build.

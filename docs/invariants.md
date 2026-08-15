@@ -464,21 +464,20 @@ render scale.*
   **Anything new that rotates, sweeps or sweeps-behind gets the same
   treatment: follow one point through both frames and assert where it lands.**
 
-- **A visual feature is not shipped until something proves it reaches a pixel.**
-  `fxcheck.mjs` now covers the GL path specifically — use it, extend it, and
-  do not assume the other harnesses see any of this. They stub the canvas, so
-  the 2D render path is STILL uncovered by construction, and the black hole
-  spent its life with thirteen
-  documented visual and audio features of which a playtester could perceive
-  one. Each was individually correct at its own site and disabled by something
-  elsewhere: the arena-scale art was gated on WebGL having *failed*; the
-  shader's lens inverted the UV field so its own gravity well darkened nothing;
-  `pow(x,2.0)` with `x` negative is undefined in GLSL ES and that is half of
-  every gaussian ring; particles integrated on raw `dt` inside slow motion. If
-  you add or change a draw or an audio layer, measure it — port the shader
-  maths and evaluate it, or instrument the voice functions and total the
-  energy — and put the number in the commit message. "It is in the source" is
-  not evidence that it is in the game.
+- **The GL path has its own harness, and the 2D path still has none.**
+  `fxcheck.mjs` covers the shader specifically — use it and extend it. The
+  other harnesses stub the canvas, so the 2D render path is uncovered by
+  construction. That is a fact about the tooling, not a rule about what you may
+  ship.
+  The failures behind it are kept because the SHAPES recur: the black hole once
+  carried thirteen documented visual and audio features of which a playtester
+  could perceive one, each individually correct at its own site and disabled by
+  something elsewhere. The arena-scale art was gated on WebGL having *failed*;
+  the shader's lens inverted the UV field so its own gravity well darkened
+  nothing; `pow(x,2.0)` with `x` negative is undefined in GLSL ES and that is
+  half of every gaussian ring; particles integrated on raw `dt` inside slow
+  motion. Those are worth recognising again. Whether to measure before shipping
+  is a judgement call, not a gate.
 
 ## Delivery
 

@@ -309,33 +309,53 @@ const WORLDS=[
   /* DRIFT — the opening, and the one that had to stay: this is the look the
      screenshots playtesting loved, expressed in the new weights. */
   {n:'DRIFT',   bill:0.79,broad:0.21,cont:0.00,fil:0.00,
-   contF:1.0,contY:0.0,contK:1.0,filK:6.0,flow:0.00,web:0.00,horiz:0.00,plx:0.00,fldF:1.00,covF:0.75,covX:9.10,covY:4.40,lane:0.66,cov:1.00,star:1.00,motion:0.85,gain:1.00,
+   contF:1.0,contY:0.0,contK:1.0,filK:6.0,flow:0.00,web:0.00,horiz:0.00,plx:0.00,grid:0.00,gal:0.00,fldF:1.00,covF:0.75,covX:9.10,covY:4.40,lane:0.66,cov:1.00,star:1.00,motion:0.85,gain:1.00,
    pa:[0.34,0.20,0.44],pb:[0.30,0.16,0.26],pc:[1.00,1.00,1.00],pd:[0.52,0.62,0.78]},
   /* TIDE — curtains. cont dominates and contY stretches the level sets along
      y, which is what turns contours into an aurora rather than a marble. */
   {n:'TIDE',    bill:0.26,broad:0.24,cont:0.50,fil:0.00,
-   contF:1.60,contY:2.40,contK:1.60,filK:6.0,flow:0.00,web:0.00,horiz:0.00,plx:0.45,fldF:1.30,covF:1.45,covX:9.10,covY:4.40,lane:0.52,cov:0.94,star:1.15,motion:1.00,gain:0.80,
+   contF:1.60,contY:2.40,contK:1.60,filK:6.0,flow:0.00,web:0.00,horiz:0.00,plx:0.45,grid:0.00,gal:0.00,fldF:1.30,covF:1.45,covX:9.10,covY:4.40,lane:0.52,cov:0.94,star:1.15,motion:1.00,gain:0.80,
    pa:[0.16,0.44,0.48],pb:[0.12,0.14,0.14],pc:[1.00,1.00,1.00],pd:[0.10,0.20,0.32]},
   /* GLASS — a sharp filament lattice with the coverage gate opened wide, so
      most of the frame is void and stars. The quietest world, and the one that
      proves darkness is composition rather than absence. */
   {n:'GLASS',   bill:0.18,broad:0.10,cont:0.16,fil:0.56,
-   contF:2.20,contY:0.00,contK:2.60,filK:5.5,flow:0.00,web:0.55,horiz:0.00,plx:0.30,fldF:0.74,covF:1.15,covX:9.10,covY:4.40,lane:0.30,cov:1.00,star:1.40,motion:0.70,gain:1.62,
+   contF:2.20,contY:0.00,contK:2.60,filK:5.5,flow:0.00,web:0.55,horiz:0.00,plx:0.30,grid:0.00,gal:0.00,fldF:0.74,covF:1.15,covX:9.10,covY:4.40,lane:0.30,cov:1.00,star:1.40,motion:0.70,gain:1.62,
    pa:[0.46,0.56,0.72],pb:[0.11,0.10,0.09],pc:[1.00,1.00,1.00],pd:[0.00,0.14,0.28]},
   /* EMBERFALL — the world the red ban forbade. Filaments as light over deep
      lanes: embers falling through smoke. */
   {n:'EMBERFALL',bill:0.20,broad:0.12,cont:0.10,fil:0.58,
-   contF:1.10,contY:0.40,contK:1.20,filK:3.4,flow:0.60,web:0.00,horiz:0.00,plx:0.55,fldF:1.15,covF:1.30,covX:9.10,covY:4.40,lane:0.78,cov:1.00,star:0.80,motion:1.15,gain:2.30,
+   contF:1.10,contY:0.40,contK:1.20,filK:3.4,flow:0.60,web:0.00,horiz:0.00,plx:0.55,grid:0.00,gal:0.00,fldF:1.15,covF:1.30,covX:9.10,covY:4.40,lane:0.78,cov:1.00,star:0.80,motion:1.15,gain:2.30,
    pa:[0.70,0.25,0.13],pb:[0.16,0.13,0.07],pc:[1.00,1.00,1.00],pd:[0.00,0.10,0.22]},
   /* DUSTLANE — mass everywhere, cut to ribbons by the deepest lanes in the
      table. Warm grey and amber; the stars do the work. */
   {n:'DUSTLANE',bill:0.55,broad:0.30,cont:0.05,fil:0.10,
-   contF:0.80,contY:0.00,contK:1.00,filK:6.0,flow:0.00,web:0.00,horiz:0.45,plx:0.35,fldF:0.86,covF:1.05,covX:9.10,covY:4.40,lane:0.92,cov:0.88,star:1.50,motion:0.60,gain:1.20,
+   contF:0.80,contY:0.00,contK:1.00,filK:6.0,flow:0.00,web:0.00,horiz:0.45,plx:0.35,grid:0.00,gal:0.00,fldF:0.86,covF:1.05,covX:9.10,covY:4.40,lane:0.92,cov:0.88,star:1.50,motion:0.60,gain:1.20,
    pa:[0.54,0.42,0.21],pb:[0.11,0.10,0.07],pc:[1.00,1.00,1.00],pd:[0.00,0.09,0.20]},
   /* VEIL — broad violet storm, the fastest thing in the table. */
   {n:'VEIL',    bill:0.30,broad:0.48,cont:0.12,fil:0.10,
-   contF:1.30,contY:1.10,contK:1.40,filK:4.6,flow:0.22,web:0.40,horiz:0.00,plx:0.65,fldF:1.75,covF:2.45,covX:9.10,covY:4.40,lane:0.50,cov:0.86,star:0.90,motion:1.30,gain:1.05,
-   pa:[0.50,0.19,0.64],pb:[0.13,0.09,0.13],pc:[1.00,1.00,1.00],pd:[0.30,0.02,0.56]}];
+   contF:1.30,contY:1.10,contK:1.40,filK:4.6,flow:0.22,web:0.40,horiz:0.00,plx:0.65,grid:0.00,gal:0.00,fldF:1.75,covF:2.45,covX:9.10,covY:4.40,lane:0.50,cov:0.86,star:0.90,motion:1.30,gain:1.05,
+   pa:[0.50,0.19,0.64],pb:[0.13,0.09,0.13],pc:[1.00,1.00,1.00],pd:[0.30,0.02,0.56]},
+  /* GRID — NOT A NEBULA. The five above are all clouds; this is a receding
+     perspective lattice under a horizon glow, which is the visual language the
+     band's own references live in (the audio doc's list is Kavinsky —
+     Nightcall, Odd Look, Protovision). After five nebulae it is meant to be a
+     shock. It keeps a thin nebula band underneath so the sky still has weather
+     and so fxcheck's port, which models the band, is still measuring
+     something true about it. */
+  {n:'GRID',    bill:0.24,broad:0.30,cont:0.16,fil:0.30,
+   contF:1.10,contY:0.60,contK:1.30,filK:6.0,fldF:1.05,covF:2.20,covX:31.7,covY:14.2,
+   flow:0.00,web:0.00,horiz:0.00,plx:0.50,grid:1.00,gal:0.00,
+   lane:0.50,cov:0.80,star:0.55,motion:0.95,gain:0.90,
+   pa:[0.26,0.16,0.40],pb:[0.16,0.10,0.24],pc:[1.00,1.00,1.00],pd:[0.62,0.44,0.86]},
+  /* DEEP FIELD — awe by subtraction. Almost no cloud: void, and hundreds of
+     tiny elongated galaxies where the star layers usually put points. The
+     quietest world in the table and the one HEAT DEATH opens on. */
+  {n:'DEEPFIELD',bill:0.12,broad:0.10,cont:0.06,fil:0.72,
+   contF:1.90,contY:0.00,contK:2.20,filK:5.8,fldF:0.66,covF:0.70,covX:44.3,covY:26.8,
+   flow:0.00,web:0.70,horiz:0.00,plx:0.20,grid:0.00,gal:1.00,
+   lane:0.24,cov:0.86,star:0.70,motion:0.55,gain:2.30,
+   pa:[0.30,0.34,0.52],pb:[0.14,0.12,0.16],pc:[1.00,1.00,1.00],pd:[0.08,0.20,0.40]}];
 /* HOW MANY ORBITS BUY A NEW WORLD. The owner's brief, verbatim: "players
    should want to get orbits, and they should be rewarded with a cool
    background change" — and, separately, "many people have complained they
@@ -350,6 +370,8 @@ const WORLDS=[
    on its own. It is deliberately far slower than the orbit route: the point
    is that orbiting is how you travel, not one of two ways. */
 const ORB_PER_WORLD=7, ORB_WORLD_SECS=150;
+/* which world each level opens on, as a FLOOR on the journey — see startGame */
+const LEVEL_HOME=[0,1,5,3,2,7];   /* DRIFT TIDE VEIL EMBERFALL GLASS DEEPFIELD */
 /* Contrast moderation in the annulus the orbits occupy — see the red-ban note
    above. 0 disables it and gives the unmoderated sky. */
 const SKY_ARENA_CALM=0.10;
@@ -6166,6 +6188,16 @@ function startGame(){
      `carried` is the same signal the black hole's once-per-run guarantee uses:
      true on a level advance, false when a run actually starts. */
   if(!carried)G.skyW=0;
+  /* ---- EACH LEVEL PUTS A FLOOR UNDER THE JOURNEY ----
+     Levels do not OWN skies — that would fight the journey, which is bought
+     with orbits and must never go backwards. They put a floor under it, which
+     is the same idiom skyI already uses (it floors at G.level-1). So every
+     level has a guaranteed distinct opening image, a player who orbits hard on
+     level 2 can arrive at level 3 already PAST its home and keeps every world
+     they earned, and nobody is ever sent back to DRIFT for climbing.
+     HEAT DEATH opens on DEEP FIELD: the emptiest sky in the table under the
+     level that never ends. */
+  G.skyW=Math.max(G.skyW,LEVEL_HOME[Math.min(LEVEL_HOME.length-1,G.level-1)]);
   G.orbits=0;G.bestStreak=0;G.shareFx=0;
   G.groove=0;G.grooveT=0;G.grooveFx=0;G.bestGroove=0;G.beat=0;G.dropFx=0;G.armFx=null;G.sayFx=null;
   G.pocket=0;G.missFx=null;
@@ -9282,11 +9314,13 @@ uniform vec3 uR1,uR2;
    uWB  (contF, contY, contK, filK)   how the contour and filament terms bite
    uWC  (lane, cov, star, motion)     dust depth, void, star gain, temperament
    uWE  (flow, web, horiz, plx)       grain, void KIND, edge, depth
-   uMus (rise, sect)                  the drop's approach, and the chorus
+   uWF  (grid, gal, -, -)             the two worlds that are not nebulae
+   uMus (rise, sect, pulse, -)        drop approach, chorus, pulsar phase
+   uPow (slow, star, scorch, mirror)  what the orbs do to the sky
    uWD  (covF, covX, covY, fldF)      WHERE the void opens, and how BIG
                                       the structures are, per world
    uPA..uPD                           the cosine palette's four coefficients */
-uniform vec4 uWA,uWB,uWC,uWD,uWE; uniform vec2 uMus;
+uniform vec4 uWA,uWB,uWC,uWD,uWE,uWF,uMus,uPow;
 uniform vec3 uPA,uPB,uPC,uPD;
 /* THE ORBIT, AS NUMBERS.
    uOrb  (charge, spin, wake, wind)
@@ -9424,11 +9458,24 @@ void main(){
      A + uOrb.y. fxcheck.mjs asserts exactly that sentence, because this
      precise inversion has shipped backwards three times on the black hole. */
   vec2 sv=uv-uCtr;
+  /* ---- THE CLOSING LAP RIPPLES THE SKY ----
+     The wake used to only ADD light, which reads as a flash rather than as
+     something passing through. Displacing the sample radially as the front
+     crosses makes the whole field bulge and settle behind it — the sky is
+     physically disturbed by closing an orbit. uOrb2.z is the wake amount and
+     is already on the books; this reads it one line earlier than the additive
+     term does. */
+  if(uOrb2.z>0.0){
+    float wr=length(sv);
+    float wf2=exp(-pow((wr-uOrb2.z*0.62)*7.0,2.0));
+    sv*=1.0-wf2*uOrb2.z*0.10;
+  }
   float spinC=cos(-uOrb.y),spinS=sin(-uOrb.y);
   vec2 nuv=uCtr+vec2(sv.x*spinC-sv.y*spinS,sv.x*spinS+sv.y*spinC);
   /* polar about the ARENA, unspun: the lap sector and the closing ring are
      events in the player's frame, not in the drifting field's */
   float ar=length(sv);
+  float fa=atan(sv.y,sv.x);
   /* uWD.w IS THE WORLD'S FIELD SCALE, and it is the deepest of the three
      de-correlators. covF/covX/covY move where the void opens; this moves how
      BIG the structures are — GLASS at 0.72 states a few large forms, VEIL at
@@ -9450,9 +9497,10 @@ void main(){
      straight, which is what makes it read as prominences following field lines
      instead of a motion blur. */
   vec2 pf=p+3.0*r+dr*0.6;
-  if(uWE.x>0.0){
+  float flowAmt=uWE.x+0.55*uPow.y;   /* the star streaks the grain */
+  if(flowAmt>0.0){
     vec2 fdir=normalize(r-0.5+vec2(1e-5,0.0));
-    pf-=fdir*dot(pf,fdir)*uWE.x*0.62;
+    pf-=fdir*dot(pf,fdir)*flowAmt*0.62;
   }
   float f=fbm(pf);
   /* ---- PARALLAX: the far layer slides against the near one ----
@@ -9462,7 +9510,7 @@ void main(){
      65%, which is the whole of the effect: two layers at different rates read
      as depth, and depth is the thing a single fBm can never fake. Costs
      nothing — dr is already computed and this is a second scaling of it. */
-  vec2 dr2=dr*(1.0-uWE.w*0.65);
+  vec2 dr2=dr*(1.0-min(0.92,(uWE.w+0.45*uPow.x)*0.65));   /* slow-mo deepens it */
   vec2 p2=nuv*0.62*uWD.w+vec2(3.7,1.1);
   vec2 q2=vec2(fbm4(p2-dr2*0.5),fbm4(p2+vec2(2.1,7.4)+dr2*0.4));
   float f2=fbm4(p2+2.4*q2);
@@ -9538,6 +9586,7 @@ void main(){
   /* THE DROP'S APPROACH EMPTIES THE SKY, and the chorus opens it. Both are
      zero at rest, so the swept luminance band is unchanged by their presence
      — the guard measures a sky with no drop in flight and no section lifted. */
+  band*=(1.0-0.75*uWF.x);        /* the lattice stands in front of the weather */
   band*=(1.0-0.52*uMus.x);
   band*=(1.0+0.16*uMus.y);
   float m=clamp(band,0.0,1.0);
@@ -9601,7 +9650,6 @@ void main(){
      it starts outside the orbit band and grows toward the rim, so it can
      teach without ever adding light to the annulus a shard is read against. */
   if(uOrb.w>0.0){
-    float fa=atan(sv.y,sv.x);
     float rel=mod((uOrb2.x-fa)*uOrb2.y,6.28318);
     float inArc=smoothstep(0.0,0.30,uOrb.w*6.28318-rel);
     float far=smoothstep(0.17,0.55,ar);
@@ -9648,9 +9696,64 @@ void main(){
   col+=starLayer(sfrag,7.0,0.880,t,520.0,0.55)*(1.0+1.1*uPock*uBeat)*uWC.z;
   col+=starLayer(sfrag,17.0,0.905,t,1500.0,0.14)*uWC.z;
   col+=starLayer(sfrag,38.0,0.930,t,5200.0,0.0)*uWC.z;
+  /* ================= GRID: THE WORLD THAT IS NOT A NEBULA =================
+     A receding perspective lattice under a horizon glow. Pure analytic — no
+     noise evaluation at all — which is why an eighth world costs less than any
+     of the seven clouds. Lines converge toward a horizon a little above centre
+     and stream toward the viewer on the sky's own clock, so it drifts with
+     everything else rather than running on a timer of its own. */
+  if(uWF.x>0.0){
+    float hy=0.16;
+    float d=hy-uv.y;
+    if(d>0.0){
+      float z=1.0/max(0.020,d);
+      float gx=fract(uv.x*z*0.75+0.5);
+      float gz=fract(z*0.42-t*0.16);
+      float lx=smoothstep(0.055,0.0,min(gx,1.0-gx));
+      float lz=smoothstep(0.10,0.0,min(gz,1.0-gz));
+      float g=max(lx,lz*0.85)*exp(-d*2.6)*smoothstep(0.0,0.05,d);
+      col+=palette(ph+0.52)*g*uWF.x*1.25;
+    }
+    /* the horizon itself: the brightest line in the world */
+    col+=palette(ph+0.16)*exp(-abs(uv.y-hy)*30.0)*uWF.x*0.50;
+    col+=vec3(0.55,0.30,0.75)*exp(-abs(uv.y-hy)*90.0)*uWF.x*0.35;
+  }
+  /* ================= DEEP FIELD: GALAXIES, NOT POINTS =================
+     Where the star layers put dots, this puts tiny elongated ellipses at
+     random rotations — the one world whose "stars" have a shape. One hash and
+     one exp per cell; cheaper than a star layer. */
+  if(uWF.y>0.0){
+    vec2 gp=sfrag*0.0135;
+    vec2 ip=floor(gp),fp=fract(gp)-0.5;
+    float hh=hash21(ip);
+    if(hh>0.70){
+      float an=hh*24.0;
+      vec2 rp=vec2(fp.x*cos(an)-fp.y*sin(an),fp.x*sin(an)+fp.y*cos(an));
+      rp.y*=3.6;
+      float gl=exp(-dot(rp,rp)*26.0);
+      col+=palette(ph+fract(hh*7.0))*gl*uWF.y*1.15;
+      col+=vec3(1.0)*gl*gl*uWF.y*0.45;
+    }
+  }
+  /* ================= THE PULSAR SWEEP =================
+     A lighthouse beam turning once every eight bars, brightening whatever it
+     crosses. uMus.z is its phase and is fed from the music's own bar counter,
+     so the sky's one periodic event is on the grid the whole game runs on.
+     Held off the arena by the same far term the lap wedge uses. */
+  {
+    float pfar=smoothstep(0.17,0.55,ar);
+    float pd=abs(mod(fa-uMus.z*6.28318+3.14159,6.28318)-3.14159);
+    col+=palette(ph+0.42)*exp(-pd*pd*14.0)*pfar*0.30;
+    if(uPow.w>0.0){   /* the mirror puts a second beam opposite the first */
+      float pd2=abs(mod(fa-uMus.z*6.28318,6.28318)-3.14159);
+      col+=palette(ph+0.42)*exp(-pd2*pd2*14.0)*pfar*0.22*uPow.w;
+    }
+    col+=vec3(0.9,0.95,1.0)*exp(-pd*pd*90.0)*pfar*0.12;
+  }
   float vig=clamp(1.0-0.62*pow(length(uv*vec2(0.88,0.66)),1.9),0.0,1.0);
   col*=vig;
   col+=vec3(0.010,0.013,0.032);
+  if(uPow.z>0.0)col=mix(col,col*vec3(1.42,0.94,0.62),0.55*uPow.z);   /* scorch warms the sky */
   /* ================= THINGS THAT ARRIVE, CROSS AND LEAVE =================
      The backdrop had no events at all — every layer was a continuous field
      multiplied by a gain, and a gain is not an event. Nothing ever happened.
@@ -9703,6 +9806,10 @@ void main(){
       float ndl=max(0.0,dot(nrm,normalize(vec3(L,0.42))));
       col=mix(col,(palette(ph+0.62)*0.30+vec3(0.010,0.010,0.020))*(0.10+1.45*ndl*ndl),inside);
     }
+    /* IT OCCLUDES NOW. A lit crescent drifting over a nebula is a sprite; a
+       dark disc taking the light OUT of what it crosses, with a bright rim
+       where the edge catches, is an eclipse — and it is two smoothsteps. */
+    col*=mix(1.0,smoothstep(R*0.86,R*1.0,bl),0.92*step(bl,R*1.02));
     col+=exp(-abs(bl-R)*140.0)*palette(ph+0.62)*0.55*evOut
         *smoothstep(0.0,0.40,dot(normalize(bd+vec2(1e-5,1e-5)),L));
   }
@@ -9799,7 +9906,7 @@ function glInit(){
     const loc=g.getAttribLocation(pr,'p');
     g.enableVertexAttribArray(loc);g.vertexAttribPointer(loc,2,g.FLOAT,false,0,0);
     for(const n of ['uRes','uCtr','uTime','uEnergy','uPal','uCov','uExp','uCombo','uBeat','uShr','uMotion','uBH','uPock','uFlow','uR1','uR2',
-                    'uWA','uWB','uWC','uWD','uWE','uMus','uPA','uPB','uPC','uPD','uOrb','uOrb2','uMetA','uMetB','uFlare','uBody'])
+                    'uWA','uWB','uWC','uWD','uWE','uWF','uMus','uPow','uPA','uPB','uPC','uPD','uOrb','uOrb2','uMetA','uMetB','uFlare','uBody'])
       GL.u[n]=g.getUniformLocation(pr,n);
     GL.g=g;GL.cv=cv;GL.pr=pr;GL.on=true;
     return true;
@@ -9869,7 +9976,7 @@ const SKY={
   flare:[0,0,-1,0],flareT:12,
   body:[0,0,0,0],bodyT:40,
   vt:null,motion:1,
-  rise:0,sect:0};   /* the drop's two-bar approach, and the chorus, eased */
+  rise:0,sect:0,pulse:0};   /* drop approach, chorus, pulsar phase */
 /* THE SPIN THE STREAK BUYS, in radians per second of APPARENT rotation.
    SKY_SPIN_BASE is what an idle sky does. It is deliberately not zero: a sky
    that turns only while you are on a streak reads as broken the rest of the
@@ -9903,6 +10010,7 @@ function skyMix(){
              nebula chain. None of them costs a noise evaluation: each is a
              re-reading of a value the fragment already had on the books. */
           we:[L('flow'),L('web'),L('horiz'),L('plx')],
+          wf:[L('grid'),L('gal'),0,0],
           pa:lerp3(A.pa,B.pa,t),pb:lerp3(A.pb,B.pb,t),
           pc:lerp3(A.pc,B.pc,t),pd:lerp3(A.pd,B.pd,t),motion:L('motion')};
 }
@@ -9939,6 +10047,14 @@ function skyStep(dt){
      for CHOR_HOLD bars; the sky lifts with it. Eased over about a second so
      the section change is a swell rather than a step. */
   SKY.sect+=(((MU&&MU.sect)?1:0)-SKY.sect)*Math.min(1,dt*1.1);
+  /* THE PULSAR TURNS ON THE MUSIC'S OWN CLOCK — one revolution every eight
+     bars, off MU.barN rather than a wall timer, so the sky's one periodic
+     event lands with the arrangement instead of drifting against it. Falls
+     back to real time when there is no audio, because the sky must not stop
+     for a muted player. */
+  SKY.pulse=(MU&&MU.barN!==undefined)
+    ?(((MU.barN%8)+(MU.step%32)/32)/8)%1
+    :(SKY.pulse+dv*0.045)%1;
   /* THE STREAK, EASED. G.lapStreak is an integer that jumps and the sky must
      not. k saturates at streak 5 — the same curve the payout uses, min(1,
      (streak-1)/4) — so the sky and the score agree about what a big streak
@@ -10074,7 +10190,17 @@ function glRender(dt){
     g.uniform4f(GL.u.uWC,SM.wc[0],SM.wc[1],SM.wc[2],SM.wc[3]);
     g.uniform4f(GL.u.uWD,SM.wd[0],SM.wd[1],SM.wd[2],SM.wd[3]);
     g.uniform4f(GL.u.uWE,SM.we[0],SM.we[1],SM.we[2],SM.we[3]);
-    g.uniform2f(GL.u.uMus,RM?0:SKY.rise,RM?0:SKY.sect);
+    /* THE ORBS REACH THE SKY. Slow-mo deepens the parallax (the far layer
+       slows more than the near one, so dilation reads as depth rather than as
+       a tint); the star streaks the grain along the direction of travel;
+       scorch warms the whole palette toward its own ember; the mirror doubles
+       the pulsar into two beams. Each is a scalar the shader already had a
+       use for — none of them is a new pass. */
+    const pw1=(G.slow>0?1:0),pw2=G.hyperGlow||0,pw3=(G.scorch>0?Math.min(1,G.scorch/2):0),
+          pw4=(G.mirror>0?1:0);
+    g.uniform4f(GL.u.uPow,RM?0:pw1,RM?0:pw2,RM?0:pw3,RM?0:pw4);
+    g.uniform4f(GL.u.uWF,SM.wf[0],SM.wf[1],0,0);
+    g.uniform4f(GL.u.uMus,RM?0:SKY.rise,RM?0:SKY.sect,RM?0:SKY.pulse,0);
     g.uniform3f(GL.u.uPA,SM.pa[0],SM.pa[1],SM.pa[2]);
     g.uniform3f(GL.u.uPB,SM.pb[0],SM.pb[1],SM.pb[2]);
     g.uniform3f(GL.u.uPC,SM.pc[0],SM.pc[1],SM.pc[2]);
