@@ -3,7 +3,7 @@
 A one-thumb arcade game that runs in a single HTML file. No build step, no
 dependencies, no assets — open it and play.
 
-**▶ [Play it](https://ats314.github.io/cosmo/)**
+**▶ [Play it](https://cosmo-arcade.netlify.app/)**
 
 > **Proprietary — all rights reserved.** Cosmo is a commercial product, not an
 > open-source project. This repository is public for playtesting only. No
