@@ -9,10 +9,11 @@ Cosmo is a proprietary commercial space arcade. Preserve the original
 copyright notices and LICENSE; do not relicense the game, invite outside
 contributions or assume a public repository grants reuse rights.
 
-The owner has approved Phaser, TypeScript, Capacitor and original external
-art assets. Their use does not change Cosmo's license. Record third-party
-source, artwork and dependency provenance and preserve their own license
-notices in public/THIRD_PARTY_LICENSES.txt. Do not copy unattributed material
+The owner has approved Phaser, TypeScript, Capacitor, Godot and original
+external art assets. Their use does not change Cosmo's license. Record
+third-party source, artwork and dependency provenance and preserve their own
+license notices in public/THIRD_PARTY_LICENSES.txt and
+native-godot/THIRD_PARTY_LICENSES.txt. Do not copy unattributed material
 or apply Cosmo's proprietary terms to MIT or other third-party components.
 
 Current creative direction: [awe, motion, release](docs/design/direction.md).
@@ -20,7 +21,42 @@ The owner wants ambitious, coherent work with strong visual impact, clear
 actions and earned musical peaks. Six authored levels are a content frontier,
 not an endless exam or a prohibition on new mechanics.
 
-## Architecture
+## Two implementations, and which one you are in
+
+Cosmo is being rebuilt on Godot. Both trees are live and neither is a copy of
+the other, so establish which one your change lands in before you edit.
+
+- **`native-godot/`** — the Godot 4.7.2 port, and where new game work belongs.
+  Read native-godot/PORT_STATUS.md first; it is the authoritative record of what
+  has actually been ported and, more usefully, what has not.
+- **Repository root** — the shipping Phaser web product. It still builds,
+  deploys and passes its harnesses. Change it for fixes to what is live, not to
+  add what the port should carry.
+
+The rebuild works from the design record rather than transliterating the
+JavaScript. Design intent, the tuned numbers and the original art carry over;
+the implementation is written fresh in Godot idiom. A tuned number is worth as
+much in Godot as it was in WebAudio — carry the value, not the function.
+
+## Architecture — the Godot port
+
+- Godot 4.7.2, GDScript, GL Compatibility renderer, 540x960 portrait.
+- scenes/main.tscn is the entry; scripts/ holds the subsystems and shaders/
+  holds the four .gdshader files.
+- scripts/cosmo_content.gd carries the extracted content tables — level names,
+  keys, world homes, tier entries, lab powers and run-draft upgrades. Historic
+  ids are preserved deliberately; do not tidy them.
+- scripts/cosmo_profile.gd owns local records in user://cosmo_profile_v1.json.
+  It writes through a temporary file, sanitizes on read, and refuses every
+  write during lab activity. Loading does not create a save file.
+- audio/ holds generated .wav beds. tools/generate_audio.mjs produces them;
+  regenerate rather than hand-editing.
+- Cloud sign-in, recovery, cross-device sync and the leaderboard are NOT
+  ported. Native records do not import or overwrite browser saves.
+- Project source, a desktop run, an Android export, a signed device release and
+  an iOS release are distinct deliverables. Do not describe one as another.
+
+## Architecture — the Phaser web product
 
 - Phaser 4.2.1 owns the frame loop, scenes, input and resize.
 - src/main.ts configures the canvas renderer and launches BootScene/CosmoScene.
@@ -43,7 +79,20 @@ Keep ownership explicit when moving another subsystem. A scene shutdown must
 remove listeners, stop audio and release runtime/GPU resources. Never leave
 both Phaser input/frames and legacy DOM input/frames active.
 
-## Working commands
+## Working commands — Godot
+
+`Play Cosmo.cmd` launches the portable engine from work/godot-runtime/ against
+native-godot/. Without it, open native-godot/project.godot in Godot 4.7.2.
+
+```sh
+godot --path native-godot --headless --check-only
+godot --path native-godot --headless --script tests/host_check.gd
+node native-godot/tools/generate_audio.mjs
+```
+
+work/ and native-godot/.godot/ are local caches and are not committed.
+
+## Working commands — Phaser web product
 
 Use Node 22 or newer and the pinned package lock.
 
@@ -90,6 +139,10 @@ SDK/JDK; iOS requires macOS/Xcode and the owner's signing credentials.
 
 | Change | Read |
 |---|---|
+| Anything, first | db/README.md — the searchable index over this repository. `node db/query.mjs search <term>` before you go reading files. db/STATUS.md says which parts of it are finished |
+| The Godot port | native-godot/PORT_STATUS.md, then db/notes/godot/ for technique |
+| What survives the rebuild | `node db/query.mjs list --portability tuning` — the playtested numbers to carry across |
+| What no harness asserts | `node db/query.mjs uncovered` |
 | Content, teaching or player-facing copy | docs/design/teaching.md, levels.md, MECHANICS.md |
 | Powerups, upgrades or the lab | docs/design/powerups.md, docs/design/difficulty.md |
 | Music, cues or scheduling | docs/design/audio.md |
@@ -118,3 +171,6 @@ Current renderer controls are SKY_ARENA_CALM = 0.62 and GL_MOTION = 1.0.
 
 A muted, offline or interrupted game still works. Keep input, audio, scoring,
 shield, upgrade and timer behavior aligned with what the player can see.
+
+These contracts are behavioral, so they bind the Godot port exactly as they
+bind the web build. An engine change is not a reason to renegotiate one.

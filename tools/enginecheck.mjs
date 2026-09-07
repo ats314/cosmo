@@ -55,7 +55,7 @@ try {
     if (serverError || server.exitCode !== null) throw serverError || new Error('Vite preview exited: ' + serverLog);
     // Vite may color the label and URL separately in CI. Require the actual
     // HTTP response as well; printed readiness alone is not a usable server.
-    try { ready = /Local:/.test(stripVTControlCharacters(serverLog)) &&
+    try { ready =
       (await fetch(origin, { signal: AbortSignal.timeout(1500) })).ok; } catch {}
     if (ready) break;
     await delay(100);

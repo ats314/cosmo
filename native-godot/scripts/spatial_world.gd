@@ -1,0 +1,666 @@
+extends Node3D
+## Native meshes share the simulation's authoritative world coordinates.
+## The fixed camera exactly matches OrbitGeometry.project_world at focal length 900.
+## No independent process loop, physics state, collision adjustment, or camera roll.
+
+const ENTITY_SHADER := preload("res://shaders/entity.gdshader")
+const POOL_SIZE := 160
+const TRAIL_SAMPLES := 136
+const DUST_COUNT := 80
+const CYAN := Color(0.23, 0.90, 1.0)
+const GOLD := Color(1.0, 0.78, 0.34)
+const RED := Color(1.0, 0.12, 0.24)
+const VIOLET := Color(0.64, 0.41, 1.0)
+const POWER_COLORS := {
+	"shield": Color(0.48, 1.0, 0.78), "warp": Color(0.71, 0.55, 1.0),
+	"spot": Color(0.88, 0.84, 1.0), "nova": Color(0.91, 0.97, 1.0),
+	"hyper": Color(1.0, 0.31, 0.85), "mirror": Color(0.34, 0.62, 1.0),
+	"scorch": Color(1.0, 0.52, 0.15), "slip": Color(0.24, 0.86, 0.88),
+	"trail": Color(1.0, 0.77, 0.29), "bh": Color(0.66, 0.36, 0.96),
+	"starfall": Color(1.0, 0.84, 0.39),
+}
+const POWER_TEXTURES := {
+	"shield": preload("res://assets/power-shield.webp"),
+	"warp": preload("res://assets/power-slow.webp"),
+	"spot": preload("res://assets/power-spotlight.webp"),
+	"nova": preload("res://assets/power-nova.webp"),
+	"hyper": preload("res://assets/power-hyper.webp"),
+	"mirror": preload("res://assets/power-mirror.webp"),
+	"scorch": preload("res://assets/power-scorch.webp"),
+	"slip": preload("res://assets/power-slip.webp"),
+	"trail": preload("res://assets/power-trail.webp"),
+	"bh": preload("res://assets/power-blackhole.webp"),
+}
+
+var camera: Camera3D
+var _size := Vector2(540.0, 960.0)
+var _center := Vector2(270.0, 480.0)
+var _radii := Vector2(218.0, 308.0)
+var _built := false
+var _reduced_motion := false
+var _last_time := -1.0
+var _last_travel := 0.0
+var _sample_left := 0.0
+var _last_ring_count := -1
+var _last_lane := -1
+var _rail_ratios := [-1.0, -1.0, -1.0, -1.0]
+var _entity_material: ShaderMaterial
+var _comet_material: ShaderMaterial
+var _ribbon_material: StandardMaterial3D
+var _hazards: MultiMesh
+var _stars: MultiMesh
+var _star_cores: MultiMesh
+var _powers: MultiMesh
+var _cages: MultiMesh
+var _targets: MultiMesh
+var _power_hoops: MultiMesh
+var _dust: MultiMesh
+var _dust_seeds: Array[Vector3] = []
+var _comet: MeshInstance3D
+var _comet_core: MeshInstance3D
+var _power_icons: Array[Sprite3D] = []
+var _mirror: MeshInstance3D
+var _shield_ring: MeshInstance3D
+var _magnet_ring: MeshInstance3D
+var _magnet_ring_b: MeshInstance3D
+var _nova: MeshInstance3D
+var _rails: Array[MeshInstance3D] = []
+var _rail_materials: Array[ShaderMaterial] = []
+var _trail_points: Array[Vector3] = []
+var _trail_ages: Array[float] = []
+var _trail_mesh: ImmediateMesh
+var _flow_mesh: ImmediateMesh
+var _burn_mesh: ImmediateMesh
+var _beam_mesh: ImmediateMesh
+var _tidal_mesh: ImmediateMesh
+var _tidal_particles: MultiMesh
+var _tidal_arrows: MultiMesh
+
+
+func _ready() -> void:
+	_ensure_world()
+	configure(_size, _center, _radii)
+
+
+func configure(size: Vector2, center: Vector2, radii: Vector2) -> void:
+	_size = size
+	_center = center
+	_radii = radii
+	_ensure_world()
+	camera.position = Vector3(0.0, 0.0, 900.0)
+	camera.keep_aspect = Camera3D.KEEP_HEIGHT
+	camera.fov = rad_to_deg(2.0 * atan(size.y / 1800.0))
+	camera.near = 2.0
+	camera.far = 6500.0
+	# Scene root uses center == size / 2; offsets also support a deliberately shifted arena.
+	camera.h_offset = size.x * 0.5 - center.x
+	camera.v_offset = center.y - size.y * 0.5
+	var ratios := [1.0, 0.76, 0.545, 0.45]
+	var rail_mesh := _ellipse_tube(radii, 0.95, 192, 6)
+	for index in range(_rails.size()):
+		_rails[index].mesh = rail_mesh
+		_rails[index].scale = Vector3(ratios[index], ratios[index], 1.0)
+		_rail_ratios[index] = ratios[index]
+	_last_ring_count = -1
+	_last_lane = -1
+
+
+func _ensure_world() -> void:
+	if _built:
+		return
+	_built = true
+	camera = Camera3D.new()
+	camera.name = "StablePortraitCamera"
+	camera.current = true
+	add_child(camera)
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_CANVAS
+	environment.background_canvas_max_layer = -1
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color(0.59, 0.70, 0.88)
+	environment.ambient_light_energy = 0.65
+	environment.ambient_light_sky_contribution = 0.0
+	environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
+	environment.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	# Canvas-background ordering is resolved from the viewport's world environment.
+	# A camera-only override renders the 3D correctly but can leave the canvas above it.
+	var world_environment := WorldEnvironment.new()
+	world_environment.name = "CosmicEnvironment"
+	world_environment.environment = environment
+	add_child(world_environment)
+	var key := DirectionalLight3D.new()
+	key.name = "CelestialKeyLight"
+	key.rotation_degrees = Vector3(-25.0, -32.0, 0.0)
+	key.light_color = Color(0.70, 0.86, 1.0)
+	key.light_energy = 1.10
+	key.shadow_enabled = false
+	add_child(key)
+	var rim := DirectionalLight3D.new()
+	rim.name = "SoftWarmRim"
+	rim.rotation_degrees = Vector3(30.0, 130.0, 0.0)
+	rim.light_color = Color(0.77, 0.56, 0.82)
+	rim.light_energy = 0.45
+	rim.shadow_enabled = false
+	add_child(rim)
+	_entity_material = _solid_material(Color.WHITE, 0.65)
+	_comet_material = _solid_material(CYAN, 0.78)
+	_ribbon_material = StandardMaterial3D.new()
+	_ribbon_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_ribbon_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_ribbon_material.vertex_color_use_as_albedo = true
+	_ribbon_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_ribbon_material.no_depth_test = false
+	var octahedron := _octahedron_mesh()
+	var open_cage := _cage_mesh()
+	var hoop := _ellipse_tube(Vector2.ONE, 0.055, 32, 4)
+	_hazards = _pool("CrimsonDebris", octahedron, POOL_SIZE)
+	_stars = _pool("GoldStars", _star_mesh(), POOL_SIZE)
+	_star_cores = _pool("StarHotFacets", octahedron, POOL_SIZE, _solid_material(Color(1.0, 0.95, 0.67), 1.30))
+	_powers = _pool("PowerCrystals", octahedron, POOL_SIZE)
+	_cages = _pool("OpenShutters", open_cage, POOL_SIZE)
+	_targets = _pool("ArrivalContours", hoop, POOL_SIZE)
+	_power_hoops = _pool("PowerOrbits", hoop, POOL_SIZE)
+	var dust_mesh := BoxMesh.new()
+	dust_mesh.size = Vector3(0.6, 0.6, 11.0)
+	_dust = _pool("TravelDust", dust_mesh, DUST_COUNT)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 314159
+	for index in range(DUST_COUNT):
+		_dust_seeds.append(Vector3(rng.randf_range(0.0, TAU), rng.randf_range(1.05, 2.10), rng.randf_range(0.0, 2800.0)))
+	var comet_mesh := _comet_mesh()
+	_comet = _mesh_node("Comet", comet_mesh, _comet_material)
+	_comet_core = _mesh_node("CometIceCore", comet_mesh, _solid_material(Color(0.84, 0.99, 1.0), 1.40))
+	_mirror = _mesh_node("MirrorComet", comet_mesh, _solid_material(Color(0.68, 0.51, 1.0), 0.52))
+	_mirror.visible = false
+	for index in range(POOL_SIZE):
+		var icon := Sprite3D.new()
+		icon.name = "PowerIcon%d" % index
+		icon.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		icon.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		icon.shaded = false
+		icon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		icon.visible = false
+		add_child(icon)
+		_power_icons.append(icon)
+	_shield_ring = _mesh_node("ShieldContour", _ellipse_tube(Vector2(20.0, 20.0), 0.60, 48, 4), _solid_material(Color(0.22, 0.65, 0.83), 0.14))
+	_magnet_ring = _mesh_node("MagnetField", _ellipse_tube(Vector2(34.0, 34.0), 0.46, 56, 4), _solid_material(Color(0.12, 0.48, 0.38), 0.12))
+	_magnet_ring_b = _mesh_node("MagnetFieldCrossing", _ellipse_tube(Vector2(34.0, 34.0), 0.46, 56, 4), _solid_material(Color(0.12, 0.48, 0.38), 0.12))
+	_nova = _mesh_node("NovaConversionFront", _ellipse_tube(Vector2.ONE, 0.006, 160, 4), _solid_material(Color(0.63, 0.42, 0.18), 0.22))
+	_nova.visible = false
+	for index in range(4):
+		var material := _solid_material(Color(0.12, 0.33, 0.44), 0.65)
+		_rail_materials.append(material)
+		var rail := _mesh_node("OrbitRail%d" % index, _ellipse_tube(_radii, 0.95, 192, 6), material)
+		rail.position.z = -1.8
+		_rails.append(rail)
+	_trail_mesh = ImmediateMesh.new()
+	_mesh_node("CometIonRibbon", _trail_mesh, _ribbon_material)
+	_flow_mesh = ImmediateMesh.new()
+	_mesh_node("DistantHelixCurrents", _flow_mesh, _ribbon_material)
+	_burn_mesh = ImmediateMesh.new()
+	_mesh_node("ScorchRoute", _burn_mesh, _ribbon_material)
+	_beam_mesh = ImmediateMesh.new()
+	_mesh_node("SaucerRingBeam", _beam_mesh, _ribbon_material)
+	_tidal_mesh = ImmediateMesh.new()
+	_mesh_node("TidalAccretionBridge", _tidal_mesh, _ribbon_material)
+	_tidal_particles = _pool("TidalMaterialGrains", octahedron, 96)
+	_tidal_arrows = _pool("TidalCurrentDirection", comet_mesh, 14)
+
+
+func _solid_material(color: Color, emission: float) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = ENTITY_SHADER
+	material.set_shader_parameter("base_color", color)
+	material.set_shader_parameter("self_light", emission)
+	return material
+
+
+func _mesh_node(node_name: String, mesh: Mesh, material: Material) -> MeshInstance3D:
+	var node := MeshInstance3D.new()
+	node.name = node_name
+	node.mesh = mesh
+	node.material_override = material
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(node)
+	return node
+
+
+func _pool(node_name: String, mesh: Mesh, capacity: int, material: Material = null) -> MultiMesh:
+	var multi := MultiMesh.new()
+	multi.transform_format = MultiMesh.TRANSFORM_3D
+	multi.use_colors = true
+	multi.mesh = mesh
+	multi.instance_count = capacity
+	multi.visible_instance_count = 0
+	multi.custom_aabb = AABB(Vector3(-1700, -2100, -4200), Vector3(3400, 4200, 4800))
+	var node := MultiMeshInstance3D.new()
+	node.name = node_name
+	node.multimesh = multi
+	node.material_override = _entity_material if material == null else material
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(node)
+	return multi
+
+
+func _place(pool: MultiMesh, index: int, position: Vector3, basis: Basis, color: Color) -> void:
+	pool.set_instance_transform(index, Transform3D(basis, position))
+	pool.set_instance_color(index, color)
+
+
+func set_reduced_motion(enabled: bool) -> void:
+	_reduced_motion = enabled
+	if enabled:
+		clear_trail()
+
+
+func update_simulation(sim, delta: float) -> void:
+	_ensure_world()
+	if float(sim.visual_time) < _last_time:
+		clear_trail()
+	var presentation_delta := maxf(0.0, float(sim.visual_time) - maxf(0.0, _last_time))
+	if not sim.running or sim.paused:
+		presentation_delta = 0.0
+	var travel_delta := maxf(0.0, float(sim.travel) - _last_travel)
+	if presentation_delta == 0.0:
+		travel_delta = 0.0
+	_last_time = float(sim.visual_time)
+	_last_travel = float(sim.travel)
+	var clock: float = float(sim.visual_time)
+	var player: Vector3 = sim.player_position()
+	var movement: Vector2 = Vector2(-sin(float(sim.angle)) * _radii.x, -cos(float(sim.angle)) * _radii.y) * float(sim.direction)
+	var movement_angle := movement.angle() - PI * 0.5
+	_comet.position = player
+	_comet.basis = Basis(Vector3.BACK, movement_angle) * Basis.from_scale(Vector3(10.0, 12.0, 9.0))
+	_comet.visible = bool(sim.running) or not bool(sim.paused)
+	_comet_core.position = player + (camera.position - player).normalized() * 5.0
+	_comet_core.basis = Basis(Vector3.BACK, movement_angle) * Basis.from_scale(Vector3(3.6, 6.8, 3.0))
+	_comet_core.visible = _comet.visible
+	var comet_color := CYAN
+	if sim.has_power("hyper"):
+		comet_color = Color(0.75, 0.77, 1.0)
+	elif sim.has_power("scorch"):
+		comet_color = Color(0.42, 0.90, 1.0)
+	_comet_material.set_shader_parameter("base_color", comet_color)
+	_shield_ring.position = player
+	_shield_ring.visible = float(sim.invulnerable) > 0.0
+	_shield_ring.rotation = Vector3(0.20, 0.35, 0.0)
+	_mirror.visible = sim.has_power("mirror")
+	if _mirror.visible:
+		_mirror.position = sim.geometry.world(float(sim.angle) + PI, float(sim.lane), 0.0)
+		_mirror.basis = Basis(Vector3.BACK, movement_angle + PI) * Basis.from_scale(Vector3(7.0, 10.0, 7.0))
+	var magnet: bool = sim.has_power("spot")
+	_magnet_ring.visible = magnet
+	_magnet_ring_b.visible = magnet
+	_magnet_ring.position = player
+	_magnet_ring_b.position = player
+	_magnet_ring.rotation = Vector3(0.65, 0.2, 0.45)
+	_magnet_ring_b.rotation = Vector3(-0.45, 0.5, -0.5)
+	_nova.visible = float(sim.nova_age) >= 0.0
+	if _nova.visible:
+		_nova.position = sim.nova_origin
+		_nova.scale = Vector3.ONE * maxf(1.0, float(sim.nova_age) * 560.0)
+	_update_rails(sim)
+	_update_encounters(sim, clock)
+	_update_trail(sim, player, presentation_delta, travel_delta)
+	_update_currents(sim)
+	_update_scorch(sim)
+	_update_beams(sim)
+	_update_tidal(sim)
+	_update_dust(sim)
+	# Caller delta is intentionally not an animation source: frozen simulation stays frozen.
+	if delta < 0.0:
+		clear_trail()
+
+
+func _update_rails(sim) -> void:
+	var rings: int = int(sim.rings)
+	var selected: int = int(sim.target_lane)
+	for index in range(4):
+		var radius: float = float(sim.geometry.radius(float(index)))
+		if absf(radius - float(_rail_ratios[index])) > 0.00001:
+			_rail_ratios[index] = radius
+			_rails[index].scale = Vector3(radius, radius, 1.0)
+	if rings == _last_ring_count and selected == _last_lane:
+		return
+	_last_ring_count = rings
+	_last_lane = selected
+	for index in range(4):
+		_rails[index].visible = index < rings
+		var color := Color(0.12, 0.33, 0.44)
+		if index == selected:
+			color = Color(0.22, 0.58, 0.67)
+		if index == 3:
+			color = Color(0.35, 0.19, 0.48)
+		_rail_materials[index].set_shader_parameter("base_color", color)
+
+
+func _update_encounters(sim, clock: float) -> void:
+	var hazards := 0
+	var stars := 0
+	var powers := 0
+	var cages := 0
+	var targets := 0
+	var hoops := 0
+	for icon in _power_icons:
+		icon.visible = false
+	for obj in sim.objects:
+		if not obj.active or obj.hit or obj.suspended:
+			continue
+		var position: Vector3 = obj.position
+		var phase: float = 0.0 if _reduced_motion else float(obj.age) * 0.50
+		var angle: float = float(obj.angle)
+		var diamond_basis := Basis.from_euler(Vector3(0.30, phase + float(obj.serial) * 1.1, -angle))
+		if obj.kind == "star":
+			var star_basis := Basis.from_euler(Vector3(0.16, sin(phase) * 0.25, -phase * 0.48))
+			var star_size := 11.0 if obj.bonus or obj.starfall else 9.0
+			var star_color := GOLD if not obj.bonus and not obj.starfall else Color(1.0, 0.80, 0.32)
+			if obj.finale_index >= 0:
+				star_size = 12.0
+			if obj.exit_sun:
+				star_size = 26.0 if sim.finish_bloomed else 19.0
+				star_color = Color(1.0, 0.82, 0.41) if sim.finish_bloomed else Color(0.36, 0.32, 0.23)
+			_place(_stars, stars, position, star_basis.scaled(Vector3.ONE * star_size), star_color)
+			var core_size := 2.4 if not obj.exit_sun else (7.0 if sim.finish_bloomed else 0.0)
+			_place(_star_cores, stars, position + (camera.position - position).normalized() * (star_size * 0.40), star_basis.scaled(Vector3.ONE * core_size), Color.WHITE)
+			stars += 1
+		elif obj.kind == "power":
+			var power_color: Color = POWER_COLORS.get(str(obj.shape), CYAN)
+			_place(_powers, powers, position, diamond_basis.scaled(Vector3(11.0, 13.0, 11.0)), power_color)
+			_place(_power_hoops, hoops, position, Basis.from_euler(Vector3(0.4, 0.6, phase * 0.35)).scaled(Vector3.ONE * 18.0), power_color * 0.55)
+			var icon := _power_icons[powers]
+			var texture: Texture2D = POWER_TEXTURES.get(str(obj.shape), POWER_TEXTURES["trail"])
+			icon.texture = texture
+			icon.pixel_size = 43.0 / float(texture.get_width())
+			# Move toward the camera on the same ray: icon and solid contact body project
+			# to the exact same screen center, with no independent icon displacement.
+			icon.position = position + (camera.position - position).normalized() * 15.0
+			icon.visible = true
+			powers += 1
+			hoops += 1
+		elif obj.kind == "hazard":
+			if obj.shape == "saucer":
+				_place(_cages, cages, position, diamond_basis.scaled(Vector3(18.0, 8.0, 11.0)), Color(0.65, 0.44, 0.84))
+				cages += 1
+			elif obj.lethal():
+				var shape_scale := Vector3(12.0, 14.0, 12.0)
+				if obj.shape in ["gate", "driftgate", "funnel"]:
+					shape_scale = Vector3(13.0, 16.0, 11.0)
+				elif obj.shape == "shot":
+					shape_scale = Vector3(7.0, 16.0, 8.0)
+				_place(_hazards, hazards, position, diamond_basis.scaled(shape_scale), RED)
+				hazards += 1
+			else:
+				_place(_cages, cages, position, diamond_basis.scaled(Vector3(12.0, 14.0, 12.0)), Color(0.61, 0.26, 0.35))
+				cages += 1
+			if float(obj.age) < float(obj.warn):
+				var target_lane: float = float(obj.target_lane) if obj.shape == "dive" else float(obj.lane)
+				var target: Vector3 = sim.geometry.world(angle, target_lane, 0.0)
+				target.z = 0.6
+				_place(_targets, targets, target, Basis(Vector3.BACK, PI * 0.25).scaled(Vector3(9.0, 9.0, 9.0)), Color(0.68, 0.27, 0.35))
+				targets += 1
+	_hazards.visible_instance_count = hazards
+	_stars.visible_instance_count = stars
+	_star_cores.visible_instance_count = stars
+	_powers.visible_instance_count = powers
+	_cages.visible_instance_count = cages
+	_targets.visible_instance_count = targets
+	_power_hoops.visible_instance_count = hoops
+	# Clock is already reflected in object ages; it never modulates brightness.
+	if clock < 0.0:
+		_stars.visible_instance_count = 0
+
+
+func clear_trail() -> void:
+	_trail_points.clear()
+	_trail_ages.clear()
+	_sample_left = 0.0
+	_last_time = -1.0
+	_last_travel = 0.0
+	if _trail_mesh != null:
+		_trail_mesh.clear_surfaces()
+
+
+func _update_trail(sim, player: Vector3, dt: float, travel_delta: float) -> void:
+	if _reduced_motion:
+		return
+	for index in range(_trail_points.size()):
+		_trail_points[index].z = minf(600.0, _trail_points[index].z + travel_delta)
+		_trail_ages[index] += dt
+	while not _trail_ages.is_empty() and (_trail_ages.back() > 4.0 or _trail_points.size() >= TRAIL_SAMPLES):
+		_trail_points.pop_back()
+		_trail_ages.pop_back()
+	_sample_left -= dt
+	if dt > 0.0 and (_sample_left <= 0.0 or _trail_points.is_empty()):
+		_trail_points.push_front(player)
+		_trail_ages.push_front(0.0)
+		_sample_left = 1.0 / 30.0
+	if _trail_points.size() < 2:
+		return
+	_trail_mesh.clear_surfaces()
+	_trail_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var hue := Color(0.16, 0.73, 0.97)
+	if sim.has_power("warp"):
+		hue = Color(0.43, 0.33, 0.88)
+	elif sim.has_power("hyper"):
+		hue = Color(0.61, 0.53, 1.0)
+	elif sim.has_power("scorch"):
+		hue = Color(0.98, 0.50, 0.18)
+	for index in range(_trail_points.size() - 1):
+		var a := player if index == 0 else _trail_points[index]
+		var b := _trail_points[index + 1]
+		var life_a := clampf(1.0 - _trail_ages[index] / 4.0, 0.0, 1.0)
+		var life_b := clampf(1.0 - _trail_ages[index + 1] / 4.0, 0.0, 1.0)
+		var color_a := Color(hue, pow(life_a, 2.0) * 0.22)
+		var color_b := Color(hue, pow(life_b, 2.0) * 0.22)
+		var previous := player if index <= 1 else _trail_points[index - 1]
+		var following := _trail_points[mini(index + 2, _trail_points.size() - 1)]
+		var tangent_a := b - previous
+		var tangent_b := following - a
+		var side_a := Vector3(-tangent_a.y, tangent_a.x, 0.0).normalized()
+		var side_b := Vector3(-tangent_b.y, tangent_b.x, 0.0).normalized()
+		_ribbon_quad(_trail_mesh, a, b, side_a, side_b, 8.0 * life_a, 8.0 * life_b, color_a, color_b)
+		_ribbon_quad(_trail_mesh, a, b, side_a, side_b, 2.0 * life_a, 2.0 * life_b, Color(0.57, 0.94, 1.0, pow(life_a, 3.0) * 0.68), Color(0.57, 0.94, 1.0, pow(life_b, 3.0) * 0.68))
+	_trail_mesh.surface_end()
+
+
+func _update_currents(sim) -> void:
+	_flow_mesh.clear_surfaces()
+	_flow_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var travel: float = 0.0 if _reduced_motion else float(sim.travel)
+	for strand in range(6):
+		var base_angle := float(strand) * TAU / 6.0
+		for index in range(44):
+			var depth_a := 90.0 + float(index) * 60.0
+			var depth_b := depth_a + 60.0
+			var angle_a := base_angle + depth_a * 0.0016 + travel * 0.00018
+			var angle_b := base_angle + depth_b * 0.0016 + travel * 0.00018
+			var a: Vector3 = sim.geometry.world(angle_a, 0.0, depth_a, travel)
+			var b: Vector3 = sim.geometry.world(angle_b, 0.0, depth_b, travel)
+			var fade := smoothstep(90.0, 370.0, depth_a) * (1.0 - smoothstep(1800.0, 2800.0, depth_a))
+			var hue := Color(0.22, 0.47, 0.60, 0.090 * fade)
+			if strand % 2 == 0:
+				hue = Color(0.42, 0.24, 0.56, 0.085 * fade)
+			_ribbon_segment(_flow_mesh, a, b, 3.5, 3.5, hue, hue)
+	_flow_mesh.surface_end()
+
+
+func _update_scorch(sim) -> void:
+	_burn_mesh.clear_surfaces()
+	var has_burn := false
+	for amount in sim.burn:
+		if amount > 0.0:
+			has_burn = true
+			break
+	if not has_burn:
+		return
+	_burn_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for index in range(sim.burn.size()):
+		var amount: float = float(sim.burn[index])
+		if amount <= 0.0:
+			continue
+		var ring := int(index / 72)
+		var sector := index % 72
+		var a: Vector3 = sim.geometry.world(float(sector) * TAU / 72.0, float(ring), 0.0)
+		var b: Vector3 = sim.geometry.world(float(sector + 1) * TAU / 72.0, float(ring), 0.0)
+		a.z = 0.4
+		b.z = 0.4
+		var color := Color(0.98, 0.40, 0.12, minf(0.58, amount * 0.28))
+		_ribbon_segment(_burn_mesh, a, b, 3.2, 3.2, color, color)
+	_burn_mesh.surface_end()
+
+
+func _update_dust(sim) -> void:
+	if _reduced_motion:
+		_dust.visible_instance_count = 0
+		return
+	for index in range(DUST_COUNT):
+		var seed := _dust_seeds[index]
+		var depth := fposmod(seed.z - float(sim.travel) * 1.35, 2800.0) + 90.0
+		var p: Vector3 = sim.geometry.world(seed.x, 0.0, depth, float(sim.travel))
+		p.x *= seed.y
+		p.y *= seed.y
+		var fade := smoothstep(90.0, 290.0, depth) * (1.0 - smoothstep(2100.0, 2890.0, depth))
+		_place(_dust, index, p, Basis.IDENTITY, Color(0.12, 0.25, 0.31) * fade)
+	_dust.visible_instance_count = DUST_COUNT
+
+
+func _update_beams(sim) -> void:
+	_beam_mesh.clear_surfaces()
+	var begun := false
+	for obj in sim.objects:
+		if not obj.active or obj.suspended or obj.shape != "saucer":
+			continue
+		var firing: bool = float(obj.beam_left) > 0.0
+		var charging: bool = float(obj.fire_time) >= 0.0
+		if not firing and not charging:
+			continue
+		if not begun:
+			_beam_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+			begun = true
+		for segment in range(96):
+			if charging and not firing and segment % 3 == 2:
+				continue
+			var a: Vector3 = sim.geometry.world(float(segment) * TAU / 96.0, float(obj.lane), 0.0)
+			var b: Vector3 = sim.geometry.world(float(segment + 1) * TAU / 96.0, float(obj.lane), 0.0)
+			a.z = 1.0
+			b.z = 1.0
+			var width := 3.0 if firing else 1.25
+			var color := Color(0.95, 0.16, 0.30, 0.66) if firing else Color(0.69, 0.30, 0.60, 0.45)
+			_ribbon_segment(_beam_mesh, a, b, width, width, color, color)
+	if begun:
+		_beam_mesh.surface_end()
+
+
+func _ribbon_segment(mesh: ImmediateMesh, a: Vector3, b: Vector3, width_a: float, width_b: float, color_a: Color, color_b: Color) -> void:
+	var tangent := b - a
+	var side := Vector3(-tangent.y, tangent.x, 0.0).normalized()
+	if side.length_squared() < 0.1:
+		side = Vector3.RIGHT
+	_ribbon_quad(mesh, a, b, side, side, width_a, width_b, color_a, color_b)
+
+
+func _ribbon_quad(mesh: ImmediateMesh, a: Vector3, b: Vector3, side_a: Vector3, side_b: Vector3, width_a: float, width_b: float, color_a: Color, color_b: Color) -> void:
+	var aa := a + side_a * width_a
+	var ab := a - side_a * width_a
+	var ba := b + side_b * width_b
+	var bb := b - side_b * width_b
+	mesh.surface_set_color(color_a)
+	mesh.surface_add_vertex(aa)
+	mesh.surface_add_vertex(ab)
+	mesh.surface_set_color(color_b)
+	mesh.surface_add_vertex(ba)
+	mesh.surface_set_color(color_a)
+	mesh.surface_add_vertex(ab)
+	mesh.surface_set_color(color_b)
+	mesh.surface_add_vertex(bb)
+	mesh.surface_add_vertex(ba)
+
+
+func _triangle(surface: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
+	var normal := (b - a).cross(c - a).normalized()
+	surface.set_normal(normal)
+	surface.set_color(Color.WHITE)
+	surface.add_vertex(a)
+	surface.add_vertex(b)
+	surface.add_vertex(c)
+
+
+func _octahedron_mesh() -> ArrayMesh:
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var equator := [Vector3.RIGHT, Vector3.UP, Vector3.LEFT, Vector3.DOWN]
+	for index in range(4):
+		_triangle(surface, Vector3.BACK, equator[index], equator[(index + 1) % 4])
+		_triangle(surface, Vector3.FORWARD, equator[(index + 1) % 4], equator[index])
+	return surface.commit()
+
+
+func _comet_mesh() -> ArrayMesh:
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var shoulder := [Vector3(0.67, -0.16, 0.0), Vector3(0.0, -0.16, 0.50), Vector3(-0.67, -0.16, 0.0), Vector3(0.0, -0.16, -0.50)]
+	for index in range(4):
+		_triangle(surface, Vector3(0.0, 1.25, 0.0), shoulder[index], shoulder[(index + 1) % 4])
+		_triangle(surface, Vector3(0.0, -0.85, 0.0), shoulder[(index + 1) % 4], shoulder[index])
+	return surface.commit()
+
+
+func _star_mesh() -> ArrayMesh:
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var points: Array[Vector3] = []
+	for index in range(10):
+		var angle := float(index) * TAU / 10.0 + PI * 0.5
+		var radius := 1.0 if index % 2 == 0 else 0.43
+		points.append(Vector3(cos(angle) * radius, sin(angle) * radius, 0.0))
+	for index in range(10):
+		_triangle(surface, Vector3(0.0, 0.0, 0.38), points[index], points[(index + 1) % 10])
+		_triangle(surface, Vector3(0.0, 0.0, -0.28), points[(index + 1) % 10], points[index])
+	return surface.commit()
+
+
+func _cage_mesh() -> ArrayMesh:
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var equator := [Vector3.RIGHT, Vector3.UP, Vector3.LEFT, Vector3.DOWN]
+	for index in range(4):
+		_tube_segment(surface, equator[index], equator[(index + 1) % 4], 0.035)
+		_tube_segment(surface, Vector3.BACK, equator[index], 0.035)
+		_tube_segment(surface, Vector3.FORWARD, equator[index], 0.035)
+	return surface.commit()
+
+
+func _tube_segment(surface: SurfaceTool, a: Vector3, b: Vector3, radius: float) -> void:
+	var direction := (b - a).normalized()
+	var cross_axis := Vector3.UP if absf(direction.dot(Vector3.UP)) < 0.9 else Vector3.RIGHT
+	var x := direction.cross(cross_axis).normalized() * radius
+	var y := direction.cross(x).normalized() * radius
+	for side in range(4):
+		var theta := float(side) * TAU / 4.0
+		var next_theta := float(side + 1) * TAU / 4.0
+		var offset := x * cos(theta) + y * sin(theta)
+		var next_offset := x * cos(next_theta) + y * sin(next_theta)
+		_triangle(surface, a + offset, b + offset, a + next_offset)
+		_triangle(surface, a + next_offset, b + offset, b + next_offset)
+
+
+func _ellipse_tube(radii: Vector2, width: float, segments: int, sides: int) -> ArrayMesh:
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for segment in range(segments):
+		var angle_a := float(segment) * TAU / float(segments)
+		var angle_b := float(segment + 1) * TAU / float(segments)
+		var a := Vector3(cos(angle_a) * radii.x, sin(angle_a) * radii.y, 0.0)
+		var b := Vector3(cos(angle_b) * radii.x, sin(angle_b) * radii.y, 0.0)
+		var normal_a := Vector3(cos(angle_a) / radii.x, sin(angle_a) / radii.y, 0.0).normalized()
+		var normal_b := Vector3(cos(angle_b) / radii.x, sin(angle_b) / radii.y, 0.0).normalized()
+		for side in range(sides):
+			var theta_a := float(side) * TAU / float(sides)
+			var theta_b := float(side + 1) * TAU / float(sides)
+			var aa := a + (normal_a * cos(theta_a) + Vector3.BACK * sin(theta_a)) * width
+			var ab := a + (normal_a * cos(theta_b) + Vector3.BACK * sin(theta_b)) * width
+			var ba := b + (normal_b * cos(theta_a) + Vector3.BACK * sin(theta_a)) * width
+			var bb := b + (normal_b * cos(theta_b) + Vector3.BACK * sin(theta_b)) * width
+			_triangle(surface, aa, ba, ab)
+			_triangle(surface, ab, ba, bb)
+	return surface.commit()

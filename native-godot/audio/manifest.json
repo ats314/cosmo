@@ -1,0 +1,643 @@
+{
+  "format": "16-bit PCM; stereo bed and releases, mono pulse/drums/answer/cues",
+  "sample_rate": 31200,
+  "bpm": 104,
+  "tonics_midi": [
+    69,
+    67,
+    65,
+    63,
+    61,
+    59
+  ],
+  "harmony_source": "scripts/cosmo_content.gd",
+  "harmony_source_sha256": "36f41e4c7b9ea0973589d971196ddcf699455c66692ac53cefc910221b3bf866",
+  "harmony_profiles": [
+    {
+      "tonic_midi": 69,
+      "chord_degrees": [
+        0,
+        5,
+        2,
+        6
+      ],
+      "arp": [
+        0,
+        2,
+        4,
+        2,
+        3,
+        2,
+        4,
+        3
+      ],
+      "chord_root_semitones": [
+        0,
+        8,
+        3,
+        10
+      ]
+    },
+    {
+      "tonic_midi": 67,
+      "chord_degrees": [
+        0,
+        6,
+        5,
+        3
+      ],
+      "arp": [
+        0,
+        3,
+        1,
+        4,
+        2,
+        4,
+        3,
+        1
+      ],
+      "chord_root_semitones": [
+        0,
+        10,
+        8,
+        5
+      ]
+    },
+    {
+      "tonic_midi": 65,
+      "chord_degrees": [
+        0,
+        2,
+        4,
+        5
+      ],
+      "arp": [
+        0,
+        1,
+        3,
+        2,
+        4,
+        2,
+        3,
+        1
+      ],
+      "chord_root_semitones": [
+        0,
+        3,
+        7,
+        8
+      ]
+    },
+    {
+      "tonic_midi": 63,
+      "chord_degrees": [
+        0,
+        5,
+        6,
+        0
+      ],
+      "arp": [
+        0,
+        4,
+        2,
+        3,
+        1,
+        3,
+        4,
+        2
+      ],
+      "chord_root_semitones": [
+        0,
+        8,
+        10,
+        0
+      ]
+    },
+    {
+      "tonic_midi": 61,
+      "chord_degrees": [
+        0,
+        3,
+        6,
+        2
+      ],
+      "arp": [
+        0,
+        2,
+        1,
+        3,
+        4,
+        3,
+        1,
+        2
+      ],
+      "chord_root_semitones": [
+        0,
+        5,
+        10,
+        3
+      ]
+    },
+    {
+      "tonic_midi": 59,
+      "chord_degrees": [
+        0,
+        3,
+        4,
+        5
+      ],
+      "arp": [
+        0,
+        3,
+        4,
+        2,
+        1,
+        2,
+        4,
+        3
+      ],
+      "chord_root_semitones": [
+        0,
+        5,
+        7,
+        8
+      ]
+    }
+  ],
+  "beats_per_chord": 4,
+  "beats_per_loop": 32,
+  "frames_per_loop": 576000,
+  "files": [
+    {
+      "name": "bed_69.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 2304044,
+      "channels": 2,
+      "peak": 0.31,
+      "rms": 0.07670819490154823,
+      "loop": true,
+      "boundary_delta": 0.0014940723776817322,
+      "sha256": "b0cf8631e027cf7510d8d0797c0cc83f10a335c2f1fa153478e6cf2818e080ab"
+    },
+    {
+      "name": "pulse_69.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.27,
+      "rms": 0.0765068765173183,
+      "loop": true,
+      "boundary_delta": 0.0000011649099178612232,
+      "sha256": "3afbbcb127e87577b2c03507ea58cd491f0e1834d7b73883bd64a871c6c221d3"
+    },
+    {
+      "name": "drums_69.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.29,
+      "rms": 0.03064504956004253,
+      "loop": true,
+      "boundary_delta": 0.00006202771328389645,
+      "sha256": "f258fb313095460d38afbcaf9dab05e57c41154a2186845e6ddc39e460609f5f"
+    },
+    {
+      "name": "answer_69.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.24,
+      "rms": 0.09402834778893993,
+      "loop": true,
+      "boundary_delta": 0.00020019756630063057,
+      "sha256": "f74e5c39afaab6b8995ced905e0b7c27d93a0c391b710588f9aa09492260d6ed"
+    },
+    {
+      "name": "turn.wav",
+      "seconds": 0.38,
+      "bytes": 23756,
+      "channels": 1,
+      "peak": 0.28,
+      "rms": 0.07945687388627781,
+      "loop": false,
+      "boundary_delta": 0.000988053740002215,
+      "sha256": "fbf29f5161dec2184164b2bd8984a1b20ee36738611756176e9ef5842a276332"
+    },
+    {
+      "name": "hop.wav",
+      "seconds": 0.52,
+      "bytes": 32492,
+      "channels": 1,
+      "peak": 0.28,
+      "rms": 0.08318124895505459,
+      "loop": false,
+      "boundary_delta": 0.001695329206995666,
+      "sha256": "2acce84f99510ba54b00c5f8e6192048870a800a06c0adab49994eeb5c1cd77c"
+    },
+    {
+      "name": "star.wav",
+      "seconds": 0.55,
+      "bytes": 34364,
+      "channels": 1,
+      "peak": 0.28,
+      "rms": 0.07076046565018201,
+      "loop": false,
+      "boundary_delta": 0.00008167443593265489,
+      "sha256": "0e5c849cd5dcaf0b645566d8b8cf47b45985adaa7edd48cbeaa96c5f172d2d0c"
+    },
+    {
+      "name": "orbit.wav",
+      "seconds": 1.55,
+      "bytes": 96764,
+      "channels": 1,
+      "peak": 0.38,
+      "rms": 0.09865827674824179,
+      "loop": false,
+      "boundary_delta": 0,
+      "sha256": "efeb8dd55612e5b11255045f8cc90f6274cd2737459aef05713bec6c9f04a57d"
+    },
+    {
+      "name": "magnet.wav",
+      "seconds": 0.85,
+      "bytes": 53084,
+      "channels": 1,
+      "peak": 0.28,
+      "rms": 0.10120820034768187,
+      "loop": false,
+      "boundary_delta": 0.0001828583626775071,
+      "sha256": "ee14314898ff78819def55a4d95838f0f51a2ab0b93df2182e4511b19adb5748"
+    },
+    {
+      "name": "hit.wav",
+      "seconds": 0.65,
+      "bytes": 40604,
+      "channels": 1,
+      "peak": 0.45,
+      "rms": 0.13022884897555903,
+      "loop": false,
+      "boundary_delta": 0,
+      "sha256": "1331a9d175c8045e124c8cb2d71a5ac47443fa9d15c9f1f5fa8cf2dfe105f1ed"
+    },
+    {
+      "name": "starfall_69.wav",
+      "seconds": 10.13076923076923,
+      "bytes": 1264364,
+      "channels": 2,
+      "peak": 0.69,
+      "rms": 0.18743487079594476,
+      "loop": false,
+      "boundary_delta": 0,
+      "sha256": "68ee379d2efa607b73aa21d354554257b4e89779a93c29477d7246c74c25d27c"
+    },
+    {
+      "name": "finish_69.wav",
+      "seconds": 3.8,
+      "bytes": 474284,
+      "channels": 2,
+      "peak": 0.48,
+      "rms": 0.11956539875281341,
+      "loop": false,
+      "boundary_delta": 0.000009075822163140401,
+      "sha256": "8d5a89db4b5ab36667a80c7225213271e186e04a0c4cdba1d7d576eb9ff10942"
+    },
+    {
+      "name": "bed_67.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 2304044,
+      "channels": 2,
+      "peak": 0.31,
+      "rms": 0.06837653952384001,
+      "loop": true,
+      "boundary_delta": 0.0027667731046676636,
+      "sha256": "a4fc44cd7134e88b436c5c37ffe38a2fa100216a82d7a9cca7a5a1d6aac31970"
+    },
+    {
+      "name": "pulse_67.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.27,
+      "rms": 0.07547463824482675,
+      "loop": true,
+      "boundary_delta": 0.0000018615528460941277,
+      "sha256": "1cd67e904f0145d9477c54bcd1031419413a0baebd83f0675bcc431104423a77"
+    },
+    {
+      "name": "drums_67.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.29,
+      "rms": 0.030637454516092007,
+      "loop": true,
+      "boundary_delta": 0.000032106880098581314,
+      "sha256": "5ce4a89d8eb9d3b930f6e131088c1a52a45edb8c385d779a9e058f74a1787f99"
+    },
+    {
+      "name": "answer_67.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.24,
+      "rms": 0.10096889288061395,
+      "loop": true,
+      "boundary_delta": 0.00017589423805475235,
+      "sha256": "a2f58cdae6d1d7d0f7c89435429da2f4edb04db04dd3b13a9ebb553b6d5760b9"
+    },
+    {
+      "name": "starfall_67.wav",
+      "seconds": 10.13076923076923,
+      "bytes": 1264364,
+      "channels": 2,
+      "peak": 0.69,
+      "rms": 0.1932823924733094,
+      "loop": false,
+      "boundary_delta": 0,
+      "sha256": "e9ed4a4fe1bf127f3862319b14408bd9f308a91f83fafce6d6c3478bd679e64b"
+    },
+    {
+      "name": "finish_67.wav",
+      "seconds": 3.8,
+      "bytes": 474284,
+      "channels": 2,
+      "peak": 0.48,
+      "rms": 0.13606341665646274,
+      "loop": false,
+      "boundary_delta": 0.000015089452972461004,
+      "sha256": "e4290351fe17ff4359c94d2d8e461e882c1ba276d371d7ee0b5b0f7536244565"
+    },
+    {
+      "name": "bed_65.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 2304044,
+      "channels": 2,
+      "peak": 0.31,
+      "rms": 0.07559692477312484,
+      "loop": true,
+      "boundary_delta": 0.0003993287682533264,
+      "sha256": "b42653bf749e1b468120e8a00ccc27d7008e345f20438baa5b1688cfcd8b5e60"
+    },
+    {
+      "name": "pulse_65.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.27,
+      "rms": 0.07569638314203883,
+      "loop": true,
+      "boundary_delta": 0.0000021869054762646556,
+      "sha256": "15ee9a58d24727ce0549f7f45290f068dbd9d631a0fa66e3625463d8962c830f"
+    },
+    {
+      "name": "drums_65.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.29,
+      "rms": 0.030821098892292505,
+      "loop": true,
+      "boundary_delta": 0.00001593632623553276,
+      "sha256": "9c752ec9cc64a77fbd9f97a497d600132e27877a482d92eb509dc5093362b66d"
+    },
+    {
+      "name": "answer_65.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.24,
+      "rms": 0.09204726528305406,
+      "loop": true,
+      "boundary_delta": 0.00014777714386582375,
+      "sha256": "41b87b89738fdc1a78e607209d03cae13b825d83a0739a047778920d4c30b6ae"
+    },
+    {
+      "name": "starfall_65.wav",
+      "seconds": 10.13076923076923,
+      "bytes": 1264364,
+      "channels": 2,
+      "peak": 0.69,
+      "rms": 0.18766165170523288,
+      "loop": false,
+      "boundary_delta": 0,
+      "sha256": "bd9cf0ed9dc833e5016897f363d4c1c28535c6132ec43dfbff8211e1960d94c0"
+    },
+    {
+      "name": "finish_65.wav",
+      "seconds": 3.8,
+      "bytes": 474284,
+      "channels": 2,
+      "peak": 0.48,
+      "rms": 0.140047730335503,
+      "loop": false,
+      "boundary_delta": 0.00003161789572914131,
+      "sha256": "b9a2536bc1b05f8171a8b9cb1e22711d4cda9744a4e4261ee2814930aba587bc"
+    },
+    {
+      "name": "bed_63.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 2304044,
+      "channels": 2,
+      "peak": 0.31,
+      "rms": 0.06509095975173555,
+      "loop": true,
+      "boundary_delta": 0.005637630820274353,
+      "sha256": "4051e1c4f2b1ec8ad0d3c8604a1d9207aacf9da362be8c821414cb71034d6730"
+    },
+    {
+      "name": "pulse_63.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.27,
+      "rms": 0.07491938720184628,
+      "loop": true,
+      "boundary_delta": 8.6935415311018e-7,
+      "sha256": "0cc0324893c1fb16313383022aeec3b8786ca0149ea1f5024179ae64dd3ad450"
+    },
+    {
+      "name": "drums_63.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.29,
+      "rms": 0.03058799298081428,
+      "loop": true,
+      "boundary_delta": 0.00006216904148459435,
+      "sha256": "5c96f6234ad3bba9e24d940996885c08834d732104ebae23aa6d198938b555ed"
+    },
+    {
+      "name": "answer_63.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.24,
+      "rms": 0.093448744178903,
+      "loop": true,
+      "boundary_delta": 0.00008518015965819359,
+      "sha256": "ae42d0308bab2a44d9cc5ac9b7ae558321dd65a641d3282a78db92334f8744d4"
+    },
+    {
+      "name": "starfall_63.wav",
+      "seconds": 10.13076923076923,
+      "bytes": 1264364,
+      "channels": 2,
+      "peak": 0.69,
+      "rms": 0.18588479064789276,
+      "loop": false,
+      "boundary_delta": 0,
+      "sha256": "c4a73a33460d44e471ff5ac80cd5679a5d013c088da671f71c3e8b7c203430e2"
+    },
+    {
+      "name": "finish_63.wav",
+      "seconds": 3.8,
+      "bytes": 474284,
+      "channels": 2,
+      "peak": 0.48,
+      "rms": 0.1306031115501591,
+      "loop": false,
+      "boundary_delta": 7.73817816934752e-7,
+      "sha256": "1c2bb2ed1884424d24a21b6edcfba34f8660a28e2a8d1e8c6fb0e2a85e98ea7b"
+    },
+    {
+      "name": "bed_61.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 2304044,
+      "channels": 2,
+      "peak": 0.31,
+      "rms": 0.07039748268100499,
+      "loop": true,
+      "boundary_delta": 0.0014959387481212616,
+      "sha256": "1450f4022a983e345a19cabee7d1725d81930cf58e4586c70d01e59ed7b8edfa"
+    },
+    {
+      "name": "pulse_61.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.27,
+      "rms": 0.07594197514653354,
+      "loop": true,
+      "boundary_delta": 0.0000022690874175168574,
+      "sha256": "16cf989864528f2d6b06626e0c466060ed7322ed0667fb7dcbd65fc3cbe158dd"
+    },
+    {
+      "name": "drums_61.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.29,
+      "rms": 0.030349454657168196,
+      "loop": true,
+      "boundary_delta": 0.000030780211091041565,
+      "sha256": "51a21e8350248f37bdce8d8bff2f8789c9f96d57cd59dfe45f81620742492d3b"
+    },
+    {
+      "name": "answer_61.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.24,
+      "rms": 0.09159665880183099,
+      "loop": true,
+      "boundary_delta": 0.0005179084837436676,
+      "sha256": "ecaaf9df6201cd6ead6845d008a3a95679f6144f43511141e0f7f095fddcdaa6"
+    },
+    {
+      "name": "starfall_61.wav",
+      "seconds": 10.13076923076923,
+      "bytes": 1264364,
+      "channels": 2,
+      "peak": 0.69,
+      "rms": 0.19831695737614874,
+      "loop": false,
+      "boundary_delta": 0,
+      "sha256": "40c4fe22ebc15cfc4551111a95dd89d995b4af2888c626caf65a4738c92748ff"
+    },
+    {
+      "name": "finish_61.wav",
+      "seconds": 3.8,
+      "bytes": 474284,
+      "channels": 2,
+      "peak": 0.48,
+      "rms": 0.13088292212402786,
+      "loop": false,
+      "boundary_delta": 0.000015324540072469972,
+      "sha256": "e596a1af8a07de8fb80e6b233385ed34a659f8ce640db47698fc4c4b555ed18a"
+    },
+    {
+      "name": "bed_59.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 2304044,
+      "channels": 2,
+      "peak": 0.31,
+      "rms": 0.061128264019356594,
+      "loop": true,
+      "boundary_delta": 0.0011523328721523285,
+      "sha256": "360fd376699aca608eaa1bfcf84cdb72a7cc2b7b856fd492d8513454c7bb1bc6"
+    },
+    {
+      "name": "pulse_59.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.27,
+      "rms": 0.07675092562668893,
+      "loop": true,
+      "boundary_delta": 0.0000011646188795566559,
+      "sha256": "08e1f4d6352a0c8a91492f1e4595cf50752bdb5f86a9b6a64154f8f6a8e4471c"
+    },
+    {
+      "name": "drums_59.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.29,
+      "rms": 0.03029326616327241,
+      "loop": true,
+      "boundary_delta": 0.00007560240919701755,
+      "sha256": "edbb67060bd37483d5fb62b908a075d610f0845fa810b30d912f117bdceae276"
+    },
+    {
+      "name": "answer_59.wav",
+      "seconds": 18.46153846153846,
+      "bytes": 1152044,
+      "channels": 1,
+      "peak": 0.24,
+      "rms": 0.09827332280582292,
+      "loop": true,
+      "boundary_delta": 0.00048204604536294937,
+      "sha256": "cf32a23c75ce9c7169bc6d5c02cc726bd36be2b910ba1b2f5cc75478727ff192"
+    },
+    {
+      "name": "starfall_59.wav",
+      "seconds": 10.13076923076923,
+      "bytes": 1264364,
+      "channels": 2,
+      "peak": 0.69,
+      "rms": 0.204144799661471,
+      "loop": false,
+      "boundary_delta": 0,
+      "sha256": "f371ed797efaa649d88ceba19cfff4093df9100613b6a07a819225312a068da2"
+    },
+    {
+      "name": "finish_59.wav",
+      "seconds": 3.8,
+      "bytes": 474284,
+      "channels": 2,
+      "peak": 0.48,
+      "rms": 0.12286192086155438,
+      "loop": false,
+      "boundary_delta": 0.0000021946325432509184,
+      "sha256": "eb668cee85c2b5a107659f7ea5aa213fc1cb47715d91f68eccd2cbccac898eb4"
+    }
+  ],
+  "arrangement_peaks": {
+    "59": 0.48208387613296505,
+    "61": 0.46921202898025505,
+    "63": 0.48958542913198466,
+    "65": 0.5168897196650505,
+    "67": 0.51125825881958,
+    "69": 0.5256663197278977
+  },
+  "total_bytes": 45274008
+}
