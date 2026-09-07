@@ -2,14 +2,12 @@
 
 One row per player-facing mechanic: what it does, where the game introduces
 it, and every channel that explains it. The curriculum rule this table
-enforces, **as the owner revised it**, differs by kind:
-**every FORMATION is introduced and explained by dl 520 — the end of level 5**
-(DIVERS at dl 395 inside level 4, THE NARROWS at dl 520 inside level 5; THE
-EYE at dl 610 is level 6's floor and introduces nothing) — while **orbs and
-modes are spread across all six levels**, taught at first contact wherever
-that falls. Shield/slow-mo/nova guaranteed on level 1, hypernova on level 2,
-spotlight on level 3, the mirror on level 4, scorch on level 5, and the black
-hole guaranteed to be *offered* once on level 4. Every one of those
+enforces is that new content has a reachable introduction and a clear lesson.
+Current formations extend through THE NARROWS at dl 520 inside level 5.
+Shield/slow-mo/nova are guaranteed on level 1, hypernova and SLIPSTREAM on
+level 2, spotlight and STAR TRAIL on level 3, the mirror on level 4, scorch
+on level 5, and the black hole is guaranteed to be *offered* once on level 4.
+Every one of those
 guarantees is once per RUN, literally: the placed flags survive level
 boundaries, and a guarantee whose home level is behind the level a run opens
 on is pre-spent, so a 1→6 climb meets each orb exactly once, on its home
@@ -20,10 +18,11 @@ handed the spotlight.
 Difficulty-level (`dl`) values are difficulty-seconds — see `dl()` in
 `index.html`. Level windows: dl 0–90 (LIFT OFF), 90–215 (INTO THE RINGS),
 215–340 (THE STORM), 340–470 (EVENT HORIZON), 470–610 (REDSHIFT), and 610
-onward — HEAT DEATH, the one endless level. A tier marked *(moved)* was
+onward — HEAT DEATH, the current content frontier. Its present open-ended
+clock is not a permanent restriction on later levels or mechanics. A tier marked *(moved)* was
 pulled by a curriculum pass.
 
-**Teaching runs through level 5 now.** The two compound shapes — a gate that
+**Current formation teaching runs through level 5.** The two compound shapes — a gate that
 also drifts, a twin that also blinks — used to arrive 22 dl-seconds apart at
 the end of level 2, immediately after their two ingredients, which was the
 densest stretch in the game and exactly where a playtester reported losing
@@ -32,7 +31,9 @@ every tier still unlocked inside dl 0–215 while whole levels taught nothing.
 Level 2 now carries three shapes ~35 apart instead of five ~22 apart, level 3
 carries three shapes at that same ~35 spacing — the two compounds and THE
 SAUCER — levels 4 and 5 carry one formation and one orb each (DIVERS and THE
-MIRROR, then THE NARROWS and SCORCH), and level 6 is the exam.
+MIRROR, then THE NARROWS and SCORCH). The two new rewards arrive earlier:
+SLIPSTREAM reinforces hopping in level 2, and STAR TRAIL rewards routing in
+level 3. Future levels remain free to introduce more content.
 
 **Level 3 gained a third shape and it is the one that answers a player rather
 than a board.** A playtester, verbatim: *"I just feel like I end up just
@@ -79,13 +80,11 @@ placement rather than adding any. Rewards keep the old symmetric clearance:
 letting stars and orbs fill in behind a stationary player would hand the camper
 a reason to stay, which is the behaviour the change exists to price.
 
-**"The level you do not finish" is a title that has moved twice.** Level 3
-was endless when it was last; it gained a finish line and a star dive of its
-own when level 4 (EVENT HORIZON) took over as the exam; and when the game
-grew to six levels the same correction ran again — EVENT HORIZON now
-finishes at dl 470, REDSHIFT at dl 610, and HEAT DEATH is the one level with
-no exit. That keeps "the last level is the exam" true instead of leaving an
-endless wall in the middle of the run. `check.mjs` reads level 2's finish line positionally
+**The frontier has moved as the game grew.** Level 3 was once the open-ended
+level; later levels gave it a finish line and a star dive. EVENT HORIZON now
+finishes at dl 470 and REDSHIFT at dl 610. HEAT DEATH currently has no finish
+line, but the owner explicitly retired the rule that the last level must
+remain an endless exam. `check.mjs` reads level 2's finish line positionally
 (`ends[1]`) rather than as `max(ends)`, which was the same number only while
 there were exactly three levels.
 
@@ -101,17 +100,17 @@ there were exactly three levels.
 | Plain shard | Costs a shield; kills you when the bank is empty. Pulses as a warning, then arms. | dl ~4.5–11s | menu key row, L1 card, MEET lesson, hint ladder, death coach — all four now say "red costs a shield" *(reworded: three of them still said "red kills you", which is false for the first two hits of every run and directly contradicted the L1 card)* |
 | Twin shards | Two shards on one ring, 0.30–0.40 rad apart. Wider than a single, so the escape has to be a ring change rather than a late reverse. Held until your first hop lands (max 30 dl-seconds). | dl 18 | banner + MEET lesson, one sentence: "two at once — swipe to another ring", death coach |
 | Shield (green orb) | Banked up to 3 (cap grows late — empty slots draw as faint rings, so the max is visible). A hit spends one automatically, knocks you off your orbit, and grants 0.9s of invulnerability. Every run starts with two. | 1st power-up (~10s); the shield→slow-mo→nova intro trio fires once per RUN (`G.introN`), never again at a level boundary | L1 card, orb-naming hint, visible cap, and the save itself: "SHIELD USED · N LEFT", or "LAST SHIELD — RED KILLS NOW" with a darker cue when the bank empties *(new)* |
-| Slow-mo (violet orb) | 4 seconds at 55% speed. | 2nd power-up | orb-naming hint while the orb is on the board *(its menu key row was cut — the hint teaches it beside the thing itself)* |
-| Nova (white orb) | Converts every shard in the wave to paying embers. | 3rd power-up | orb-naming hint while the orb is on the board *(its menu key row was cut — the hint teaches it beside the thing itself)* |
+| Slow-mo (violet orb) | 6 seconds at 55% speed; 9 seconds with SLOW WORLD. | 2nd power-up | orb-naming hint beside the pickup, violet duration cue |
+| Nova (white orb) | One expanding wave converts the original board's shards into reachable stars. New threats remain; expiry adds no invisible clear. Pickup grants 0.95s grace through the sweep. | 3rd power-up | orb-naming hint, visible white conversion front |
 | Overcharge | While the shield bank is full, embers pay DOUBLE and a tight tap pays a flat +8; an overflow shield pays +50. The orbit payout is NOT doubled, which is why the line says "stars pay double" rather than "everything". | first full bank | "SHIELDS FULL — stars pay double" line (plus "BANK DEEPER" when the cap steps up and a full bank silently stops being full) + shimmer-up on every bank-fill, shimmer-down when it breaks, OVERCHARGED popup, visible cap rings *(new)* |
-| On beat (`ON BEAT ×N`) | Three tiers (consistency, not absolute timing — slew-limited bias): tight on the QUARTER the ring draws CLIMBS toward ON BEAT ×8, sixteenth-tight (offbeats, fills) HOLDS the chain and still earns section pay, the rest SLIP one rung. Each rung a scale-step tone; ×8 pays a build bonus and opens the band. HOLDING ×8 is the pocket: the sky changes state — flow accelerates, dust lanes crystallize into beat-synced filaments, ripples seed at the comet on every landed beat (×7 sustains it, one slip of grace). | first tight taps | per-rung tones, catch-flash on the ring at each climb, early/late arc on an aimed near-miss *(new)*, popups from ×2, "tap as the ring lands" lesson at first ×2 *(reworded)*, ×8 line names the pocket *(reworded)*, the pocket sky itself, hint ladder |
+| Timing (`ON TIME`) | Three tiers (consistency, not absolute timing — slew-limited bias): tight on the QUARTER the ring draws CLIMBS toward eight timing steps, sixteenth-tight (offbeats, fills) HOLDS the chain and still earns section pay, the rest SLIP one rung. Each rung a scale-step tone; ×8 pays a build bonus and opens the band. HOLDING ×8 is the pocket: the sky changes state — flow accelerates, dust lanes crystallize into beat-synced filaments, ripples seed at the comet on every landed beat (×7 sustains it, one slip of grace). | first tight taps | per-rung tones, catch-flash on the ring at each climb, early/late arc on an aimed near-miss *(new)*, popups from ×2, "tap as the ring lands" lesson at first ×2 *(reworded)*, "GREAT TIMING" at the maximum, the pocket sky itself, hint ladder |
 | Music answers you | Every tap and hop places a note on the grid; input builds heat that opens the arrangement. The game's meta-rule. | first seconds | "your moves play the music" lesson in level 1's calm — now the only channel, the L1 card row having been cut to keep first contact to three rules |
 | Combo (`COMBO ×N`) | Each consecutively collected star pays more — additive under the idiom: a star at combo N pays +N, capped at +6. | first stars | `COMBO ×N` in the header *(reworded: it read `×2 COMBO`, backwards from the two labels under it)*, +N popups, combo lesson at first ×3 |
 | Beat drop | Playing well fills an invisible meter; the music rises, counts 3…2…1…NOW! — any move on NOW lands it for a big bonus and a payoff section where everything pays more. | first drop (~50s worst case) | countdown numerals, "BEAT DROP COMING…", hint ladder *(its menu key row was cut — a sentence about "the drop" read before the first one means nothing)* |
 | Near miss | Stopping just short of a shard, or sweeping past one mid-hop, pays +3 with a white spark. | first dodge | the spark itself |
-| Loop recorder | Quantised inputs land on a rolling two-bar tape; a real phrase becomes the active loop, harmonised into the song. | first phrase | "YOUR BEAT IS IN THE SONG" line, cyan band-meter dot blinking with the ghost *(new)* |
-| The chorus | Each level's song has a second progression (`PROGB`). Hot play — ON BEAT ×4, overdrive, hypernova, real heat, or a payoff's afterglow — lifts the record into it at the next four-bar seam; cooling off settles it back to the verse. Riding it pays tight taps +8 like the other standing states. Every drop resolves into the chorus, so it is guaranteed roughly as often as the drop is. A level's first eight bars are always the verse. | first hot seam, or first drop's afterglow (~1.5 min worst case: the drop's ~50s trickle plus its rise, section and glow) | "CHORUS — the song lifts" line once per run, ambient CHORUS readout in the groove counter's violet, and the lift itself: new harmony, chorus arp, seventh color tone, deeper pump, and an open offbeat hat + backbeat wherever the sky band is not already riding them (the sky floors at the level, so on levels 3 and up those arrive from the sky and the chorus adds only what is missing) |
-| Upgrade draft | At the start of every level after the first, three of nine upgrades are offered and one is taken; the pick is the tap that starts the level. A TAKEN upgrade never repeats within a run; a DECLINED tile may return once the fresh pool runs thin — five draws × three tiles against nine upgrades, and the old `G.offered` rule burned every unpicked tile forever, so the level-5 and level-6 cards drew from an empty pool. **LONGER STAR** hypernova 16→24 beats · **DEEP BANK** start with three shields not two · **SLOW WORLD** slow-mo 4s→6s · **RICH NOVA** two embers per converted shard · **HAIR TRIGGER** the drop arms at 0.85 of the meter · **STAGE LIGHT** spotlight 16→24 beats · **LONG MIRROR** the mirror 8→14 beats · **DEEP BURN** scorch 8s→13s · **STEADY HAND** on-beat window 0.032→0.045s. | level 2 card onward | the tiles themselves — icon, name and one line each *(all nine — WIDE PULL was removed with the magnetar, LONG FUSE with the bass bomb — were UNWIRED until recently: `upgOn` had zero call sites, so every tile was a decision the player paid for and the game ignored. `check.mjs` fails the build if an offered id is never read.)* |
+| Loop recorder | Quantised inputs land on a rolling two-bar tape; a real phrase becomes the active loop, harmonised into the song. | first phrase | "YOUR TAPS ARE REPLAYING" line, cyan band-meter dot blinking with the ghost *(new)* |
+| The chorus | Each level's song has a second progression (`PROGB`). Hot play — ON BEAT ×4, overdrive, hypernova, real heat, or a payoff's afterglow — lifts the record into it at the next four-bar seam; cooling off settles it back to the verse. Riding it pays tight taps +8 like the other standing states. Every drop resolves into the chorus, so it is guaranteed roughly as often as the drop is. A level's first eight bars are always the verse. | first hot seam, or first drop's afterglow (~1.5 min worst case: the drop's ~50s trickle plus its rise, section and glow) | "MUSIC BUILDS" line once per run, ambient CHORUS readout in the groove counter's violet, and the lift itself: new harmony, chorus arp, seventh color tone, deeper pump, and an open offbeat hat + backbeat wherever the sky band is not already riding them (the sky floors at the level, so on levels 3 and up those arrive from the sky and the chorus adds only what is missing) |
+| Upgrade draft | Three of eleven upgrades are offered at each level boundary. Taken upgrades do not repeat; declined tiles may return when fresh choices run thin. LONGER STAR: 16 to 24 beats; DEEP BANK: start with three shields; SLOW WORLD: 6 to 9 seconds; RICH NOVA: two stars per converted shard; HAIR TRIGGER: meter arms at 0.85; STAGE LIGHT: 16 to 24 beats; LONG MIRROR: 16 to 24 beats; DEEP BURN: 8 to 13 seconds; STEADY HAND: 0.032 to 0.045s timing window; LONG SLIPSTREAM: 12 to 18 seconds; LONG STAR TRAIL: 16 to 24 seconds. LONG SLIPSTREAM enters on the level-2 card and LONG STAR TRAIL on level 3. | level 2 card onward | each tile's icon, name, and effect; every offered id has a live `upgOn` reader |
 | Star dive (finale) | The level's closing melody laid out as a star trail; chase the brightest star, quick pickups pay double, dive the bloomed sun to end the level. | end of every level | banner + one-at-a-time burning stars |
 
 ## Level 2 — INTO THE RINGS (the ring threats, and the marquee star)
@@ -121,12 +120,12 @@ there were exactly three levels.
 | Gates | One angle blocked on EVERY ring — hopping cannot save you; reverse. Checked for solvability before spawning. | dl 100 | banner, MEET lesson, death coach |
 | Drifters | Shards that slide along their ring at a fixed random heading, well under player speed; the chevron's point leads their motion. They do not steer. | dl 128 | banner + MEET lesson, one sentence: "it slides — the gap moves with it" *(reworded: the banner said "these ones chase you", which they never do, and both channels said "keep moving", which names no action — there is no input that stops you)*, longer first telegraphs, death coach |
 | Blinkers | Phase on a two-beat cycle at 0.55 duty: harmless while dim, lethal while lit; the core fills as re-arm approaches. | dl 165 | banner + MEET lesson, one sentence: "harmless while dim — cross it then", longer first telegraphs, death coach |
-| Hypernova (pink star) | Sixteen beats of invincibility at nearly double speed: reds convert to paying embers on contact, everything pays double, the kit doubles to sixteenths. **The song gets a star tune** *(new)*: sixteen sixteenths that climb and wrap — four ascending cells each starting a degree higher, so the line spirals and never resolves — restated every bar over a driving eighth-note bass, with the band's pad opening 1.22× underneath it. Written as `STARRUN` pentatonic degrees 4–10, above the band's degree-4 arp ceiling, so it is an interval over the level's tonic and transposes with the key. It is an **overlay, not a section**: it starts on the frame you take the orb, where the chorus lift the star also triggers can only land at a four-bar seam — up to most of a loop away against a star that lasts four bars. A black hole outranks it. **And the tail becomes the comet** *(new)*: five ribbon passes instead of three (a magenta bloom outside a gold body inside a white core), the samples living longer (29→53 held) and the ribbon 1.85× wider — measured arc 143→428px, filled area 5.31×, with sparks shedding off it unconditionally rather than waiting for a groove chain (4–12× the debris in the air, averaged over a hundred frames; a point sample of that one is pure noise). | guaranteed first post-curriculum placement on level 2 — once per RUN (`hyperPlaced` survives level boundaries, and is pre-spent when a run opens past level 2) | MEET lesson — “hypernova — the pink star: untouchable and fast” — no slow-mo *(fixed)*, the lab row (HYPERNOVA there too; the working name “PINK STAR” is gone from every channel), the standing “HYPERNOVA ×2” chip in the orb's own magenta, and the tune and the tail — the two channels that do not need reading |
-| Spotlight (white/violet orb) | Four bars in an actual followspot: the house dims under the arena while a beam and a light-pool pin the comet, stars pay double, the tight-tap garnish doubles (16 against the standing states' 8), your instrument gains ×1.5 and the band steps back a notch. A violet timer ring around the comet empties clockwise and blinks through the last 1.5s. | **guaranteed on level 3**, once per RUN (`spotPlaced` survives level boundaries; pre-spent for a run that opens past level 3) *(moved from level 2 by the introduction rebalance — six of the seven orbs used to be met by the end of level 2 while levels 3 and 4 introduced nothing. Spotlight moves best: it is the least load-bearing of the three guarantees and a pure reward, so meeting it later costs nothing that was needed earlier.)* | MEET lesson ("the light is on you: stars and taps pay double"), no slow-mo *(fixed)*, the followspot itself, the timer ring, honest doubled popups *(new — the score added 2× while the popup printed 1×; every ember popup now prints what the score actually paid, under every standing state)* |
+| Hypernova (pink star) | Sixteen beats of invincibility at nearly double speed: reds convert to paying embers on contact, stars and tight taps pay double, the kit doubles to sixteenths. **The song gets a star tune** *(new)*: sixteen sixteenths that climb and wrap — four ascending cells each starting a degree higher, so the line spirals and never resolves — restated every bar over a driving eighth-note bass, with the band's pad opening 1.22× underneath it. Written as `STARRUN` pentatonic degrees 4–10, above the band's degree-4 arp ceiling, so it is an interval over the level's tonic and transposes with the key. It is an **overlay, not a section**: it starts on the frame you take the orb, where the chorus lift the star also triggers can only land at a four-bar seam — up to most of a loop away against a star that lasts four bars. A black hole outranks it. **And the tail becomes the comet** *(new)*: five ribbon passes instead of three (a magenta bloom outside a gold body inside a white core), the samples living longer (29→53 held) and the ribbon 1.85× wider — measured arc 143→428px, filled area 5.31×, with sparks shedding off it unconditionally rather than waiting for a groove chain (4–12× the debris in the air, averaged over a hundred frames; a point sample of that one is pure noise). | guaranteed first post-curriculum placement on level 2 — once per RUN (`hyperPlaced` survives level boundaries, and is pre-spent when a run opens past level 2) | MEET lesson — “hypernova — the pink star: untouchable and fast” — no slow-mo *(fixed)*, the lab row (HYPERNOVA there too; the working name “PINK STAR” is gone from every channel), the standing “HYPERNOVA ×2” chip in the orb's own magenta, and the tune and the tail — the two channels that do not need reading |
+| Spotlight (white/violet orb) | Four bars in an actual followspot: the house dims under the arena while a beam and a light-pool pin the comet, the full star payout doubles, including payoff and other reward states, the tight-tap garnish doubles (16 against the standing states' 8), your instrument gains ×1.5 and the band steps back a notch. A violet timer ring around the comet empties clockwise and blinks through the last 1.5s. | **guaranteed on level 3**, once per RUN (`spotPlaced` survives level boundaries; pre-spent for a run that opens past level 3) *(moved from level 2 by the introduction rebalance — six of the seven orbs used to be met by the end of level 2 while levels 3 and 4 introduced nothing. Spotlight moves best: it is the least load-bearing of the three guarantees and a pure reward, so meeting it later costs nothing that was needed earlier.)* | MEET lesson ("the light is on you: stars and taps pay double"), no slow-mo *(fixed)*, the followspot itself, the timer ring, honest doubled popups *(new — the score added 2× while the popup printed 1×; every ember popup now prints what the score actually paid, under every standing state)* |
 | Overdrive | Hold the heat near max for a full bar: eight bars of double-time with embers and on-beat taps paying double. | heat-driven, reachable late L1, named on L2 card | "OVERDRIVE ×2" readout, gold band meter |
 | Drum break | The band steps out for a bar and your inputs ARE the fill — taps land as snares, hops as kicks. | heat-driven, named on L2 card | caption *(per-run again, new)*, input flashes — snare white, kick gold *(new)* |
 
-## Levels 3–5 — THE STORM to REDSHIFT (level 5 is the last teaching level)
+## Levels 3–5 — THE STORM to REDSHIFT
 
 | Mechanic | How it works | Introduced | Explained by |
 |---|---|---|---|
@@ -134,12 +133,12 @@ there were exactly three levels.
 | The saucer | The only shape placed against the **player** rather than the board. It takes station 0.55 rad off your tail and rides there, harmless, for 5–7.5s. Turn back and it does not move: the reversal leaves it in front of you, where it holds and charges for one beat, then blocks the whole ring it is standing on for 0.42s. Its body is never solid — only the shot is — so there is no contact death and the counter always exists: it is still on the ring you *left*, and it takes 0.42s to follow a hop. The charge cannot be cancelled by turning back again. One at a time, on a 9–15s cooldown, and **never on a board with a gate** — the gate exists to force a reversal and the saucer exists to price one, so the pair could demand a move and punish it in the same breath. | dl 275 *(new)* | banner + MEET lesson, one sentence: "turn back and it blocks your ring — swipe off", death coach |
 | Flicker pairs | A twin whose halves strictly alternate at duty 0.5, offset half a cycle: at every instant exactly one side is solid and the other is the gap. | dl 310 *(moved from 295 to keep level 3's three shapes ~35 dl apart)* | banner + MEET lesson, one sentence: "only one is solid — cross the dim one" *(the pair ran at 0.55 duty, so both sides were armed for 10% of every cycle and the lesson was false exactly when a player acted on it; smoke.mjs now walks a full period and requires strict alternation)*, death coach |
 | DIVERS | The first shard whose **ring is not the ring it armed on**. It telegraphs on one orbit and, 55% of the way through its own warning, transfers to an adjacent one — arc-flash on the arrival ring, a note in the level's key, and a radial guide with a chevron sitting on the destination for the whole telegraph. The remaining 45% of the warn is the lesson: where it lands is where it kills, and you were shown. Drift moves a shard *along* its ring; this is the only thing in the game that moves one *across* rings. Both the lane it leaves and the lane it lands in must be clear at placement or the spawn is rejected outright rather than downgraded — an unreadable arrival is neither fair nor survivable. Needs two orbits to mean anything, so it never rolls at `nRings < 2`. | dl 395 — inside level 4, the first formation the game has ever taught above dl 340 | banner + MEET lesson, one sentence: "it changes ring — watch where it lands", death coach |
-| THE NARROWS | **The mirror of GATES, and the last thing the game teaches.** A wall across every ring but one. A gate blocks every lane and is answered by a TAP; this leaves exactly one lane and is answered by a HOP — the two verbs, one wall each, 420 difficulty-seconds apart. The open lane is always **adjacent to the comet's current ring and never the ring it is already on**, so exactly one swipe answers it and it can never be a wall that demands nothing. The open lane is held to a wider clearance (2.2 rad) than the walls (1.7), because it is the only way out and a shard sitting in it turns the formation from a demand into a trap. It does **not** use the gate's `reverseEscape` check — the escape it must guarantee is a lane, not an arc — and like every wall it may never share a board with another gate or with the saucer. Drawn as contiguous runs of blocked rings with the gap left as a visible hole, plus two comet-coloured brackets opening into it on the beat: a hole in a red wall is only readable if the eye is told it is a hole. | dl 520 — inside level 5 | banner + MEET lesson, one sentence: "one ring is open — swipe to it", death coach |
-| THE EYE | Not a shape — the **last rung of the tier ladder**, and the only one that introduces nothing. Its banner marks the end of teaching: every formation is known and active from here, and level 6 is the exam. `type:null`, so it adds no spawn kind and no ring; the ladder simply stops. Its `sub` can never render, because a dl 610 crossing is also the level-6 boundary and the level card owns the screen at that moment. | dl 610 — `LV[4].end`, level 6's floor *(moved from dl 340 when teaching was extended through level 5)* | banner only: **THE EYE**. No MEET lesson and no death coach, because there is no new object to explain *(added: it shipped with no ledger row at all, and `check.mjs` now fails on any TIERS or LAB_ORBS name the ledger does not know)* |
+| THE NARROWS | **The mirror of GATES, answered by the other gesture.** A wall across every ring but one. A gate blocks every lane and is answered by a TAP; this leaves exactly one lane and is answered by a HOP — the two verbs, one wall each, 420 difficulty-seconds apart. The open lane is always **adjacent to the comet's current ring and never the ring it is already on**, so exactly one swipe answers it and it can never be a wall that demands nothing. The open lane is held to a wider clearance (2.2 rad) than the walls (1.7), because it is the only way out and a shard sitting in it turns the formation from a demand into a trap. It does **not** use the gate's `reverseEscape` check — the escape it must guarantee is a lane, not an arc — and like every wall it may never share a board with another gate or with the saucer. Drawn as contiguous runs of blocked rings with the gap left as a visible hole, plus two comet-coloured brackets opening into it on the beat: a hole in a red wall is only readable if the eye is told it is a hole. | dl 520 — inside level 5 | banner + MEET lesson, one sentence: "one ring is open — swipe to it", death coach |
+| THE EYE | The current tier ladder's final marker has `type:null`: it adds no shape or ring. Its dl 610 boundary coincides with the level-6 card. Later content may extend either table. | dl 610, level 6's floor | banner name |
 
 ### THE MIRROR *(new)* — level 4's orb
 
-A second comet, opposite you on your own ring, for eight beats. It **gathers
+A second comet, opposite you on your own ring, for sixteen beats. It **gathers
 what it passes and shatters red on contact**, it cannot be hurt, and it does
 **not** protect you: red on your own half of the ring is exactly as lethal as it
 ever was. That is what keeps it *presence* rather than immunity, and on a
@@ -147,10 +146,13 @@ circular board presence is a thing no other orb can offer — every existing
 powerup changes what happens to YOU, and this one changes how much of the ring
 is yours at once.
 
-Its angle is **derived** (`G.angle + π`, on `G.ringI`) rather than integrated. A
+Its angle is **derived** (`G.angle + π`, with contact on `effRing()`) rather than integrated. A
 chaser that accumulates its own position drifts and needs a controller, and the
 magnetar died twice proving a first-order chase never arrives; a reflection has
-no such problem, because it is not chasing anything.
+no such problem, because it is not chasing anything. The contact check sweeps
+the same travelled arc as the player's pickup check, and stays on the old
+ring through the first half of a hop. Marked STAR TRAIL stars are left to the
+player rather than collected automatically.
 
 **It pays but does not advance the combo.** The chain is the game's measure of
 the player's own hand, and a second collector feeding it would let an orb farm
@@ -166,7 +168,7 @@ name was cut and its teaching data outlived it.
 | | |
 |---|---|
 | Introduced | level 4, guaranteed once per run (`mirrorPlaced`) — literally once: the flag survives level boundaries, and is pre-spent when a run opens past level 4 |
-| Duration | 8 beats · 14 with LONG MIRROR |
+| Duration | 16 beats; 24 with LONG MIRROR |
 | Taught by | MEET lesson, one sentence: "the mirror — a second you, gathering the far side" |
 | Reads with sound off | yes — a second comet, a countdown ring, a HUD label |
 
@@ -189,6 +191,9 @@ previous angle to the current one rather than at a point, because at 4.2 rad/s
 a per-frame point sample leaves gaps between sectors, and a burn with holes in
 it is a mechanic the player cannot trust. Drawn on the ring and **under** the
 shards, so a red standing in the fire is still read as a red first.
+The wake lifetime is at least one orbit at the current speed, with a 2.6s
+minimum in gameplay time. Painting runs after the comet's actual movement;
+hit-stop and teaching cannot paint a nominal arc the player never travelled.
 
 Its colour is warm **orange**, deliberately not warm red: the rule that red
 belongs to death alone is not negotiable, and `#ff5d73` is a pink, so the two
@@ -201,7 +206,35 @@ do not sit in the same family at a glance.
 | Taught by | MEET lesson, one sentence: "scorch — keep moving, your wake burns red away" |
 | Reads with sound off | yes — the burning arc, a HUD label |
 
-## Level 3+ — BLACK HOLE MODE (rare, optional, not a power-up)
+### SLIPSTREAM — level 2's hop reward
+
+For 12 seconds, each successful player hop converts non-saucer shards within
+0.48 radians of the destination angle into stars on that ring. The landing
+has 0.4s grace, awarded at most once per 0.8s. The clear still happens on every
+valid hop, but chaining swipes cannot sustain immunity. Swipes beyond the
+available rings and black-hole gravity do not activate it. LONG SLIPSTREAM
+extends the duration to 18s. The level-2 guarantee follows hypernova, and the
+fallback pool uses the same floor. The lesson is "slipstream — change ring
+to clear your landing".
+
+### STAR TRAIL — level 3's route reward
+
+Nine marked gold stars wait ahead in the direction already being travelled,
+alternating between the current ring and one adjacent ring. Each collects
+normally, advances the combo, and adds four bonus points. They wait 16s,
+or 24s with LONG STAR TRAIL; a new pickup replaces the previous route.
+The sequence guides a chase without requiring collection in order, and
+hazards remain. The level-3 guarantee follows spotlight, with the same floor
+in the fallback pool. The lesson is "star trail — follow the gold stars
+between rings".
+
+Both rewards and their upgrades are available early enough to shape ordinary
+runs. All ten orbs can also be selected directly in POWERUP TESTING. Ordinary
+timed rewards, collectors, scorch sectors, and route lifetimes suspend inside
+a black hole, then resume after its closing warp. Hard lessons defer while a
+reward is active, so the player has time to use it.
+
+## Level 3+ — BLACK HOLE MODE (rare, optional event)
 
 **How often it arrives, rewritten for six levels.** The guarantee is once per
 RUN now, not once per level. `bhPlaced` is cleared by every `startGame()` —
@@ -223,14 +256,16 @@ It actually does things to make it both harder and easier simultaneously."*
 
 | Mechanic | How it works | Introduced | Explained by |
 |---|---|---|---|
-| Black hole | A rare dark orb on level 3+ (5% of orb rolls; a taken one arms a 55s cooldown, a declined one only 20s). Taking it is a **choice** — it sits on a ring like any pickup and staying off that ring declines it. Entry sets the game's **banner** (`BLACK HOLE` / NO ESCAPE / "everything slows — the reds pile up — a fourth ring"), the channel every ring unlock and the star dive already use and the mode never did, and a standing HUD label **`BLACK HOLE · 12s`** counts the mode down for its whole length (yielding for the banner's first 3.2s, so the mode's name is not printed twice 25px apart on the same frame), and the eyebrow is NO ESCAPE rather than EVENT HORIZON — which is the NAME OF LEVEL 4, printed on the card that opened it and in the header for the whole run — it used to be named on screen for 0.92s of 18.7s and never again, and since its one explanatory lesson is once-per-device and consumed at the first pickup, every black hole after a player's first was wordless. For 17 seconds: **the arrangement stops dead** — the scheduler hands off to `bhStep` *and* `bedTick` pulls the sustaining pad to silence, which is the half that was missing — and the preset piece runs at **half tempo**, because in a rhythm game the pulse is the one clock the player reads without ambiguity and it used to stay at 104 BPM throughout; **the player stops being an instrument** (`performerHit` returns early — no notes, no heat, no on-beat chain, no loop capture); **everything runs at 0.42×**, dipping to 0.26× during the fall-in, and *everything* means it — the backdrop, the camera dolly, ripples, popups, the comet's trail and the hop all advance on `G.vt`, the dilated presentation clock, where roughly fifteen visible layers used to keep running at full speed and flatly contradict the eight that did not; **shard density ramps 1.5× → 3.5× on a real-time clock**; **a fourth orbit opens**, all four re-spaced over ~0.85s and withdrawn the same way, and **the spawn draw leans one ring inward 45% of the time** so the new orbit concentrates the board instead of diluting it; **gravity drags the comet one ring toward the centre every 4s** (one swipe counters it, and an interval that expires while you are already at the bottom is consumed rather than banked — banking it meant the next escape was cancelled on the frame it landed); **stars on the innermost orbit are worth 2×**, paid visibly in the popup; and reaching that innermost orbit pays a **HORIZON +200** bonus, once per black hole, which ignites the display — the disc blazes, the polar **jets** fire along the axis, the **warped spacetime grid** comes up underneath and the lensed halo brightens, settling back to a lower burn that runs for the rest of the mode so the hole is visibly *feeding* afterwards. The fourth ring is the mode's one structural novelty and arriving on it used to be worth exactly what arriving anywhere else was worth. Throughout the mode, **light falls in**: the star layers are rotated and compressed about the arena centre (frame dragging — a sampling transform in the shader, so no star moves in any coordinate the game reads), bright **filaments** are torn off the rim and run at the centre at three times the vortex speed, and **every star and orb on the board bleeds a tapered smear toward the singularity**. All three are draw-only — `G.parts` is a draw-only array and the smears read positions through the same `posAt()` every other pass uses and write nothing, so none of it can change what the board does. **Three things defer while the mode runs** — the tier banner, the hint ladder and any hard first-encounter lesson — because the mode owns the centre of the screen; the lesson defers without setting `seen`, so the next encounter re-offers it. No power-up orbs spawn inside it; stars do. **Gameplay SFX redshift from 0 to a perfect fourth down** across the mode, on the same squared curve as the sub drone. Surviving pays a lump **ESCAPE** bonus scaled by the stars gathered and halved per shield spent, plus **2 seconds of invulnerability and a decompression shockwave** (the slingshot). **How hard it actually is, measured two ways, because one number here was misleading.** Against a matched control at the same frozen `dl`: *board-wide arrival rate × time scale* reads **1.18–1.44× (level 3) / 1.28–1.34× (level 4)**, and that is the figure this row used to quote on its own. It flatters the mode, because the fourth ring inflates board-wide counts by construction — it counts shards on orbits the player is not standing on. The metric the thumb answers is *armed shards **per ring** × time scale*, and it reads **0.82× / 0.84×**: `2.60× armed shards ÷ (4 rings / 3 rings) × 0.42 time scale`. Both are real measurements of different things. The honest summary is that the mode carries **~2.6× the shards and ~3× the board**, looks far denser, and still sits slightly *below* ordinary per-ring threat, because two of its three levers are divisors and only one multiplies — and that one is capped by placement saturation rather than by `shardCap()` (observed max board 22–24 against a cap of 25–35; the innermost orbit physically holds ~7.8). It is also **shapeless**: armed shards by sixth of the mode at level 4 run 4.2 · 4.1 · 5.6 · 9.7 · 12.6 · 16.6 against an ordinary 3.3, so the first half sits at or below ordinary pressure and only the last ~3 seconds bite — which the 2.0s exit invulnerability then covers. The remaining lever with headroom is time, not density. | first rare roll on level 3+; guaranteed **offered** once on level 4. The roll sits directly below `POW_INTRO` in `spawnPow`, not at the bottom — see the revised curriculum rule in `CLAUDE.md` | MEET lesson, the only orb lesson that is **not** `soft` (it is the one orb that is not a gift): "black hole — everything slows, the reds pile up" |
+| Black hole | Optional three-act wager: opening warp, inner-ring charge, then outward escape. The fourth ring opens over 0.85s. Motion settles at 0.60x; density ramps from 1.25x to 2x; gravity warns and pulls inward every 4s before ESCAPE. Settled innermost travel banks `dt/8` charge up to 1; arriving alone pays nothing. Inner stars pay double. At 12s gravity releases and fresh threat spawns stop; reach the outermost ring before 17s. Success pays `round((80 + 600*charge + 20*stars) / 1.5^min(3, shieldsSpent))` and 1.5s grace. Timeout loses the bank and a shield, or ends an unshielded ordinary run. Ordinary rewards and route stars suspend until closure; temporary-ring entities leave before that ring vanishes. | rare 5% roll from level 3; guaranteed offered once on level 4; shield pity precedes both branches; taking arms a 55s cooldown, declining 20s | charge meter, ESCAPE signal, and first-contact lesson |
 
-**What shipped and what it actually did.** The mode carried thirteen documented
+**Historical audit, before the charge-and-escape overhaul.** The mode carried thirteen documented
 sub-features and a playtester who had run it many times perceived one of them
 ("some purple color"). None of it was missing from the source; almost all of it
-was unreachable, cancelled, or inaudible.
+was unreachable, cancelled, or inaudible. The table preserves that feedback
+and the fixes made in that earlier pass. Its old tuning and display numbers
+are historical measurements, not claims about the current challenge above.
 
-| Clause of the pitch | What was wrong | Now |
+| Clause of the pitch | What was wrong | Fix from that earlier pass |
 |---|---|---|
 | "a super cool black hole backdrop" | The arena-scale black hole — well, accretion discs, photon ring, drawn at `radiusOf(0)` — was gated on `BG`, i.e. on **WebGL having failed**. It rendered only where the shader had given up. | Draws unconditionally; the shader composites under it. |
 | same | The shader's lens `0.18/(brd+0.15)` exceeded `brd` inside 0.356 uv, **inverting the UV field** across the whole middle of the screen: the gravity well darkened nothing, and the disc and photon ring were pushed out to 249–358px, drawing as arcs behind the HUD. | Displacement clamped to `brd*0.72`; the field compresses instead of turning inside out. |
@@ -266,17 +301,12 @@ radius that index resolves to — so nothing about position, collision or input
 has to know it is happening. `smoke.mjs` drives a whole black hole and fails if
 the orbits do not come back.
 
-**The music is diatonic and the dread is timbral.** The preset piece is a tonic
-pedal, the tritone that already exists inside natural minor (degree 2 against
-♭6), a noise wash and one kick a bar. The only glide is on the **sub alone** —
-a redshift that falls a minor third on an accelerating (squared) curve — because
-the SFX pentatonic keeps firing in here for pickups and shield saves and is
-tuned to the level's scale, so the floor may move and nothing that has to agree
-with an effect does. Additional building layers enter with time: a noise bed
-that widens, metallic resonances on the minor third, a sub heartbeat that
-doubles, and in the final ~4 seconds a full crescendo with the tritone pair
-swelling and the kick quadrupling. The piece now has an arc rather than
-looping flat.
+**The music follows the same three acts as the challenge.** Half-tempo pulses
+build from one to two to four per bar; a deep tonic and the natural minor's
+tritone leave space for the distant beacon. Inner-ring charge strengthens
+the beacon, and the escape window brings a rising phrase. Pitches remain
+diatonic rather than continuously detuning the record. The ordinary pad and
+performer wait until the black hole releases the stage.
 
 ## Levels 4–6 — EVENT HORIZON, REDSHIFT, HEAT DEATH
 
@@ -288,9 +318,9 @@ still deepens the music, and it also changes what the music is doing.
 | Mechanic | How it works | Introduced | Explained by |
 |---|---|---|---|
 | The storm | Every threat and orb from levels 1–2 active at once plus level 3's own three shapes (their rows are above), spawn pool filling from the first second, speed climbing toward the 4.2 rad/s ceiling. **Finite** — it has a finish line at dl 340 and a star dive of its own. | dl 215 *(aligned to the level 3 start — was 380)* | L3 intro card: "the shapes start combining" / "survive to the star dive" |
-| Event horizon | **Not endless any more, and not the exam.** Level 4 has a finish line at dl 470; it is the level that introduces DIVERS (dl 395) and THE MIRROR, and the black hole's guaranteed-offer level. Its song is the pedal — i–♭VI–♭VII–i in E♭ minor, back home inside four bars over a sub drone pinned to the tonic, with an octave-jumping bass — which now reads as the ground under the black hole rather than as the sound of a level nobody completes. | dl 340 | L4 intro card, quoting the lessons verbatim: "red changes ring — watch where it lands" / "the black hole opens a fourth ring" |
-| Redshift | **The last teaching level.** It carries THE NARROWS (dl 520) and SCORCH — the last formation and the last orb — so the syllabus finishes on its finish line at dl 610 and HEAT DEATH opens owing nothing. D♭ minor, the descending-fifths progression: always leaving, never cadencing home. | dl 470 | L5 intro card, quoting the lessons verbatim: "one ring is open — swipe to it" / "scorch — keep moving, your wake burns red away" |
-| Heat death | **The endless exam, and the only endless level.** Introduces nothing — THE EYE at dl 610 is its floor and marks the end of teaching — and the clock keeps climbing forever. B minor: three minor chords in a row, then one major that lifts and is immediately taken away — the level that never ends gets the loop that never warms up. | dl 610 | L6 intro card: "no new tricks — everything at once" / "how far can you ride?" |
+| Event horizon | Level 4 introduces DIVERS (dl 395), THE MIRROR, and the guaranteed black-hole offer; it finishes at dl 470. E-flat minor tonic pedal and octave-jumping bass. | dl 340 | level card and first-contact lessons |
+| Redshift | Level 5 introduces THE NARROWS at dl 520 and SCORCH, then finishes at dl 610. D-flat minor with descending-fifths harmony. | dl 470 | level card and first-contact lessons |
+| Heat death | The current content frontier draws on the rewards and formations introduced earlier. Its present `end:Infinity` keeps the clock running after dl 610; later levels can extend the run and introduce more content. B minor, with a cold three-minor-chord loop and one fleeting major lift. | dl 610 | level card |
 
 ## Before the run — the front screens
 
@@ -302,7 +332,7 @@ None of these gates progression, and none of them changes what is taught.
 | Swipe rule chooser | Unchanged. Still once per device, still between the title screen and the run — it hands off to `enterRunStart`: the level picker for a device with a run behind it, level 1's own card for a first-ever run. | live arena with both rules tryable |
 | Level picker | Six rows, one per level, plus START and back, under the sub "pick a level" *(the orphaned mode name SKILL is gone from the screen)*. It appears from a device's **second run**: a fresh device goes from the swipe chooser straight to level 1's card, because "start where?" is not a question a player with zero runs can answer — and one run, however short, opens it, so the picker's testing purpose survives. From then on **every level is selectable**, including ones never reached — the screen exists so a level can be tested without playing to it. Rows the device has actually reached are marked *reached*, so picked and earned stay visibly different. Level 1 for a returning player starts instantly; every other pick goes through that level's own intro card first. Arrow keys move the selection, Enter starts. | the rows name the level and its title; *reached* marks the honest ones |
 | POWERUP TESTING bar (title screen) | A wide bar **below the how-to key rows** — it sat in the dead mode-card slot above them for a while, which made the door to a debug sandbox the second thing a first-time visitor read — and a **door rather than a card**: tapping it opens the powerup picker instead of selecting anything. Deliberately not a third mode — `MODES` is the difficulty table and the lab pins the difficulty rather than scaling it. A fresh device is asked the swipe rule on the way through, once, exactly as the run route is. | the bar draws the orb currently armed, so it says what is behind it with the object |
-| Powerup picker (the lab) | Eight rows — all seven orbs plus the black hole — with a *red cannot touch you* toggle, START and back. Folds to two columns when the box is too short for eight rows — measured, not guessed; a landscape phone gets two columns and a portrait one gets eight rows. Arrow keys move the selection, **G** flips the ghost, Enter starts, Escape goes back. | each row carries the orb itself, drawn by the same `drawPow` the arena uses, and the sentence that channel already uses for it |
+| Powerup picker (the lab) | Ten choices: nine ordinary orbs plus the black hole, with a red-cannot-touch-you toggle, START, and back. Rows fold into two columns when available height requires it. Arrow keys select, G toggles the ghost, Enter starts, Escape returns. | Each choice uses the arena's `drawPow` icon and a short explanation. |
 
 ## One mode, and the table kept for the next one
 
@@ -407,14 +437,14 @@ Two things about that pair are easy to get wrong and were:
 
 A sandbox for looking at one orb, reached from the bar under the title
 screen's key rows. It teaches nothing, gates nothing and changes nothing
-about the game it sits in front of — it exists because seven of the eight
-orbs are behind a curriculum ladder and the eighth is rare on purpose, so
+about the game it sits in front of — it exists because the ten choices
+arrive at different stages of a run and the black hole is rare on purpose, so
 finding out what one feels like used to mean playing until the game offered
 it.
 
 | Piece | How it works |
 |---|---|
-| The orb | Whichever of the eight is picked, and only that one. `spawnPow()` short-circuits its entire ladder — the intro trio, the level gates, the pity shield, the four guarantees and the black hole's 5% die are all rules about *when* the game is willing to show you something, which is the obstacle the lab exists to remove. |
+| The orb | Whichever of the ten is picked, and only that one. `spawnPow()` bypasses the intro trio, level floors, guarantees, shield pity, and black-hole rarity. |
 | How often | One orb on the board at a time (the real game never has two), refilled about 3 seconds after one is taken instead of 10–15. Measured: 7–10 placements per 45 seconds for a plain orb, and 4 full black holes — against three `blackhole_entered` events in the game's entire recorded history. |
 | The board | `dl()` returns `LAB_DL` (40) and never moves. That is exactly `TIERS[3].at`, the lowest clock value that gives the arena all three orbits — the black hole opens a *fourth* on entry, so a one-ring lab would have demonstrated that against nothing. Everything else follows from the pinned clock: shard cap 4, arrival gap 2.4s, speed 1.62 of a 4.2 ceiling, a 2.35s telegraph. Level 1's finish line is dl 90, so nothing ever finishes and no tier ever arrives mid-session. |
 | The ghost | *red cannot touch you*, on by default, flipped on the picker or with **G**. Read at the single lethal-contact site, ahead of the hypernova and shield branches: no shield is spent, no pip moves, no popup, no i-frame. The shard stays on the board and keeps travelling, so watching one pass through you is how you can tell it is on. Turn it off and the lab is the real game with one orb in it. |
@@ -455,10 +485,10 @@ whether the lab must be kept out of it.
 
 | System | How it works | Explained by |
 |---|---|---|
-| Score-bought band layers | Four permanent layers join at 600 / 1,400 / 2,400 / 3,600 points. | gold "NEW LAYER" lines, band-meter dots |
-| Band meter | Dot row under the level readout — one dot per layer currently in the record; the newest pulses; the loop shows as a cyan member. | gold "NEW LAYER" lines, one-time "THE BAND — score adds layers" caption *(new)* |
+| Score-bought band layers | Four permanent layers join at 600 / 1,400 / 2,400 / 3,600 points. | gold "NEW MUSIC" lines, band-meter dots |
+| Band meter | Dot row under the level readout — one dot per layer currently in the record; the newest pulses; the loop shows as a cyan member. | gold "NEW MUSIC" lines, one-time "THE BAND — score adds layers" caption *(new)* |
 | New sounds | The star's instrument steps up at the THIRD RING, BLINKERS and THE EYE rungs (`T_VOICE`, derived from the table rather than hardcoded ordinals). The announcement fires **once per voice per visit** — `SND_SEEN` is keyed by voice ordinal, so TWIN SYNTHS and SYNTH LEAD no longer announce twice and ELECTRIC GUITAR now announces at all — waits for its level banner to clear, and defers during a black hole. | "NEW SOUND" announcement, death-screen "next sound" hook |
-| Difficulty clock | Difficulty is a clock; good play nudges it forward a little (capped). Speed, caps and spawn rate never change *what* a level teaches. **The clock now has a second ramp.** Every pressure term used to reach its floor or ceiling by dl 420 — eighty seconds into a level that never ends — so a player surviving five minutes on EVENT HORIZON was playing the board they met at eighty seconds, only faster: warn 1.00 flat, gap 0.80 flat, embers flat, shields flat, tier flat, sky flat, with speed and one cap step the whole of it. **Re-anchored when the game grew to six levels**, because the old anchors — written when everything past dl 340 was the endless exam — landed most of the telegraph decay inside REDSHIFT, a teaching level. Warn now holds 1.00 through dl 610 (`LV[LEVEL_MAX-2].end`, HEAT DEATH's floor) and eases to 0.86 by ~dl 790, so the decay lives inside the exam; the spawn gap's floor decays 0.80 → 0.50 from dl 340 (level 4's own floor) onward; and the cap steps 9 → 10 → 11 at dl 445 and 575 — nudged off the DIVERS (dl 395) and NARROWS (dl 520) lesson windows — then 12 at dl 650, stepping on to 15 past dl 1080. Nothing before the dl 340 boundary moves (the floor's crossover with the opening ramp is dl ~362), so a run ending where most runs end sees none of it. | (internal — documented here) |
+| Difficulty clock | Difficulty advances with time plus a capped nudge from good play. Current tuning holds the warning floor at 1.00 through dl 610, then eases to 0.86 by about dl 790. The spawn-gap floor decays from 0.80 to 0.50 after dl 340. Caps step at dl 445 and 575, away from the DIVERS and NARROWS lessons, then continue beyond dl 650. Later levels may extend these tuning anchors. | internal tuning |
 | Level record | The deepest level a device has ever reached (`cometloop:gl`; still keyed by mode, and skill's key is the unsuffixed one). It moves at death, beside the high score, so the announcement fires exactly once and a retry of the same level stays quiet — and only for a run that began at level 1, so a level picked from the front screen can never move it *(new)*. | death screen: **FURTHEST YET** in place of NEW BEST, otherwise "BEST · LEVEL n · score"; the death-screen pip row, one pip per level |
 
 ## The sky *(new)*
@@ -515,8 +545,8 @@ changed.
 - **The insist rule** — while an unlocked shape's lesson has not landed,
   it is the next spawn until `firstMeet` finds calm; unseen orbs re-place
   on expiry, and using an orb counts as its introduction. Enforced by
-  `tools/curriculum.mjs`, which fails the build if the exam level — the
-  last level, whichever one that is — opens with anything untaught.
+   `tools/curriculum.mjs`, which drives the current frontier, requires the
+   new rewards by their home levels, and checks reachable first-contact lessons.
 - **Telemetry** — `run_ended` carries `did_hop`/`death_cause`/`misread_rate`;
   `lesson_shown` and `card_shown` events, plus `killer_lesson_seen` /
   `killer_relessoned` / `lessons_shown` on `run_ended`, measure whether

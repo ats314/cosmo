@@ -1,13 +1,8 @@
 /* @lane full */
-/* The curriculum rule, executed: every mechanic is introduced and explained
-   before the exam level — which is read off the table (EXAM = LV.length,
-   level 6 today), never written down here. Teaching runs through level 5:
-   DIVERS lands in level 4, THE NARROWS in level 5, and the exam opens with
-   every formation lessoned, every orb placed and the tier ladder complete.
-   This drives the real game headlessly (same scaffold as smoke.mjs) with an
-   invulnerable, periodically-hopping player, taps through the level cards
-   and the upgrade draft, and fails the build if the exam opens with anything
-   left untaught — or if a tier banner fires inside it. */
+/* Drive the current content through its frontier with an invulnerable player.
+   Every available formation and reward must be encountered and explained.
+   The latest level may introduce new content; adding later levels must not
+   require satisfying an artificial rule that the final level teaches nothing. */
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { seededMath, seedLine } from './lib/rng.mjs';
@@ -177,7 +172,8 @@ pid = passMenu(pid);                              // title screen -> swipe choos
 pid = passSwipeChooser(st, frame, fire, pev, pid);
 pid = passPowerSelect(pid);                       // never on this route — see the note
 pid = passLevelSelect(pid);                       // ...-> level picker -> level 1
-if (st('G.state') !== 'lvend') fail.push('fresh device skipped the level-1 card');
+if (!st('G.intro')) fail.push('fresh device skipped the playable introduction');
+else st('finishIntro()'); // Intro actions are driven in smoke; this probe owns the later curriculum.
 /* THE CURRICULUM IS RUN IN SKILL, DELIBERATELY. Chill scales the difficulty
    clock and nothing else, so every tier and every orb arrives at the same dl
    and in the same order — the run below would prove the identical thing 40%
@@ -188,17 +184,13 @@ tap(pid++);                                       // card -> level 1
 
 const levelAt = { 1: 0 };
 let guard = 0, placedByEndL2 = null, placedByEndL3 = null;
-/* THE EXAM IS THE LAST LEVEL, WHICHEVER ONE THAT IS. This was `< 4` when four
-   was all there was; teaching now runs through level 5 (DIVERS in level 4, THE
-   NARROWS in level 5) and level 6 is the exam. Read off LV so the next level
-   added moves the criterion with it instead of leaving this harness quietly
-   grading the wrong boundary — which is exactly what a hardcoded 4 did to
-   check.mjs the day levels 5 and 6 landed. */
-const EXAM = st('LV.length');
-while (st('G.level') < EXAM || st('age()') < 30) {
-  if (++guard > 260000) { fail.push(`never reached level ${EXAM} + 30s in the sim budget`); break; }
+/* Give the newest rewards enough space to follow the shield pity placements
+   and any optional black-hole event during the first ninety seconds. */
+const FRONTIER = st('LV.length');
+while (st('G.level') < FRONTIER || st('age()') < 90) {
+  if (++guard > 260000) { fail.push(`never reached level ${FRONTIER} + 90s in the sim budget`); break; }
   frame(16.7);
-  if (guard % 30 === 0) st('G.invuln=1e12');      // an immortal playtester
+  if (guard % 30 === 0) st('G.invuln=1e12;G.shields=shieldMax()'); // includes escape failures
   if (guard % 300 === 0 && st("G.state==='playing'") && st('G.nRings') > 1) {
     hopFlip = !hopFlip;                           // a player who uses both verbs
     fire('win:keydown', { code: hopFlip ? 'ArrowDown' : 'ArrowUp', preventDefault() {} });
@@ -226,10 +218,10 @@ while (st('G.level') < EXAM || st('age()') < 30) {
        it had started passing on a one-in-eight pool roll, which is the shape
        of assertion that goes green for the wrong reason. */
     if (lv === 3 && st('G.lvCard.done') && !placedByEndL2) {
-      placedByEndL2 = { hyper: st('G.hyperPlaced') };
+      placedByEndL2 = { hyper: st('G.hyperPlaced'), slip: st('G.slipPlaced') };
     }
     if (lv === 4 && st('G.lvCard.done') && !placedByEndL3) {
-      placedByEndL3 = { spot: st('G.spotPlaced') };
+      placedByEndL3 = { spot: st('G.spotPlaced'), trail: st('G.trailPlaced') };
     }
     tap(pid++);
     if (lv && !(lv in levelAt)) levelAt[lv] = guard;
@@ -237,31 +229,26 @@ while (st('G.level') < EXAM || st('age()') < 30) {
   if (st("G.state==='dead'")) { fail.push('the invulnerable player died'); break; }
 }
 
-/* the acceptance criterion: the exam level opens with nothing left to teach —
-   every formation AND every musical orb has had its lesson. DIVERS and THE
-   NARROWS join the list because they are formations like any other; a new
-   shape that is not added here is a shape the harness will happily let ship
-   untaught, which is the one thing this file exists to prevent. */
+/* All current content has a reachable lesson, including frontier rewards. */
 const TAUGHT = ['single', 'twin', 'gate', 'drift', 'blink', 'driftgate', 'saucer',
-  'blinktwin', 'dive', 'funnel', 'spot', 'hyper', 'mirror', 'scorch'];
-const seenAtExam = st('Object.keys(G.seen).join(",")');
+  'blinktwin', 'dive', 'funnel', 'spot', 'hyper', 'mirror', 'scorch', 'slip', 'trail'];
+const seenAtFrontier = st('Object.keys(G.seen).join(",")');
 for (const f of TAUGHT) {
-  if (!st(`G.seen['${f}']||G.seen2['${f}']`)) fail.push(`level ${EXAM} started without the ${f} lesson (seen: ${seenAtExam})`);
+  if (!st(`G.seen['${f}']||G.seen2['${f}']`)) fail.push(`level ${FRONTIER} + 90s missed the ${f} lesson (seen: ${seenAtFrontier})`);
 }
 if (!placedByEndL2) fail.push('level 2 completion card never observed');
 else if (!placedByEndL2.hyper) fail.push('level 2 ended without the hypernova ever placed');
+else if (!placedByEndL2.slip) fail.push('level 2 ended without slipstream ever placed');
 if (!placedByEndL3) fail.push('level 3 completion card never observed');
 else if (!placedByEndL3.spot) fail.push('level 3 ended without the spotlight ever placed');
-/* Read off TIERS rather than written down: this line was a hardcoded 9, which
-   meant ADDING A TIER ANYWHERE failed the build with a message about the wrong
-   thing. The assertion that matters is that the exam level opens on the LAST rung —
-   that every unlock has already happened — not that the ladder is ten long. */
-const lastTier = st('TIERS.length') - 1;
-if (st('G.tier') !== lastTier) fail.push(`level ${EXAM} did not open on the last tier (${lastTier}), tier=` + st('G.tier'));
-if (st('G.level') !== EXAM) fail.push(`run is not on level ${EXAM}, level=` + st('G.level'));
+else if (!placedByEndL3.trail) fail.push('level 3 ended without star trail ever placed');
+const reachedTier = st('TIERS.reduce((n,t,i)=>t.at<=dl()?i:n,0)');
+if (st('G.tier') !== reachedTier) fail.push(`the tier ladder did not reach its current unlock (${reachedTier})`);
+if (st('G.level') !== FRONTIER) fail.push(`run is not on level ${FRONTIER}, level=` + st('G.level'));
+if (!st('G.slipPlaced&&G.trailPlaced')) fail.push('the run did not offer both new rewards');
 
-/* banners arrive in ladder order, none of them during level 4 */
-const order = banners.filter(([, b]) => b !== 'THE FINALE').map(([, b]) => b);
+/* Banners arrive in ladder order wherever their unlock is scheduled. */
+const order = banners.filter(([, b]) => b !== 'COLLECT THE STARS').map(([, b]) => b);
 const ladder = ['SECOND RING', 'TWIN SHARDS', 'THIRD RING', 'GATES', 'DRIFTERS',
   'BLINKERS', 'SLIDING GATES', 'THE SAUCER', 'FLICKER PAIRS', 'DIVERS', 'THE NARROWS'];
 const posOf = n => order.indexOf(n);
@@ -269,9 +256,6 @@ for (let i = 1; i < ladder.length; i++) {
   if (posOf(ladder[i]) >= 0 && posOf(ladder[i - 1]) >= 0 && posOf(ladder[i]) < posOf(ladder[i - 1])) {
     fail.push(`banner order broken: ${ladder[i]} before ${ladder[i - 1]}`);
   }
-}
-for (const [lv, b] of banners) {
-  if (lv >= EXAM && ladder.includes(b)) fail.push(`tier banner "${b}" fired inside level ${EXAM} — the exam introduced something`);
 }
 
 /* THE CURRICULUM IS THE SAME CURRICULUM IN CHILL, and the run above only
@@ -309,5 +293,5 @@ if (fail.length) {
   for (const f of fail) console.error('FAIL ', f);
   process.exit(1);
 }
-console.log(`OK  the curriculum holds: every formation lessoned and every orb placed by level ${EXAM}`);
+console.log(`OK  current curriculum reached and explained through level ${FRONTIER}, including slipstream and star trail`);
 console.log('    banners:', banners.map(([lv, b]) => `L${lv}:${b}`).join(' · '));

@@ -6,8 +6,10 @@ Part of the [Cosmo design record](../../README.md#where-everything-is).
 
 ---
 
-The run is **six levels**, each with an intro card and its own song. The
-first five have finish lines; the sixth does not:
+There are **six implemented levels**, each with an intro card and its own song.
+The first five have finish lines. Level 6 is the current content frontier; its
+missing finish line is temporary. Many further levels are intended. New content
+may be taught on any level. See [current direction](direction.md).
 
 | Level | Name | Introduces | Key | Verse · Chorus | Groove |
 |---|---|---|---|---|---|
@@ -16,20 +18,24 @@ first five have finish lines; the sixth does not:
 | 3 | THE STORM | the two compounds — sliding gates, flicker pairs — plus THE SAUCER and the spotlight, then a finish line | F minor | i–♭III–v–♭VI · i–i–♭III–♭VII | rolling four-on-the-floor |
 | 4 | EVENT HORIZON | DIVERS and THE MIRROR, with the black hole's one guaranteed offer — and a finish line, which it did not have when it was last | E♭ minor | i–♭VI–♭VII–i · iv–i–♭III–v, both over a tonic pedal | octave bass, open offbeat hat |
 | 5 | REDSHIFT | THE NARROWS and scorch, everything running away and stretching as it goes | D♭ minor | i–iv–♭VII–♭III · ♭VI–♭III–♭VII–i | the 3+3+2 push, in the bass and the hats |
-| 6 | HEAT DEATH | **no new formations** — everything at once, speed climbing toward the 4.2 rad/s ceiling. Endless. | B minor | i–iv–v–♭VI · ♭III–♭VII–iv–i | continuous sixteenths, the floor on 2 and 6 |
+| 6 | HEAT DEATH | the current content frontier, combining the available mechanics as speed rises | B minor | i–iv–v–♭VI · ♭III–♭VII–iv–i | continuous sixteenths, the floor on 2 and 6 |
 
-### BLACK HOLE MODE
+### Black hole challenge
 
-BLACK HOLE MODE is neither a level nor a power-up: a rare dark orb you may
-take or decline, and 17 seconds of somewhere else if you take it. It is
-guaranteed to be **offered** once on level 4 — a guarantee to offer, not to
-run, which is the only kind an optional thing can carry — and an ordinary 5%
-roll runs on every level from 3 on, so EVENT HORIZON owns the introduction
-and the mode stays rare everywhere else. The band stops, a preset piece plays, you stop being an
-instrument, everything runs at 0.42×, the reds run 1.5× to 3.5× — and a fourth
-orbit opens while all four re-space. See `MECHANICS.md` for the geometry and the
-measurements; the short version is that the fourth ring works because the
-orbits move, not because the gaps shrank, and because the arena is an ellipse.
+The rare optional orb opens a fourth ring. Inner-ring dwell banks up to 600
+points over eight seconds. At twelve seconds gravity releases; settle on the
+outer ring before seventeen seconds to cash out the bank, 80 base points and
+20 per collected star, discounted by shields spent. Missing the exit loses
+the bank and one shield, or the run when no shield remains. Gravity signals
+before pulling inward every four seconds; escape has no pulls or fresh spawns.
+The simulation runs at 0.60 speed and pressure rises from 1.25 to 2.0 times
+the normal rate. Other powerups pause. Earned drops wait for the return.
+
+## Historical playtest and design record
+
+The following records previous implementations and useful player feedback.
+Descriptions of an endless exam or the old background and black hole are
+historical, superseded by [the current direction](direction.md).
 
 ### What the black hole shipped as, and what was missing
 

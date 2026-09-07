@@ -309,6 +309,7 @@ function passLevelSelect(pid) {
 phase = 'menu';
 for (let i = 0; i < 240; i++) frame(16.7);
 let pid = passMenu(300);
+if (st('G.intro')) st('finishIntro()');
 pid = passSwipeChooser(pid);
 pid = passPowerSelect(pid);
 pid = passLevelSelect(pid);

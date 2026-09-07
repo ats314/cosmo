@@ -55,7 +55,8 @@ const param = (v = 0, onWrite = null) => {
 };
 const node = (kind, extra = {}) => ({
   __kind: kind,
-  connect() {}, disconnect() {},
+  __to: [],
+  connect(target) { this.__to.push(target); }, disconnect() { this.__to.length = 0; },
   ...extra,
 });
 function stubCtx() {
@@ -753,15 +754,16 @@ console.log('--- the chain is a timing detector, not a mash detector ---');
      random-walks across the whole grid. mash B: scattered taps around an
      off-grid lattice. 300 judged taps each. */
   let peakA = 0;
+  const mashMath = seededMath();
   for (let i = 0; i < 300; i++) {
-    AUDIO_T += 0.100 + Math.random() * 0.09;
+    AUDIO_T += 0.100 + mashMath.random() * 0.09;
     vm.runInContext('musicTick(); judgeTiming(0, 0);', ctx);
     peakA = Math.max(peakA, $('G').groove);
   }
   vm.runInContext('G.groove = 0; PLAY.bias = 0; PLAY.biasN = 0;', ctx);
   let peakB = 0, base = AUDIO_T;
   for (let i = 0; i < 300; i++) {
-    AUDIO_T = base + i * 0.131 + Math.random() * 0.05;
+    AUDIO_T = base + i * 0.131 + mashMath.random() * 0.05;
     vm.runInContext('musicTick(); judgeTiming(0, 0);', ctx);
     peakB = Math.max(peakB, $('G').groove);
   }
@@ -807,7 +809,7 @@ console.log('--- the chorus is named and counted when it arrives ---');
   tick(3, 74 / ($('SPB') / 2) | 0);
   if ($('MU').sect !== 1) fail('naming test never reached the chorus');
   const g = $('G');
-  if (!g.saidChor || !$('ANN').some(a => /chorus/i.test(a.str)))
+  if (!g.saidChor || !$('ANN').some(a => a.str === 'MUSIC BUILDS'))
     fail('the chorus arrived unnamed — the say line is not firing');
   else ok('the first chorus of a run names itself');
   if (g.chorusN < 1) fail('chorus_entries did not count the entry');
@@ -876,8 +878,11 @@ console.log('--- level 4 has parts of its own ---');
    Its bass alternates root and octave on the eighths, so across a bar it must
    sound BOTH ch[0] and ch[1] as bass fundamentals; level 3's roll does not. */
 {
-  const osc4 = heard[4].osc, osc3 = heard[3].osc;
-  const noise4 = heard[4].noise;
+  /* The full kit belongs to engaged play. Heat 0.48 opens it without earning
+     the chorus (0.50), so this still checks the world's own verse parts. */
+  const driving4 = runLevel(4, 36, 0.48);
+  const osc4 = driving4.osc, osc3 = heard[3].osc;
+  const noise4 = driving4.noise;
   const root = PROG[3][0][0], oct = PROG[3][0][1];
   const near = (list, f) => list.filter(o => Math.abs(o.f - f) < 0.02).length;
   const r4 = near(osc4, root), o4 = near(osc4, oct);
@@ -1121,11 +1126,8 @@ for (const L of LEVELS) {
   startLevel(L);
   tick(L, 4);
   const before = LOG.osc.length;
-  /* BH.t is pinned at 0 for the pitch assertions: the sub drone's redshift is a
-     deliberate glide of up to a minor third (`fall`), so sampling mid-mode
-     would flag the one detune the design is built on. The glide's shape is the
-     mode's own business; what has to hold at every instant is that the piece
-     STARTS from the level's scale. */
+  /* Pin the opening for this full-scheduler probe. The three-act checks below
+     exercise the whole time range, including the lowest keys' sub floor. */
   vm.runInContext('startBlackHole();BH.phase=2;BH.t=0;BH.warp=1;BH.step=0;', ctx);
   const steps = Math.floor($('BH_DUR') / ($('SPB') / 2));
   for (let i = 0; i < steps; i++) {
@@ -1338,6 +1340,137 @@ console.log('\n--- the hypernova star run ---');
   }
   vm.runInContext('G.hyper = 0; bedTick(0.05);', ctx);
 }
+
+console.log('--- earned mix headroom, temporary colours, and the black-hole arc ---');
+{
+  /* Follow the actual graph, including the delay cycle. Raising the band must
+     leave the player's close voice and immediate cues outside that control. */
+  const reaches = (from, target, seen = new Set()) => {
+    if (from === target) return true;
+    if (!from || seen.has(from)) return false;
+    seen.add(from);
+    return from.__to.some(n => reaches(n, target, seen));
+  };
+  const bus = $('A');
+  if (!reaches(bus.bed, bus.band) || !reaches(bus.band, bus.lim)
+    || reaches(bus.perf, bus.band) || reaches(bus.world, bus.band))
+    fail('the earned band gain bypasses the bed or controls the player/cue buses');
+  else ok('earned band gain contains the accompaniment and excludes player/cue buses');
+
+  startLevel(NLV, 0); tick(NLV, 2);
+  vm.runInContext(`
+    BH.phase=0;BH.on=false;BH.charge=0;
+    G.groove=0;G.lapStreak=0;G.slow=0;G.spot=0;G.mirror=0;G.scorch=0;
+    MU.next=AC.currentTime+10;MU.pay=0;MU.rise=false;MU.armed=false;MU.pend=null;
+    BED.lp.frequency.value=1000;bedTick(0);
+  `, ctx);
+  const rest = bus.band.gain.value, clearCut = $('BED').lp.frequency.value;
+  vm.runInContext('G.groove=8;G.lapStreak=4;bedTick(0);', ctx);
+  const earned = bus.band.gain.value;
+  vm.runInContext('G.hyper=16;bedTick(0);', ctx);
+  const peak = bus.band.gain.value;
+  vm.runInContext('G.hyper=0;G.groove=0;G.lapStreak=0;G.slow=6;bedTick(0);', ctx);
+  const slip = bus.band.gain.value, slipCut = $('BED').lp.frequency.value;
+  vm.runInContext('G.slow=0;G.spot=8;bedTick(0);', ctx);
+  const spot = bus.band.gain.value;
+  vm.runInContext('G.spot=0;bedTick(0);', ctx);
+  if (Math.abs(rest-0.72)>0.001 || !(rest<earned && earned<peak) || Math.abs(peak-1)>0.001
+    || Math.abs(bus.band.gain.value-rest)>0.001 || bus.perf.gain.value!==1)
+    fail('rest, earned play, peak, or recovery has lost its band contrast');
+  else ok(`late-world band recovers through rest ${rest}, earned ${earned}, peak ${peak}`);
+  if (!(slipCut<clearCut && slipCut>=520) || slip!==rest || !(spot<rest))
+    fail('time slip must darken timbre; spotlight must foreground the player');
+  else ok('time slip darkens the air; spotlight leaves space for the player');
+  vm.runInContext('BH.phase=2;BH.on=true;BH.t=0;BH.charge=0;G.hyper=16;G.spot=8;bedTick(0);',ctx);
+  if(Math.abs(bus.band.gain.value-0.84)>0.001 || Math.abs($('BED').g.gain.value-0.01)>0.001)
+    fail('banked ordinary rewards changed the black-hole mix');
+  else ok('banked hypernova and spotlight leave the black-hole mix alone');
+  LOG.osc.length=0;
+  vm.runInContext('BH.phase=1;bhStep(AC.currentTime);BH.phase=3;bhStep(AC.currentTime);',ctx);
+  if(LOG.osc.length)fail('the challenge phrase restarted under an entry or exit cue');
+  else ok('entry and closing warps leave room for their result cues');
+  vm.runInContext('BH.phase=0;BH.on=false;G.hyper=0;G.spot=0;',ctx);
+
+  /* A player's captured phrase remains an earned passage even before x3.
+     The new calm branch must not skip either capture or its later answer. */
+  startLevel(1,0);
+  vm.runInContext(`endSection();G.groove=1;G.lapStreak=0;G.ringI=0;G.hopFromI=0;G.hopP=1;
+    LOOP.pat=null;LOOP.until=0;LOOPQ.length=0;
+    PLAY.tape=[{c:0,ci:0,at:0},{c:4,ci:1,at:0},{c:8,ci:2,at:0}];
+    musicStep(0,0,1);G.groove=0;PLAY.tape=[];musicStep(2,SPB,1);`,ctx);
+  if(!$('LOOP').pat || $('LOOPQ').length<2)
+    fail('the calm arrangement skipped the player\'s captured loop');
+  else ok('a captured player phrase opens its passage and answers after the chain cools');
+  vm.runInContext('LOOP.pat=null;LOOP.until=0;LOOPQ.length=0;PLAY.tape=[];',ctx);
+
+  /* Only the two scheduled accents may be added; expire the reward and their
+     events disappear. A star owns that space when both modes overlap. */
+  const colours = (mirror, scorch, hyper=0) => {
+    startLevel(2, 0);
+    vm.runInContext(`endSection();BH.phase=0;BH.on=false;G.mirror=${mirror};G.scorch=${scorch};
+      G.hyper=${hyper};G.lapStreak=0;G.groove=0;G.score=0;G.t=1;G.slow=0;G.spot=0;`, ctx);
+    LOG.osc.length=0;
+    for (let i=0;i<16;i++) {
+      AUDIO_T=i*$('SPB')/2;
+      vm.runInContext(`musicStep(${i},AC.currentTime,0);`,ctx);
+    }
+    return LOG.osc.length;
+  };
+  const cold=colours(0,0), mirror=colours(8,0), scorch=colours(0,8);
+  const both=colours(8,8), expired=colours(0,0);
+  const star=colours(0,0,16), stacked=colours(8,8,16);
+  if (mirror-cold!==2 || scorch-cold!==4 || both-cold!==6 || expired!==cold || stacked!==star)
+    fail(`temporary colours are missing or accumulating: ${cold}/${mirror}/${scorch}/${both}/${expired}, star ${star}/${stacked}`);
+  else ok('mirror and wake add six sparse voices across two bars, then leave; the star takes priority');
+}
+for (const L of LEVELS) {
+  /* At the same late-world difficulty, engagement must transform the actual
+     arrangement, then release it. Counting starts measures layering rather
+     than mistaking a smaller gain number for a new musical passage. */
+  const passage = heat => {
+    startLevel(L,heat);
+    vm.runInContext('BH.phase=0;BH.on=false;G.lapStreak=0;G.mirror=0;G.scorch=0;G.slow=0;G.spot=0;G.ringI=0;G.hopFromI=0;G.hopP=1;',ctx);
+    tick(L,32);
+    return { n:LOG.osc.length+LOG.buf.length, roots:padRoots(LOG.pad) };
+  };
+  const calm=passage(0), build=passage(0.48), released=passage(0);
+  if(!(build.n>calm.n*1.5) || released.n!==calm.n || !calm.roots.length
+    || calm.roots.some((f,i)=>Math.abs(f-build.roots[i])>0.02))
+    fail(`level ${L}: calm/build/release must change texture while preserving the world's chord walk (${calm.n}/${build.n}/${released.n})`);
+  else ok(`level ${L}: calm/build/release ${calm.n}/${build.n}/${released.n} scheduled events; harmony unchanged`);
+  const probe = (q, charge=0) => {
+    startLevel(L,0);
+    vm.runInContext(`BH.phase=2;BH.on=true;BH.step=0;BH.t=BH_DUR*${q};BH.charge=${charge};
+      G.hyper=0;G.mirror=0;G.scorch=0;BEATQ.length=0;`,ctx);
+    LOG.osc.length=0;
+    for(let i=0;i<64;i++){
+      AUDIO_T=i*$('SPB')/2;
+      vm.runInContext('bhStep(AC.currentTime);',ctx);
+    }
+    return { voices:LOG.osc.slice(), pulses:$('BEATQ').slice(), root:$('CH')[0][0] };
+  };
+  const acts=[probe(0.1),probe(0.5),probe(0.9)];
+  const kickCounts=acts.map(a=>a.voices.filter(v=>Math.abs(v.f-48)<0.01).length);
+  let bad=false;
+  for(const a of acts){
+    const kicks=a.voices.filter(v=>Math.abs(v.f-48)<0.01);
+    if(new Set(kicks.map(v=>v.t)).size!==kicks.length
+      || a.pulses.length!==kicks.length || a.pulses.some((t,i)=>t!==kicks[i].t))bad=true;
+    for(const v of a.voices){
+      if(v.f<40)bad=true;
+      if(Math.abs(v.f-48)<0.01)continue;
+      const semis=12*Math.log2(v.f/a.root),nearest=Math.round(semis);
+      if(Math.abs(semis-nearest)>0.02 || !MINOR.has((nearest%12+12)%12))bad=true;
+    }
+    if(!a.voices.some(v=>v.f>=500))bad=true;
+  }
+  const charged=probe(0.5,0.9);
+  if(!(kickCounts[0]<kickCounts[1] && kickCounts[1]<kickCounts[2])
+    || charged.voices.length<=acts[1].voices.length)bad=true;
+  if(bad)fail(`level ${L}: black-hole arc broke pitch/floor, charge, or shared heartbeat contracts`);
+  else ok(`level ${L}: three acts pulse ${kickCounts.join('/')} times, charge adds harmony, pitches stay above 40Hz and in key`);
+}
+vm.runInContext('BH.phase=0;BH.on=false;BH.charge=0;G.hyper=0;',ctx);
 
 if (LOG.errors.length) LOG.errors.forEach(e => fail(e));
 

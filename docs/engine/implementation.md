@@ -10,6 +10,22 @@ Everything is two `<canvas>` elements — `#bg` for the WebGL backdrop, `#c` for
 the 2D game — driven by one inline `<script>` of about 12,000 lines of plain
 JavaScript. No build step, no dependencies, no external assets.
 
+## Current presentation
+
+See [Awe, motion, release](../design/direction.md). The WebGL sky now evaluates
+one authored swept cloud volume with sparse stable stars. The canvas fallback
+uses the same field parameters. A single scene event controls temporary light;
+the old random event, fog, grid, spin and wash stack is retired. Fine orbital
+paths and a short tapered comet trail establish contrast. Powerup durations
+share the HUD; the black hole has one central silhouette and charge/escape
+instrument. All gameplay coordinates still use the live elliptical arena.
+
+## Historical implementation record
+
+The following preserves prior measurements, playtest findings and engineering
+lessons. Descriptions of retired background layers and their old tuning are
+historical; the current renderer and direction above take precedence.
+
 ### Sprites are baked once
 
 `shadowBlur` and radial gradients are expensive

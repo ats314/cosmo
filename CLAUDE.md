@@ -3,6 +3,11 @@
 Operating context for Claude Code sessions in this repository. Read this before
 reviewing, changing, or reporting on anything here.
 
+**Current creative direction: [Awe, motion, release](docs/design/direction.md).**
+The owner has retired the endless-exam rule and wants major coherent changes.
+Design prescriptions below are revisable; player findings and technical
+regression contracts are evidence, not limits on new content.
+
 **This file is the router, not the whole map.** It holds what is true for every
 session: what this product is, what you may not do to it, and how you ship. The
 long-form material lives in `docs/` and is indexed below by *what you would have
@@ -119,11 +124,11 @@ repository or documentation work and `docs/review.md` is the relevant file.
 
 | If you are touching… | Read this group in `invariants.md` | And this for the reasoning | Because |
 |---|---|---|---|
-| a formation, an orb, a level boundary, a lesson, or any sentence shown to a player | **Curriculum, teaching and the ledger** | [`design/teaching.md`](docs/design/teaching.md), [`design/levels.md`](docs/design/levels.md) | The curriculum rule splits by KIND — formations complete by level 5 (dl 520), orbs spread across levels 1–5, level 6 is the exam — and three harnesses enforce the half you are most likely to breach. A lesson may only name verbs the game actually has. |
+| a formation, an orb, a level boundary, a lesson, or any sentence shown to a player | **Curriculum, teaching and the ledger** | [`design/teaching.md`](docs/design/teaching.md), [`design/levels.md`](docs/design/levels.md) | Content expands beyond the six currently authored levels. Tests enforce honest teaching, ordered thresholds and valid geometry, not a final exam boundary. A lesson may only name verbs the game actually has. |
 | `MODES`, the level select, a stored record, or anything reachable from POWERUP TESTING | **Modes, records and the powerup lab** | [`design/difficulty.md`](docs/design/difficulty.md), [`design/powerups.md`](docs/design/powerups.md) | One mode ships and the table stays anyway; the unsuffixed storage keys are SKILL's; a lab session must be unable to *create* a key, and every guard behind that is one `!LAB.on` on an ordinary-looking line. |
 | pause, `G.t` / `G.vt`, ring indices, difficulty numbers, or a telemetry property | **Simulation, state and telemetry** | [`design/ladders.md`](docs/design/ladders.md), [`engine/telemetry.md`](docs/engine/telemetry.md) | Ring index 0 is the OUTERMOST orbit and has shipped inverted three times. Pause is a flag one line above `G.t+=dt`. Difficulty is measured per ring, never per board. |
 | `PROG`, `PROGB`, a voice, a kit, the pad, or any pitch | **Audio and the arrangement** | [`design/audio.md`](docs/design/audio.md) | Every pitch is an interval over the level's tonic — a bare frequency is wrong on five levels out of six. Silencing the scheduler does not silence the band. A moment that must be immediate cannot be a section. |
-| a draw pass, a shader, a uniform, the glow chain, the render scale | **Graphics, shaders and the sky** | [`engine/implementation.md`](docs/engine/implementation.md) | A screen-space warp's sign is the opposite of what it reads like; a halo's bound must be in pixels, not fractions; the sky can never go black and the set of skies is closed. Nothing here is caught by reading — measure it, and `drawcheck.mjs` is where a 2D draw belongs. |
+| a draw pass, a shader, a uniform, the glow chain, the render scale | **Graphics, shaders and the sky** | [`engine/implementation.md`](docs/engine/implementation.md) | A screen-space warp's sign is the opposite of what it reads like; a halo's bound must be in pixels, not fractions; the scene must remain readable and new worlds must compose cleanly. Nothing here is caught by reading — measure it, and `drawcheck.mjs` is where a 2D draw belongs. |
 | the deploy, the build stamp, the freshness check | **Delivery** | [`engine/delivery.md`](docs/engine/delivery.md) | The plain play URL is a contract: it must serve the newest build. |
 | an account, a synced record, the leaderboard, `window.storage`, anything under `netlify/` | — (no invariant group yet) | [`engine/cloud.md`](docs/engine/cloud.md) | The whole feature is optional in the same sense the sound is optional: signed out, offline or blocked, the game is exactly the game and localStorage is still the real store. Records merge SERVER-side and only ever climb, or a stale device erases a record somebody set. The account panel is the only DOM in a canvas game, which makes it the only code here that has to survive the stubbed DOM seven harnesses run on — it failed `musiccheck` the first time for exactly that. |
 

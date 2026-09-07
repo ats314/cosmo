@@ -7,9 +7,10 @@ Part of the [Cosmo design record](../../README.md#where-everything-is).
 ---
 
 ```
-voice ─┬─► dry ──────────────► world ─┐
-       └─► send ─► reverb ───────────►├─► limiter ─► makeup ─► soft clip ─► out
-bed ─────────────► bedDuck ───────────┘
+SFX -------------------------------> world ----+
+player ----------------------------> perf EQ --+--> limiter --> makeup --> soft clip --> out
+band/pad/delay -> bedDuck -> hole -> pump -> band gain --+
+reverb send -> convolution -> dark filters ------------+
 ```
 
 
@@ -27,6 +28,64 @@ the busiest moment in the game, so roughly 86% of the available headroom was
 going unused — that, and not clipping, was why it sounded thin on a phone.
 2.6 put a nova cascade three samples over full scale; 2.15 peaks at 0.93 on
 the loudest event with the limiter barely working.
+
+### Space for earned peaks
+
+Ordinary outer-ring flight uses a sparse arrangement: the world's chord walk
+and arp contour, a few separated bass notes in its rhythmic shape, one
+heartbeat per bar, and a long answering tone. Moving inward, building a
+groove of three, sustaining two clean orbits, or earning a chorus or major
+reward opens the fuller arrangement. Returning to calm removes layers again;
+late-world difficulty alone cannot keep every instrumental voice running.
+
+The accompaniment also has its own `A.band` gain after the scheduled hush
+and sidechain pump: **0.72** at rest, rising toward **0.90** with groove, orbit
+streak, and engagement. Hypernova, overdrive, a drop/rise, and a star dive
+open it to **1.0**. The player's close instrument and immediate cues bypass
+this control. Dark reverb trails behind the quieter band, preserving space
+while the musical grid and the world's own harmony keep running.
+
+`bedTick` sets this state gain with a short opening and a slower recovery;
+it does not modulate it periodically or create voices every frame. Spotlight
+lowers the band again to foreground the player's instrument. The drop's visual
+scene pulse is triggered with `fireDrop`; its downbeat impact still waits for
+the scheduled audio timestamp.
+
+Temporary powers have short, distinct colours. Mirror answers with a quiet
+left/right pair once every two bars. Scorch leaves one dry root/fifth flicker
+per bar. Both yield to hypernova's established ascending run, and the scheduler
+hands off entirely for a drop, black hole, or star dive. Time slip darkens
+the pad cutoff without changing key or slowing the musical clock.
+
+These gain targets and arrangement changes are checked as control values,
+routing, and scheduled events in `musiccheck`; they are not new measured
+loudness figures. Historical master measurements below describe the builds
+in which they were taken.
+
+### The black hole has three acts
+
+The mode replaces the ordinary arrangement with a half-time piece on the
+same 104 BPM scheduling grid. Its acts read the gameplay clock directly:
+
+- **Opening, first 35%:** a low tonic, the natural minor's degree-2/flat-6
+  tritone, one heartbeat per half-time bar, and a distant tuned beacon.
+- **Accretion, until `BH_ESCAPE` at 12 seconds:** the heartbeat doubles and
+  short dark noise grains add pressure. Inner-ring residency raises
+  `BH.charge` from 0 to 1; the beacon gains a fifth as that bank grows.
+- **Escape, the final 5 seconds of the 17-second limit:** four heartbeats per
+  half-time bar and a rising scale phrase announce the open route. This is
+  an unresolved question; only an actual successful escape plays the exit
+  resolution and receives the banked reward.
+
+Each heartbeat has one owner and one corresponding `BEATQ` timestamp, so
+the sky's pulse follows the audible strike. The old overlapping late kick
+branches and continuous sinking pitch are gone. Every pitched voice remains
+an interval in the level's minor key; `subF` preserves pitch class while
+raising any sub below 40 Hz by an octave. Sparse upper beacons preserve a
+recognisable voice on small speakers. The normal sustained pad stays near
+silence through the event; its louder exit recovery belongs to ordinary play.
+All six keys are checked across the three acts, including charge-dependent
+harmony, unique heartbeats, their visual timestamps, and the sub floor.
 
 ### How much of the run is the payoff, and why it is a quarter rather than a half
 
@@ -211,8 +270,8 @@ the music is busy is discarded; it counts toward the next.
 
 Each input is judged in three
 tiers. Tight against the **quarter — the beat the contracting ring draws —
-climbs** the **on-beat** chain toward ×8 (shown as "ON BEAT ×N" —
-playtesters had no idea what "groove" meant). Tight against the sixteenth
+climbs** a timing streak up to eight steps. The hit displays "ON TIME";
+reaching the maximum displays "GREAT TIMING". Tight against the sixteenth
 only — offbeats, fills, survival taps in the song's own subdivisions —
 **holds** the chain and still earns the section garnish; it just doesn't
 climb. Everything else **slips** one rung — never the chain, never points:
@@ -435,7 +494,7 @@ of stopping dead, which is most of what "groovy and relaxing" means in
 hardware terms. It sits BEFORE the drop's hole, so the silence swallows the
 echoes too and the discipline holds.
 
-### The whole record hits
+### Earlier production pass: the whole record hits
 
 The final playtest round was blunt: "the
 drop hits — literally nothing else does." Measured on the master bus with
@@ -443,7 +502,9 @@ an analyser, ordinary play peaked 4.7dB under the section, and the cause
 was structural: the kit only assembled as you dove inward, so the DEFAULT
 outer ring had no kick at all; the bass floor was a polite triangle; and
 the sidechain pump ran only inside the payoff. Three fixes, one idea —
-the drop's production values run all game:
+the drop's production values run all game. Those instruments remain in the
+driving arrangement; the sparse passage and state gain above restore space
+between their peaks:
 
 - **The heartbeat**: ring 0 carries one kick per bar from the start and a
   second at half band. Inner rings still stack their patterns on top —
@@ -543,9 +604,9 @@ five-second gap and counting what came out.
 
 The pad is four continuously running voices **retuned** per chord rather than
 restarted; restarting sustained oscillators every bar is what makes cheap game
-music click at the seams. Escalation is carried by filter movement, never by
-amplitude — a slow volume wobble on a sustained tone is the most fatiguing
-thing you can put under a fifteen-minute run.
+music click at the seams. Continuous escalation is carried by filter movement;
+the separate band gain changes with engagement and earned states. There
+is no periodic volume wobble on the sustained pad.
 
 Several cues were fixed rather than added. iPhone speakers roll off hard below
 ~500Hz, so the bump cue at 150→110Hz and the empty-shield cue at 140→100Hz

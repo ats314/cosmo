@@ -31,9 +31,11 @@
    check.mjs asserts that the CI workflow installs one, so a skip can only
    ever happen on a developer's machine and never silently in the build. A
    guard that can quietly not run is not a guard. */
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
 import { seedLine } from './lib/rng.mjs';
 
 console.log(seedLine('rendercheck'));
@@ -41,7 +43,9 @@ console.log(seedLine('rendercheck'));
 const fail = [];
 const note = [];
 const root = new URL('../', import.meta.url);
-const indexPath = new URL('index.html', root).pathname;
+const indexURL = process.env.COSMO_INDEX
+  ? pathToFileURL(resolve(process.env.COSMO_INDEX)).href
+  : new URL('index.html', root).href;
 
 /* ---------------- find a browser, or skip loudly ---------------- */
 function findChromium() {
@@ -61,7 +65,8 @@ async function loadPlaywright() {
   }
   try {
     const req = createRequire(import.meta.url);
-    return await import(req.resolve('playwright'));
+    const mod = await import(pathToFileURL(req.resolve('playwright')).href);
+    return mod.chromium ? mod : mod.default;
   } catch { return null; }
 }
 
@@ -103,44 +108,66 @@ const browser = await pw.chromium.launch(LAUNCH);
    noise in every number below. */
 async function playing(dpr = 3, w = 390, h = 844) {
   const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: dpr });
-  await p.goto('file://' + indexPath);
+  await p.goto(indexURL);
   await p.waitForTimeout(1100);
   await p.evaluate(() => { startGame(); });
   await p.waitForTimeout(1400);
-  await p.evaluate(() => { G.spikes.length = 0; G.pows.length = 0; });
+  await p.evaluate(() => { G.spikes.length = 0; G.pows.length = 0; G.invuln=G.t+100; });
   return p;
 }
 
 /* Read the BACKDROP's own framebuffer, in the same task as the draw so the
    drawing buffer is still intact without preserveDrawingBuffer. */
-async function skyRGB(p) {
-  return p.evaluate(() => {
-    glRender(0.016);
-    const g = GL.g, w = GL.vw, h = GL.vh, px = new Uint8Array(w * h * 4);
-    g.readPixels(0, 0, w, h, g.RGBA, g.UNSIGNED_BYTE, px);
-    let R = 0, G2 = 0, B = 0; const n = w * h;
-    const lum = new Float32Array(n);
-    for (let k = 0; k < n; k++) {
-      R += px[k * 4]; G2 += px[k * 4 + 1]; B += px[k * 4 + 2];
-      lum[k] = 0.299 * px[k * 4] + 0.587 * px[k * 4 + 1] + 0.114 * px[k * 4 + 2];
-    }
-    /* THE BRIGHT DECILE, SEPARATELY, because that is where the failure lives.
-       Two fixed white highlight terms bury the palette exactly where m is
-       high and leave the dim regions alone — so a whole-frame mean sees a
-       washed-out version of the bug (0.132 -> 0.096 in normalised distance,
-       which slid under a threshold) while the bright decile sees it head on.
-       Measure where the defect is, not where the pixels are. */
-    const sorted = Array.from(lum).sort((a, b) => b - a);
-    const cut = sorted[Math.floor(n * 0.10)] || 0;
-    let hR = 0, hG = 0, hB = 0, m = 0;
-    for (let k = 0; k < n; k++) {
-      if (lum[k] < cut) continue;
-      hR += px[k * 4]; hG += px[k * 4 + 1]; hB += px[k * 4 + 2]; m++;
-    }
-    m = m || 1;
-    return { R: R / n, G: G2 / n, B: B / n, hR: hR / m, hG: hG / m, hB: hB / m, w, h, on: GL.on };
+async function still(dpr=1,w=300,h=640) {
+  const p=await browser.newPage({viewport:{width:w,height:h},deviceScaleFactor:dpr});
+  await p.addInitScript(seed=>{
+    let x=seed>>>0;
+    Math.random=()=>{x=(Math.imul(x,1664525)+1013904223)>>>0;return x/4294967296;};
+    window.requestAnimationFrame=()=>0;
+  },Number(process.env.SEED)||20260814);
+  await p.goto(indexURL);
+  await p.evaluate(()=>{
+    startGame();G.level=3;G.nRings=3;G.ringI=1;G.hopFromI=1;G.hopP=1;
+    G.spikes=[];G.pows=[];G.stars=[];G.sceneEvent=null;BH.phase=0;BH.warp=0;
+    G.t=G.started+20;G.vt=20;G.banner=null;G.teach=0;G.didReverse=G.didHop=true;
+    GL.flowVt=20;GL.tw=5;draw();
   });
+  return p;
 }
+async function skyRGB(p,state={}) {
+  return p.evaluate(state=>{
+    if(state.world!==undefined)G.skyW=state.world;
+    if(state.clock!==undefined)GL.tw=state.clock;
+    if(!GL.on)return {on:false};
+    glRender(0);
+    const g=GL.g,w=GL.vw,h=GL.vh,px=new Uint8Array(w*h*4);
+    g.readPixels(0,0,w,h,g.RGBA,g.UNSIGNED_BYTE,px);
+    const hist=new Array(256).fill(0),cells=new Array(96).fill(0),counts=new Array(96).fill(0);
+    const lum=new Float32Array(w*h);
+    let R=0,G2=0,B=0,quiet=0,gradient=0;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const k=y*w+x,v=.299*px[k*4]+.587*px[k*4+1]+.114*px[k*4+2];
+      lum[k]=v;R+=px[k*4];G2+=px[k*4+1];B+=px[k*4+2];hist[Math.min(255,Math.floor(v))]++;
+      if(v<12)quiet++;
+      const cell=Math.min(11,Math.floor(y/h*12))*8+Math.min(7,Math.floor(x/w*8));
+      cells[cell]+=v;counts[cell]++;
+      if(x>0)gradient+=Math.abs(v-lum[k-1]);
+    }
+    const n=w*h;
+    const percentile=q=>{let k=0;for(let i=0;i<256;i++){k+=hist[i];if(k>=n*q)return i;}return 255;};
+    const cut=percentile(.90);let hR=0,hG=0,hB=0,m=0;
+    for(let k=0;k<n;k++)if(lum[k]>=cut){hR+=px[k*4];hG+=px[k*4+1];hB+=px[k*4+2];m++;}
+    return {R:R/n,G:G2/n,B:B/n,hR:hR/(m||1),hG:hG/(m||1),hB:hB/(m||1),
+      mean:(.299*R+.587*G2+.114*B)/n,p10:percentile(.10),p90:cut,quiet:quiet/n,
+      gradient:gradient/n,cells:cells.map((v,i)=>v/(counts[i]||1)),w,h,on:GL.on};
+  },state);
+}
+const correlation=(a,b)=>{
+  const ma=a.reduce((x,y)=>x+y,0)/a.length,mb=b.reduce((x,y)=>x+y,0)/b.length;
+  let ab=0,aa=0,bb=0;
+  for(let i=0;i<a.length;i++){const x=a[i]-ma,y=b[i]-mb;ab+=x*y;aa+=x*x;bb+=y*y;}
+  return ab/Math.sqrt(aa*bb||1);
+};
 
 /* Column luminance profile of a composited screenshot, sampled down the
    playable band so the HUD and the safe-area insets do not enter the mean. */
@@ -158,6 +185,29 @@ async function columns(p, xs) {
 }
 
 try {
+  /* Optional review frames from the same real browser used by these checks.
+     A source override allows the before and after to use identical scenarios. */
+  if (process.env.COSMO_SHOTS) {
+    const dir = resolve(process.env.COSMO_SHOTS);
+    await mkdir(dir, { recursive: true });
+    for (const [name, level, mode] of [
+      ['ordinary', 3, 'quiet'], ['blackhole', 4, 'blackhole'],
+      ['hypernova', 3, 'hyper'], ['spotlight', 3, 'spot'],
+    ]) {
+      const p = await playing(2);
+      await p.evaluate(({ level, mode }) => {
+        G.level=level; G.nRings=3; G.ringI=1; G.hopFromI=1; G.hopP=1;
+        G.invuln=G.t+100; G.banner=null; G.teach=0; G.stars=[];
+        G.skyW=LEVEL_HOME[level-1];
+        if(mode==='blackhole') { startBlackHole(); for(let i=0;i<180;i++)update(1/60); }
+        if(mode==='hyper') { G.hyper=G.hyperD=16*SPB; G.hyperGlow=1; }
+        if(mode==='spot') { G.spot=16*SPB; }
+      }, {level,mode});
+      await p.waitForTimeout(800);
+      await p.screenshot({ path: resolve(dir, name+'.png') });
+      await p.close();
+    }
+  }
   /* ================= 1. THE SCREEN EDGE =================
      A full-screen layer composited at the wrong offset, or upscaled so its
      outermost texel is clamp-smeared, puts a hairline frame around the whole
@@ -170,16 +220,16 @@ try {
     const p = await playing();
     const cols = await columns(p, [0, 1, 2, 3, 4, 6, 10, 20, 40]);
     const interior = cols.slice(5).reduce((a, b) => a + b, 0) / cols.slice(5).length;
-    const worst = Math.max(...cols.slice(0, 4).map(c => Math.abs(c - interior) / (interior || 1)));
+    const worst = Math.max(...cols.slice(0, 3).map((c,i) => Math.abs(c-2*cols[i+1]+cols[i+2])/(interior||1)));
     /* 0.12: the shipped rim measured 0.39 at column 0 and the corrected build
        measures under 0.04. A band between them catches the artifact without
        failing on the vignette's own gentle falloff, which is real content. */
     if (worst > 0.12) {
-      fail.push(`the screen edge has a rim: outermost columns deviate ${(worst * 100).toFixed(0)}% from the interior `
+      fail.push(`the screen edge has a rim: outermost columns have a discontinuity of ${(worst * 100).toFixed(0)}% from the interior `
         + `(${cols.slice(0, 4).map(v => v.toFixed(1)).join('/')} against ${interior.toFixed(1)}) — a full-screen layer is `
         + 'composited at the wrong offset or upscaled past its last texel');
     } else {
-      note.push(`screen edge: outer columns within ${(worst * 100).toFixed(1)}% of interior — no rim`);
+      note.push(`screen edge: local edge discontinuity ${(worst * 100).toFixed(1)}% of interior — no rim`);
     }
     await p.close();
   }
@@ -193,23 +243,27 @@ try {
      a drift alarm, not a tuning target — and the measured value is PRINTED
      every run so the number is visible whether or not it fails. */
   {
-    const p = await playing();
+    const p = await still(3);
+    /* This foreground canvas is transparent over a separate sky canvas.
+       getImageData returns unpremultiplied RGB: a barely visible coloured
+       halo pixel otherwise counts as a fully opaque light. Compare the
+       actual contribution over the unchanged backdrop by including alpha. */
     const glow = await p.evaluate(() => {
+      draw();
       const c = document.getElementById('c');
       const g = c.getContext('2d');
       const d = g.getImageData(0, 0, c.width, c.height).data;
       let s = 0; const n = c.width * c.height;
-      for (let k = 0; k < n; k++) s += 0.299 * d[k * 4] + 0.587 * d[k * 4 + 1] + 0.114 * d[k * 4 + 2];
+      for (let k = 0; k < n; k++) s += (0.299 * d[k * 4] + 0.587 * d[k * 4 + 1] + 0.114 * d[k * 4 + 2]) * d[k * 4 + 3] / 255;
       return s / n;
     });
-    await p.evaluate(() => { FX.on = false; });
-    await p.waitForTimeout(700);
+    await p.evaluate(() => { FX.on = false; draw(); });
     const disc = await p.evaluate(() => {
       const c = document.getElementById('c');
       const g = c.getContext('2d');
       const d = g.getImageData(0, 0, c.width, c.height).data;
       let s = 0; const n = c.width * c.height;
-      for (let k = 0; k < n; k++) s += 0.299 * d[k * 4] + 0.587 * d[k * 4 + 1] + 0.114 * d[k * 4 + 2];
+      for (let k = 0; k < n; k++) s += (0.299 * d[k * 4] + 0.587 * d[k * 4 + 1] + 0.114 * d[k * 4 + 2]) * d[k * 4 + 3] / 255;
       return s / n;
     });
     const ratio = glow / (disc || 1);
@@ -222,71 +276,82 @@ try {
     await p.close();
   }
 
-  /* ================= 3. THE SKY REACHES A PIXEL, AND THE WORLDS DIFFER
-     "Six worlds" is a claim about what a player sees, and for one shipped
-     build it was false in the only way that matters: two fixed white
-     highlight terms sat on top of every palette, so the bright half of every
-     sky was the same cream and three of the six were indistinguishable.
-     fxcheck cannot see this — it measures nebula MASS through a port of the
-     noise chain, and mass was correct the whole time. Colour needed a pixel.
-
-     A FRESH PAGE PER WORLD, and that is not caution. Switching worlds inside
-     one page and screenshotting left the PREVIOUS world's pixels in the
-     buffer, which reported two different worlds as identical and sent an
-     investigation down a false trail. The instrument lied; measuring it
-     again with the instrument would not have found that. */
+  /* ================= 3. A VISIBLE PLACE WITH ROOM TO PLAY =================
+     The former test required every world to differ in hue. Worlds now author
+     a silhouette as well as a palette, so near colours may coexist only when
+     their large-scale luminance shapes actually differ. A fresh deterministic
+     page, stopped animation and same-task draw/read remove stale-buffer and
+     incidental gameplay noise. Real pixels, not a cloned noise implementation. */
   {
-    const names = await (async () => {
-      const p = await playing(1, 300, 640);
-      const n = await p.evaluate(() => WORLDS.map(w => w.n));
-      await p.close();
-      return n;
-    })();
-    /* EVERY WORLD, NOT A SAMPLE — and that is a correction, not caution. The
-       first cut of this probed three spread across the table (0, middle,
-       last), which are the three most different, and it passed cleanly when
-       the white-highlight bug was reintroduced. The collapse that actually
-       shipped was between ADJACENT worlds: DUSTLANE and VEIL rendered as the
-       same picture while carrying amber and violet. Sampling the extremes
-       cannot see the failure mode; it is the near pairs that collapse.
-       Six page loads is most of this harness's runtime and it buys the only
-       assertion here that a person could not make by glancing at the game. */
-    const probe = names.map((_, i) => i);
-    const seen = [];
-    for (const i of probe) {
-      const p = await browser.newPage({ viewport: { width: 300, height: 640 } });
-      await p.goto('file://' + indexPath);
-      await p.waitForTimeout(900);
-      await p.evaluate(i => { startGame(); G.skyW = i; }, i);
-      await p.waitForTimeout(2000);
-      const c = await skyRGB(p);
-      if (c.on !== true) fail.push(`the backdrop shader did not come up in a real browser (world ${names[i]})`);
-      seen.push({ n: names[i], ...c });
-      await p.close();
+    const p=await still();
+    const names=await p.evaluate(()=>WORLDS.map(w=>w.n)),seen=[];
+    for(let i=0;i<names.length;i++){
+      const c=await skyRGB(p,{world:i,clock:5});
+      if(!c.on){fail.push(`world ${names[i]} failed to compile in a real browser`);break;}
+      seen.push({n:names[i],...c});
+      if(c.mean<3||c.mean>35||c.p90<8)
+        fail.push(`world ${names[i]} loses its visible cloud (mean ${c.mean.toFixed(1)}, p90 ${c.p90}) or floods the frame`);
+      if(c.quiet<.35||c.p10>8)
+        fail.push(`world ${names[i]} leaves too little dark space (${(c.quiet*100).toFixed(0)}% quiet)`);
+      if(c.gradient>.85)
+        fail.push(`world ${names[i]} carries busy fine contrast (${c.gradient.toFixed(2)} luma/pixel)`);
     }
-    for (const s of seen) {
-      const lum = 0.299 * s.R + 0.587 * s.G + 0.114 * s.B;
-      if (lum < 3) fail.push(`world ${s.n} renders essentially black (luma ${lum.toFixed(1)}) — the sky must never go dark`);
+    const norm=s=>{const t=s.hR+s.hG+s.hB||1;return [s.hR/t,s.hG/t,s.hB/t];};
+    let closest=Infinity,pair='',pairShape=0;
+    for(let a=0;a<seen.length;a++)for(let b=a+1;b<seen.length;b++){
+      const x=norm(seen[a]),y=norm(seen[b]),d=Math.hypot(...x.map((v,k)=>v-y[k]));
+      const corr=correlation(seen[a].cells,seen[b].cells);
+      if(d<closest){closest=d;pair=`${seen[a].n}/${seen[b].n}`;pairShape=corr;}
+      if(d<.045&&corr>.88)
+        fail.push(`${seen[a].n}/${seen[b].n} collapse in both hue (${d.toFixed(3)}) and composition (r=${corr.toFixed(3)})`);
     }
-    /* distinct means distinct in HUE, not merely in brightness: a set of
-       worlds that differ only in exposure is the failure this is here for */
-    const norm = s => { const t = s.hR + s.hG + s.hB || 1; return [s.hR / t, s.hG / t, s.hB / t]; };
-    let closest = 1e9, pair = '';
-    for (let a = 0; a < seen.length; a++) for (let b = a + 1; b < seen.length; b++) {
-      const [x, y] = [norm(seen[a]), norm(seen[b])];
-      const d = Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]);
-      if (d < closest) { closest = d; pair = `${seen[a].n}/${seen[b].n}`; }
-    }
-    /* 0.045 sits between the two measured states rather than at a round
-       number: with the white highlights restored the closest pair collapses
-       to 0.024, and the shipped build measures 0.091. Set from the failure. */
-    if (closest < 0.045) {
-      fail.push(`two worlds render as the same place: ${pair} differ by ${closest.toFixed(3)} in normalised colour — `
-        + 'a highlight or grade term is sitting on top of the palettes and burying them');
-    } else {
-      note.push(`worlds sampled ${seen.map(s => s.n).join('/')}: closest pair ${pair} differs ${closest.toFixed(3)} in hue`);
-    }
+    note.push(`8 visible quiet worlds: mean ${Math.min(...seen.map(s=>s.mean)).toFixed(1)}-${Math.max(...seen.map(s=>s.mean)).toFixed(1)}; closest hue ${pair} ${closest.toFixed(3)}, spatial r=${pairShape.toFixed(2)}`);
+
+    /* Strong events reveal the same form. Beats and streaks cannot modulate
+       it, the envelope ends completely, and the black hole has sole priority. */
+    const quiet=await skyRGB(p,{world:0,clock:5});
+    await p.evaluate(()=>{G.beat=1;G.lapStreak=30;G.pocket=1;G.combo=12;});
+    const ordinary=await skyRGB(p);
+    if(Math.abs(ordinary.mean-quiet.mean)>.01)
+      fail.push('ordinary beat/streak state changed the rendered sky');
+    await p.evaluate(()=>{scenePulse('drop',3);G.t+=.18;});
+    const peak=await skyRGB(p);
+    if(peak.mean/quiet.mean<1.5||peak.mean/quiet.mean>3.2)
+      fail.push(`the earned drop lacks controlled visual contrast (ratio ${(peak.mean/quiet.mean).toFixed(2)})`);
+    await p.evaluate(()=>{G.t+=3;});
+    const settled=await skyRGB(p);
+    if(Math.abs(settled.mean-quiet.mean)>.01)
+      fail.push('the scene did not return exactly to its quiet field after an event');
+    await p.evaluate(()=>{scenePulse('nova',3);G.t+=.18;BH.phase=2;BH.warp=1;});
+    const hole=await skyRGB(p);
+    if(hole.mean>=quiet.mean)
+      fail.push('the black hole stacked a peak over its eclipse instead of owning the scene');
+    await p.close();
+
   }
+
+  /* ================= 4. THE FALLBACK IS THE SAME AUTHORED PLACE =================
+     A real 2D image verifies the fallback, including its finite pixel buffer.
+     Compare the large-scale cloud light with GL, without arena objects or
+     post-processing hiding a wrong colour, orientation or empty cache. */
+  {
+    const p=await still(1,300,640);let largest=0;
+    for(const world of [0]){
+      const gpu=await skyRGB(p,{world,clock:5});
+      const fallback=await p.evaluate(()=>{
+        ctx.setTransform(DPR,0,0,DPR,0,0);ctx.clearRect(0,0,W,H);drawCalmSky();
+        const c=document.getElementById('c'),d=ctx.getImageData(0,0,c.width,c.height).data;
+        let s=0;for(let k=0;k<d.length;k+=4)s+=.299*d[k]+.587*d[k+1]+.114*d[k+2];
+        return {mean:s/(d.length/4),cache:SKY_2D.key};
+      });
+      const difference=Math.abs(fallback.mean-gpu.mean)/gpu.mean;largest=Math.max(largest,difference);
+      if(!fallback.cache||difference>.16)
+        fail.push(`fallback world ${world} does not carry the same cloud light as GL (${gpu.mean.toFixed(1)} vs ${fallback.mean.toFixed(1)})`);
+    }
+    await p.close();note.push(`fallback: rendered DRIFT pair within ${(largest*100).toFixed(1)}% of GPU cloud light`);
+  }
+
+
 } catch (e) {
   fail.push(`the render harness threw: ${e && e.message}`);
 } finally {

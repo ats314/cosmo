@@ -168,6 +168,7 @@ function passPowerSelect(st, frame, fire, pev, pid) {
 /* boot: menu frame, then cross the front of the game (unlocks audio, builds MU) */
 frame(16.7);
 let bpid = passMenu(st, frame, fire, pev, 800);
+if (st('G.intro')) st('finishIntro()');
 bpid = passSwipeChooser(st, frame, fire, pev, bpid);
 bpid = passPowerSelect(st, frame, fire, pev, bpid);
 bpid = passLevelSelect(st, frame, fire, pev, bpid);

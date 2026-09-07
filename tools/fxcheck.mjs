@@ -197,6 +197,7 @@ function pressRect(st, frame, fire, pid, expr, what) {
 }
 function crossFront(st, frame, fire, pid) {
   if (st('G.state') === 'menu') pid = pressRect(st, frame, fire, pid, 'JSON.stringify(G.menuRects.find(x=>x.id==="start")||null)', 'menu START');
+  if (st('G.intro')) st('finishIntro()');
   if (st('G.state') === 'swipesel') {
     for (let i = 0; i < 30; i++) frame(16.7);
     pid = pressRect(st, frame, fire, pid, 'JSON.stringify(G.selRects.find(x=>x.id==="play")||null)', 'swipe-chooser PLAY');
@@ -219,19 +220,11 @@ function crossFront(st, frame, fire, pid) {
   const { log, frame, fire, st } = build({ webgl: true });
   let pid = 1;
   for (let i = 0; i < 60; i++) frame(16.7);
-  /* THE RAISE MUST NOT COUNT MENU FRAMES. The title screen is nothing but
-     fast seconds — an empty board, no glow work, no simulation — so a raise
-     that listens here bids the resolution up to a price the RUN cannot pay,
-     and hands the ladder a guaranteed walk-down that ends with the 2D
-     backdrop swapping in mid-run. That is the shipped bug, verbatim from the
-     field: "looks good for the opening and then 5 seconds in, it changes". */
-  const sMenu0 = Number(st('GL.scale'));
-  for (let i = 0; i < 60 * 8; i++) frame(8);       // 125fps on the title screen
-  const sMenu1 = Number(st('GL.scale'));
-  if (sMenu1 > sMenu0 + 1e-9) {
-    fail.push(`the render scale climbed on the MENU (${sMenu0} -> ${sMenu1}) — menu frames are `
-      + 'unrepresentative, and a menu-bid resolution is a debt the run inherits');
-  }
+  const menuSize = st('JSON.stringify([GL.vw,GL.vh])');
+  for (let i = 0; i < 60 * 8; i++) frame(8);
+  if (st('JSON.stringify([GL.vw,GL.vh])') !== menuSize)
+    fail.push('the fixed sky resolution changed during menu frames');
+
   pid = crossFront(st, frame, fire, pid);
   if (st('G.state') !== 'playing') fail.push(`could not reach a run (stuck in ${st('G.state')})`);
   const before = log.draws.length;
@@ -308,11 +301,11 @@ function crossFront(st, frame, fire, pid) {
      So the test is inverted: drive a long slow stretch, far past what used to
      trigger every rung, and assert that NOTHING moved. */
   const fxBefore = st('FX.on'), glBefore = st('GL.on');
-  const vpBefore = JSON.stringify(log.vp);
+  const vpBefore = st('JSON.stringify([GL.vw,GL.vh])');
   for (let i = 0; i < 60 * 10; i++) frame(40);      // 25fps for ten seconds
   if (st('FX.on') !== fxBefore) fail.push('a slow stretch retired the GLOW — the degrade ladder is back');
   if (st('GL.on') !== glBefore) fail.push('a slow stretch killed the SKY — the degrade ladder is back');
-  if (JSON.stringify(log.vp) !== vpBefore) {
+  if (st('JSON.stringify([GL.vw,GL.vh])') !== vpBefore) {
     fail.push(`a slow stretch changed the backdrop's resolution (${vpBefore} -> ${JSON.stringify(log.vp)}) — the degrade ladder is back`);
   }
   if (/\bglWatch\b/.test(src)) fail.push('glWatch is back — the degrade ladder was deleted on purpose');
@@ -320,17 +313,10 @@ function crossFront(st, frame, fire, pid) {
   note.push(`ten seconds at 25fps changed nothing: glow ${st('FX.on')}, sky ${st('GL.on')}, viewport ${JSON.stringify(log.vp)}`);
 }
 
-/* ============ 1a-ii. THE ORBIT ACTUALLY REACHES THE SKY ============
-   "A visual feature is not shipped until something proves it reaches a
-   pixel." Thirteen black hole features shipped with exactly one of them
-   perceivable, each correct at its own site and disabled by something
-   elsewhere — so the sky's orbit coupling is driven through the real game
-   and read at the uniform, not at the variable that feeds it.
-   The mechanic under test is the owner's brief, verbatim: "players should
-   want to get orbits, and they should be rewarded with a cool background
-   change ... an effect that considered consecutive orbits would be cool."
-   Three claims, three assertions: consecutive orbits wind the sky up, a lap
-   closing sends a wave, and turning around takes the winding away. */
+/* ============ 1a-ii. ONE EARNED EVENT OWNS THE SKY ============
+   Drive the real lap integration, then test the observable event contract.
+   Ordinary streaks and beats must not move or brighten the entire scene.
+   Higher-value events cannot be interrupted by an ordinary orbit. */
 {
   const { log, frame, fire, st } = build({ webgl: true });
   let pid = 1;
@@ -338,36 +324,50 @@ function crossFront(st, frame, fire, pid) {
   pid = crossFront(st, frame, fire, pid);
   if (st('G.state') !== 'playing') fail.push('the orbit/sky check could not reach a run');
   else {
-    for (let i = 0; i < 30; i++) frame(16.7);
-    /* ---- consecutive orbits wind the sky up ---- */
-    const c0 = Number(st('SKY.charge'));
-    st('G.lapStreak=5');
-    for (let i = 0; i < 150; i++) frame(16.7);
-    const c1 = Number(st('SKY.charge'));
-    const uOrb = log.val.uOrb;
-    if (!(c1 > c0 + 0.5)) fail.push(`a lap streak does not wind the sky up: charge ${c0.toFixed(3)} -> ${c1.toFixed(3)} over 2.5s at streak 5`);
-    if (!uOrb) fail.push('uOrb never reached the GPU — the whole orbit coupling is missing');
-    else if (Math.abs(uOrb[0] - c1) > 1e-6) fail.push(`uOrb.x (${uOrb[0]}) is not the charge the CPU computed (${c1}) — the sky is being told something else`);
-    /* THE SPIN FOLLOWS TRAVEL, and the sign is the y-flip again: uv counts y
-       up, the game's angle counts it down, so the rate must oppose G.dir. */
-    const dir = Number(st('G.dir')), rate = Number(st('SKY.rate'));
-    if (!(Math.abs(rate) > 0.02)) fail.push(`the sky is not turning at streak 5 (rate ${rate.toFixed(4)})`);
-    else if (Math.sign(rate) !== -Math.sign(dir)) fail.push(`the sky spins the wrong way for travel: G.dir ${dir}, SKY.rate ${rate.toFixed(4)} — uv is y-up and the game's angle is y-down, so these must have opposite signs`);
-    /* ---- a lap closing sends a wave ---- */
+    st('G.invuln=G.t+100;G.sceneEvent=null;BH.phase=0;G.lapAcc=0');
     const skyW0 = Number(st('G.skyW'));
-    st(`G.lapAcc=Math.PI*2-0.001;G.lapEmbers=2`);
-    for (let i = 0; i < 4; i++) frame(16.7);
-    const wake = Number(st('SKY.wake')), skyW1 = Number(st('G.skyW'));
-    if (!(wake >= 0)) fail.push('a completed orbit did not fire the sky wake — the payoff the owner asked for never leaves the CPU');
-    /* ---- and orbits are what buys the journey ---- */
-    const per = Number(st('ORB_PER_WORLD'));
-    if (!(skyW1 - skyW0 > 0.9 / per)) fail.push(`a completed orbit did not advance the journey (skyW ${skyW0.toFixed(4)} -> ${skyW1.toFixed(4)}, wanted +${(1 / per).toFixed(4)})`);
-    /* ---- turning around takes it away ---- */
-    st('G.lapStreak=0');
-    for (let i = 0; i < 240; i++) frame(16.7);
-    const c2 = Number(st('SKY.charge'));
-    if (!(c2 < c1 * 0.35)) fail.push(`losing the streak does not unwind the sky: charge held at ${c2.toFixed(3)} from ${c1.toFixed(3)} — the cost of turning around is what makes the reward mean anything`);
-    else note.push(`orbit -> sky: streak 5 winds charge ${c0.toFixed(2)}->${c1.toFixed(2)} (spin ${rate.toFixed(3)} rad/s against dir ${dir}), a lap fires the wave and buys ${(1 / per).toFixed(3)} of a world, losing it unwinds to ${c2.toFixed(2)}`);
+    st('G.lapAcc=Math.PI*2-0.001;G.lapEmbers=2');
+    frame(16.7);
+    const skyW1 = Number(st('G.skyW')), per = Number(st('ORB_PER_WORLD'));
+    if (!(skyW1 - skyW0 > 0.9 / per))
+      fail.push('a completed orbit no longer advances the world journey');
+    if (st('G.sceneEvent&&G.sceneEvent.kind') !== 'orbit')
+      fail.push('a completed orbit did not create its earned sky cue');
+    st('G.t=G.sceneEvent.at+0.18;glRender(0)');
+    const lap = log.val.uAccent;
+    if (!lap || lap[1] !== 1 || !(lap[0] > 0 && lap[0] <= 0.12))
+      fail.push('the orbit cue did not reach the GPU as a small positive event');
+
+    st("scenePulse('drop',3);G.t+=0.18;glRender(0)");
+    if (log.val.uAccent[1] !== 2 || log.val.uAccent[0] < 0.99)
+      fail.push('an earned drop did not reach the GPU at full attack');
+    st("scenePulse('orbit',1.4);scenePulse('spot',3)");
+    if (st('G.sceneEvent.kind') !== 'drop')
+      fail.push('a lower-priority pickup or orbit interrupted a live drop');
+    st('BH.phase=2;BH.warp=0.8;glRender(0)');
+    if (log.val.uAccent[1] !== 4 || Math.abs(log.val.uAccent[0]-0.8)>1e-9)
+      fail.push('the black hole did not take exclusive visual priority');
+    st('BH.phase=0;G.t=G.sceneEvent.at+G.sceneEvent.span;glRender(0)');
+    if (log.val.uAccent[0] !== 0 || log.val.uAccent[1] !== 0)
+      fail.push('an expired scene event left light behind');
+
+    for (const kind of ['nova','hyper','spot','warp','mirror','scorch','slip','trail']) {
+      st(`G.sceneEvent=null;scenePulse('${kind}',2.5);G.t+=0.18;glRender(0)`);
+      if (!(log.val.uAccent[0]>0.99))
+        fail.push(`the ${kind} pickup cannot own a visible scene event`);
+      if (!log.val.uEventTint.every(Number.isFinite))
+        fail.push(`the ${kind} pickup has a non-finite event tint`);
+    }
+    st("G.sceneEvent=null;scenePulse('nova',2);G.t+=0.5;G.state='dead';glRender(0)");
+    if (log.val.uAccent[0] !== 0) fail.push('a scene event continued on the death screen');
+    st("G.state='playing';G.sceneEvent={kind:'nova',at:G.started-1,span:1000};glRender(0)");
+    if (log.val.uAccent[0] !== 0) fail.push('an event from the previous run survived restart');
+    st('G.sceneEvent=null;glRender(0)');
+    const quiet = JSON.stringify(log.val.uAccent), arc = JSON.stringify(log.val.uArc);
+    st('G.beat=1;G.combo=20;G.lapStreak=50;G.pocket=1;G.dir=-1;glRender(0)');
+    if (JSON.stringify(log.val.uAccent)!==quiet || JSON.stringify(log.val.uArc)!==arc)
+      fail.push('ordinary beat/streak/pocket state changed the sky composition or event gain');
+    note.push('scene priority: black hole > earned peak > pickup > orbit; cues expire, quiet play stays quiet');
   }
 }
 
@@ -517,336 +517,60 @@ function crossFront(st, frame, fire, pid) {
   }
 }
 
-/* ================= 1d. THE SKY CAN NEVER GO BLACK =================
-   Field failure, measured after the fact: the nebula's coverage gate rode a
-   SINGLE sample of a noise field (the screen spans a quarter of one coverage
-   cell), and the drift walked a straight line through unsurveyed territory
-   forever, because G.vt never resets. Result: whole-screen nebula blackouts
-   lasting 10+ minutes — the first inside the first quarter hour of page
-   life — with the stars alive, which reads not as weather but as the game
-   being broken. It shipped that way from the shader's first day, and it was
-   found from two same-build screenshots taken four hours apart.
-   The fix made the reachable skies a CLOSED SET: the drift is an ellipse, so
-   one lap is every sky the game can ever show, and the gate is floored so a
-   barren stretch reads quiet rather than black. A closed set can be verified
-   END TO END, so this does: a line-for-line port of the nebula chain, swept
-   over the full orbit, with a hard floor on the darkest point. The port must
-   move with GL_FS — the constants are PARSED from the shader source so a
-   retune retunes the check, and a parse failure is a loud failure. */
+/* ================= 1d. WORLD MORPHS STAY FINITE AND CONTINUOUS =================
+   The old sky's cloned CPU noise renderer pinned its exact historical mass.
+   That appearance is deliberately replaced. Real pixel brightness, spacing,
+   world distinction and closed-orbit coverage are checked in rendercheck;
+   this fast test owns interpolation, clock continuity and live arena geometry. */
 {
-  const fs = src.match(/const GL_FS=`([\s\S]*?)`;/);
-  if (!fs) { fail.push('GL_FS not found — the sky-luminance sweep cannot run'); }
-  else {
-    const body = fs[1];
-    const mOrbit = body.match(/float drA=uFlow\*([\d.]+);\s*\n\s*vec2 dr=vec2\(([\d.-]+)\+sin\(drA\)\*([\d.]+),([\d.-]+)\+cos\(drA\)\*([\d.]+)\)/);
-    const mGate = body.match(/float gate=\(([\d.]+)\+([\d.]+)\*smoothstep\(uCov,uCov\+0\.20,covA-0\.18\*\(covB-0\.5\)\)\);/);
-    /* THE FLOOR IS ONLY A FLOOR IF THE GATE ENTERS THROUGH A MIX TOWARD IT.
-       The world's `cov` weight could otherwise be wired as a multiplier on
-       the gate, which would let a world scale the floor to zero and bring the
-       blackout back through the one door that was bolted shut. Pinned as a
-       shape, not a value: mix(1.0, gate, w) can only ever RAISE the floor. */
-    const mGateMix = body.match(/band\*=mix\(1\.0,gate,uWC\.y\);/);
-    /* the structure blend — the port has to know which fields a world is made
-       of, and this is the line that says so */
-    const mStruct = body.match(/float band=bill\*uWA\.x\+broad\*uWA\.y\+cont\*uWA\.z\+fil\*uWA\.w;/);
-    /* THE ROTATION'S SIGN, PARSED RATHER THAN TRUSTED. See the assertion
-       below for why this is a captured group and not a literal match. */
-    const mSpin = body.match(/float spinC=cos\((-?)uOrb\.y\),spinS=sin\((-?)uOrb\.y\);/);
-    const mSpinUse = body.match(/vec2 nuv=uCtr\+vec2\(sv\.x\*spinC-sv\.y\*spinS,sv\.x\*spinS\+sv\.y\*spinC\);/);
-    const mStarSpin = body.match(/vec2 sfrag=fc\+vec2\(dv0\.x\*spinC-dv0\.y\*spinS,dv0\.x\*spinS\+dv0\.y\*spinC\);/);
-    const mCov = src.match(/const GL_COV=([\d.]+), GL_EXP=([\d.]+)/);
-    const mMot = src.match(/const GL_MOTION=([\d.]+)/);
-    const mWorlds = src.match(/const WORLDS=(\[[\s\S]*?\]);/);
-    let WORLDS = null;
-    if (mWorlds) { try { WORLDS = new Function('return ' + mWorlds[1])(); } catch (e) { WORLDS = null; } }
-    if (!mOrbit) fail.push('the drift is not the bounded orbit — a linear drift walks into multi-minute nebula blackouts (or the port desynced: update it with GL_FS)');
-    if (!mGate) fail.push('the coverage gate has no floor — a barren coverage sample blacks out the whole sky (or the port desynced: update it with GL_FS)');
-    if (!mGateMix) fail.push('the world no longer applies the coverage gate through mix(1.0,gate,uWC.y) — a multiplied gate lets a world scale the never-black floor to zero');
-    if (!mStruct) fail.push('the world structure blend is not the four weighted terms the port models (or the port desynced: update it with GL_FS)');
-    if (!WORLDS || !WORLDS.length) fail.push('the WORLDS table could not be parsed — the sky sweep cannot cover the set of skies');
-
-    /* ---- THE SET OF SKIES IS STILL CLOSED, AND THE TABLE IS HOW ----
-       "one lap is every sky the game can ever show" was true when there was
-       one structure. There are six now, and the reachable set is (drift
-       orbit) x (adjacent world pair), so these are the properties that keep
-       it finite and safe to sweep:
-         - the four structure weights SUM TO 1 in every row, so a world is a
-           blend and never a gain. A lerp between two rows that each sum to 1
-           also sums to 1, which is what makes sweeping the pure rows enough
-           to bound the morphs between them.
-         - cov is a mix factor in 0..1, so no world can lower the gate floor.
-         - the exponents are >= 1: pow() with a base of 0 and an exponent of
-           0 is undefined, and every one of these bases can reach 0. */
-    if (WORLDS) for (const w of WORLDS) {
-      const sum = w.bill + w.broad + w.cont + w.fil;
-      if (Math.abs(sum - 1) > 0.001) fail.push(`world ${w.n}: structure weights sum to ${sum.toFixed(3)}, not 1 — a world must be a blend of the four structures, never a gain on them`);
-      if (!(w.cov >= 0 && w.cov <= 1)) fail.push(`world ${w.n}: cov ${w.cov} is outside 0..1 — the coverage mix must not be able to reach past the never-black floor`);
-      if (!(w.contK >= 1) || !(w.filK >= 1)) fail.push(`world ${w.n}: contK/filK must be >= 1 — pow(0.0,0.0) is undefined in GLSL ES and both bases reach 0`);
-      if (!(w.gain > 0) || !(w.motion > 0) || !(w.star >= 0)) fail.push(`world ${w.n}: gain/motion/star must be positive`);
-    }
-
-    /* ---- WHERE A THING ENDS UP, IN RADIANS ----
-       The invariant this exists for has been paid for three times on the
-       black hole: a screen-space warp is INVERSE SAMPLING, so its sign is the
-       opposite of what it reads like, and code and comment are each true
-       under a different reading of which way the number counts. Reading it
-       does not work. So this asks the only question that does — where does a
-       feature END UP — by running the parsed transform.
-       The shader rotates the SAMPLE by spinC/spinS. A field feature sitting
-       at P is therefore drawn at whichever fragment samples P, and the test
-       is whether that fragment's angle is P's angle PLUS uOrb.y (the sky
-       turning the way the comet travels) or MINUS it (the sky turning
-       backwards, which is the bug that has shipped three times). */
-    if (mSpin && mSpinUse && mStarSpin) {
-      const neg = mSpin[1] === '-' && mSpin[2] === '-';
-      const s = 0.5;                       /* a half-radian of apparent turn */
-      const sc = Math.cos(neg ? -s : s), ss2 = Math.sin(neg ? -s : s);
-      /* invert the sample rotation to find the fragment that shows P */
-      const P = [Math.cos(0.3), Math.sin(0.3)];
-      const det = sc * sc + ss2 * ss2;
-      const fx = (sc * P[0] + ss2 * P[1]) / det, fy = (-ss2 * P[0] + sc * P[1]) / det;
-      let d = Math.atan2(fy, fx) - 0.3;
-      d = Math.atan2(Math.sin(d), Math.cos(d));
-      if (Math.abs(d - s) > 1e-6) {
-        fail.push(`the sky's orbit spin turns BACKWARDS: with uOrb.y=+${s}, a feature at 0.300 rad ends up at ${(0.3 + d).toFixed(3)} rad `
-          + `(a turn of ${d.toFixed(3)}, wanted +${s}) — a screen-space warp is inverse sampling and its sign reads the opposite of its intent`);
-      } else {
-        note.push(`orbit spin: uOrb.y=+${s} moves a feature +${d.toFixed(3)} rad, and the stars ride the same transform`);
-      }
-    } else fail.push('the orbit spin transform did not parse — its sign cannot be verified, and this exact inversion has shipped backwards three times');
-
-    /* ---- WHICH HALF OF THE SKY THE LAP SECTOR LIGHTS ----
-       The same question as the spin, asked of the other frame conversion.
-       uOrb2.x/.y carry the comet's angle and travel direction translated from
-       the game's y-DOWN frame into the shader's y-UP one, and getting that
-       pair wrong lights the half of the sky the comet has NOT swept — which
-       looks like a working feature, animates convincingly, and teaches the
-       player the opposite of the mechanic. Neither reading the shader nor
-       reading glRender catches it; only following a point through both. */
-    const mSector = body.match(/float rel=mod\(\(uOrb2\.x-fa\)\*uOrb2\.y,6\.28318\);/);
-    const mFeed = src.match(/GL\.u\.uOrb2,\s*(-?)\(G\.angle\|\|0\),\s*(-?)\(G\.dir\|\|1\)/);
-    if (mSector && mFeed) {
-      const TAU2 = Math.PI * 2;
-      const sA = mFeed[1] === '-' ? -1 : 1, sD = mFeed[2] === '-' ? -1 : 1;
-      const A = 0.7, D = 1, e = 0.25;             /* a comet mid-lap */
-      const head = sA * A, dsign = sD * D;
-      const rel = fa => { const x = (head - fa) * dsign; return ((x % TAU2) + TAU2) % TAU2; };
-      /* where it WAS a moment ago, and where it is ABOUT to be, both carried
-         into uv space by the same y-flip the uniform feed applies */
-      const behind = rel(sA * (A - D * e)), ahead = rel(sA * (A + D * e));
-      if (!(behind > 0 && behind < 0.5)) {
-        fail.push(`the lap sector lights the wrong half of the sky: the arc the comet has just SWEPT measures ${behind.toFixed(3)} rad into the sector `
-          + '(wanted just inside it) — the y-down to y-up conversion of G.angle/G.dir is inverted');
-      } else if (!(ahead > TAU2 - 0.5)) {
-        fail.push(`the lap sector lights the wrong half of the sky: the arc the comet has NOT reached measures ${ahead.toFixed(3)} rad into the sector `
-          + '(wanted the far end of it) — the y-down to y-up conversion of G.angle/G.dir is inverted');
-      } else {
-        note.push(`lap sector: swept arc at ${behind.toFixed(2)} rad, unswept at ${ahead.toFixed(2)} rad — it lights the sky behind the comet`);
-      }
-    } else fail.push('the lap sector or its uOrb2 feed did not parse — which half of the sky it lights cannot be verified');
-
-    if (mOrbit && mGate && mGateMix && mStruct && mCov && mMot && WORLDS) {
-      const [OMEGA, CX2, AX, CY2, AY] = [+mOrbit[1], +mOrbit[2], +mOrbit[3], +mOrbit[4], +mOrbit[5]];
-      const [GF0, GF1] = [+mGate[1], +mGate[2]];
-      const [COV, EXP] = [+mCov[1], +mCov[2]];
-      const MOT = +mMot[1];
-      const fract = x => x - Math.floor(x);
-      const h21 = (px, py) => { let x = fract(px * 123.34), y = fract(py * 345.45); const d = x * (x + 34.345) + y * (y + 34.345); x += d; y += d; return fract(x * y); };
-      const vn = (px, py) => { const ix = Math.floor(px), iy = Math.floor(py), fx = px - ix, fy = py - iy; const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy); const a = h21(ix, iy), b = h21(ix + 1, iy), c = h21(ix, iy + 1), d = h21(ix + 1, iy + 1); return (a * (1 - ux) + b * ux) * (1 - uy) + (c * (1 - ux) + d * ux) * uy; };
-      const wrp = (px, py) => [1.62 * px + 1.18 * py, -1.18 * px + 1.62 * py];
-      const fbmN = (px, py, n) => { let v = 0, a = 0.5; for (let i = 0; i < n; i++) { v += a * vn(px, py); [px, py] = wrp(px, py); a *= 0.5; } return v; };
-      const rid = (px, py) => { let v = 0, a = 0.5; for (let i = 0; i < 5; i++) { const n2 = 1 - Math.abs(vn(px, py) * 2 - 1); v += a * n2 * n2; [px, py] = wrp(px, py); a *= 0.5; } return v; };
-      const ss = (a, b, x) => { const t2 = Math.min(1, Math.max(0, (x - a) / (b - a))); return t2 * t2 * (3 - 2 * t2); };
-      /* THE PORT NOW TAKES THE WORLD AS AN ARGUMENT, exactly as the shader
-         takes it as uniforms. Everything below the structure blend is
-         unchanged from the chain that was calibrated against the historical
-         look; what is new is that `bill` is no longer the only thing the mass
-         can be made of. At WORLDS[0] (DRIFT) with its 0.79/0.21/0/0 weights
-         this reduces to very nearly the old expression, which is deliberate:
-         the opening sky had to survive the overhaul unchanged. */
-      const lumAt = (u, v, drx, dry, W) => {
-        /* THE FIELD SCALE, THE FLOW GRAIN, THE COVERAGE FREQUENCY AND THE
-           PARALLAX DRIFT ARE ALL PER-WORLD NOW, and this port went stale on the
-           first three for a whole commit before anyone noticed — because the
-           tripwire regexes below still matched the lines they were watching,
-           so nothing failed while the port quietly measured a chain the game
-           no longer runs. That is the precise failure invariants.md warns
-           about ("update the port in the same commit or the parse tripwires
-           fail loudly"), and the lesson is that a tripwire only guards the
-           line it names. New tripwires for the new lines are below. */
-        const fld = W.fldF === undefined ? 1 : W.fldF;
-        const px = u * 1.35 * fld, py = v * 1.35 * fld;
-        const q = [fbmN(px + drx, py + dry, 6), fbmN(px + 5.2 - drx, py + 1.3 - dry, 6)];
-        const r = [fbmN(px + 3.2 * q[0] + 1.7 + drx * 1.7, py + 3.2 * q[1] + 9.2 + dry * 1.7, 6),
-                   fbmN(px + 3.2 * q[0] + 8.3 - drx * 1.3, py + 3.2 * q[1] + 2.8 - dry * 1.3, 6)];
-        /* FLOW: compress the sample along the (curling) warp direction */
-        let pfx = px + 3.0 * r[0] + drx * 0.6, pfy = py + 3.0 * r[1] + dry * 0.6;
-        if (W.flow > 0) {
-          let dx = r[0] - 0.5 + 1e-5, dy = r[1] - 0.5;
-          const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
-          const d = pfx * dx + pfy * dy;
-          pfx -= dx * d * W.flow * 0.62; pfy -= dy * d * W.flow * 0.62;
-        }
-        const f = fbmN(pfx, pfy, 6);
-        /* PARALLAX: the far field drifts slower than the near one */
-        const plx = W.plx || 0;
-        const d2x = drx * (1 - plx * 0.65), d2y = dry * (1 - plx * 0.65);
-        const p2x = u * 0.62 * fld + 3.7, p2y = v * 0.62 * fld + 1.1;
-        const q2x = fbmN(p2x - d2x * 0.5, p2y - d2y * 0.5, 4), q2y = fbmN(p2x + 2.1 + d2x * 0.4, p2y + 7.4 + d2y * 0.4, 4);
-        const f2 = fbmN(p2x + 2.4 * q2x, p2y + 2.4 * q2y, 4);
-        const rg = rid(px * 1.6 + r[0] * 1.2 + drx, py * 1.6 + r[1] * 1.2 + dry);
-        const dust = Math.pow(rg, 2.2);
-        /* the four structures — cont is a LEVEL SET of the two fBm fields and
-           costs no evaluation, which is the whole reason a world can be
-           curtains instead of clouds for free */
-        const bill = ss(0.32, 0.68, f) * 0.82 + ss(0.26, 0.97, f) * 0.18;
-        const broad = ss(0.36, 0.76, f2);
-        const cont = Math.pow(Math.abs(Math.sin((f * 2.4 + f2 * 1.1) * Math.PI * W.contF + v * W.contY)), W.contK);
-        const fil = Math.pow(rg, W.filK);
-        let band = bill * W.bill + broad * W.broad + cont * W.cont + fil * W.fil;
-        band *= W.gain;
-        band *= (1 - W.lane * dust);
-        const cf = W.covF === undefined ? 0.75 : W.covF;
-        const cx0 = W.covX === undefined ? 9.1 : W.covX, cy0 = W.covY === undefined ? 4.4 : W.covY;
-        let covA = fbmN(u * cf + cx0 + drx * 0.35, v * cf + cy0 + dry * 0.35, 4);
-        const covB = fbmN(u * 1.9 + 2.7 - drx * 0.5, v * 1.9 + 8.8 - dry * 0.5, 4);
-        /* WEB: the void becomes filamentary rather than blobby */
-        covA = covA + (rg - covA) * (W.web || 0);
-        /* HORIZON: a linear term gives the world an orientation */
-        covA += (W.horiz || 0) * (u * 0.60 + v * 0.80) * 0.60;
-        const gate = GF0 + GF1 * ss(COV, COV + 0.20, covA - 0.18 * (covB - 0.5));
-        band *= 1 + (gate - 1) * W.cov;                       /* mix(1,gate,cov) */
-        return Math.pow(Math.min(1, Math.max(0, band)), EXP);
-      };
-      /* one sweep of the drift orbit for one world */
-      /* THE SWEEP REPORTS THE FRAME'S DISTRIBUTION, NOT ONLY ITS AVERAGE.
-         "never goes black, never goes milky" was measured as "does the frame
-         AVERAGE ever get dark", which was the same question as "is there
-         darkness on screen" for exactly as long as the coverage gate was a
-         global dimmer — at covF 0.75 a phone spans a quarter of one noise
-         cell, so the whole sky brightened and dimmed together. Raise that
-         frequency and the two questions come apart: the gate varies WITHIN the
-         frame, so deep voids and bright filaments coexist, the average sits
-         mid, and a frame carrying more real black than the shipped sky gets
-         failed for "never resting".
-         Measured at the darkest station of the drift orbit: DRIFT p10 0.005,
-         a per-world-field VEIL p10 0.039, a deliberately milky sky p10 0.066.
-         The darkest DECILE is what separates them; the average does not.
-         (Spread was the first guess and the measurement killed it — the milky
-         sky had the widest spread of the three.) */
-      const sweep = (W, steps, gx0, gy0) => {
-        let worst = 1e9, worstTh = 0, best = 0, msum = 0, worstFrame = null;
-        for (let i = 0; i < steps; i++) {
-          const th = (i / steps) * 2 * Math.PI;
-          const drx = CX2 + Math.sin(th) * AX, dry = CY2 + Math.cos(th) * AY;
-          let lum = 0; const px = [];
-          for (let gy = 0; gy < gy0; gy++) for (let gx = 0; gx < gx0; gx++) {
-            const v = lumAt((-0.5 + (gx + 0.5) / gx0) * (390 / 844), -0.5 + (gy + 0.5) / gy0, drx, dry, W);
-            px.push(v); lum += v;
-          }
-          lum /= gx0 * gy0;
-          msum += lum;
-          if (lum < worst) { worst = lum; worstTh = th; worstFrame = px; }
-          if (lum > best) best = lum;
-        }
-        worstFrame.sort((a, b) => a - b);
-        const q = f => worstFrame[Math.floor(f * (worstFrame.length - 1))];
-        return { worst, worstTh, best, mean: msum / steps, p10: q(0.10), p90: q(0.90) };
-      };
-      /* THE OPENING SKY KEEPS THE FULL-FIDELITY SWEEP it was calibrated with
-         — 96 stations x 128 samples — because its bands are the historical
-         measurements and changing the sampling would change what they mean.
-         Every other world is swept coarser, which is the right trade: those
-         bands are new, and what they are guarding is "no world in the table
-         blacks out or floods", not a specific remembered look. */
-      const drift = sweep(WORLDS[0], 96, 8, 16);
-      const worst = drift.worst, worstTh = drift.worstTh, mean = drift.mean;
-      /* EVERY WORLD IS SWEPT, and so is the midpoint of every morph between
-         adjacent worlds — the sky spends a fifth of its life in those, and a
-         blend of two safe worlds is not automatically a safe world. */
-      const states = [];
-      for (let i = 0; i < WORLDS.length; i++) {
-        states.push({ n: WORLDS[i].n, W: WORLDS[i] });
-        const A = WORLDS[i], B = WORLDS[(i + 1) % WORLDS.length];
-        /* NOT JUST THE MIDPOINT. The first cut of this sampled t=0.5 only,
-           and the transition it was built to catch does not peak there: the
-           TIDE>EMBERFALL morph measured 0.238 mean against 0.166 and 0.164 at
-           its two ends, because the structure weights and the gain cross over
-           at different rates. A blend of two safe worlds is not a safe world,
-           and a blend sampled at one point is not a swept blend. */
-        for (const t of [0.25, 0.5, 0.75]) {
-          const M = {};
-          for (const k of Object.keys(A)) M[k] = (typeof A[k] === 'number') ? A[k] + (B[k] - A[k]) * t : A[k];
-          states.push({ n: `${A.n}>${B.n}@${t}`, W: M });
-        }
-      }
-      const bad = [];
-      for (const s of states) {
-        const r2 = sweep(s.W, 24, 6, 12);
-        s.r = r2;
-        /* THE SAME THREE FAILURES, FOR EVERY SKY IN THE SET, AND THE BANDS
-           ARE SET FROM THE MEASUREMENT — the lesson from the ceiling that was
-           tuned by feel at 0.20 and waved through the exact 0.1918 bug it
-           existed to catch. Swept range at the time of writing: mean
-           0.140-0.199, darkest 0.047-0.100.
-           These are LOOSER than the anchor's, on purpose, and the split is
-           the point. DRIFT is checked below against the historical numbers to
-           four decimals because it is the sky that shipped and is not allowed
-           to drift. These bands guard a different property for the other
-           five: no world in the table, and no morph between two of them,
-           blacks out or floods. A world that is brighter or fuller than DRIFT
-           is a world, not a regression — that is what the owner asked for. */
-        if (r2.worst < 0.020) bad.push(`${s.n} goes dark (darkest ${r2.worst.toFixed(4)})`);
-        else if (r2.p90 < 0.055) bad.push(`${s.n} has no real light (p90 ${r2.p90.toFixed(4)} at its darkest station)`);
-        else if (r2.mean > 0.300 || r2.mean < 0.105) bad.push(`${s.n} left the band (mean ${r2.mean.toFixed(4)})`);
-        /* THE MILKY CHECK, MOVED FROM THE AVERAGE TO THE DARKEST DECILE. A sky
-           that never rests is one with no real black ANYWHERE in the frame,
-           which is a fact about the frame's distribution and not about its
-           mean. 0.045 passes the shipped DRIFT at 0.005 and a per-world-field
-           VEIL at 0.039, and fails a deliberately milky sky at 0.066. */
-        else if (r2.p10 > 0.045) bad.push(`${s.n} never rests (darkest decile ${r2.p10.toFixed(4)} — no real black in the frame)`);
-      }
-      if (bad.length) {
-        fail.push(`the set of skies is not safe end to end: ${bad.join('; ')} — every world and every morph between two worlds is swept over the full drift orbit, and both directions are pinned because each has shipped broken once`);
-      } else {
-        const means = states.map(s => s.r.mean), wors = states.map(s => s.r.worst);
-        note.push(`${states.length} skies swept over the full drift orbit (${WORLDS.length} worlds x 3 morph samples): `
-          + `mean ${Math.min(...means).toFixed(3)}-${Math.max(...means).toFixed(3)}, darkest ${Math.min(...wors).toFixed(3)}-${Math.max(...wors).toFixed(3)}`);
-      }
-      /* BOTH DIRECTIONS ARE PINNED, because each has now shipped broken once.
-         Too dark: the blackout epochs, 0.0000 for ten minutes. Too bright:
-         the first orbit swept lush territory under a 0.42 gate floor and the
-         sky came out ~3x the historical look — a glowing frame around the
-         arena, which a one-sided floor check waved through. The bands are the
-         historical healthy statistics (mean 0.142, dips 0.028, peaks 0.268)
-         with margin either side. */
-      if (worst < 0.03) {
-        fail.push(`the sky goes dark: darkest point of the drift orbit has mean nebula luminance ${worst.toFixed(4)} `
-          + `(orbit mean ${mean.toFixed(4)}) — the old blackouts read 0.0000 for 10+ minutes; the historical look never dipped under 0.028`);
-      } else if (mean > 0.17 || mean < 0.10) {
-        /* 0.17, not 0.20: the first cut of this ceiling was tuned by feel and
-           the exact bug it existed to catch — the 0.42 gate floor — produced
-           mean 0.1918 and sailed under it. Bands must be set from the failure
-           they guard against, measured, not from a round number. */
-        fail.push(`the sky's brightness left the historical band: orbit mean ${mean.toFixed(4)} against the look's 0.142 `
-          + '— "never black" must not be bought by flooding the sky with light, nor the reverse');
-      } else if (worst > 0.07) {
-        /* the beloved look RESTS: its healthy epochs dip to 0.028-0.05, and
-           real darkness is part of the composition. An orbit whose darkest
-           point is still bright means a floor or territory change abolished
-           the quiet stretches — the milky-sky failure from the other side. */
-        fail.push(`the sky never rests: the darkest point of the orbit is ${worst.toFixed(4)}, `
-          + 'but the historical look dips to 0.028-0.05 — its darkness is part of the composition');
-      } else {
-        note.push(`sky over the full orbit: darkest ${worst.toFixed(4)}, mean ${mean.toFixed(4)} — matches the historical look (lap ${Math.round(2 * Math.PI / (OMEGA * MOT))}s)`);
-      }
-    } else if (mOrbit && mGate && mGateMix && mStruct && WORLDS) {
-      /* narrowed: every other way in here already pushed its own precise
-         message, and adding this one on top of them reported a constants
-         problem for a structural change */
-      fail.push('GL_COV/GL_EXP/GL_MOTION constants no longer parse — the sky sweep cannot run');
-    }
+  const { log, st } = build({ webgl: true });
+  const worlds = JSON.parse(st('JSON.stringify(WORLDS)'));
+  const scalar = ['x','y','lean','width','bend','reach','grain','star','motion','gain'];
+  if (worlds.length !== 8 || new Set(worlds.map(w=>w.n)).size !== worlds.length)
+    fail.push('the world journey lost a named destination');
+  for (const w of worlds) {
+    if (!scalar.every(k=>Number.isFinite(w[k])) ||
+        ![...w.tint,...w.rim].every(v=>Number.isFinite(v)&&v>=0&&v<=1))
+      fail.push(`world ${w.n} contains invalid shader parameters`);
+    if (!(w.width>0 && w.reach>0 && w.motion>0 && w.gain>0 && w.star>=0))
+      fail.push(`world ${w.n} has a zero or negative field dimension/gain`);
   }
+  const readMix = w => JSON.parse(st(`SKY.w=${w};JSON.stringify(skyMix())`));
+  const flat = x => [...x.arc,...x.shape,...x.tint,...x.rim,x.motion,x.star];
+  let smallest = Infinity, jump = 0;
+  for (let i = 0; i < worlds.length; i++) {
+    const held = JSON.stringify(readMix(i));
+    if (JSON.stringify(readMix(i+0.79)) !== held)
+      fail.push(`world ${worlds[i].n} drifts before its final morph interval`);
+    for (let k = 0; k <= 100; k++) {
+      const w=i+k/100,m=readMix(w);
+      if (!flat(m).every(Number.isFinite) || m.arc[3]<=0 || m.shape[1]<=0)
+        fail.push(`world morph ${w} sent invalid field dimensions`);
+      st(`G.skyW=${w};glRender(0)`);
+      smallest=Math.min(smallest,m.arc[3],m.shape[1]);
+    }
+    const a=flat(readMix(i+1-1e-7)),b=flat(readMix(i+1));
+    jump=Math.max(jump,...a.map((v,k)=>Math.abs(v-b[k])));
+  }
+  if (jump>1e-8) fail.push(`a world boundary jumps by ${jump}`);
+  if (log.badVals.length) fail.push('world morphs sent non-finite values to the GPU');
+
+  st('G.vt=1e7;GL.flowVt=G.vt;GL.tw=4;G.skyW=0;glRender(0)');
+  const t0=log.val.uTime[0];
+  st('G.skyW=1;glRender(0)');
+  if (log.val.uTime[0]!==t0) fail.push('changing a world teleports the scenic clock');
+  st('G.vt+=0.1;glRender(0)');
+  if (!(log.val.uTime[0]>t0 && log.val.uTime[0]-t0<0.1))
+    fail.push('the scenic clock stopped or jumped at a long session time');
+
+  for (const count of [2,3,4,5]) {
+    st(`G.nRings=${count};glRender(0)`);
+    const actual=log.val.uArena;
+    const expected=JSON.parse(st('JSON.stringify([radiusOf(0)/H,radiusOf(G.nRings-1)/H,AY])'));
+    if (actual.some((v,i)=>Math.abs(v-expected[i])>1e-10) || actual[0]<actual[1])
+      fail.push(`the calm arena band lost ring 0 geometry at ${count} rings`);
+  }
+  note.push(`8 world morphs: finite dimensions (minimum ${smallest.toFixed(3)}), seamless boundaries, continuous clock and live arena geometry`);
 }
 
 /* ================= 2. WITH NO GPU AT ALL ================= */

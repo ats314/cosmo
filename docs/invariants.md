@@ -12,42 +12,13 @@ Nothing has been shortened — only sorted.
 *You are adding or moving a formation, an orb, a level boundary, a lesson, or
 any player-facing sentence.*
 
-- **The curriculum rule, as the owner revised it.** The rule used to end
-  teaching at level 4's floor. The owner's call, verbatim: *"We are going to
-  change to balance power up introduction, mechanics, and difficulty all the
-  way the level 4."* So the boundary differs by KIND, and the split is
-  deliberate rather than a loophole:
-  - **Formations** — the shard shapes on the tier ladder — complete by
-    **dl 520**, level 5's finish line, NOT dl 340. That boundary moved when the
-    run went to six levels: teaching that stopped at level 3 left levels 4, 5
-    and 6 introducing nothing for twelve minutes, which is a plateau rather
-    than an exam. DIVERS (dl 395, level 4) and THE NARROWS (dl 520, level 5)
-    are the two rungs that fill it, and THE EYE moved to dl 610, level 6's
-    floor. The guards moved with it and none of them is indexed by a literal
-    any more: `check.mjs` derives the boundary from `ends[ends.length-1]`
-    (every level but the last carries a numeric `end`, so that count IS the
-    number of teaching levels), `curriculum.mjs` reads `EXAM = LV.length` and
-    fails if a tier banner fires inside the exam level, and `smoke.mjs` pins
-    the last tier to `LV[LV.length-2].end` — so a rung can be inserted
-    anywhere below THE EYE but never appended after it. If you move a tier,
-    all three must pass.
-  - **Orbs** spread across levels 1–5, taught by `firstMeet` at first
-    contact: the intro trio on level 1, then one guaranteed home apiece —
-    hypernova level 2, spotlight level 3, mirror level 4, scorch level 5 —
-    with the black hole guaranteed once on level 4 and otherwise left to its
-    rare roll from level 3 on, because guaranteeing something rare early to
-    satisfy a boundary would have destroyed the thing that makes it work.
-  This is the owner's decision and not an inference from the code. Level 6 is
-  the exam: it introduces nothing, and everything the game has is in play
-  when it opens. Do not read the latitude on orbs as permission to scatter
-  formations into the exam — that half is enforced three ways. And this entry
-  has drifted before, twice, always the same way: it said "the end of level
-  2" while every guard said level 3, then said dl 340 while the guards said
-  dl 520 — each time the exam moved and the prose stayed. A constraint that
-  disagrees with its own enforcement costs more than a missing one, because
-  it makes the careful reader wrong. The guards are derived from the tables
-  now precisely so the next move drags them along; nothing derives this
-  paragraph, so update it in the same commit.
+- **The content schedule is expandable.** Six levels are implemented today.
+  Level 6 has no finish line because subsequent content is not yet authored;
+  it is not an endless exam and it may introduce new mechanics. There is no
+  final teaching boundary. Keep tier thresholds ordered, teach formations
+  honestly where they arrive, and make new powerups reachable where their
+  verbs become useful. Update the ledger, cards and behavior checks together.
+  The owner's September 7 direction supersedes the prior exam prohibition.
 
 - **Adding a tier is wider than it looks, and the twelve hardcoded ordinals
   are gone now.** `curriculum.mjs` used to hardcode the last tier's index
@@ -451,151 +422,32 @@ audio path.*
 
 ## Graphics, shaders and the sky
 
-*You are touching a draw pass, a shader, a uniform, the glow chain or the
-render scale.*
+Read [the current direction](design/direction.md) before changing presentation.
 
-- **A halo belongs to an object; a backdrop belongs to nobody.** These are
-  tuned by opposite rules and the constants do not transfer. The sky's
-  gravitational lens bounds its pull as a FRACTION of the radius, which is
-  right for a smooth field where nothing has to stay anywhere. Copied onto the
-  arena's glow it is a catastrophe: the orbits live between 0.09 and 0.20 of
-  screen height, the clamp binds across that whole band, and the halo is
-  dragged 120-170px off the light it belongs to — the detached-glow failure
-  recorded at length in `check.mjs`'s free-radius guard, when an ember's bloom
-  stayed parked on the ring it started from. Anything applied to light that is
-  attached to an object must be bounded in ABSOLUTE terms and the bound quoted
-  in pixels.
-  This was caught by measurement, not by reading: the code was a faithful copy
-  of a shipped, correct lens, and it looked right in review.
-
-- **A HALO MUST BE COMPOSITED IN THE SAME TRANSFORM ITS SOURCE WAS DRAWN IN,
-  and "the same transform" is a thing to check rather than assume.** This is
-  the entry above's failure one level worse: there the halo's displacement
-  *bound* was wrong, which a better constant fixes; here the halo was in the
-  wrong coordinate *space*, which no constant can fix.
-  `drawBloom`'s bright pass draws every light with `setTransform(s,0,0,s,0,0)`
-  — a pure scale, no camera dolly. The composite that lays the finished glow
-  back down ran INSIDE the world pass, which is wrapped in
-  `ctx.translate(camX,camY)`. So the whole glow layer sat offset from the
-  lights it was made of by exactly the dolly, every frame, oscillating on a
-  sine. Two player-visible defects out of that one mismatch, both reported in
-  the same sentence — *"it's like you put a layer over the screen ...
-  everything just kind of wobbles around"*: every halo drifted off its own
-  light and back forever, and the full-screen layer hung past the frame
-  boundary so `drawImage`'s upscale clamped and smeared the outermost texel
-  into a hairline rim. Measured on the 2D layer alone, left device columns
-  0/1/2 against an interior of 3.6: 5.0/4.4/3.5 before, 3.5/3.5/3.5 after.
-  **Nothing in the suite could ever have seen this.** The harnesses stub the
-  canvas, so a `drawImage` at the wrong translate is indistinguishable from
-  one at the right translate — `drawcheck.mjs` counts the call and validates
-  its arguments, and both versions are valid on every count. It needed a
-  screenshot. If you add a full-screen composite, state which transform its
-  source used and put the composite in that one.
-
-- **A SCREEN-SPACE WARP IS INVERSE SAMPLING, so its sign is the opposite of
-  what it looks like.** The shader is handed a destination fragment and asked
-  which part of the source to read, so reading from a SMALLER radius
-  magnifies and pushes content OUTWARD. The glow's black hole lens shipped
-  subtracting its pull, at the right magnitude, under a comment promising the
-  opposite — halos moved 6.8 to 8.8px away from the singularity. **This is the
-  third time this precise inversion has hit the black hole**: the gravity pull
-  that "dragged the comet inward" pushed it outward, the "inner ring 2x" bonus
-  paid on the outer ring, and now this. The pattern is always the same — code
-  and comment are each true under a different reading of which way the number
-  counts, so review confirms both. Nothing catches it except asking where a
-  specific thing ENDS UP, in pixels, which `fxcheck.mjs` now does by parsing
-  the coefficients out of the shader rather than copying them.
-
-- **THE SKY CAN NEVER GO BLACK, and the set of skies is CLOSED.** The nebula's
-  coverage gate rides a single sample of a noise field — the screen spans a
-  quarter of one coverage cell — and the drift clock (G.vt) never resets. As a
-  straight line, the drift walked into barren stretches where the gate zeroed
-  the ENTIRE nebula for 10+ minutes while the stars stayed alive, which reads
-  as the game being broken, not as weather. It shipped that way from the
-  shader's first day and was found from two same-build screenshots hours
-  apart: one vivid, one black. Two rules now hold. The drift is an ELLIPSE, so
-  one lap (~14 minutes at the current `GL_MOTION` of 0.72) is every drift the game can
-  ever show, and a closed set can be verified end to end. The gate is FLOORED
-  (`0.10 + 0.90*smoothstep`), so a barren stretch reads quiet, never black.
-  **These two numbers were wrong here for two commits** — this entry quoted the
-  retired `0.42 + 0.58` floor and a ~95-minute lap, both superseded when the
-  orbit's territory was re-chosen to match the historical look. `README.md`
-  carried the same pair. That is the exact failure the curriculum entry above
-  warns about: a constraint that disagrees with its own enforcement costs more
-  than a missing one, because it makes the careful reader wrong.
-
-  **THE CLOSED SET IS NOW A PRODUCT, AND THE WORLD TABLE IS WHY IT IS STILL
-  CLOSED.** "One lap is every sky" was true when there was one structure.
-  There are eight now — `WORLDS` — and the reachable set is (drift orbit) x
-  (adjacent world pair). It stays finite and sweepable because of three
-  properties, and all three are enforced in `fxcheck.mjs` rather than trusted:
-  every row's four structure weights SUM TO 1, so a world is a blend and never
-  a gain, and a lerp between two such rows still sums to 1; `cov` is a mix
-  factor in 0..1 and the gate enters as `mix(1.0, gate, cov)`, which can only
-  ever RAISE the never-black floor and never lower it; and the exponents are
-  >= 1, because `pow(0.0, 0.0)` is undefined in GLSL ES and both of those
-  bases reach 0. `fxcheck.mjs` sweeps all eight worlds AND three points along
-  each morph between neighbours over the full drift orbit — the midpoint alone
-  was not enough, because the first cut of this found a transition measuring
-  0.238 mean against 0.166 and 0.164 at its two ends: **a blend of two safe
-  worlds is not automatically a safe world.**
-
-  `fxcheck.mjs` carries a line-for-line port of the nebula chain, parses the
-  orbit, gate, structure-blend and spin constants out of the shader source,
-  reads `WORLDS` out of `index.html` rather than copying it, and pins both
-  directions of the luminance band — and its fake GL asserts every uniform
-  component is FINITE, because a NaN reaching a uniform renders as black on a
-  real GPU and throws nowhere. **DRIFT is the anchor and is held to the
-  historical numbers to four decimals** (0.1490 mean, 0.0374 darkest, against
-  the measured 0.149/0.038 of the sky that shipped); the other seven are held
-  only to "does not black out, does not flood, does not stop resting", because
-  a world brighter or fuller than DRIFT is a world rather than a regression.
-  If you retune the sky, the port retunes with you; if you restructure the
-  chain, update the port in the same commit or the parse tripwires fail loudly.
-
-- **THE RED BAN IS LIFTED, AND WHAT REPLACED IT IS NARROWER RATHER THAN
-  ABSENT.** The sky was kept out of the red family and under the opening
-  band's luminance so it could never compete with a shard for the word
-  "danger". The owner lifted both, deliberately and against a stated risk, so
-  that worlds like EMBERFALL could exist and the backdrop could stop being
-  four recolours of one picture. The contract is now held where it is actually
-  read: `SKY_ARENA_CALM` (currently **0.10**, was 0.34) compresses local contrast in the annulus the orbits
-  occupy (0.09–0.20 of screen height), so a hot sky burns at the rim while the
-  band a shard is read against stays quiet. **Hue is free everywhere;
-  brightness and contrast directly behind the rings are not.** If a playtest
-  ever reports mistaking backdrop for hazard, that dial is the first thing to
-  move and 0 gives the unmoderated sky — do not reintroduce a hue ban without
-  asking, it was a decision and not an oversight.
-
-- **A SCREEN-SPACE ROTATION IS THE SAME TRAP AS A SCREEN-SPACE WARP.** The
-  orbit spin turns the sky by rotating the SAMPLE coordinate, so its sign is
-  the opposite of its intent, exactly like the lens below. It is stated in the
-  code as a sentence about where a thing ends up — "a feature drawn at uv
-  angle A appears at angle A + uOrb.y" — and `fxcheck.mjs` asserts that
-  sentence numerically by running the parsed transform, because this precise
-  inversion has shipped backwards three times in this file. The second frame
-  conversion beside it is just as easy to get wrong and just as invisible:
-  `uOrb2.x/.y` carry the comet's angle and direction from the game's y-DOWN
-  frame into the shader's y-UP one, and inverting that pair lights the half of
-  the sky the comet has NOT swept — which animates convincingly and teaches
-  the player the opposite of the mechanic. Also asserted, the same way.
-  **Anything new that rotates, sweeps or sweeps-behind gets the same
-  treatment: follow one point through both frames and assert where it lands.**
-
-- **The GL path has its own harness, and the 2D path still has none.**
-  `fxcheck.mjs` covers the shader specifically — use it and extend it. The
-  other harnesses stub the canvas, so the 2D render path is uncovered by
-  construction. That is a fact about the tooling, not a rule about what you may
-  ship.
-  The failures behind it are kept because the SHAPES recur: the black hole once
-  carried thirteen documented visual and audio features of which a playtester
-  could perceive one, each individually correct at its own site and disabled by
-  something elsewhere. The arena-scale art was gated on WebGL having *failed*;
-  the shader's lens inverted the UV field so its own gravity well darkened
-  nothing; `pow(x,2.0)` with `x` negative is undefined in GLSL ES and that is
-  half of every gaussian ring; particles integrated on raw `dt` inside slow
-  motion. Those are worth recognising again. Whether to measure before shipping
-  is a judgement call, not a gate.
+- One authored scene owns the background. The current renderer uses a swept
+  cloud volume and sparse stable stars. GL_MOTION is **0.25**. The eight current
+  worlds may grow; finite interpolation and distinctive compositions matter,
+  not a closed list or a rigid aesthetic snapshot.
+- SKY_ARENA_CALM is **0.62**, measured against live radius and ellipse geometry.
+  Threats must remain distinct within the play annulus. Hue is free; clutter
+  and contrast that hide a threat are not.
+- One scene event at a time. Prioritize black hole, major releases, pickups,
+  then ordinary orbits. Use a bounded envelope, reset across runs, and keep
+  ordinary beats out of whole-scene brightness. Reduced motion keeps a stable
+  scene while local labels and gameplay feedback communicate the same state.
+- Keep the no-WebGL path coherent with the same authored composition. Context
+  loss must leave a readable frame immediately. Do not composite obsolete
+  baked skies or fullscreen grading over the new field.
+- Ring index 0 is outermost. All geometry follows radiusOf, AY and the same
+  camera transform. Background accents cannot change collision geometry.
+- Keep the glow targets at full viewport resolution before blurring; compute
+  blur distances in physical pixels, normalize kernels and fade beyond edges.
+  A lost glow context must fall back without hiding the game. Never restore
+  reflected edge halos or misaligned source/composite transforms.
+- Run fxcheck for uniforms and lifecycle, drawcheck for valid canvas calls,
+  and rendercheck for real pixels. Inspect real gameplay too. A stub canvas
+  cannot establish visual quality, and a framebuffer average cannot establish
+  that a cosmic scene feels alive.
 
 ## Delivery
 

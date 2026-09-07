@@ -15,6 +15,11 @@ You are a comet locked to a circular orbit. You cannot steer and you cannot
 stop. You get two verbs: reverse your direction, and hop between rings. Gather
 embers, dodge shards, and complete orbits.
 
+The current direction is [awe, motion and release](docs/design/direction.md):
+a spacious reactive cosmos, clear orbital play, ten powerups and an optional
+black hole wager. Six levels are authored so far; they are the beginning of
+the content journey, not a fixed endpoint.
+
 ## Where everything is
 
 `index.html` is the product — the entire game in one self-contained file, with

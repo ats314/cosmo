@@ -8,16 +8,22 @@ Part of the [Cosmo design record](../../README.md#where-everything-is).
 
 Every one of these can be tried on demand from the title screen's POWERUP
 TESTING bar — see [POWERUP TESTING](difficulty.md#powerup-testing). It exists because the
-list below is gated: three are introduced on level 1, one on each of levels 2
-through 5, and the black hole is deliberately rare enough that it had been
-entered three times in the game's whole recorded history.
+list below is gated: three are introduced on level 1, hypernova and slipstream
+on level 2, spotlight and star trail on level 3, mirror on level 4, and scorch
+on level 5. There are ten selectable orbs,
+including the optional black-hole event. Level 6 is the current content
+frontier; future levels may introduce further mechanics.
 
 - **Shield** (green) — banked, up to 3 at first; the cap steps to 4 and 5 on
   the difficulty clock, and the crossing announces itself (BANK DEEPER).
   Taking a hit spends one automatically
   but knocks you off your orbit. Never more than three power-ups pass without
   a shield.
-- **Slow-mo** (violet) — 4 seconds at 55% speed.
+- **Slow-mo** (violet) - 6 seconds at 55% speed, or 9 with SLOW WORLD.
+- **Nova** (white) - one expanding cascade converts the shards present at
+  pickup into reachable stars on the player's lane. Converted walls become
+  spaced necklaces. The visible front does the work; expiry does not silently
+  erase threats that spawned after the blast. Its 0.95s grace covers the sweep.
 - **Overcharge** — a full shield bank means you have been playing clean,
   and the streak pays (playtester-designed, near-verbatim): while shields
   are full, embers and on-beat taps pay DOUBLE, the pips ring gold, and
@@ -35,7 +41,9 @@ entered three times in the game's whole recorded history.
   ring around the comet empties clockwise and blinks through the last
   1.5 seconds. A performance, not a transaction. (It replaced the Echo
   orb, which the loop recorder made redundant, and which the playtest
-  didn't love.)
+  didn't love.) The star multiplier doubles the actual payout, including a
+  payoff section, another doubling state, and a star-trail bonus. The printed
+  payout matches the score. Duration is 16 beats, or 24 with STAGE LIGHT.
 - **Hypernova** — the pink star (the playtest group asked for "a star in
   Mario", so it is one, drawn plainly — in `COL.hyper`'s magenta, `#ff4fd8`,
   because gold is the embers' colour and a sentence pointing at "the gold
@@ -106,7 +114,8 @@ entered three times in the game's whole recorded history.
   `Math.random`, not the effect.
 
 - **The Mirror** (blue) — a second comet, opposite you on your own ring,
-  for eight beats. It gathers what it passes and shatters red on contact; it
+  for sixteen beats, or 24 with LONG MIRROR. It gathers what it passes and
+  shatters armed red on contact; it
   cannot be hurt and it does **not** protect you, so red on your own half of
   the ring is exactly as lethal as it ever was. Presence, not immunity — and
   on a circular board presence is the one thing no existing orb offers, since
@@ -117,6 +126,9 @@ entered three times in the game's whole recorded history.
   arrives. **It pays but does not advance the combo** — the chain is the
   game's measure of the player's own hand, and a second collector feeding it
   would let an orb farm the one number that says how well you are playing.
+  Contact uses the full arc travelled this frame and the player's effective
+  ring during a hop, so fast movement cannot skip a target. Star-trail route
+  stars remain for the player to chase.
   Named THE MIRROR, not THE TWIN (the working name), because TWIN SHARDS is a
   formation met at dl 18; ECHO was the other candidate and is a banned string
   that fails the build.
@@ -132,14 +144,51 @@ entered three times in the game's whole recorded history.
   (sectors cannot overlap or leak), painted from the previous angle to the
   current one because a per-frame point sample leaves gaps at 4.2 rad/s, and
   drawn *under* the shards so a red standing in fire is still read as a red.
-  Warm orange and deliberately not warm red: red belongs to death alone.
+  The wake lasts at least one orbit at the current speed, with a 2.6-second
+  minimum measured in gameplay time. Slow motion therefore preserves the
+  travelled wake, and it fades after the reward ends. DEEP BURN extends the
+  active paint time from 8 to 13 seconds. Warm orange keeps red reserved for
+  danger.
+- **Slipstream** (cyan) - 12 seconds of rewarded ring changes, or 18 with
+  LONG SLIPSTREAM. Each successful player hop converts non-saucer shards in
+  a modest destination arc (0.48 radians either side of the landing angle)
+  into stars on that destination ring. The landing gains 0.4s grace, at most
+  once per 0.8s, so rapid hops cannot maintain immunity. An invalid swipe and
+  black-hole gravity do not trigger it.
+- **Star Trail** (gold) - nine marked bonus stars form a route ahead in the
+  current travel direction, alternating between the current ring and an
+  adjacent ring. They wait 16 seconds, or 24 with LONG STAR TRAIL. Each uses
+  normal collection and combo scoring plus four points; collecting in order
+  is an invitation, not a requirement. A later pickup replaces the old route.
+  Red stays on the board, so following the route is an active choice.
+- **Black Hole** (violet-blue) - an optional dangerous event. During the
+  first 12 seconds, ride the temporary fourth, innermost ring to bank charge:
+  eight seconds of settled inner-ring travel fills it. Entry alone awards
+  nothing. At ESCAPE, gravity releases; reach the outermost ring before the
+  17-second deadline to cash out. Timeout loses the bank and one shield, or
+  ends an unshielded ordinary run. The successful reward is
+  `round((80 + 600*charge + 20*stars) / 1.5^min(3, shieldsSpent))`.
+  Motion runs at 60% speed after the opening warp, density builds from 1.25
+  to 2 times the ordinary budget, gravity pulls inward every four seconds
+  before escape, and inner-ring stars pay double. Gravity warns before pulling
+  and covers its forced arrival with short grace. No fresh threats spawn once
+  ESCAPE opens. Closing removes entities from the temporary lane before its
+  radius vanishes.
+
+Black-hole entry suspends ordinary timed rewards and their collectors, wake,
+and route stars through the closing warp. Remaining reward time resumes
+afterward. Hard teaching also waits for an ordinary reward to finish rather
+than consuming its duration under a near-frozen lesson. The spectacle has
+one scene owner: pickups create brief sky responses, with the black hole
+owning the scene and score bed while its challenge runs.
 
 The musical orbs join the spawn rotation after the intro curriculum
 (shield → slow-mo → nova) has run — once per RUN, on its own counter, so a
 level boundary never replays it — each named by a first-encounter hint.
 The guarantees are spread across the run now, one home level each: the
 hypernova's first placement is guaranteed on level 2, the spotlight's on
-level 3, THE MIRROR's on level 4 and scorch's on level 5, each once per run —
+level 3, SLIPSTREAM follows hypernova on level 2, STAR TRAIL follows spotlight
+on level 3, THE MIRROR arrives on level 4, and scorch on level 5, each once per run -
 because at a 10% roll the marquee item was
 optional content again (a 6000-point run met zero), which is the exact
 disease the curriculum exists to cure. A run picked into a later start opens
@@ -147,9 +196,11 @@ with the earlier homes pre-spent, so a 1→6 climb meets each guarantee exactly
 once, on its home level, and a level-5 start is not owed four marquee
 placements in its first minute. The fallback roll behind the guarantees
 respects the same level floors — shield, slow-mo and nova always, hypernova
-from level 2, the spotlight from 3, the mirror from 4, scorch from 5 — with
+and slipstream from level 2, spotlight and star trail from 3, mirror from 4,
+and scorch from 5 - with
 the shares renormalised proportionally. The shield-pity rule is unchanged:
-never more than three placements without one.
+never more than three placements without one. That rule is evaluated before
+black-hole guarantees and rare rolls, so optional events cannot postpone it.
 
 ### THE BASS BOMB IS REMOVED
 
@@ -165,8 +216,8 @@ Its clear region — a ±60° wedge across every ring — was never drawn, so th
 `LONG FUSE` upgrade widened an invisible number. Two orbs occupying one job,
 one of them inferior and illegible, is one orb too many; the nova keeps the
 job. `LONG FUSE` goes with it — leaving seven upgrade tiles at the time;
-`LONG MIRROR` and `DEEP BURN` have since brought the draft back to nine — and
-the bomb's
+`LONG MIRROR` and `DEEP BURN` later brought it to nine; LONG SLIPSTREAM and
+LONG STAR TRAIL now bring it to eleven. The bomb's
 0.15 share of the spawn roll is redistributed proportionally across the
 remaining five — the magnetar's precedent, both times: removal changes what
 can appear, not how often the others appear relative to each other. The
@@ -176,26 +227,28 @@ the top.
 
 ### The draft cannot run dry
 
-Nine tiles, three offered at each of the five level boundaries — fifteen
-slots against nine tiles, which is the arithmetic that broke the old rule.
+Eleven tiles, three offered at each of the five current level boundaries.
+The original nine-tile pool had fifteen offered slots, which is the
+arithmetic that broke the old rule.
 `rollOffer` used to burn every tile it had ever *offered*, taken or not;
 harmless when three levels meant two draws, but over five draws it left the
 level-5 and level-6 cards drawing from an empty pool, so the two levels added
 most recently were the two the draft skipped. TAKEN upgrades still never
 repeat — a pick is spent — but a DECLINED tile may return once the fresh pool
 runs thin, so early draws stay as varied as they ever were and the late cards
-are never blank.
+are never blank. LONG SLIPSTREAM enters on the level-2 card, LONG STAR TRAIL
+on level 3, so a player is not offered an upgrade to an unavailable orb.
 
-### THE SPOTLIGHT FINALLY LIGHTS THE STAGE
+### Historical spotlight correction
 
-The same review found the
+The earlier review found the
 spotlight's active state changed zero arena pixels for its whole nine-to-
 fourteen seconds: the entire inventory was an audio mix move (instrument
 ×1.5, pad to 0.8 — about −1.9dB on one layer, at the edge of a phone
 speaker's JND) plus a text chip that only drew on tall viewports, and the
 one universal effect — stars paying double — printed the UNDOUBLED number
 in its popup. The owner's brief asked for an actual spotlight, so it has
-one now: the house dims under the arena (the drum break's own veil at
+one in that pass: the house dimmed under the arena (the drum break's own veil at
 0.22 against its 0.30 — every gameplay object draws above it, because a
 dimmed board would be a difficulty change and a dimmed sky is staging), a
 followspot beam and a pool of light track the comet (beam 0.09 flat/0.15

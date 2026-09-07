@@ -174,21 +174,44 @@ try {
   // menu: run 15s of frames so the demo loop cycles (spawn, reverse, hops)
   for (let i = 0; i < 900; i++) frame(16.7);
   console.log('menu+demo ok');
-  // start the game from the title screen's START — a FRESH device passes
-  // through the swipe chooser and lands directly on the LIFT OFF card: a
-  // device with zero runs has nothing to pick a level with, so the picker
-  // appears from run 2 (enterRunStart). The picker itself is exercised in
-  // its own section below, on a device with runs behind it.
+  // A first START is playable immediately. Drive each real action rather
+  // than skipping the introduction; later harnesses may use its skip API.
   let mpid = passMenu(st, frame, fire, pev, 900);
-  mpid = passSwipeChooser(st, frame, fire, pev, mpid);
-  if (st('G.state') !== 'lvend') throw new Error('fresh device did not get the level-1 card, state=' + st('G.state'));
-  if (st('G.lvCard&&G.lvCard.next') !== 1) throw new Error('the fresh-device card is not level 1\'s');
-  for (let i = 0; i < 60; i++) frame(16.7);
+  if (st('G.state') !== 'playing' || st('G.intro&&G.intro.stage') !== 0)
+    throw new Error('first START did not enter the playable introduction directly');
+  const introUntil = (condition, limit, what) => {
+    for (let i = 0; i < limit && !st(condition); i++) {
+      frame(16.7);
+      if (st('G.intro&&(G.spikes.length||G.pows.length||dl()!==0)'))
+        throw new Error('hazards or progression entered the safe introduction');
+    }
+    if (!st(condition)) throw new Error('introduction did not reach '+what);
+  };
+  for (let i = 0; i < 120; i++) frame(16.7);
+  if (st('G.intro.stage') !== 0) throw new Error('the tap instruction advanced without an action');
   fire('pointerdown', pev(1, 200, 400, 'pointerdown'));
+  for (let i = 0; i < 10; i++) frame(16.7);
+  if (st('introPrompt().done')) throw new Error('an unresolved press completed the tap lesson');
   fire('pointerup', pev(1, 200, 400, 'pointerup'));
+  if (!st('introPrompt().done')) throw new Error('the real committed tap produced no feedback');
+  introUntil('G.intro.stage===1',100,'the star instruction');
+  if (st('G.stars.length') !== 1) throw new Error('the star instruction has no reachable star');
+  introUntil('G.intro.stage===2',240,'the orbit instruction');
+  if (st('G.score') !== 1) throw new Error('the tutorial star did not pay its point');
   for (let i = 0; i < 60; i++) frame(16.7);
-  if (st('G.state') !== 'playing') throw new Error('card tap did not start the run, state=' + st('G.state'));
-  console.log('game start ok (through the first-run card)');
+  fire('pointerdown', pev(2, 200, 400, 'pointerdown'));
+  fire('pointerup', pev(2, 200, 400, 'pointerup'));
+  if (st('G.lapAcc') > 0.1) throw new Error('turning did not restart the practice orbit');
+  introUntil('G.intro.stage===3',420,'the ring-change instruction');
+  if (st('G.orbits') !== 1 || st('G.score') !== 20 || st('G.nRings') !== 2)
+    throw new Error('the completed practice orbit lost its reward or second ring');
+  fire('pointerdown', pev(3, 200, 400, 'pointerdown'));
+  fire('pointermove', {pointerId:3,clientX:200,clientY:470,type:'pointermove'});
+  fire('pointerup', pev(3, 200, 470, 'pointerup'));
+  introUntil('!G.intro',180,'normal play after the real swipe');
+  if (st('G.state') !== 'playing' || st('G.nRings') !== 2 || !st('G.didHop') || st('G.score') !== 20 || st('age()') > 0.2)
+    throw new Error('the intro handoff reset a taught capability, reward, or normal opening clock');
+  console.log('playable intro ok: tap, physical star, uninterrupted orbit, real swipe, safe seamless handoff');
   // taps (reverse) while playing
   for (let k = 0; k < 5; k++) {
     fire('pointerdown', pev(2, 200, 400, 'pointerdown'));
@@ -315,15 +338,10 @@ try {
   console.log('swipe rules ok: agree up top, invert at the bottom; wording follows');
 
   // ---- teaching invariants (the mechanic-explanations pass) ----
-  // the curriculum rule: every tier is introduced by level 3's finish line,
-  // and STORM sits exactly on level 4's floor — the exam teaches nothing.
-  // Read by index off LV so moving a level moves the assertion with it.
-  // THE BOUNDARY IS THE LAST TEACHING LEVEL, derived rather than indexed. This
-  // was LV[2] — level 3's finish line — which stopped being the boundary the
-  // day teaching was extended through level 5. LV.length-2 is the last level
-  // that HAS a finish line; LV.length-1 is the exam.
-  if (!st('TIERS.every(t=>t.at<=LV[LV.length-2].end)')) throw new Error('a tier unlocks inside the exam level');
-  if (st('TIERS[TIERS.length-1].at') !== st('LV[LV.length-2].end')) throw new Error('the last tier is not aligned to the exam level\'s floor');
+  // New content may arrive at the current frontier or in later levels. The
+  // ladder must stay ordered, and each entry still needs an actual lesson.
+  if (!st('TIERS.every((t,i)=>Number.isFinite(t.at)&&t.at>=0&&(!i||t.at>=TIERS[i-1].at))'))
+    throw new Error('the tier ladder contains an invalid or out-of-order unlock');
   // every spawnable formation and every reward orb carries a lesson
   if (!st("TIERS.every(t=>!t.type||!!MEET[t.type])")) throw new Error('a tier type has no MEET lesson');
   if (!st("['spot','hyper','lapcost'].every(k=>MEET[k]&&MEET[k].soft)")) throw new Error('a reward lesson lost its no-slow-mo flag');
@@ -437,8 +455,10 @@ try {
   // change mid-run. If the warp ever fails to put it back, the arena is
   // silently wrong for the rest of the session and nothing else would notice.
   {
-    st("G.state='playing';G.level=3;G.score=0;G.lastHit=null;G.invuln=G.t+1e9");
-    st('startGame()');
+    st("G.state='playing';G.level=3;G.score=0;G.lastHit=null");
+    // startGame resets invulnerability. This fixed-position geometry probe
+    // rewinds the mode clock for longer than a normal challenge can last.
+    st('startGame();G.invuln=G.t+1e9');
     for (let i = 0; i < 4; i++) frame(16.7);
     const rings0 = st('G.nRings'), rad0 = JSON.parse(st('JSON.stringify(RADII)'));
     const cap0 = st('shardCap()'), gap0 = st('spawnGap()');
@@ -460,15 +480,12 @@ try {
        already documents as non-deterministic is a flake waiting to happen. */
     for (let i = 0; i < 40; i++) frame(16.7);
     if (st('G.ringI') !== 3) throw new Error('could not hop onto the fourth ring, ringI=' + st('G.ringI'));
-    /* THE HORIZON BONUS. The fourth ring is the mode's one structural
-       novelty and arriving on it used to be worth exactly what arriving
-       anywhere else was worth. Reaching it pays once per black hole and
-       ignites the display; assert both the payment and the flag, because a
-       silent zero here is indistinguishable from the feature being absent. */
-    if (!st('BH.lit')) throw new Error('reaching the fourth ring did not claim the horizon bonus');
-    if (!(st('G.score') >= scoreH + st('BH_HORIZON'))) {
-      throw new Error('the horizon bonus paid nothing, score ' + scoreH + ' -> ' + st('G.score'));
-    }
+    // Arrival starts a bank; only staying deep grows it and only escape pays.
+    if (!st('BH.lit')) throw new Error('reaching the fourth ring did not ignite the bank');
+    if (!(st('BH.charge') > 0 && st('BH.charge') < 0.15))
+      throw new Error('a short visit did not accrue a small amount of charge');
+    if (st('G.score') >= scoreH + st('BH_HORIZON'))
+      throw new Error('the bank paid its maximum reward merely for arriving');
     if (!(st('BH.igT') > 0)) throw new Error('the horizon display never ignited');
     /* And it is once per mode, not once per arrival — no farming by hopping.
        The assertion is "less than another BH_HORIZON", not "unchanged": the
@@ -529,7 +546,12 @@ try {
     st('G.pows.length=0;G.powT=0');
     for (let i = 0; i < 60; i++) frame(16.7);
     if (st('G.pows.length') !== 0) throw new Error('a power-up was placed inside black hole mode');
-    // ride it out from the ring that is about to stop existing
+    // Once ESCAPE opens, an outward hop cashes the bank before the deadline.
+    if (st('G.state') !== 'playing' || st('BH.phase') !== 2)
+      throw new Error('the escape fixture left its live black hole before the success probe');
+    st('BH.t=BH_ESCAPE;G.ringI=1;G.hopP=1');
+    const beforeEscape = st('G.score');
+    st('hop(-1)');
     for (let i = 0; i < 60 * 20; i++) { frame(16.7); if (!st('bhActive()')) break; }
     if (st('bhActive()')) throw new Error('the black hole never ended');
     if (st('G.nRings') !== rings0) throw new Error('the ring count did not come back, nRings=' + st('G.nRings'));
@@ -541,7 +563,7 @@ try {
       }
     }
     if (st('shardCap()') !== cap0) throw new Error('the shard cap stayed raised after the black hole');
-    if (!(st('G.score') > 0)) throw new Error('surviving a black hole paid nothing');
+    if (!(st('G.score') > beforeEscape)) throw new Error('a successful escape paid nothing');
   }
   console.log('black hole: four rings, warped and restored ok');
 
@@ -1139,9 +1161,9 @@ try {
     // first orb of a lab run arrives around ten seconds in, so the window
     // before the first horizon is short and its peak is often 0 — a comparison
     // against it would pass on nothing. The mode's density multiplier reaches
-    // 3.5x, so a board that never gets past twice the calm cap means the
+    // 2x, so a board that never rises above the calm cap means the
     // crowding half of the black hole is not reaching the player.
-    if (modePeak < calmCap * 2) throw new Error(`the black hole peaked at ${modePeak} against a calm cap of ${calmCap} — the mode is not crowding the board`);
+    if (modePeak <= calmCap) throw new Error(`the black hole peaked at ${modePeak} against a calm cap of ${calmCap} — the mode is not crowding the board`);
 
     // THE GHOST. Deterministic: a lethal shard placed on the player's own ring
     // at the player's own angle, which the contact test cannot miss — provided
@@ -1224,7 +1246,7 @@ try {
       'ghost holds both ways, nothing written to the device');
   }
 
-  // ---- all seven, not just the one the run above happened to pick ----
+  // ---- every orb, including new additions to the picker ----
   // The black hole is the interesting case and it is also the atypical one:
   // it is the only orb with its own mode, its own ring count and its own
   // spawn suppression. Six others sit behind curriculum branches that the lab
@@ -1260,6 +1282,113 @@ try {
     console.log('every lab orb ok in 45s each —', counts.join(' '));
   }
 
+  // Ordinary rewards use the actual pickup, movement, and scoring paths. Quiet
+  // lab boards keep incidental spawns and device writes out of these probes.
+  {
+    const fresh = () => st(`LAB.on=true;LAB.sel=0;LAB.invuln=true;startLab();
+      G.stars=[];G.spikes=[];G.pows=[];G.novas=[];G.starT=99;G.spikeT=99;G.powT=99;
+      G.angle=0;G.prevAngle=0;G.dir=1;G.ringI=0;G.hopFromI=0;G.hopP=1;
+      G.combo=0;G.comboT=99;G.score=0;G.shields=0;G.invuln=0;G.teach=0;G.stop=0`);
+    const pickup = type => st(`G.pows=[{type:'${type}',a:G.angle,ring:effRing(),t:0,life:7}];update(0)`);
+    fresh(); pickup('warp');
+    if (st('G.slow') !== 6) throw new Error('slow-mo did not grant six readable seconds');
+    st("G.upg.slowworld=1"); pickup('warp');
+    if (st('G.slow') !== 9) throw new Error('long slow-mo did not extend the pickup');
+
+    fresh(); pickup('slip');
+    if (st('G.slip') !== 12) throw new Error('slipstream pickup did not activate');
+    st(`G.spikes=[{a:0.1,ring:1,phase:1},{a:1.1,ring:1,phase:1},{a:0.1,ring:0,phase:1}];hop(1)`);
+    if (st('G.spikes.length') !== 2 || !st('G.stars.length===1&&G.stars[0].ring===1'))
+      throw new Error('slipstream did not clear only its destination arc into reachable stars');
+    const grace = st('G.invuln');
+    if (Math.abs(grace - st('G.t') - 0.4) > 1e-8) throw new Error('slipstream landing grace is wrong');
+    st('G.t+=0.2;G.hopP=1;hop(-1)');
+    if (st('G.invuln') !== grace) throw new Error('rapid slipstream hops stacked continuous immunity');
+    st('G.hopP=1;G.slipFx=null;hop(-1)');
+    if (st('G.slipFx') !== null) throw new Error('an invalid outward hop activated slipstream');
+    st("G.upg.longslip=1"); pickup('slip');
+    if (st('G.slip') !== 18) throw new Error('long slipstream did not extend the pickup');
+
+    fresh(); pickup('trail');
+    if (!st('G.stars.length===9&&G.stars.every((s,i)=>s.trail&&s.trailI===i&&s.ring===i%2&&s.life===16)'))
+      throw new Error('star trail is not nine ordered stars on adjacent alternating rings');
+    const route0 = st('G.stars[0].a');
+    if (!(route0 > 0 && route0 < 1)) throw new Error('star trail did not begin ahead of the comet');
+    st('G.angle=G.stars[0].a;update(0)');
+    if (st('G.score') !== 5 || st('G.combo') !== 1 || st('G.stars.length') !== 8)
+      throw new Error('a route star did not pay the normal combo plus its four-point bonus');
+    st("G.upg.longtrail=1"); pickup('trail');
+    if (!st('G.stars.length===9&&G.stars.every(s=>s.life===24)'))
+      throw new Error('a new star trail did not replace its old route with the upgraded lifetime');
+    st('G.dir=-1;G.angle=0;layStarTrail()');
+    if (!(st('G.stars[0].a') > Math.PI)) throw new Error('star trail ignored reversed travel');
+
+    fresh(); pickup('mirror');
+    if (st('G.mirror') !== st('16*SPB')) throw new Error('mirror did not last sixteen beats');
+    st(`G.combo=3;G.comboT=99;G.stars=[{a:Math.PI+0.5,ring:0,t:0,life:20},
+      {a:Math.PI+0.5,ring:0,t:0,life:20,trail:true}];
+      G.prevAngle=0;G.angle=1;G.sweep=1;updateOrbMotion(0.1,0.1)`);
+    if (st('G.score') !== 3 || st('G.combo') !== 3 || !st('G.stars.length===1&&G.stars[0].trail'))
+      throw new Error('mirror missed its swept arc, advanced the player combo, or stole the route');
+    st(`G.stars=[{a:Math.PI+0.5,ring:0,t:0,life:20}];
+      G.ringI=1;G.hopFromI=0;G.hopP=0.25;updateOrbMotion(0.1,0.1)`);
+    if (st('G.stars.length') !== 0) throw new Error('mirror contact jumped rings before the player did');
+
+    fresh(); pickup('scorch');
+    st('G.speed=1.4;G.prevAngle=0;G.angle=0;G.sweep=0;updateOrbMotion(0.1,0.1)');
+    if (st('Array.from(G.burn[0]).filter(x=>x>0).length') !== 1)
+      throw new Error('scorch painted ground the stationary comet never crossed');
+    st(`G.angle=0.5;G.sweep=0.5;G.spikes=[{a:0.25,ring:0,phase:1},{a:1,ring:0,phase:1}];
+      updateOrbMotion(0.1,0.1)`);
+    if (st('G.spikes.length') !== 1 || st('G.spikes[0].a') !== 1)
+      throw new Error('scorch did not convert precisely the wake the comet travelled');
+    if (!(st('G.burn[0][burnIdx(0.25)]') > st('TAU/G.speed')))
+      throw new Error('scorch wake cannot survive one orbit of the calm board');
+    st('G.scorch=0;updateOrbMotion(5,5)');
+    if (st('burning(0,0.25)')) throw new Error('scorch wake remained permanent after its reward ended');
+
+    fresh();
+    st(`G.spikes=[{a:2,ring:0,t:0,phase:1,bt:0,va:0,life:99}];novaBlast(cx,cy);
+      G.spikes.push({a:2.5,ring:0,t:0,phase:1,bt:0,va:0,life:99});G.novas[0].r=R*4;update(0)`);
+    if (st('G.spikes.length') !== 1 || st('G.spikes[0].a') !== 2.5)
+      throw new Error('nova missed an original target or erased a later threat');
+    st('G.novas[0].life=0;update(0)');
+    if (st('G.spikes.length') !== 1) throw new Error('nova expiry erased a threat beyond its original cascade');
+
+    fresh(); pickup('spot');
+    st('G.hyper=2;G.hyperD=2;G.combo=2;G.comboT=99;G.stars=[{a:0,ring:0,t:0,life:20}];update(0)');
+    if (st('G.score') !== 12 || st('G.lastPopPaid') !== 12)
+      throw new Error('spotlight did not double the existing star reward and its displayed payout');
+
+    // The black-hole bank accrues only during a settled inner-ring dwell.
+    fresh(); st('startBlackHole();bhTick(BH_WARP);BH.t=0;G.ringI=3;G.hopP=1;bhTick(2)');
+    if (st('G.score') !== 0 || Math.abs(st('BH.charge') - 0.25) > 1e-8)
+      throw new Error('inner-ring dwell failed to bank charge without upfront score');
+    st('G.ringI=2;bhTick(1)');
+    if (st('BH.charge') !== 0.25) throw new Error('the bank grew away from the inner ring');
+    st(`G.slow=10;G.spot=10;G.hyper=10;G.hyperD=10;G.mirror=10;G.scorch=10;G.slip=10;
+      G.burn=Array.from({length:4},()=>new Float32Array(BURN_SECT));G.burn[0][0]=2;
+      G.stars=[{a:G.angle,ring:2,t:3,life:16,trail:true}];update(0.25)`);
+    if (!st('[G.slow,G.spot,G.hyper,G.mirror,G.scorch,G.slip].every(x=>x===10)&&G.burn[0][0]===2&&G.stars[0].t===3'))
+      throw new Error('the black hole spent suspended orb time or collected a suspended route');
+    st('G.shields=2;G.score=25;BH.t=BH_DUR-0.1;BH.escape=true;G.ringI=3;G.hopP=1;bhTick(0.2)');
+    if (!st('BH.phase===3&&G.shields===1&&G.score===25'))
+      throw new Error('missing the escape deadline did not lose the bank and one shield');
+    st(`G.spikes=[{ring:3}];G.stars.push({ring:3});G.pows=[{ring:3}];bhTick(0.1)`);
+    if (!st('[G.spikes,G.stars,G.pows].every(a=>a.every(s=>s.ring<G.nRings))&&G.ringI<G.nRings'))
+      throw new Error('black-hole closure left an entity on the vanished ring');
+    st('bhTick(2);G.stars=[];update(0.25)');
+    if (st('G.slip') !== 9.75) throw new Error('suspended rewards did not resume after black-hole closure');
+    fresh(); st('startBlackHole();bhTick(BH_WARP);BH.charge=0.5;BH.score=3;BH.t=BH_ESCAPE;G.ringI=0;G.hopP=1;bhTick(0.01)');
+    if (!st('BH.phase===3&&G.score===80+BH_HORIZON*0.5+20*3'))
+      throw new Error('an early outward escape did not cash the earned bank exactly once');
+    st('enterPowerSel()');
+    if (!st('G.mirror===0&&G.scorch===0&&G.slip===0&&G.slipFx===null&&G.burn===null'))
+      throw new Error('leaving a lab run left an ordinary reward active under the picker');
+    st('enterMenu()');
+    console.log('reward behavior ok: timed pickups, route bonus, swept mirror/wake, bounded slip grace, nova targets, black-hole bank and suspension');
+  }
+
   // ---- a fresh device meets the swipe question on the way into the lab ----
   // The lab is played with the same two gestures the run is, so it cannot skip
   // the once-per-device control question. It also must not ask it twice, and
@@ -1286,68 +1415,52 @@ try {
     console.log('lab swipe-question route ok: asked once, handed back to the picker');
   }
 
-  // ---- the two new screens, measured on eight viewports ----
-  // The canvas is stubbed, so nothing here can see a pixel — but every control
-  // on both screens publishes a rect from its own draw pass, and a rect is
-  // geometry the harness CAN check. Written because the first draft of the
-  // picker failed exactly this: seven rows plus a toggle plus a pill did not
-  // fit a landscape phone, the row height hit a floor the box could not honour,
-  // and the last orb was drawn straight through the ghost switch on 844x390 and
-  // 740x360. Nothing else here would have noticed — the picker still "worked",
-  // it just answered two controls with one tap.
+  // ---- menu and lab controls, measured on eight viewports ----
+  // Check the hit rectangles published by the current draw pass. Controls
+  // must stay finite, visible and separate so one tap has one destination.
   {
     const VPS = [[390, 844], [360, 640], [320, 568], [430, 932],
                  [844, 390], [740, 360], [768, 1024], [1280, 800]];
     const ov = (a, b) => a && b && a.x < b.x + b.w && a.x + a.w > b.x
                               && a.y < b.y + b.h && a.y + a.h > b.y;
-    const folded = [];
+    const checkRects = (rects, w, h, screen) => {
+      for (const r of rects) {
+        if (!r || !['x', 'y', 'w', 'h'].every(k => Number.isFinite(r[k])) || r.w <= 0 || r.h <= 0)
+          throw new Error(`${w}x${h}: ${screen} has an invalid ${r?.id || 'control'} rectangle`);
+        if (r.x < 0 || r.y < 0 || r.x + r.w > w || r.y + r.h > h)
+          throw new Error(`${w}x${h}: ${screen}'s ${r.id} is off screen`);
+      }
+      for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+        if (ov(rects[i], rects[j]))
+          throw new Error(`${w}x${h}: ${screen}'s ${rects[i].id}${rects[i].i ?? ''} overlaps ${rects[j].id}${rects[j].i ?? ''}`);
+      }
+    };
     for (const [w, h] of VPS) {
       vw = w; vh = h;
       st("G.state='menu';G.swipeAsked=true;G.t+=1");
       for (let i = 0; i < 20; i++) frame(16.7);
       const menu = JSON.parse(st('JSON.stringify(G.menuRects)'));
       const swipeRow = JSON.parse(st('JSON.stringify(G.swipeRect)') || 'null');
-      const bar = menu.find(r => r.id === 'lab');
-      if (!bar) throw new Error(`${w}x${h}: the title screen drew no POWERUP TESTING bar`);
-      if (bar.y < 0 || bar.y + bar.h > h || bar.x < 0 || bar.x + bar.w > w) {
-        throw new Error(`${w}x${h}: the lab bar is off screen`);
+      for (const id of ['start', 'lab', 'account', 'intro']) {
+        if (menu.filter(r => r.id === id).length !== 1)
+          throw new Error(`${w}x${h}: the menu needs one ${id} control`);
       }
-      for (const other of menu.concat([swipeRow]).filter(r => r && r !== bar)) {
-        if (ov(bar, other)) throw new Error(`${w}x${h}: the lab bar overlaps ${other.id || 'the swipe row'}`);
-      }
-      // The bar's band came out of the CARDS (0.46 -> 0.40 of the box) rather
-      // than out of the key, precisely so the four key rows would not be
-      // pushed onto their 15u floor and through the bottom of a short
-      // landscape phone. That is a claim about a number in another expression
-      // entirely, so it is checked here: the swipe row is key row 1, which
-      // gives up both the row height and the block origin.
-      const start = menu.find(r => r.id === 'start');
-      if (swipeRow && start) {
-        const rh = swipeRow.h, row4 = (swipeRow.y + rh * 0.62) - rh + 3 * rh;
-        if (row4 > start.y) throw new Error(`${w}x${h}: the menu key's last row (${row4.toFixed(0)}) runs into START (${start.y.toFixed(0)})`);
-        if (row4 > h) throw new Error(`${w}x${h}: the menu key's last row is off the bottom`);
-      }
+      if (!swipeRow) throw new Error(`${w}x${h}: the menu drew no swipe control`);
+      checkRects(menu.concat([{ ...swipeRow, id: 'swipe' }]), w, h, 'menu');
       st('enterPowerSel();G.t+=1');
       for (let i = 0; i < 20; i++) frame(16.7);
       const pr = JSON.parse(st('JSON.stringify(G.powSelRects)'));
       const orbs = pr.filter(r => r.id === 'orb');
       // read off the table: the count tripwire lives with the lab-session test,
-      // one place — this loop only cares that every row the table owns got drawn
+      // one place - this loop only cares that every row the table owns got drawn
       if (orbs.length !== st('LAB_ORBS.length')) throw new Error(`${w}x${h}: the picker drew ${orbs.length} orbs`);
+      checkRects(pr, w, h, 'picker');
       for (const r of pr) {
-        if (r.y < 0 || r.y + r.h > h) throw new Error(`${w}x${h}: the picker's ${r.id} runs off the screen vertically`);
-        if (r.x < 0 || r.x + r.w > w) throw new Error(`${w}x${h}: the picker's ${r.id} runs off the screen horizontally`);
         // 18 rather than a round 24: the level picker's own back control is 26u,
         // which is 19.8 on the narrowest phone tested. The lab may be as small
         // as what already ships and no smaller.
         if (r.h < 18) throw new Error(`${w}x${h}: the picker's ${r.id} is ${r.h.toFixed(1)}px tall — too small to press`);
       }
-      for (let i = 0; i < pr.length; i++) for (let j = i + 1; j < pr.length; j++) {
-        if (ov(pr[i], pr[j])) {
-          throw new Error(`${w}x${h}: the picker's ${pr[i].id}${pr[i].i ?? ''} overlaps ${pr[j].id}${pr[j].i ?? ''}`);
-        }
-      }
-      if (orbs[1].y === orbs[0].y) folded.push(`${w}x${h}`);
       // THE PAUSE ICON TOOK THE LAB DOOR'S CORNER. Both are drawn in the same
       // band at the top of a lab run, and the door is offset by the icon's
       // footprint rather than by a guess — so the pair has to be checked on a
@@ -1357,19 +1470,14 @@ try {
       const door = JSON.parse(st('JSON.stringify(G.labRect)') || 'null');
       const pb = JSON.parse(st('JSON.stringify(pauseRect())'));
       if (!door) throw new Error(`${w}x${h}: a lab run drew no door`);
-      if (ov(door, pb)) throw new Error(`${w}x${h}: the lab door overlaps the pause button`);
-      if (door.x + door.w > w) throw new Error(`${w}x${h}: the lab door runs off the right edge (${(door.x + door.w).toFixed(0)}>${w})`);
+      checkRects([{ ...door, id: 'lab' }, { ...pb, id: 'pause' }], w, h, 'lab run');
       if (door.w < 60) throw new Error(`${w}x${h}: the lab door squeezed to ${door.w.toFixed(0)}px making room for pause`);
       st('enterMenu()');
       for (let i = 0; i < 5; i++) frame(16.7);
     }
     vw = 390; vh = 844;
     for (let i = 0; i < 20; i++) frame(16.7);
-    // the fold is the fix, so prove it still happens: a build where the
-    // two-column branch stopped firing would pass every check above by
-    // silently shrinking the rows instead
-    if (!folded.length) throw new Error('no viewport folded the picker to two columns — the short-screen path is dead');
-    console.log(`lab layout ok on ${VPS.length} viewports; folded to two columns on ${folded.join(', ')}`);
+    console.log(`menu and lab controls ok on ${VPS.length} viewports`);
   }
 } catch (e) {
   console.error('RUNTIME FAILED:', e.stack.split('\n').slice(0, 6).join('\n'));

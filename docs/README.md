@@ -34,6 +34,7 @@ otherwise re-propose.
 
 | Document | What it covers |
 |---|---|
+| [`design/direction.md`](design/direction.md) | Current creative direction; supersedes old endless-exam and background prescriptions. |
 | [`design/difficulty.md`](design/difficulty.md) | The difficulty clock, the `MODES` knob table and why it survives at one row, where a run starts, and pause. |
 | [`design/levels.md`](design/levels.md) | The six levels, what each is for, and the black hole that runs from level 3 on. |
 | [`design/ladders.md`](design/ladders.md) | `G.tier` unlocks; `G.level` is what the player is told. Why they are never the same word. |
