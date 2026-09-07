@@ -12,6 +12,9 @@ JavaScript. No build step, no dependencies, no external assets.
 
 ## Current presentation
 
+The current sky uses `SKY_ARENA_CALM = 0.62` and `GL_MOTION = 0.25`.
+Values in the historical record below belong to earlier rendering systems.
+
 See [Awe, motion, release](../design/direction.md). The WebGL sky now evaluates
 one authored swept cloud volume with sparse stable stars. The canvas fallback
 uses the same field parameters. A single scene event controls temporary light;

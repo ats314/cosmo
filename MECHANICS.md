@@ -1,5 +1,8 @@
 # The mechanics ledger
 
+Current sky controls: `SKY_ARENA_CALM = 0.62` and `GL_MOTION = 0.25`.
+Earlier numerical tuning notes below describe the retired background stack.
+
 One row per player-facing mechanic: what it does, where the game introduces
 it, and every channel that explains it. The curriculum rule this table
 enforces is that new content has a reachable introduction and a clear lesson.

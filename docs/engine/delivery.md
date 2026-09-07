@@ -8,6 +8,11 @@ Part of the [Cosmo design record](../../README.md#where-everything-is).
 
 ## The play link is the Netlify one now
 
+As of September 7, 2026, `cosmo-arcade` is connected to `ats314/cosmo`,
+branch `main`. Netlify runs `node netlify/build.mjs`, publishes `_site`, and
+builds `netlify/functions`. Main pushes now publish to both hosts. The earlier
+manual-upload stamp problem described below is historical.
+
 **<https://cosmo-arcade.netlify.app/>** is the address to give somebody. It
 serves the same artifact GitHub Pages does, and it is the only one of the two
 with the functions behind it — so accounts, synced records and the leaderboard
@@ -80,8 +85,8 @@ the Pages workflow reads `GITHUB_SHA`, a git-linked Netlify build reads
 published a page stamped `dev`: honest, and useless for the one job the stamp
 has.
 
-**A CLI-uploaded Netlify deploy still cannot name its source commit, and this is
-the reason to link the repository.** The CLI ships a tarball; the builder
+**Historical failure: a CLI-uploaded Netlify deploy could not name its source
+commit.** The CLI shipped a tarball; the builder
 git-inits it, so `git rev-parse HEAD` there answers about a repository created
 seconds ago and `COMMIT_REF` holds a deploy ref Netlify assigned. Both are
 seven hex characters that name nothing in this repository. The page is stamped
@@ -89,10 +94,9 @@ and the stamp is not traceable — which is the failure the stamp exists to
 prevent, wearing a convincing costume. Two deploys of the same commit will not
 even agree with each other.
 
-Connecting the Netlify project to the GitHub repository fixes it at the root:
+Connecting the Netlify project to the GitHub repository fixed it at the root:
 `COMMIT_REF` becomes the real commit, both hosts stamp identically, and pushing
-to `main` deploys both instead of one automatically and one by hand. Until then,
-trust the Pages stamp and treat the Netlify one as a deploy id. It draws faintly at the bottom of
+to `main` deploys both instead of one automatically and one by hand. The build label draws faintly at the bottom of
 the title screen and is readable as `window.COSMO_BUILD`. It exists because a
 day was lost to screenshots that could not say which build they came from: a
 fix deployed at 1:01:42pm, a screenshot taken at 1:02pm, and GitHub Pages'
