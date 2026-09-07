@@ -64,7 +64,18 @@ function gitSha() {
       { cwd: fileURLToPath(root), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   } catch { return ''; }
 }
-const sha = (process.env.COMMIT_REF || process.env.GITHUB_SHA || '').slice(0, 7) || gitSha();
+/* GIT FIRST, ENVIRONMENT SECOND — and that order was bought too. Preferring
+   COMMIT_REF looked obviously right and published a page stamped dc27513, a
+   sha naming no commit in this repository: Netlify assigns its own deploy ref
+   when a build was uploaded by the CLI rather than triggered from a linked
+   repo. A stamp that LOOKS like a commit and is not is strictly worse than the
+   honest 'dev' it replaced, because the whole job of the stamp is to end the
+   argument about which build a screenshot came from, and a plausible wrong
+   answer ends it incorrectly. Git is the code actually being staged, so git is
+   asked first wherever there is a repository to ask; the environment variables
+   are the fallback for a builder that has none. On the Pages workflow and on a
+   git-linked Netlify build the two agree, so this changes nothing there. */
+const sha = gitSha() || (process.env.COMMIT_REF || process.env.GITHUB_SHA || '').slice(0, 7);
 if (sha) {
   const p = new URL('_site/index.html', root);
   const html = await readFile(p, 'utf8');
