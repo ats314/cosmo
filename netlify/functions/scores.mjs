@@ -79,8 +79,16 @@ export default async (req, context) => {
     if (mine && mine.score >= score)
       return cors(req, json({ ok: true, improved: false, rank: board.indexOf(mine) + 1 }));
 
-    const name = clean(body.name) || clean(mine?.name)
-      || (user.email ? user.email.split('@')[0].slice(0, 12) : 'PLAYER');
+    /* THE ACCOUNT'S OWN NAME IS THE AUTHORITY, and it is consulted second
+       rather than last. This read `user.email.split('@')[0]` until the day
+       passwords were dropped and there stopped being an email — after which
+       every submission that did not carry an explicit name landed on the board
+       as the literal string PLAYER. The client does send one, so it looked
+       fine from the game; it showed up the first time a request was made
+       without one, which is exactly what an end-to-end pass is for.
+       Order: what this run said, then who the account says it is, then what
+       the row already had. */
+    const name = clean(body.name) || clean(user.name) || clean(mine?.name) || 'PLAYER';
 
     const row = { id: user.id, name, score, level: int(body.level), at: Date.now() };
     const next = board.filter(r => r.id !== user.id);

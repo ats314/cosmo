@@ -26,6 +26,8 @@
    index.html stays a single hand-written file with no build step. Netlify
    supplies the commit as COMMIT_REF. */
 import { readFile, writeFile, mkdir, copyFile, rm } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);   /* netlify/ -> repository root */
 const wf = await readFile(new URL('.github/workflows/pages.yml', root), 'utf8');
@@ -51,7 +53,18 @@ for (const f of files) {
 /* Stamp the artifact, never the source. COMMIT_REF is Netlify's; the Pages
    workflow uses GITHUB_SHA for the identical rewrite. Absent either, the page
    keeps saying 'dev', which is true — it is an unstamped build. */
-const sha = (process.env.COMMIT_REF || process.env.GITHUB_SHA || '').slice(0, 7);
+/* COMMIT_REF is set by a git-linked Netlify build and GITHUB_SHA by the Pages
+   workflow. NEITHER is set for a deploy pushed from a laptop with the CLI, and
+   the first such deploy published a page stamped 'dev' — which is honest but
+   useless, because the stamp exists precisely so a screenshot can say which
+   build it came from. Ask git directly when the environment has not said. */
+function gitSha() {
+  try {
+    return execFileSync('git', ['rev-parse', '--short=7', 'HEAD'],
+      { cwd: fileURLToPath(root), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch { return ''; }
+}
+const sha = (process.env.COMMIT_REF || process.env.GITHUB_SHA || '').slice(0, 7) || gitSha();
 if (sha) {
   const p = new URL('_site/index.html', root);
   const html = await readFile(p, 'utf8');
