@@ -7,6 +7,8 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { flightSandbox } from './lib/flight-sandbox.mjs';
 import { flightScenarios } from './lib/flight-scenarios.mjs';
+import { flightGL } from './lib/flight-gl.mjs';
+import { createFlightWorld } from '../src/game/flight-world.ts';
 
 const root = new URL('../', import.meta.url);
 const fixtureURL = new URL('tools/lib/flight-baseline.json', root);
@@ -46,10 +48,21 @@ function corrupt(value, visited = new Set()) {
   }
 }
 
+function freezeDeep(value) {
+  if (value && typeof value === 'object') {
+    for (const item of Object.values(value)) freezeDeep(item);
+    Object.freeze(value);
+  }
+  return value;
+}
+
 let frames = 0, purityChecks = 0, callbacks = 0;
+let geometryDraws = 0;
 for (const [seed, reducedMotion] of [[311, false], [1907, true]]) {
   const key = `${seed}:${reducedMotion ? 'reduced' : 'normal'}`;
   const rig = flightSandbox(source, seed, { reducedMotion });
+  const gpu = record ? null : flightGL();
+  const renderer = gpu ? createFlightWorld(gpu.gl) : null;
   const trajectory = {};
   let sampled = 0;
   frames += flightScenarios(rig, (label, fp) => {
@@ -69,6 +82,13 @@ for (const [seed, reducedMotion] of [[311, false], [1907, true]]) {
       assert.equal(rig.flightFrame().enabled, true, 'flight mode remains disabled with a ready GPU');
       rig.run('GL.on=false');
       const original = JSON.stringify(frame);
+      const immutable = freezeDeep({ ...JSON.parse(original), enabled: true });
+      const random = Math.random;
+      try {
+        Math.random = () => { throw new Error('flight renderer consumes the gameplay random stream'); };
+        assert.equal(renderer.render(immutable), true, 'actual flight module rejected its frame');
+      } finally { Math.random = random; }
+      assert.deepEqual(rig.fingerprint(), before, 'actual flight renderer changed the original runtime');
       corrupt(frame);
       assert.deepEqual(rig.fingerprint(), before, 'renderer can mutate game state through its returned frame');
       assert.equal(JSON.stringify(rig.flightFrame()), original, 'a renderer mutation leaks into the next frame');
@@ -82,6 +102,12 @@ for (const [seed, reducedMotion] of [[311, false], [1907, true]]) {
   else {
     assert(rig.flightFrames > 100, 'runtime.render never dispatches the flight adapter');
     callbacks += rig.flightFrames;
+    geometryDraws += gpu.verify();
+    gpu.contextLost(true);
+    assert.equal(renderer.render(rig.flightFrame()), false, 'lost context was treated as usable');
+    gpu.contextLost(false);
+    renderer.dispose();
+    assert.equal(renderer.render(rig.flightFrame()), false, 'disposed renderer still runs');
   }
 }
 if (record) {
@@ -89,5 +115,5 @@ if (record) {
   await writeFile(new URL('work/web-flight-baseline/nonvisual-hashes.json', root), JSON.stringify({ sourceSHA256: fixture.sourceSHA256, functions: fixture.functions, constants: fixture.constants }, null, 2) + '\n');
   console.log(`FLIGHT BASELINE RECORDED: ${Object.keys(fixture.functions).length} functions, ${constantNames.length} tuning tables, ${frames} original frames`);
 } else {
-  console.log(`FLIGHTCHECK OK  ${Object.keys(fixture.functions).length} nonvisual functions and ${constantNames.length} tuning tables unchanged; ${frames} original trajectory frames, ${purityChecks} pure reads, ${callbacks} adapter calls; tap/swipe/pause/powers/audio/RNG/save equivalent`);
+  console.log(`FLIGHTCHECK OK  ${Object.keys(fixture.functions).length} nonvisual functions and ${constantNames.length} tuning tables unchanged; ${frames} original trajectory frames, ${purityChecks} pure reads, ${callbacks} adapter calls, ${geometryDraws} actual renderer draws; tap/swipe/pause/powers/audio/RNG/save equivalent`);
 }

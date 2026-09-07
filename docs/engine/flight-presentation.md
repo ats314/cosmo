@@ -1,7 +1,8 @@
 # Forward flight in the original game
 
-The owner chose the original web game as the implementation to continue after
-the Godot prototype established an appealing sense of flying through space.
+This agent is developing the original web game alongside Claude's Godot build,
+which established an appealing sense of flying through space. The owner will
+compare both routes toward a finished iPhone app.
 This is a presentation upgrade to the same mobile game. The original music,
 tap/swipe handlers, simulation, rewards, teaching and screens remain in use.
 
