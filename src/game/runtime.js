@@ -9503,13 +9503,14 @@ function musPos(){
    occluded dust rings and a deep cloud field. Events ignite the existing
    materials. The arena owns gameplay objects and the singularity silhouette. */
 const GL_SCALE=1.0;                /* fixed quality; no performance downgrade */
-const GL_MOTION=0.25;              /* integrated scenic clock, never a beat gain */
-const GL={on:false,g:null,pr:null,u:{},cv:null,vw:0,vh:0,tw:0,flowVt:null};
+const GL_MOTION=1.0;               /* seconds of visible, differential sky flow */
+const GL={on:false,g:null,pr:null,u:{},cv:null,vw:0,vh:0,tw:0,flowVt:null,art:[]};
 const GL_FS=`precision highp float;
 uniform vec2 uRes,uCtr;
 uniform float uTime,uCalm;
 uniform vec4 uArc,uShape,uAccent,uPlanet,uSurface;
-uniform vec3 uTint,uRim,uDust,uEventTint,uArena;
+uniform vec3 uTint,uRim,uDust,uEventTint,uArena,uArt,uLive;
+uniform sampler2D uNebulaMap,uPlanetMap,uRingMap;
 /* Planet: centre, radius, ring tilt. Surface: ring inclination, terrain,
    cloud cover, sun angle. The globe, rings and atmosphere share one light. */
 float hash21(vec2 p){
@@ -9532,17 +9533,24 @@ vec2 turn(vec2 p,float a){
   float c=cos(a),s=sin(a);return vec2(c*p.x-s*p.y,s*p.x+c*p.y);
 }
 vec3 belt(vec2 p,vec3 light,float amp,out float opacity,out float front){
-  vec2 q=turn(p,-uPlanet.w);
+  vec2 q=turn(p,-uPlanet.w-sin(uTime*0.16)*0.035);
   float r=length(vec2(q.x,q.y/uSurface.x))/uPlanet.z;
   float ring=smoothstep(1.16,1.25,r)*(1.0-smoothstep(1.88,2.13,r));
-  float lanes=0.50+0.19*sin(r*108.0)+0.11*sin(r*249.0)+0.10*sin(r*47.0);
+  float angle=atan(q.y/uSurface.x,q.x);
+  float lanes=0.50+0.19*sin(r*108.0+sin(angle*3.0-uTime*0.7)*1.8)+0.11*sin(r*249.0-uTime*0.35)+0.10*sin(r*47.0);
   float gap=1.0-0.80*exp(-pow((r-1.62)/0.033,2.0));
   float haze=exp(-pow((r-1.63)/0.38,2.0));
-  float angle=atan(q.y/uSurface.x,q.x);
   float lit=0.54+0.46*cos(angle-uSurface.w);
   opacity=ring*(0.38+0.53*lanes)*gap;
   front=step(q.y,0.0);
   vec3 mineral=mix(uDust,uRim,0.58+lanes*0.30);
+  if(uArt.z>0.5){
+    vec2 atlas=turn(vec2(q.x,q.y/uSurface.x)/(uPlanet.z*4.85),uTime*0.075);
+    vec4 paint=texture2D(uRingMap,vec2(atlas.x,-atlas.y)+0.5);
+    float lum=dot(paint.rgb,vec3(0.25,0.55,0.20));
+    mineral=mix(mineral,mix(uDust,uRim,clamp(lum,0.0,1.0))*1.4,paint.a*0.74);
+    lanes*=0.70+lum*0.65;
+  }
   return mineral*(ring*(0.34+lanes*0.56)*gap+haze*0.06)*(0.42+lit*0.72)*(1.0+amp*2.4);
 }
 void main(){
@@ -9550,29 +9558,50 @@ void main(){
   float amp=uAccent.x;
   float blackhole=step(3.5,uAccent.y)*(1.0-step(4.5,uAccent.y));
   float fire=amp*(1.0-blackhole);
+  float hyper=step(2.5,uAccent.y)*(1.0-step(3.5,uAccent.y))*fire;
   vec2 ar=raw-uCtr;ar.y/=max(0.2,uArena.z);
   float rr=length(ar);
   /* A smooth radial remap bends the existing sky during a singularity.
      There is no angular seam, full-frame rotation or independent glare wedge. */
-  vec2 uv=uCtr+(raw-uCtr)*(1.0+blackhole*amp*0.13*exp(-rr*3.0)/(rr+0.17));
-  vec2 drift=vec2(sin(uTime*0.014)*0.006,cos(uTime*0.014)*0.004);
+  float pressure=fire*sin(rr*23.0-uTime*3.3)*exp(-rr*1.8)*0.027;
+  float lens=1.0+blackhole*amp*0.36*exp(-rr*3.0)/(rr+0.17)+pressure+uLive.y*0.035;
+  vec2 uv=uCtr+turn((raw-uCtr)*lens,blackhole*amp*0.34*exp(-rr*3.0));
+  vec2 drift=vec2(sin(uTime*0.14)*0.014,cos(uTime*0.11)*0.009);
   vec2 nq=turn(uv-uArc.xy-drift,uArc.z);
-  vec2 warp=vec2(cloud(nq*3.1+2.7),cloud(nq*3.1+8.3));
-  float grain=cloud(nq*9.2+warp*3.0);
-  float vein=cloud(nq*22.0+warp*5.0);
+  vec2 flow=vec2(uTime*0.043,-uTime*0.028);
+  vec2 warp=vec2(cloud(nq*3.1+2.7+flow),cloud(nq*3.1+8.3-flow*0.73));
+  float grain=cloud(nq*9.2+warp*3.0+flow*1.6);
+  float vein=cloud(nq*22.0+warp*5.0-flow*2.3);
   float across=nq.x-uShape.x*(nq.y*nq.y-0.12)+(warp.x-0.5)*0.25;
   float structure=exp(-pow(across/uArc.w,2.0)*0.62-nq.y*nq.y/(uShape.y*uShape.y));
   float cloudLight=pow(max(0.0,grain-0.24)*1.6,2.0)*structure*uShape.w;
   float crevice=smoothstep(0.30,0.66,vein);
   vec3 mist=mix(uDust,uTint,clamp(grain*1.25,0.0,1.0));
   vec3 col=vec3(0.008,0.012,0.027)+uTint*0.009;
-  col+=mist*cloudLight*(0.36+crevice*0.83);
-  col+=uRim*pow(max(0.0,grain-0.54)*3.0,2.0)*structure*0.32;
+  col+=mist*cloudLight*(0.52+crevice*1.06);
+  col+=uRim*pow(max(0.0,grain-0.50)*3.0,2.0)*structure*0.44;
+  /* The supplied nebula is sampled as moving cloud material. Two opposed
+     flows deform its filaments; neither layer is an opaque screen plate. */
+  if(uArt.x>0.5){
+    vec2 page=vec2(uv.x/max(0.47,uRes.x/uRes.y),-uv.y)+0.5;
+    vec2 eddy=vec2(sin(page.y*7.0+uTime*0.38),cos(page.x*8.0-uTime*0.29));
+    eddy+=(warp-0.5)*2.0;
+    vec2 path1=(page-0.5)*0.93+0.5+eddy*0.046;
+    vec2 path2=(page-0.5)*1.16+0.5-eddy*0.033+vec2(sin(uTime*0.10),cos(uTime*0.12))*0.025;
+    vec3 n1=texture2D(uNebulaMap,clamp(path1,0.015,0.985)).rgb;
+    vec3 n2=texture2D(uNebulaMap,clamp(path2,0.015,0.985)).rgb;
+    float light1=max(0.0,dot(n1,vec3(0.22,0.56,0.22))-0.055);
+    float light2=max(0.0,dot(n2,vec3(0.22,0.56,0.22))-0.070);
+    vec3 painted=mix(uDust,uRim,smoothstep(0.03,0.42,light1));
+    vec3 farPaint=mix(uTint,uDust,smoothstep(0.04,0.32,light2));
+    float edge=0.22+0.78*smoothstep(uArena.x+0.01,uArena.x+0.15,rr);
+    col+=(painted*light1*1.65+farPaint*light2*0.85)*edge*(0.88+uLive.x*0.17+fire*0.85);
+  }
   /* A second light source illuminates the far side of this same cloud volume. */
   col+=uDust*exp(-length(uv-vec2(-uPlanet.x,-0.35))*3.8)*0.095;
   col*=1.0+fire*0.60;
 
-  vec2 planetP=uv-uPlanet.xy-drift*0.55;
+  vec2 planetP=uv-uPlanet.xy-drift*0.35;
   float pr=length(planetP),radius=uPlanet.z;
   float planetMask=1.0-smoothstep(radius-1.2/uRes.y,radius+1.2/uRes.y,pr);
   vec3 sun=normalize(vec3(cos(uSurface.w),sin(uSurface.w),0.34));
@@ -9583,8 +9612,9 @@ void main(){
      against space, while the opaque globe correctly hides stars and far rings. */
   vec2 edgeN=planetP/max(pr,0.0001);
   float day=pow(max(0.0,dot(edgeN,sun.xy)*0.5+0.5),2.6);
-  float atmo=exp(-abs(pr-radius)/(radius*0.038))*day;
-  float corona=exp(-abs(pr-radius)/(radius*0.13))*day;
+  float breath=1.0+uLive.x*0.07+fire*0.55;
+  float atmo=exp(-abs(pr-radius)/(radius*0.038*breath))*day;
+  float corona=exp(-abs(pr-radius)/(radius*0.13*breath))*day;
   vec3 air=mix(uRim,uEventTint,fire*0.50);
   col+=air*(atmo*0.72+corona*0.16)*(1.0+fire*2.6);
 
@@ -9594,8 +9624,8 @@ void main(){
     vec3 normal=vec3(xy,z);
     vec2 map=vec2(atan(normal.x,max(0.0001,normal.z)),asin(clamp(normal.y,-1.0,1.0)));
     map.x*=cos(map.y);
-    map.x+=sin(uTime*0.012)*0.075;
-    vec2 surfWarp=vec2(cloud(map*3.0+1.7),cloud(map*3.0+9.1));
+    map.x+=uTime*0.034;
+    vec2 surfWarp=vec2(cloud(map*3.0+1.7+flow*0.22),cloud(map*3.0+9.1-flow*0.31));
     float terrain=cloud(map*9.0+surfWarp*2.4);
     float detail=cloud(map*31.0+surfWarp*4.0);
     float latitude=map.y*20.0+surfWarp.x*5.5;
@@ -9611,11 +9641,20 @@ void main(){
     /* Blue reflected light gives the night hemisphere volume instead of a
        flat black circle. Surface detail remains quiet on the unlit face. */
     globe+=uTint*(0.017+0.052*pow(1.0-z,2.0))*(0.65+terrain*0.35);
+    if(uArt.y>0.5){
+      vec2 paintP=turn(xy,-uTime*0.018);
+      paintP.x+=sin(paintP.y*6.0+uTime*0.23)*0.015*z;
+      vec4 paint=texture2D(uPlanetMap,vec2(paintP.x,-paintP.y)*0.435+0.5);
+      float luminosity=dot(paint.rgb,vec3(0.22,0.56,0.22));
+      vec3 mineral=mix(uTint*0.19,uRim,smoothstep(0.02,0.86,luminosity));
+      vec3 textureBody=mineral*(0.26+daylight*0.90)*(0.82+detail*0.34);
+      globe=mix(globe,textureBody,paint.a*(0.58+0.24*(1.0-uSurface.y)));
+    }
     float limb=pow(1.0-z,3.5)*pow(max(0.0,lambert+0.28),1.4);
     globe+=air*limb*(1.20+fire*2.7);
     float aurora=pow(1.0-z,2.4)*smoothstep(0.18,0.8,normal.y*normal.y)*
-      (0.45+0.55*sin(map.x*18.0+surfWarp.y*6.0+uTime*0.08));
-    globe+=air*aurora*fire*0.64;
+      (0.45+0.55*sin(map.x*18.0+surfWarp.y*6.0+uTime*0.65));
+    globe+=air*aurora*(0.08+fire*0.76);
     globe+=surface*daylight*fire*0.46;
     col=mix(col,globe,planetMask);
   }
@@ -9629,18 +9668,22 @@ void main(){
      opaque world, with rare diffraction glints belonging to the brightest. */
   for(int layer=0;layer<3;layer++){
     float l=float(layer),scale=19.0+l*17.0;
-    vec2 su=(uv+drift*(l+1.0)*0.4+vec2(0.73+l*2.1,0.47))*scale;
+    vec2 starTravel=vec2(uTime*0.0018*(l+1.0),uTime*0.00075*(l+1.0));
+    vec2 su=(uv+drift*(l+1.0)*0.7+starTravel+vec2(0.73+l*2.1,0.47))*scale;
     vec2 cell=floor(su),sf=fract(su)-0.5;
     float h=hash21(cell+19.7+l*5.0);
     if(h>0.91){
       vec2 off=vec2(hash21(cell+1.3),hash21(cell+8.7))-0.5;
       vec2 sd=(sf-off*0.70)/scale;
+      vec2 radial=normalize(raw-uCtr+vec2(0.0001));
+      sd-=radial*dot(sd,radial)*(hyper*0.82);
       float size=(0.48+(h-0.91)*8.0)/(uRes.y*0.5);
       float core=exp(-dot(sd,sd)/(size*size));
       float rays=exp(-abs(sd.x)/(size*0.22)-abs(sd.y)/(size*5.0))+
                  exp(-abs(sd.y)/(size*0.22)-abs(sd.x)/(size*5.0));
       vec3 starColor=mix(vec3(0.58,0.76,1.0),vec3(1.0,0.81,0.61),hash21(cell+4.6));
-      col+=starColor*(core*(0.30+l*0.12)+rays*0.10*step(0.985,h))*uAccent.z*(1.0-planetMask);
+      float twinkle=0.77+0.23*sin(uTime*(0.52+h)+h*61.0);
+      col+=starColor*(core*(0.30+l*0.12)+rays*0.10*step(0.985,h))*uAccent.z*(1.0-planetMask)*twinkle;
     }
   }
   float inside=1.0-smoothstep(uArena.x+0.008,uArena.x+0.065,rr);
@@ -9679,7 +9722,13 @@ function glInit(){
     GL.u={};
     for(const n of ['uRes','uCtr','uTime','uCalm','uArc','uShape','uAccent','uPlanet','uSurface','uTint','uRim','uDust','uEventTint','uArena'])
       GL.u[n]=g.getUniformLocation(pr,n);
-    GL.g=g;GL.cv=cv;GL.pr=pr;GL.buffer=b;GL.on=true;
+    const blank=g.createTexture(),pixel=document.createElement('canvas');pixel.width=pixel.height=1;
+    g.bindTexture(g.TEXTURE_2D,blank);
+    g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,true);
+    g.texImage2D(g.TEXTURE_2D,0,g.RGBA,g.RGBA,g.UNSIGNED_BYTE,pixel);
+    g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);
+    g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);
+    GL.g=g;GL.cv=cv;GL.pr=pr;GL.buffer=b;GL.blank=blank;GL.art=[];GL.on=true;
     return true;
   }catch(e){return false;}
 }
@@ -10569,10 +10618,8 @@ function draw(){
   const amb=RM?0:G.vt;
   /* One scenic field on either rendering path. A failed GL draw hands this
      same frame to the fallback, so a context loss cannot leave an empty sky. */
-  if(!drawGeminiSky()){
-    if(GL.on){glRender(0);ctx.clearRect(0,0,W,H);}
-    if(!GL.on)drawCalmSky();
-  }
+  if(GL.on){glRender(0);ctx.clearRect(0,0,W,H);}
+  if(!GL.on)drawCalmSky();
   const camX=RM?0:Math.sin(amb*0.065)*1.4*u,camY=RM?0:Math.cos(amb*0.051)*1.4*u;
   paX=camX*PARA_K*ARENA_PARALLAX;paY=camY*PARA_K*ARENA_PARALLAX;
   ctx.globalCompositeOperation='source-over';
