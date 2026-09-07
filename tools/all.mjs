@@ -73,6 +73,14 @@ if (FAST) {
 }
 
 const t0 = Date.now();
+if (!FAST) {
+  console.log('Building the TypeScript/Phaser application before the full suite.');
+  for (const args of [['node_modules/typescript/bin/tsc', '--noEmit'],
+                      ['node_modules/vite/bin/vite.js', 'build']]) {
+    const built = spawnSync(process.execPath, args, { cwd: fileURLToPath(root), stdio: 'inherit' });
+    if (built.status !== 0) process.exit(built.status || 1);
+  }
+}
 for (const [i, step] of run.entries()) {
   process.stdout.write(`\n--- [${i + 1}/${run.length}] ${step}\n`);
   const started = Date.now();

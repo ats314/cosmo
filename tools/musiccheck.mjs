@@ -19,7 +19,7 @@
    to the level's natural minor. Order is asserted, not just pitch sets: the
    L2 chorus is the verse's own chords walked the other way, and a set
    comparison cannot see that at all. */
-import { readFile } from 'node:fs/promises';
+import { loadGameHtml } from './lib/game-source.mjs';
 import vm from 'node:vm';
 import { seededMath, seedLine } from './lib/rng.mjs';
 /* PRINTED HERE, BEFORE ANY ASSERTION CAN EXIT. This harness imported
@@ -28,7 +28,7 @@ import { seededMath, seedLine } from './lib/rng.mjs';
    one-off nobody could reproduce. Both docs promised otherwise. */
 console.log(seedLine('musiccheck'));
 
-const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const html = await loadGameHtml();
 const src = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i)[1];
 
 /* ---------- the log every assertion below reads ---------- */
@@ -799,19 +799,16 @@ console.log('--- the chain is a timing detector, not a mash detector ---');
   else ok('odd-sixteenth taps hold the chain: no climb, no slip');
 }
 
-console.log('--- the chorus is named and counted when it arrives ---');
-/* The say line, chorus_entries and chorus_bars were all deletable while
-   green — and those counters are the commit's own answer to "are the
-   thresholds right", so a silent zero would quietly close that question. */
+console.log('--- the chorus changes the music and counts without an instruction ---');
 {
   startLevel(3, 0.9);
   vm.runInContext('G.saidChor = false; G.chorusN = 0; G.chorusBars = 0; ANN.length = 0;', ctx);
   tick(3, 74 / ($('SPB') / 2) | 0);
   if ($('MU').sect !== 1) fail('naming test never reached the chorus');
   const g = $('G');
-  if (!g.saidChor || !$('ANN').some(a => a.str === 'MUSIC BUILDS'))
-    fail('the chorus arrived unnamed — the say line is not firing');
-  else ok('the first chorus of a run names itself');
+  if ($('ANN').some(a => a.str === 'MUSIC BUILDS'))
+    fail('the chorus issued a retired music-mode instruction');
+  else ok('the chorus transition leaves the instruction channel clear');
   if (g.chorusN < 1) fail('chorus_entries did not count the entry');
   else if (g.chorusBars < 10) fail(`chorus_bars counted only ${g.chorusBars} bars of a long chorus`);
   else ok(`the counters count (${g.chorusN} entry, ${g.chorusBars} bars)`);
@@ -855,15 +852,14 @@ const grammar = new Set(HOOKL.map(accents));
 if (grammar.size !== 1) fail(`the hooks no longer share one rhythm: ${[...grammar].join('  /  ')}`);
 else ok(`all ${NLV} hooks keep one rhythmic signature: ` + [...grammar][0]);
 
-/* NLV, NOT 4. This file's own header says the level count is the table's
-   answer, and these loops were the stragglers: levels 5 and 6 shipped with
-   their hooks unchecked for the response-bar law and the PENT bounds — the
-   exact silent-stop the header warns a copied count produces. */
+/* Every world has an authored answer. It must be playable without a single
+   input, instead of leaving response bars empty and asking the player to fill. */
 for (let i = 0; i < NLV; i++) {
-  const yours = [2, 3, 6].every(b => HOOKL[i].slice(b * 16, b * 16 + 16).every(v => v === -1));
-  if (!yours) fail(`level ${i + 1}'s hook plays over a response bar — bars 2, 3 and 6 are the player's`);
+  const answer=$('ANSWERL')[i];
+  if(!answer||answer.length!==16||answer.filter(d=>d>=0).length<4
+    ||answer.some(d=>d>=14||d< -1))fail(`level ${i+1} has no complete valid answering phrase`);
 }
-ok('the response bars are silent on every level');
+ok('every world carries a complete answering phrase');
 
 /* every degree must be indexable in PENT, including the crown's +5 clamp */
 const PENT = $('PENT');
@@ -1378,9 +1374,9 @@ console.log('--- earned mix headroom, temporary colours, and the black-hole arc 
     || Math.abs(bus.band.gain.value-rest)>0.001 || bus.perf.gain.value!==1)
     fail('rest, earned play, peak, or recovery has lost its band contrast');
   else ok(`late-world band recovers through rest ${rest}, earned ${earned}, peak ${peak}`);
-  if (!(slipCut<clearCut && slipCut>=520) || slip!==rest || !(spot<rest))
-    fail('time slip must darken timbre; spotlight must foreground the player');
-  else ok('time slip darkens the air; spotlight leaves space for the player');
+  if (!(slipCut<clearCut && slipCut>=520) || slip!==rest || spot!==rest)
+    fail('time slip must darken timbre; magnet must not change the music mix');
+  else ok('time slip darkens the air; magnet leaves the music mix unchanged');
   vm.runInContext('BH.phase=2;BH.on=true;BH.t=0;BH.charge=0;G.hyper=16;G.spot=8;bedTick(0);',ctx);
   if(Math.abs(bus.band.gain.value-0.84)>0.001 || Math.abs($('BED').g.gain.value-0.01)>0.001)
     fail('banked ordinary rewards changed the black-hole mix');
@@ -1391,16 +1387,15 @@ console.log('--- earned mix headroom, temporary colours, and the black-hole arc 
   else ok('entry and closing warps leave room for their result cues');
   vm.runInContext('BH.phase=0;BH.on=false;G.hyper=0;G.spot=0;',ctx);
 
-  /* A player's captured phrase remains an earned passage even before x3.
-     The new calm branch must not skip either capture or its later answer. */
+  /* Old tape fields cannot re-enable the retired recorder. */
   startLevel(1,0);
   vm.runInContext(`endSection();G.groove=1;G.lapStreak=0;G.ringI=0;G.hopFromI=0;G.hopP=1;
     LOOP.pat=null;LOOP.until=0;LOOPQ.length=0;
     PLAY.tape=[{c:0,ci:0,at:0},{c:4,ci:1,at:0},{c:8,ci:2,at:0}];
     musicStep(0,0,1);G.groove=0;PLAY.tape=[];musicStep(2,SPB,1);`,ctx);
-  if(!$('LOOP').pat || $('LOOPQ').length<2)
-    fail('the calm arrangement skipped the player\'s captured loop');
-  else ok('a captured player phrase opens its passage and answers after the chain cools');
+  if($('LOOP').pat || $('LOOPQ').length)
+    fail('the retired recorder captured or replayed a movement phrase');
+  else ok('movement does not capture or replay a temporary musical task');
   vm.runInContext('LOOP.pat=null;LOOP.until=0;LOOPQ.length=0;PLAY.tape=[];',ctx);
 
   /* Only the two scheduled accents may be added; expire the reward and their
@@ -1471,6 +1466,63 @@ for (const L of LEVELS) {
   else ok(`level ${L}: three acts pulse ${kickCounts.join('/')} times, charge adds harmony, pitches stay above 40Hz and in key`);
 }
 vm.runInContext('BH.phase=0;BH.on=false;BH.charge=0;G.hyper=0;',ctx);
+
+for(const L of LEVELS){
+  startLevel(L,0);
+  for(const bar of [2,3]){
+    const render=hits=>{
+      vm.runInContext(`MU.pay=PAY-${bar}*8;MU.payHits=${hits};MU.barHits=${hits};G.payOpen=0;ANN.length=0;`,ctx);
+      LOG.osc.length=0;
+      for(let step=0;step<8;step++)vm.runInContext(`payoffStep(${step}*SPB/2,CH[${bar}%4],.4);`,ctx);
+      return LOG.osc.map(v=>[v.f,v.type,v.t]);
+    };
+    const idle=render(0),played=render(12);
+    if(!idle.some(v=>v[0]>=500)||JSON.stringify(idle)!==JSON.stringify(played)||$('G').payOpen)
+      fail(`level ${L}, bar ${bar}: the release still waits for player musical input`);
+  }
+}
+{
+  startLevel(2,0);
+  const play=state=>{
+    LOG.osc.length=0;LOG.buf.length=0;
+    vm.runInContext(`{
+      const keep=judgeTiming;judgeTiming=()=>0;
+      PAUSE.on=false;PAUSE.resumeT=0;BH.phase=0;BH.on=false;
+      MU.pay=${state==='pay'?'PAY-16':'0'};MU.brk=${state==='fill'?'8':'0'};
+      PLAY.heat=.3;PLAY.idx=0;PLAY.last=-9;PLAY.slot=-1;G.spot=0;
+      performerHit('tap',1,0);judgeTiming=keep;
+    }`,ctx);
+    return JSON.stringify({notes:LOG.osc.map(v=>[v.f,v.type,v.dur]),drums:LOG.buf.length});
+  };
+  const normal=play('normal');
+  if(normal!==play('pay')||normal!==play('fill'))fail('the movement instrument still changes meaning during a release or drum fill');
+  vm.runInContext(`G.state='dead';MU.pay=8;MU.brk=4;MU.brkEnd=true;
+    LOOP.pat={0:2};LOOP.until=999;LOOPQ.push(999);PLAY.tape.push({c:0,ci:1,at:0});endSection();`,ctx);
+  if($('MU').pay||$('MU').brk||$('MU').brkEnd||$('MU').pend||$('LOOP').pat||$('LOOPQ').length||$('PLAY').tape.length)
+    fail('death retained an interrupted musical task or release');
+  else ok('release plays without input, controls keep one instrument, and death clears all phrase state');
+}
+
+/* Immediate impacts have a small voice budget and keep their tonal body in
+   the world's key, including the lowest worlds on mobile speakers. */
+for(const L of LEVELS){
+  startLevel(L,0);vm.runInContext('BH.phase=0;PAUSE.on=false;PAUSE.resumeT=0;',ctx);
+  const root=$('CH')[0][0];
+  for(const kind of ['nova','hyper','orbit']){
+    LOG.osc.length=0;LOG.buf.length=0;
+    vm.runInContext(`soundImpact('${kind}',1);`,ctx);
+    const wrong=LOG.osc.some(v=>{
+      const semis=12*Math.log2(v.f/root),nearest=Math.round(semis);
+      return v.f<40||Math.abs(semis-nearest)>.02||!MINOR.has((nearest%12+12)%12);
+    });
+    if(wrong||LOG.osc.length<4||LOG.osc.length>5||LOG.buf.length>1)
+      fail(`level ${L}: ${kind} impact broke key, sub floor or voice budget`);
+  }
+}
+LOG.osc.length=0;LOG.buf.length=0;
+vm.runInContext("muted=true;soundImpact('nova',1);muted=false;PAUSE.on=true;soundImpact('hyper',1);PAUSE.on=false;",ctx);
+if(LOG.osc.length||LOG.buf.length)fail('impact played while muted or paused');
+else ok('major impacts remain keyed and bounded; muted and paused calls stay silent');
 
 if (LOG.errors.length) LOG.errors.forEach(e => fail(e));
 

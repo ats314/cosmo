@@ -1,253 +1,120 @@
 # CLAUDE.md
 
-Operating context for Claude Code sessions in this repository. Read this before
-reviewing, changing, or reporting on anything here.
+Operating context for agents working on Cosmo. Read this first, then the
+relevant design document and invariant group before editing.
 
-**Current creative direction: [Awe, motion, release](docs/design/direction.md).**
-The owner has retired the endless-exam rule and wants major coherent changes.
-Design prescriptions below are revisable; player findings and technical
-regression contracts are evidence, not limits on new content.
+## Product and ownership
 
-**This file is the router, not the whole map.** It holds what is true for every
-session: what this product is, what you may not do to it, and how you ship. The
-long-form material lives in `docs/` and is indexed below by *what you would have
-to be touching to need it*. Read the entries your change lands in, in full — they
-are short compared to the bugs that wrote them, and every one of them was written
-because something shipped broken.
+Cosmo is a proprietary commercial space arcade. Preserve the original
+copyright notices and LICENSE; do not relicense the game, invite outside
+contributions or assume a public repository grants reuse rights.
 
----
+The owner has approved Phaser, TypeScript, Capacitor and original external
+art assets. Their use does not change Cosmo's license. Record third-party
+source, artwork and dependency provenance and preserve their own license
+notices in public/THIRD_PARTY_LICENSES.txt. Do not copy unattributed material
+or apply Cosmo's proprietary terms to MIT or other third-party components.
 
-## Status: proprietary, commercial
+Current creative direction: [awe, motion, release](docs/design/direction.md).
+The owner wants ambitious, coherent work with strong visual impact, clear
+actions and earned musical peaks. Six authored levels are a content frontier,
+not an endless exam or a prohibition on new mechanics.
 
-**Cosmo is not open source and not a hobby project.** It is a commercial product
-owned by its copyright holder, published to a public repository for playtesting
-only. Every session should work from that assumption.
+## Architecture
 
-What follows from it:
+- Phaser 4.2.1 owns the frame loop, scenes, input and resize.
+- src/main.ts configures the canvas renderer and launches BootScene/CosmoScene.
+- BootScene loads public/art/manifest.json and its approved textures into
+  Phaser's cache. The runtime can render its procedural fallback without them.
+- CosmoScene forwards normalized input and renders the runtime through a
+  Phaser display object. There is no iframe or second live animation loop.
+- src/game/contracts.ts and runtime.d.ts define the typed runtime boundary.
+  src/game/runtime.js still contains the tuned JavaScript gameplay, audio,
+  drawing and GPU effects. Do not claim that this core is fully TypeScript.
+- src/platform/native.ts owns optional haptics, native/document lifecycle and
+  Android Back. It depends on callbacks, not gameplay imports.
+- index.html is the HTML shell. Vite builds the web product into dist/.
+- public/ is intentional release content. Internal docs, tools, native source,
+  package files and source maps do not belong in the published site.
+- Capacitor 8 packages dist/ into android/ and ios/. There is no release
+  server.url. Native assets work offline; cloud accounts remain optional.
 
-- `LICENSE` is an all-rights-reserved proprietary grant. Never replace it with,
-  or add, an open-source licence (MIT/Apache/GPL/etc.) — not as a default, not
-  as a "standard practice" suggestion.
-- Never add `CONTRIBUTING.md`, contributor guides, "PRs welcome" language, good
-  first issues, or anything else that invites outside reuse or contribution.
-- The copyright notice at the top of `index.html` and its `copyright` meta tag
-  are load-bearing: `index.html` is the *distributed artifact*. Every visitor's
-  browser downloads the entire game, so the terms have to travel with the only
-  copy anyone ever gets. Do not remove or relocate them.
-- **Third-party anything requires provenance.** No copying code, audio,
-  fonts, algorithms, or art in without recording where it came from and under
-  what terms. A single unattributed snippet is a defect in a product that will
-  be sold, however small it looks. Ask rather than assume.
-- Treat the repository's public visibility as a decision under review, not a
-  licence. Do not add anything that assumes a public audience.
-- **The deploy publishes an allowlist, not the repository.** `index.html`, the
-  icons, the manifest, `og.png` and `LICENSE` are the site; `CLAUDE.md`,
-  `README.md`, `MECHANICS.md`, `docs/` and `tools/` are not. This was `path: .`
-  until it was fixed, which made every internal document a public URL — and
-  repository visibility would not have covered it, because Pages serves the
-  artifact rather than the repo. `check.mjs` now fails on any root file that is
-  in neither list.
+Keep ownership explicit when moving another subsystem. A scene shutdown must
+remove listeners, stop audio and release runtime/GPU resources. Never leave
+both Phaser input/frames and legacy DOM input/frames active.
 
-## What this is
+## Working commands
 
-A one-thumb arcade rhythm game in a **single self-contained HTML file**. No
-build step, no dependencies, no external assets. `index.html` is the entire
-product — engine, simulation, WebAudio arrangement system, procedural art, and
-UI — around 13,500 lines in one inline `<script>`.
-
-Deployed to GitHub Pages from `main`. The published page is the product.
-
-## Layout
-
-| Path | What it is |
-|---|---|
-| `index.html` | The whole game. The distributed artifact. |
-| `README.md` | The front door: what this is, and an index of everything below. Short on purpose. |
-| `MECHANICS.md` | The mechanics ledger: one row per player-facing mechanic, where it is introduced, every channel that explains it. |
-| `LICENSE` | All-rights-reserved proprietary grant. |
-| `docs/README.md` | The map of the documents — start here when you do not know which file you need. |
-| `docs/invariants.md` | The rules that are load-bearing, grouped by what you'd be touching. Indexed below. |
-| `docs/harnesses.md` | What each check covers, where a new test belongs, and what each assertion was bought with. |
-| `docs/review.md` | The two halves of a review here, including the hygiene half people skip. |
-| `docs/design/*.md` | The design record — why the game is the way it is, one file per system: `difficulty`, `levels`, `ladders`, `teaching`, `powerups`, `audio`. |
-| `docs/engine/*.md` | How it works: `implementation` (render path, glow, sky, collision), `telemetry`, `delivery`. |
-| `tools/all.mjs` | Runs every check in CI's order, or `--fast` for the quick four. Holds no list — it reads the workflow. |
-| `tools/*.mjs` | The CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
-| `tools/lib/rng.mjs` | The seeded `Math.random` every harness runs on. Determinism lives here, not in the game. |
-| `netlify/` | The optional cloud half — passwordless accounts, synced records, the leaderboard — as serverless functions, plus the build step that stages the site for the second host. Not part of the distributed artifact and not reachable from the game unless a player signs in. |
-| `netlify.toml`, `package.json` | Netlify's deploy config, and the one dependency its functions import. Neither reaches the browser; the game is still one file with nothing to install. |
-| `AGENTS.md` | Pointer here, for agent tools that look for that name instead. |
-| `.github/workflows/pages.yml` | Runs every check on every push to `main` and on any PR; only `main` deploys, only if the checks pass, and only an allowlist. |
-| `*.png`, `manifest.webmanifest` | Icons, share image, PWA manifest. |
-
-## Before you push
+Use Node 22 or newer and the pinned package lock.
 
 ```sh
-node tools/all.mjs --fast   # ~5s, while you are editing
-node tools/all.mjs          # ~110s, before you push
+npm ci
+npm run dev
+npm run typecheck
+npm run test:fast
+npm run build
+npm test
+npm run native:sync
 ```
 
-Every check, in CI's order, stopping at the first failure. Needs nothing
-installed except the browser the eighth check drives, and it says so rather
-than skipping quietly. `--fast` runs the four harnesses that are static or
-targeted and skips the four that play a whole game or launch a browser; each
-harness declares its own lane and `check.mjs` fails if one declares none. See
-`docs/harnesses.md` for what each harness covers and — this matters when you
-add a test — which one a given kind of regression belongs in. **Anything
-touching a pitch, a kit or the progression goes in `musiccheck.mjs`; anything
-touching a 2D draw call goes in `drawcheck.mjs`; anything touching a shader, a
-uniform or the glow goes in `fxcheck.mjs` if you are asserting that a call was
-issued, and in `rendercheck.mjs` if you are asserting how the frame LOOKS.**
-Those four exist because those areas were invisible to CI by construction, and
-the last two are not interchangeable: fxcheck runs against a recording fake and
-cannot see a frame at all.
+Development runs at http://localhost:5173. Browser checks need Chromium
+(`npx playwright install chromium` if absent). Use a server for the module
+entry; do not open source index.html through file://.
 
-**The harnesses are deterministic, and the seed is how.** Each one drives the
-game through a seeded `Math.random` injected at the sandbox boundary
-(`tools/lib/rng.mjs`) — `index.html` is untouched by this. A local run replays
-the same game every time, so a changed number IS your diff and the old ritual
-of re-running several times before believing anything is retired. CI rotates
-the seed per run so coverage keeps moving, and every harness that runs the game
-prints its seed on the way in — before any assertion can exit — so reproducing a
-CI failure is `SEED=<n> node tools/<harness>.mjs`. (`check.mjs` is the exception
-and needs no seed: it is static and touches no RNG.)
+The checks extract the canonical JavaScript runtime through
+tools/lib/game-source.mjs. Keep its markers and typed host boundary intact.
+Harness randomness is injected at the sandbox boundary; failures print a seed.
+Reproduce the reported seed rather than rerunning blindly.
 
-## What to read before you change something
+## Before shipping
 
-Find the row your change lands in, read that group in `docs/invariants.md`
-before you start, and read the design document beside it if you need to know
-*why* the thing is the way it is — the design record keeps the attempts that
-were abandoned, which is what stops a session re-proposing one. If your change
-spans two rows, read both. If nothing here matches, you are probably doing
-repository or documentation work and `docs/review.md` is the relevant file.
-`docs/README.md` maps every document if you do not know which one you want.
+Complete the authorized change, run the required checks and inspect a real
+browser frame for visual changes. Keep additional testing proportional to
+actual failures. The owner leads broader playtesting and taste decisions;
+automated measurements do not prove that a game feels good.
 
-| If you are touching… | Read this group in `invariants.md` | And this for the reasoning | Because |
-|---|---|---|---|
-| a formation, an orb, a level boundary, a lesson, or any sentence shown to a player | **Curriculum, teaching and the ledger** | [`design/teaching.md`](docs/design/teaching.md), [`design/levels.md`](docs/design/levels.md) | Content expands beyond the six currently authored levels. Tests enforce honest teaching, ordered thresholds and valid geometry, not a final exam boundary. A lesson may only name verbs the game actually has. |
-| `MODES`, the level select, a stored record, or anything reachable from POWERUP TESTING | **Modes, records and the powerup lab** | [`design/difficulty.md`](docs/design/difficulty.md), [`design/powerups.md`](docs/design/powerups.md) | One mode ships and the table stays anyway; the unsuffixed storage keys are SKILL's; a lab session must be unable to *create* a key, and every guard behind that is one `!LAB.on` on an ordinary-looking line. |
-| pause, `G.t` / `G.vt`, ring indices, difficulty numbers, or a telemetry property | **Simulation, state and telemetry** | [`design/ladders.md`](docs/design/ladders.md), [`engine/telemetry.md`](docs/engine/telemetry.md) | Ring index 0 is the OUTERMOST orbit and has shipped inverted three times. Pause is a flag one line above `G.t+=dt`. Difficulty is measured per ring, never per board. |
-| `PROG`, `PROGB`, a voice, a kit, the pad, or any pitch | **Audio and the arrangement** | [`design/audio.md`](docs/design/audio.md) | Every pitch is an interval over the level's tonic — a bare frequency is wrong on five levels out of six. Silencing the scheduler does not silence the band. A moment that must be immediate cannot be a section. |
-| a draw pass, a shader, a uniform, the glow chain, the render scale | **Graphics, shaders and the sky** | [`engine/implementation.md`](docs/engine/implementation.md) | A screen-space warp's sign is the opposite of what it reads like; a halo's bound must be in pixels, not fractions; the scene must remain readable and new worlds must compose cleanly. Nothing here is caught by reading — measure it, and `drawcheck.mjs` is where a 2D draw belongs. |
-| the deploy, the build stamp, the freshness check | **Delivery** | [`engine/delivery.md`](docs/engine/delivery.md) | The plain play URL is a contract: it must serve the newest build. |
-| an account, a synced record, the leaderboard, `window.storage`, anything under `netlify/` | — (no invariant group yet) | [`engine/cloud.md`](docs/engine/cloud.md) | The whole feature is optional in the same sense the sound is optional: signed out, offline or blocked, the game is exactly the game and localStorage is still the real store. Records merge SERVER-side and only ever climb, or a stale device erases a record somebody set. The account panel is the only DOM in a canvas game, which makes it the only code here that has to survive the stubbed DOM seven harnesses run on — it failed `musiccheck` the first time for exactly that. |
+The established workflow is a direct main push after checks when shipping is
+authorized. Do not manufacture a pull request or review-watching workflow.
+Open one when requested or when a concrete review need warrants it.
 
-Two rules sit above all of them and are not negotiable:
+Publish only dist/. Main releases use the repository's workflow; Netlify
+functions are deployed separately from the public game assets. The Vite build
+stamp identifies the source commit. Check the deployed build before calling a
+release live; a local build is not deployment evidence.
 
-- **`MECHANICS.md` and the code move together.** Change a mechanic, update the
-  ledger row and the level card text in the same commit. `check.mjs` enforces
-  it: a formation or orb that ships without a ledger row fails the build.
+After the final web build, synchronize both native projects. Do not describe
+scaffolding as an APK, signed app or tested native release. Android requires an
+SDK/JDK; iOS requires macOS/Xcode and the owner's signing credentials.
 
-## Workflow
+## Where to read
 
-**You are the agent. You ship. The owner gives guidance, not process steps.**
+| Change | Read |
+|---|---|
+| Content, teaching or player-facing copy | docs/design/teaching.md, levels.md, MECHANICS.md |
+| Powerups, upgrades or the lab | docs/design/powerups.md, docs/design/difficulty.md |
+| Music, cues or scheduling | docs/design/audio.md |
+| Rendering, shaders or assets | docs/design/direction.md, docs/engine/implementation.md |
+| State, clocks, records or geometry | docs/invariants.md |
+| Accounts or server functions | docs/engine/cloud.md |
+| Build or delivery | docs/engine/delivery.md |
+| Native lifecycle or packaging | docs/engine/native.md |
+| Check coverage | docs/harnesses.md |
 
-That means the whole mechanical chain is yours and none of it is worth asking
-about: run the checks, commit, push, and update the docs in the same breath.
-Work that is finished and unpushed is a task stopped one step early.
+Keep docs synchronized with behavior. The mechanics ledger must name every
+shipped tier and lab orb. Preserve meaningful regression checks; revise old
+design assertions when the owner's approved behavior changes.
 
-THIS SECTION HAS BEEN WRONG TWICE, IN OPPOSITE DIRECTIONS, AND BOTH COST A
-SESSION. It first said "open pull requests as drafts", which one session read
-as *stop and wait to be told*: it left two green pull requests open, reported
-them as the deliverable, and the owner had to say "merge" three times, the last
-two in capitals. That was corrected into an instruction to open a pull request
-and arm auto-merge for every change — which was worse, because it was followed
-exactly, and every pull request fired an automatic activity subscription that
-relayed raw webhook envelopes into the owner's chat, woke the repository's
-review bots, and left the agent polling GitHub. An afternoon of that produced:
-*"fix the fucking github ... so every stupid fucking thing you keep doing stops
-happening."*
-The lesson under both is the same one: **a process step that nobody can point
-at a reason for is a cost with no owner.** Before you add one here, say what
-would go wrong without it, and check that the thing you are protecting against
-is not already prevented somewhere else — as it was, in the workflow file, the
-entire time.
+## Player-facing contracts
 
-- **PUSH STRAIGHT TO `main`. DO NOT OPEN A PULL REQUEST UNLESS ASKED.**
-  This file used to require the opposite, and its stated reason was false.
-  It said: *"Never commit directly to `main`. This is not an approval gate; it
-  is how CI gets to run before the deploy does."* Check the workflow. It runs
-  `on: push: branches: [main]`, and the deploy job carries `needs: check`. A
-  direct push to `main` runs all eight harnesses and publishes **only** if they
-  pass. The gate the rule existed to provide was already there without it.
-  So the pull request was buying nothing and costing a great deal. Every one
-  opened in a session fires an automatic PR-activity subscription, which relays
-  raw webhook envelopes into the owner's chat; it triggers whatever review bots
-  the repository has installed, each of which relays more; and it leaves the
-  agent polling GitHub for a merge condition that a plain push does not have.
-  The owner watched all of that happen for an afternoon and the instruction is
-  verbatim: *"fix the fucking github ... so every stupid fucking thing you keep
-  doing stops happening."*
-  What is actually protected is the live page, and it stays protected: a red
-  push fails `check`, `deploy` never runs, and the site keeps serving the last
-  good build. What you risk is a broken commit sitting at the head of `main`
-  until you fix it. **So run `node tools/all.mjs` before you push, every time.**
-  That is the whole of the discipline this replaces.
-  Open a pull request when the owner asks for one, when the change genuinely
-  wants a second opinion, or when you want the before/after screenshots on a
-  visual change to live somewhere durable. Then merge it yourself and do not
-  sit watching CI — and if you do open one, expect the event noise and say so.
+Tap always turns; swipe always changes ring. No temporary tap-to-play melody,
+drum or echo assignment. Starfall is earned from three star-fed orbits, or two
+with its upgrade, and releases automatically. Magnet visibly attracts stars.
+Every instruction must name a real action and its observable result.
 
-- **A VISUAL CHANGE DOES NOT GET PUSHED UNTIL YOU HAVE LOOKED AT IT.** This is
-  the one place the fast path above does not apply, and it was paid for at full
-  price. `main` publishes to the live page, and for anything touching a shader,
-  a draw call, a uniform or the glow, "checks green" says almost nothing about
-  the frame: seven of the eight harnesses stub the canvas, so a `drawImage` at
-  the wrong translate is a valid call with finite arguments and a correct count.
-  A build reached real playtesters carrying a hairline rim down every screen
-  edge, every halo oscillating off its own light, and half the intended
-  brightness — every check passing, merged in seconds, exactly as this file said
-  to. **A day of a playtest cycle is not recoverable; testers do not come back.**
-  So render it, look at it, and put the measurement in the commit message. It
-  costs about twenty seconds using the loop below. `rendercheck.mjs` covers the
-  regressions that have already happened; it cannot judge a new one for you.
-  (This rule was itself briefly lost in a merge conflict while the workflow
-  above was being rewritten, and restored on the next read — which is its own
-  small argument for grepping the file after you resolve one.)
+The scene has a textured planet, luminous atmosphere/rings and a deep nebula.
+Keep the comet, stars and red threats readable against it. Use coordinated,
+bounded impact envelopes for large rewards; preserve a calmer ordinary state.
+Current renderer controls are SKY_ARENA_CALM = 0.62 and GL_MOTION = 0.25.
 
-- **LOOK AT THE GAME. YOU CAN SEE THE SCREEN.** This line used to say the
-  opposite — "you cannot hear the audio or see the screen" — and it was false,
-  and it cost a whole session. An agent read it, believed it, shipped a
-  complete backdrop overhaul verified only against the harnesses, and the
-  owner's first look found a screen-edge artifact and a scene rendering at
-  less than half the brightness of the path it replaced. Neither was subtle.
-  Both were one screenshot away. The instruction that produced that was
-  written by an earlier session in this same file, which is the whole reason
-  it is being replaced rather than quietly corrected: **a false claim about
-  your own capabilities in CLAUDE.md is the most expensive kind of wrong
-  thing to write here, because every future session will believe it without
-  checking.** Do not add another one. If you are about to write that you
-  cannot do something, test it first.
-
-  The loop, which takes about twenty seconds:
-
-  ```sh
-  # chromium + playwright are installed; index.html needs no server
-  /opt/pw-browsers/chromium-1194/chrome-linux/chrome   # --enable-unsafe-swiftshader
-  # playwright: import('/opt/node22/lib/node_modules/playwright/index.mjs')
-  #   index.mjs, not index.js — index.js resolves but exports nothing
-  # page.goto('file:///path/to/index.html') then screenshot
-  ```
-
-  WebGL works under SwiftShader, so `GL.on` comes up true and the real
-  backdrop shader runs — not the 2D fallback. You can drive a run
-  (`startGame()`), read any global (`G`, `SKY`, `GL`, `FX`), pull the
-  shader's own output with `readPixels` in the same task as `glRender`, and
-  isolate layers by hiding `#c` or `#bg`. Numbers out of a screenshot beat
-  every argument about what a shader "should" look like.
-
-  **Anything visual gets looked at before it is merged.** The harnesses are
-  necessary and they are not sufficient: they stub the canvas, so they can
-  prove a uniform was written and cannot prove the frame is not ruined. That
-  gap is exactly where the thirteen invisible black hole features lived.
-- **Say what you could not verify.** What genuinely wants the owner is TASTE —
-  whether a sky reads as dangerous, whether a mix is too busy — and the audio,
-  which really is beyond reach here. Ship the work and name those, rather than
-  holding the work hostage to them. Do not put anything on that list that a
-  screenshot would have answered.
-- Commit messages in this repo are substantive: what changed, and *why* it was
-  wrong before. Match that register.
-- Update `README.md` when behaviour changes, `MECHANICS.md` when a mechanic
-  changes, `docs/invariants.md` when a constraint changes, and this file when
-  the routing changes. Unprompted, in the same commit. Documentation is part of
-  the change, not a follow-up.
+A muted, offline or interrupted game still works. Keep input, audio, scoring,
+shield, upgrade and timer behavior aligned with what the player can see.

@@ -1,96 +1,97 @@
 # Cosmo: awe, motion, release
 
-Current design direction, September 7, 2026. This supersedes earlier aesthetic
-prescriptions and the old "last level is an endless exam" rule. Earlier playtest
-quotes remain evidence; an agent's chosen remedy is not a permanent constraint.
+Current direction, September 7, 2026. The owner wants a striking premium
+space arcade with clear movement and powerful earned releases. Earlier
+playtest quotes remain evidence; an agent's chosen remedy is not a permanent
+constraint. Six authored levels are a starting point, not an endless exam.
 
-Cosmo is a small, brilliant comet moving through an immense living universe.
-Ordinary play should feel clear, spacious and mysterious. Skilled movement
-gradually opens the music. Major earned moments change the room together.
+## Art and composition
 
-## The scene
+A brilliant comet flies across an immense textured planet, luminous
+atmosphere and sweeping rings, with deep colored nebula and stable stars
+beyond. Give that celestial art room to breathe, particularly in portrait.
+Worlds need distinctive composition, scale, materials and light.
 
-One authored celestial composition per world: a swept, illuminated cloud limb,
-shadowed volume and sparse stable stars. Worlds differ in position, curvature,
-scale, colour and light, not just hue. The background has slow internal motion;
-the play annulus stays quieter than its surroundings. Do not add independent
-meteors, random flares, grids, foreground fog, screen rotation and beat washes
-on top of that composition.
+The scene must feel alive without burying the routes or red hazards.
+Procedural shading, approved original image assets and local effects can work
+together. Phaser's boot scene loads the art manifest; the runtime retains a
+coherent procedural fallback. The supplied Gemini pack is now integrated:
+eight authored world backgrounds and a pack of 24 transparent images load
+through the art manifest. Internal provenance, dimensions, hashes and crop
+bounds live in docs/art/catalog.json. Record the source and permitted use of
+every new asset; the fallback also supports an empty or unavailable manifest.
 
-The arena is a set of fine orbital paths. The comet, collectible stars and red
-threats win contrast. An active path segment shows the player's lane. A thin
-lap arc reports progress; large orbit celebrations occur at milestones. The
-comet carries one shield crescent; the HUD carries the actual shield count and
-all active powerup durations. Avoid concentric status rings around the comet.
+The title is art-first: original lettering, a tactile launch interaction and
+thumb-reachable secondary controls. Menu, level cards, upgrades and results
+share its visual identity. Avoid a generic thin heading over stacked cards,
+tiny gray instructions or essays. Keep the comet, collectible stars and
+threats distinct during play.
 
-## What makes the world respond
+## Calm and impact
 
-`scenePulse` and `sceneAccent` provide one visual event envelope. A completed
-orbit makes a small, brief response. A pickup supplies its own colour. A drop,
-nova or hypernova earns the largest release. A lower priority event cannot
-interrupt a larger one. The black hole owns the scene until it closes. All
-events expire and are scoped to the run; ordinary beats do not flash the sky.
+Ordinary play has space and mystery. Each world's harmonic identity remains
+audible while clean movement and earned powers open the arrangement.
+Large moments coordinate music, lighting, material response and motion.
+A small gain trim alone is not a meaningful musical transformation.
 
-The music has a sparse calm arrangement and a fuller engaged arrangement,
-using each level's existing harmonic identity. Ring position, rhythm and clean
-orbits open the arrangement; returning to calm allows it to thin again. Drops
-retain their build, breath and release. Player instruments remain independently
-audible. Muted play still communicates every mechanic visually.
+Use scenePulse and sceneAccent to coordinate bounded visual responses.
+Pickups keep their own identity; milestone orbits, Starfall, Nova and
+Hypernova create stronger releases. A lower-priority event must not interrupt
+a larger one. The black hole owns its scene until it closes. Reset event
+state between runs, and let ordinary play recover instead of continuously
+flashing every layer.
 
-## Powerups have jobs
+Tap always turns and swipe always changes ring. Their short musical feedback
+stays consistent; authored melody answers, fills and chorus changes happen
+automatically. The retired tap-to-play melody, drum and echo sections must not
+return as temporary demands on the player. Muted play communicates every
+mechanic visually.
 
-Shield preserves a mistake. Slow-mo buys a useful planning window. Nova opens
-space through an actual expanding conversion front. Hypernova gives a short
-charge through threats with an audible identity and a protected landing.
-Spotlight rewards performance and compounds with other earned payouts. Mirror
-collects opposite the player along the actual swept path. Scorch burns the
-route actually travelled. Slipstream makes ring changes open a safe arc. Star
-Trail offers a valuable route to pursue across rings. See `powerups.md` and
-`MECHANICS.md` for durations, introduction levels and scoring.
+## Rewards have visible jobs
 
-The black hole is a voluntary wager, not another ordinary timed buff. A fourth
-ring opens. Inner-ring dwell banks a visible reward while gravity threatens
-position. At twelve seconds gravity releases and the escape signal opens;
-reach the outer ring before seventeen seconds to cash out. Missing it loses
-the bank and a shield, or the run if no shield remains. Other orb durations
-pause and their effects suspend. Earned drops are banked for the return.
+Three star-fed orbits earn Starfall, or two with EARLY STARFALL. It starts
+automatically on the next musical beat when audio is available, immediately
+otherwise. Red clears and three star waves arrive across about 9.23 seconds.
+Collect them for double value. There is no countdown to land and no timing
+exam. The collected stars and final score report explain the reward.
 
-## The game continues to grow
+Shield protects a mistake. Slow-mo buys planning time. Nova opens space
+through an expanding conversion front. Hypernova gives a short charge through
+threats and a protected landing. Magnet visibly bends nearby stars into the
+comet. Mirror collects and breaks red opposite the player. Scorch burns the
+travelled route; Slipstream opens a safe arc when hopping. Star Trail offers
+a route across rings. See powerups.md and MECHANICS.md for exact durations
+and upgrade behavior.
 
-There are six implemented levels today. Level 6's missing finish line is a
-content frontier, not an intended endless mode or a limit on teaching. New
-levels, new worlds, new formations and new powerups are welcome when they add
-meaningful decisions. Introduce them where their verbs are useful and their
-lessons are understandable. Tests enforce honest lessons, valid data and
-playable geometry; they must not fossilize an unfinished content schedule.
+The black hole is a voluntary wager. A fourth ring opens; settled inner-ring
+residence charges a reward while gravity threatens position. At twelve
+seconds gravity releases. Reach the outer ring before seventeen seconds to
+receive the reward. Missing the exit loses it and one shield, or the run if
+none remains. Other powers suspend and keep their remaining time. An already
+running Starfall pauses its real waves and timer; it is not earned twice.
 
-## The first flight and the words on screen
+## Teaching and words
 
-New players enter a safe playable introduction directly from Play. A committed
-tap, physical star contact, a full orbit without turning and a completed ring
-change advance four short steps. Each action receives brief confirmation. The
-second ring and earned score carry into level 1. Skip is always available;
-interrupted introductions resume on the next Play. Existing control preferences
-are preserved; new players begin with screen-relative up/down swipes.
+New players enter a safe playable introduction from Launch. A committed turn,
+star contact, full orbit without turning and completed ring change advance
+four short steps. Skip remains available; Learn to play reopens it.
+Preserve existing swipe preferences; new players start with screen-relative
+up/down swipes.
 
-One message card owns gameplay instructions. Introduction and immediate escape
-instructions take priority over timing cues, lessons, results and announcements.
-It uses a short heading, an optional explanation and a progress indicator only
-when useful. The black-hole instruction sits above the arena while its centre
-shows charge or time remaining. Long explanations wrap instead of shrinking to
-illegible single lines. Experienced players do not keep receiving basic hints.
+One message card owns instructions. Introduction and immediate escape guidance
+outrank other lessons and announcements. Name an action and its visible result.
+The black-hole guidance sits above the arena while its center shows charge or
+escape time. Keep score and level progress in the header; show powers as
+named countdowns and shields as a count. Retired band dots and ambiguous
+resource diamonds do not return.
 
-Score and level progress form the header. Active powers have named countdowns;
-shields have a labeled count. Music dots and ambiguous resource diamonds are
-retired. Pickups announce their name and actual effect once. Instructions name
-the action the player can perform, using tap, swipe, star, orbit and shield
-consistently. The level cards, menu and results share the same restrained type
-and panel treatment.
+## Verification and growth
 
-## What counts as verification
+Run the required functional checks once integration is ready and inspect a
+small real-browser sample for layout, input and rendering failures. The owner
+leads broader playtesting and balance feedback. Automated metrics do not
+establish whether an effect is exciting.
 
-Run required functional checks once the implementation is integrated. Use a
-small real-browser check for layout, input and rendering failures. The owner
-will lead broader playtesting and balance feedback; keep agent time focused on
-improvements rather than repeated review campaigns. Automated measurements do
-not establish whether a game feels good.
+New levels, worlds, formations and powers are welcome when they add meaningful
+decisions. Tests protect honest teaching, geometry and state behavior; they
+must not fossilize an unfinished content schedule.

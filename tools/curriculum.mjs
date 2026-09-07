@@ -3,7 +3,7 @@
    Every available formation and reward must be encountered and explained.
    The latest level may introduce new content; adding later levels must not
    require satisfying an artificial rule that the final level teaches nothing. */
-import { readFile } from 'node:fs/promises';
+import { loadGameHtml } from './lib/game-source.mjs';
 import vm from 'node:vm';
 import { seededMath, seedLine } from './lib/rng.mjs';
 /* PRINTED HERE, BEFORE ANY ASSERTION CAN EXIT. This harness imported
@@ -12,7 +12,7 @@ import { seededMath, seedLine } from './lib/rng.mjs';
    one-off nobody could reproduce. Both docs promised otherwise. */
 console.log(seedLine('curriculum'));
 
-const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const html = await loadGameHtml();
 const src = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i)[1];
 
 const calls = { raf: [] };

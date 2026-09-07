@@ -37,15 +37,23 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import { seedLine } from './lib/rng.mjs';
+import { loadGameHtml } from './lib/game-source.mjs';
 
 console.log(seedLine('rendercheck'));
 
 const fail = [];
 const note = [];
-const root = new URL('../', import.meta.url);
-const indexURL = process.env.COSMO_INDEX
-  ? pathToFileURL(resolve(process.env.COSMO_INDEX)).href
-  : new URL('index.html', root).href;
+const gameHtml = process.env.COSMO_INDEX
+  ? await readFile(resolve(process.env.COSMO_INDEX), 'utf8')
+  : await loadGameHtml();
+async function openGame(page) {
+  // An isolated origin gives storage its normal browser behavior while this
+  // harness executes the canonical body directly, without the Phaser host.
+  await page.route('http://cosmo-render.test/**', route => route.fulfill({
+    status: 200, contentType: 'text/html', body: gameHtml,
+  }));
+  await page.goto('http://cosmo-render.test/');
+}
 
 /* ---------------- find a browser, or skip loudly ---------------- */
 function findChromium() {
@@ -108,7 +116,7 @@ const browser = await pw.chromium.launch(LAUNCH);
    noise in every number below. */
 async function playing(dpr = 3, w = 390, h = 844) {
   const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: dpr });
-  await p.goto(indexURL);
+  await openGame(p);
   await p.waitForTimeout(1100);
   await p.evaluate(() => { startGame(); });
   await p.waitForTimeout(1400);
@@ -125,7 +133,7 @@ async function still(dpr=1,w=300,h=640) {
     Math.random=()=>{x=(Math.imul(x,1664525)+1013904223)>>>0;return x/4294967296;};
     window.requestAnimationFrame=()=>0;
   },Number(process.env.SEED)||20260814);
-  await p.goto(indexURL);
+  await openGame(p);
   await p.evaluate(()=>{
     startGame();G.level=3;G.nRings=3;G.ringI=1;G.hopFromI=1;G.hopP=1;
     G.spikes=[];G.pows=[];G.stars=[];G.sceneEvent=null;BH.phase=0;BH.warp=0;
@@ -289,12 +297,14 @@ try {
       const c=await skyRGB(p,{world:i,clock:5});
       if(!c.on){fail.push(`world ${names[i]} failed to compile in a real browser`);break;}
       seen.push({n:names[i],...c});
-      if(c.mean<3||c.mean>35||c.p90<8)
-        fail.push(`world ${names[i]} loses its visible cloud (mean ${c.mean.toFixed(1)}, p90 ${c.p90}) or floods the frame`);
-      if(c.quiet<.35||c.p10>8)
-        fail.push(`world ${names[i]} leaves too little dark space (${(c.quiet*100).toFixed(0)}% quiet)`);
-      if(c.gradient>.85)
-        fail.push(`world ${names[i]} carries busy fine contrast (${c.gradient.toFixed(2)} luma/pixel)`);
+      // A shaded planet now fills a substantial part of the frame. Preserve
+      // material, shadow and highlight range without prescribing empty area.
+      if(c.mean<5||c.mean>110||c.p90<25)
+        fail.push(`world ${names[i]} loses its visible material (mean ${c.mean.toFixed(1)}, p90 ${c.p90}) or floods the frame`);
+      if(c.p10>40||c.p90-c.p10<25)
+        fail.push(`world ${names[i]} loses shadow/highlight depth (${c.p10}-${c.p90})`);
+      if(c.gradient>6)
+        fail.push(`world ${names[i]} carries excessive pixel contrast (${c.gradient.toFixed(2)} luma/pixel)`);
     }
     const norm=s=>{const t=s.hR+s.hG+s.hB||1;return [s.hR/t,s.hG/t,s.hB/t];};
     let closest=Infinity,pair='',pairShape=0;
@@ -305,7 +315,7 @@ try {
       if(d<.045&&corr>.88)
         fail.push(`${seen[a].n}/${seen[b].n} collapse in both hue (${d.toFixed(3)}) and composition (r=${corr.toFixed(3)})`);
     }
-    note.push(`8 visible quiet worlds: mean ${Math.min(...seen.map(s=>s.mean)).toFixed(1)}-${Math.max(...seen.map(s=>s.mean)).toFixed(1)}; closest hue ${pair} ${closest.toFixed(3)}, spatial r=${pairShape.toFixed(2)}`);
+    note.push(`8 textured celestial worlds: mean ${Math.min(...seen.map(s=>s.mean)).toFixed(1)}-${Math.max(...seen.map(s=>s.mean)).toFixed(1)}; closest hue ${pair} ${closest.toFixed(3)}, spatial r=${pairShape.toFixed(2)}`);
 
     /* Strong events reveal the same form. Beats and streaks cannot modulate
        it, the envelope ends completely, and the black hole has sole priority. */
@@ -316,7 +326,7 @@ try {
       fail.push('ordinary beat/streak state changed the rendered sky');
     await p.evaluate(()=>{scenePulse('drop',3);G.t+=.18;});
     const peak=await skyRGB(p);
-    if(peak.mean/quiet.mean<1.5||peak.mean/quiet.mean>3.2)
+    if(peak.mean/quiet.mean<1.20||peak.mean/quiet.mean>3.2||peak.p90<quiet.p90+15)
       fail.push(`the earned drop lacks controlled visual contrast (ratio ${(peak.mean/quiet.mean).toFixed(2)})`);
     await p.evaluate(()=>{G.t+=3;});
     const settled=await skyRGB(p);

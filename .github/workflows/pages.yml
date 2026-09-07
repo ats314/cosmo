@@ -6,17 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
-# CONCURRENCY IS PER-REF, NOT GLOBAL — and it used to be global. The group was
-# the constant `pages` at WORKFLOW level, which put every run of every kind into
-# one queue: two pull requests checked one after the other, and a pull request's
-# checks could sit waiting behind a deploy of main that had nothing to do with
-# it. The single-flight rule only ever needed to protect PUBLISHING, and it is
-# moved down to the deploy job below where it belongs.
-#
-# Superseded pull-request runs are cancelled now. Pushing a fix used to leave
-# the previous run grinding through seven harnesses on code nobody would merge,
-# and its result arriving later reads as the newer one having failed. Runs on
-# main are never cancelled: each is a deploy of a distinct commit.
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -25,90 +17,40 @@ jobs:
   check:
     runs-on: ubuntu-latest
     env:
-      # THE SEED ROTATES PER RUN, AND EVERY FAILURE PRINTS IT. The harnesses
-      # drive the game through a seeded Math.random, so a run is reproducible
-      # from its seed alone — `SEED=<n> node tools/smoke.mjs` replays exactly
-      # the game CI played. Rotating it per run keeps coverage moving instead
-      # of replaying one fixed game forever, which is what a constant seed
-      # everywhere would buy at the price of never finding a rare path again.
       SEED: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      # Keep explicit harness steps: tools/all.mjs reads this list.
       - run: node tools/check.mjs
-      # Loads the game in a stubbed DOM, plays several simulated minutes of
-      # input, death and retry — catches the runtime errors a parse cannot.
       - run: node tools/smoke.mjs
-      # Same harness with a stubbed AudioContext: asserts the build meter
-      # actually delivers drops at a playable cadence.
       - run: node tools/dropcheck.mjs
-      # Plays the whole run headlessly and fails if level 3 ever opens with
-      # a mechanic left untaught — the curriculum rule, enforced.
       - run: node tools/curriculum.mjs
-      # The only harness that runs the arrangement. smoke.mjs removes WebAudio
-      # on purpose and dropcheck.mjs never drives past level 2, so before this
-      # existed the per-level songs had no coverage at all: deleting level 4's
-      # riff and solo rows left all four checks green and crashed the browser.
       - run: node tools/musiccheck.mjs
-      # The only harness that runs the RENDER path. The other five stub the
-      # canvas and WebGL away, so the whole draw layer is uncovered by
-      # construction — which is how thirteen black hole features shipped with
-      # one of them visible. This stubs WebGL as a recording fake instead:
-      # shaders compile, framebuffers complete, and it asserts on what was
-      # actually issued. It catches the class of bug nothing else can — a
-      # mistyped uniform name, where getUniformLocation returns null and every
-      # write through it is a silent no-op that removes an effect from the game.
       - run: node tools/fxcheck.mjs
-      # The only harness that runs the 2D DRAW path — which is where this game
-      # actually draws: 852 `ctx.` calls against 107 `GL.` ones. Every other
-      # harness stubs the context as a no-op Proxy, so all 852 vanish and
-      # ctx.arc(NaN,NaN,r,0,TAU) is indistinguishable from a correct draw. The
-      # canvas is specified to SWALLOW bad input rather than throw: a non-finite
-      # coordinate draws nothing, an unparseable colour keeps the PREVIOUS
-      # colour, an out-of-range globalAlpha is ignored. This records instead of
-      # stubbing and validates every call the way a browser would. It found a
-      # live HUD bug on its first run.
       - run: node tools/drawcheck.mjs
-      # THE ONLY HARNESS THAT LOOKS AT A PIXEL. Every check above stubs the
-      # canvas: fxcheck asserts on the WebGL calls that were issued, drawcheck
-      # validates every 2D call the way a browser would, and neither can see a
-      # frame. A drawImage at the wrong translate is indistinguishable from one
-      # at the right translate. That blind spot hid a hairline rim down every
-      # screen edge, every halo oscillating off its own light, and six world
-      # palettes buried into three -- with all six checks above green.
-      # This one launches real Chromium, runs the real shader under
-      # SwiftShader, and asserts on the framebuffer. It needs a browser, which
-      # is the only dependency in tools/ and the reason it is last: nothing
-      # else here installs anything.
-      # BOTH HALVES, and the package is the half that is easy to forget: the
-      # browser download alone leaves `import('playwright')` unresolvable in a
-      # checkout with no node_modules, and the harness would then have no way
-      # to drive it. rendercheck FAILS rather than skips when it cannot find
-      # playwright under CI, so getting this wrong is loud instead of silent.
-      - name: Install a browser for the render harness
-        run: |
-          npm install --no-save playwright@1.56.1
-          npx playwright install --with-deps chromium
       - run: node tools/rendercheck.mjs
+      - run: node tools/enginecheck.mjs
+      # Ship the exact bundle that passed every check. Do not rebuild in deploy.
+      - if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
 
   deploy:
-    # Only main publishes; pull requests get the check alone.
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: check
     runs-on: ubuntu-latest
-    # Single-flight PUBLISHING, which is the only thing that ever needed it:
-    # let an in-flight deploy finish rather than cancelling it half-published.
-    # This is the rule that used to sit at workflow level and serialise every
-    # pull request in the repository behind it.
     concurrency:
       group: pages
       cancel-in-progress: false
     permissions:
-      # A permissions block replaces the defaults rather than adding to them,
-      # so contents:read has to be spelled out — without it checkout cannot
-      # clone a private repo and fails with "Repository not found".
       contents: read
       pages: write
       id-token: write
@@ -116,42 +58,8 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      # Stamp the deployed page with the commit it was built from. The source
-      # says 'dev'; only the published artifact carries the sha, so the game
-      # itself stays a single hand-written file with no build step — this is
-      # a label on the box, not a compiler. The stamp is drawn faintly on the
-      # title screen and readable as window.COSMO_BUILD, which ends the
-      # unanswerable argument about which version a screenshot came from.
-      - run: sed -i "s/const BUILD='dev'/const BUILD='${GITHUB_SHA:0:7}'/" index.html
-      # THE SITE IS AN ALLOWLIST, NOT THE REPOSITORY. This used to be `path: .`,
-      # which handed the whole checkout to Pages: CLAUDE.md, README.md,
-      # MECHANICS.md and every harness were served at the site root, so the
-      # operating doc and the design record were public documents whether or not
-      # anyone meant them to be. Repository visibility never covered this —
-      # turning the repo private would have left every one of those files
-      # readable at its Pages URL, because Pages serves the artifact, not the
-      # repo. index.html is the distributed artifact and always was; this makes
-      # the deploy say so.
-      #
-      # The list below is guarded: check.mjs fails the build if a tracked file
-      # at the repository root is in neither this list nor its internal list, so
-      # a new asset cannot silently 404 on the live site and a new internal
-      # document cannot silently become public. Adding a file is a decision
-      # somebody is asked about, which is the only version of this that holds.
-      - name: Stage the published site
-        run: |
-          mkdir -p _site
-          cp index.html manifest.webmanifest og.png \
-             apple-touch-icon.png icon-192.png icon-512.png \
-             LICENSE _site/
-      # enablement turns Pages on via the API if it is not already, so a
-      # fresh clone of this repo deploys without anyone visiting Settings.
       - uses: actions/configure-pages@v5
         with:
           enablement: true
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
       - id: deploy
         uses: actions/deploy-pages@v4

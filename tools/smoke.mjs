@@ -2,11 +2,11 @@
 /* Headless smoke test: stub enough DOM/canvas to LOAD the game script, run
    frames, and drive input through the real handlers. Catches TDZ, load-order,
    null-deref and typo errors that a parse check cannot. */
-import { readFile } from 'node:fs/promises';
+import { loadGameHtml } from './lib/game-source.mjs';
 import vm from 'node:vm';
 import { seededMath, seedLine } from './lib/rng.mjs';
 
-const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const html = await loadGameHtml();
 const src = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i)[1];
 
 const calls = { raf: [] };
@@ -1356,9 +1356,34 @@ try {
     if (st('G.spikes.length') !== 1) throw new Error('nova expiry erased a threat beyond its original cascade');
 
     fresh(); pickup('spot');
+    if (st('G.spot') !== 10) throw new Error('Magnet did not last ten seconds');
+    st(`G.stars=[{a:0.25,ring:1,t:0,life:20},{a:Math.PI,ring:1,t:0,life:20}];
+      G.spikes=[{a:0.25,ring:1,t:0,phase:1,bt:0,va:0,life:99}];
+      G.__magStar=G.stars[0];G.__magStart=starVisualPos(G.__magStar);update(0.08)`);
+    if (!st('G.__magStar.mag&&Math.hypot(...starVisualPos(G.__magStar).map((v,i)=>v-G.__magStart[i]))>1*u'))
+      throw new Error('Magnet did not visibly pull a nearby star off its adjacent ring');
+    if (!st('!G.stars[1].mag&&G.spikes.length===1&&!G.spikes[0].mag&&G.spikes[0].ring===1'))
+      throw new Error('Magnet pulled a distant star or changed a hazard');
+    st('G.__magFrozen=JSON.stringify(G.__magStar.mag);BH.phase=1;updateMagnetStar(G.__magStar,0.2)');
+    if (!st('JSON.stringify(G.__magStar.mag)===G.__magFrozen'))
+      throw new Error('Magnet attraction continued during black-hole isolation');
+    st('BH.phase=0;G.spot=0'); // an already captured star finishes after expiry
+    for (let i=0;i<5;i++) st('update(0.08)');
+    if (!st('!G.stars.includes(G.__magStar)&&G.combo===1&&G.score===1&&G.lastPopPaid===1'))
+      throw new Error('Magnet contact missed the ordinary collection/combo/score path');
+    st("G.upg.stagelight=1"); pickup('spot');
+    if (st('G.spot') !== 16) throw new Error('Long Magnet did not extend the field');
+    fresh(); pickup('spot');
     st('G.hyper=2;G.hyperD=2;G.combo=2;G.comboT=99;G.stars=[{a:0,ring:0,t:0,life:20}];update(0)');
-    if (st('G.score') !== 12 || st('G.lastPopPaid') !== 12)
-      throw new Error('spotlight did not double the existing star reward and its displayed payout');
+    if (st('G.score') !== 6 || st('G.lastPopPaid') !== 6)
+      throw new Error('Magnet changed the ordinary star reward or left Spotlight doubling active');
+
+    // Every visual consumer must follow captured stars away from their ring.
+    for (const pattern of [
+      /for\(const st of G\.stars\)\{\s*const p=starVisualPos\(st\);\s*bloomDot/,
+      /for\(const s of G\.stars\)\{\s*const p=starVisualPos\(s\);\s*let al=1/,
+      /const p=starVisualPos\(route\[i\]\)/
+    ]) if (!pattern.test(src)) throw new Error('a star visual pass stopped using the authoritative position');
 
     // The black-hole bank accrues only during a settled inner-ring dwell.
     fresh(); st('startBlackHole();bhTick(BH_WARP);BH.t=0;G.ringI=3;G.hopP=1;bhTick(2)');

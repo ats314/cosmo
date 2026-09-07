@@ -9,7 +9,7 @@ Part of the [Cosmo design record](../../README.md#where-everything-is).
 Every one of these can be tried on demand from the title screen's POWERUP
 TESTING bar — see [POWERUP TESTING](difficulty.md#powerup-testing). It exists because the
 list below is gated: three are introduced on level 1, hypernova and slipstream
-on level 2, spotlight and star trail on level 3, mirror on level 4, and scorch
+on level 2, Magnet and star trail on level 3, mirror on level 4, and scorch
 on level 5. There are ten selectable orbs,
 including the optional black-hole event. Level 6 is the current content
 frontier; future levels may introduce further mechanics.
@@ -34,16 +34,17 @@ frontier; future levels may introduce further mechanics.
   landed on the device: announcing an economy nuance at fourteen seconds of
   a first-ever run, before the player knows what a shield is for, was the
   firehose's loudest sentence. The shimmer still marks the state either way.
-- **Spotlight** (white/violet) — four bars where YOU are the lead, on an
-  actual stage: the house dims under the arena, a followspot beam and a
-  pool of light pin the comet, stars and tight taps pay double, your
-  instrument gains half again and the band steps back a notch. A violet
-  ring around the comet empties clockwise and blinks through the last
-  1.5 seconds. A performance, not a transaction. (It replaced the Echo
-  orb, which the loop recorder made redundant, and which the playtest
-  didn't love.) The star multiplier doubles the actual payout, including a
-  payoff section, another doubling state, and a star-trail bonus. The printed
-  payout matches the score. Duration is 16 beats, or 24 with STAGE LIGHT.
+- **Magnet** (white/violet horseshoe) - nearby stars visibly curve into the
+  comet for 10 seconds, or 16 with LONG MAGNET. The field reaches 110 scale
+  units and can collect from the current or an adjacent ring. Each captured
+  star follows a 0.38-second curved flight toward the moving comet, then uses
+  the normal star contact, combo and score path. Red hazards are unaffected.
+  Captured stars finish their flight after the field expires. During a black
+  hole both attraction and their lifetimes pause. There is no star or tap
+  multiplier and no temporary instrument mode.
+  `starVisualPos` is authoritative for contact, the crystal, bloom and route
+  links; targeted smoke guards keep those passes aligned. Internal `spot`,
+  `spotPlaced` and `stagelight` keys remain compatible with existing saves.
 - **Hypernova** — the pink star (the playtest group asked for "a star in
   Mario", so it is one, drawn plainly — in `COL.hyper`'s magenta, `#ff4fd8`,
   because gold is the embers' colour and a sentence pointing at "the gold
@@ -186,8 +187,8 @@ The musical orbs join the spawn rotation after the intro curriculum
 (shield → slow-mo → nova) has run — once per RUN, on its own counter, so a
 level boundary never replays it — each named by a first-encounter hint.
 The guarantees are spread across the run now, one home level each: the
-hypernova's first placement is guaranteed on level 2, the spotlight's on
-level 3, SLIPSTREAM follows hypernova on level 2, STAR TRAIL follows spotlight
+hypernova's first placement is guaranteed on level 2, Magnet's on
+level 3, SLIPSTREAM follows hypernova on level 2, STAR TRAIL follows Magnet
 on level 3, THE MIRROR arrives on level 4, and scorch on level 5, each once per run -
 because at a 10% roll the marquee item was
 optional content again (a 6000-point run met zero), which is the exact
@@ -196,7 +197,7 @@ with the earlier homes pre-spent, so a 1→6 climb meets each guarantee exactly
 once, on its home level, and a level-5 start is not owed four marquee
 placements in its first minute. The fallback roll behind the guarantees
 respects the same level floors — shield, slow-mo and nova always, hypernova
-and slipstream from level 2, spotlight and star trail from 3, mirror from 4,
+and slipstream from level 2, Magnet and star trail from 3, mirror from 4,
 and scorch from 5 - with
 the shares renormalised proportionally. The shield-pity rule is unchanged:
 never more than three placements without one. That rule is evaluated before
@@ -239,7 +240,11 @@ runs thin, so early draws stay as varied as they ever were and the late cards
 are never blank. LONG SLIPSTREAM enters on the level-2 card, LONG STAR TRAIL
 on level 3, so a player is not offered an upgrade to an unavailable orb.
 
-### Historical spotlight correction
+### Retired Spotlight: historical rendering and scoring correction
+
+Spotlight was replaced by Magnet after the owner found its stage metaphor
+confusing and its reward uninteresting. This section records the retired
+implementation and its regressions; the Magnet contract above is current.
 
 The earlier review found the
 spotlight's active state changed zero arena pixels for its whole nine-to-

@@ -34,12 +34,11 @@
    beautiful. It checks that the drawing commands are ones a real canvas would
    honour, which is the part no human review catches and no other check here
    can see. */
-import { readFile } from 'node:fs/promises';
+import { loadGameSource } from './lib/game-source.mjs';
 import vm from 'node:vm';
 import { seededMath, seedLine } from './lib/rng.mjs';
 
-const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-const src = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i)[1];
+const { body: src } = await loadGameSource();
 
 const bad = [];            /* every violation, with the call that caused it */
 const seen = new Set();    /* dedupe: one frame can repeat a fault 60 times */
@@ -53,15 +52,12 @@ const drawn = new Map();   /* phase -> draw-op count */
    the first frame inside index.html, and violations are grouped BY SITE rather
    than by value — one bad line runs sixty times a second and would otherwise
    bury every other finding under identical noise. */
-/* The vm compiles the SCRIPT BODY, so its line numbers start at 1 inside the
-   <script> block and are off by the length of the head. A line number that is
-   confidently wrong is worse than none — it sends the reader to an unrelated
-   function — so the offset is measured from the file rather than hardcoded. */
-const SCRIPT_LINE0 = html.slice(0, html.indexOf(src)).split('\n').length;
+/* The shared source loader pads its host prefix to the canonical line count,
+   so VM stack locations point directly into src/game/runtime.js. */
 function site() {
   const s = new Error().stack || '';
-  const m = s.match(/index\.html:(\d+):\d+/);
-  return m ? `index.html:${SCRIPT_LINE0 + (+m[1]) - 1}` : 'unknown site';
+  const m = s.match(/src\/game\/runtime\.js:(\d+):\d+/);
+  return m ? `src/game/runtime.js:${m[1]}` : 'unknown site';
 }
 function flag(kind, detail, atOverride) {
   const at = atOverride || site();
@@ -238,7 +234,7 @@ sandbox.window = new Proxy(sandbox, {
 
 vm.createContext(sandbox);
 try {
-  vm.runInContext(src, sandbox, { filename: 'index.html' });
+  vm.runInContext(src, sandbox, { filename: 'src/game/runtime.js' });
 } catch (e) {
   console.error('LOAD FAILED:', e.stack.split('\n').slice(0, 4).join('\n'));
   process.exit(1);

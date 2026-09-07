@@ -1,0 +1,1139 @@
+{
+  "provenance": "Original Gemini art supplied and approved by the project owner on 2026-09-07. No third-party license was included in either supplied archive.",
+  "processing": "Format conversion and resizing only; rectangular world-panel crops exclude sheet gutters. Original alpha retained. No checkerboard background removal.",
+  "boundsConvention": "Pixel bounds are [left, top, rightExclusive, bottomExclusive] in delivered WebP dimensions. Alpha centroid includes glow; comet recommendedOrigin targets its bright core.",
+  "assets": [
+    {
+      "key": "comet-core",
+      "file": "sprites/comet-core.webp",
+      "width": 512,
+      "height": 512,
+      "bytes": 48866,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "comet-core.png",
+      "sourceCrop": null,
+      "sourceSha256": "4fa7990a285f1d898bf67ed6f243ae272b9d679c66aa2f1786ac5995449124f0",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        132,
+        88,
+        468,
+        424
+      ],
+      "alpha128Bounds": [
+        172,
+        175,
+        382,
+        337
+      ],
+      "alphaCentroid": [
+        295.58,
+        257.06
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing. Faces right. Align bright core, not whole-image center, to collision position.",
+      "recommendedOrigin": [
+        0.624,
+        0.482
+      ]
+    },
+    {
+      "key": "cosmo-wordmark",
+      "file": "sprites/cosmo-wordmark.webp",
+      "width": 1024,
+      "height": 341,
+      "bytes": 80084,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "cosmo-wordmark.png",
+      "sourceCrop": null,
+      "sourceSha256": "9ad907da3fdd178b191c7e42b5f7ff1945744858e013c92f9cf9f9595c704bdf",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        119,
+        58,
+        936,
+        252
+      ],
+      "alpha128Bounds": [
+        161,
+        100,
+        913,
+        225
+      ],
+      "alphaCentroid": [
+        541.42,
+        154.6
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "drift-planet",
+      "file": "sprites/drift-planet.webp",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 90142,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "drift-planet.png",
+      "sourceCrop": null,
+      "sourceSha256": "3711df3746b345001bd51185d07835e298cac710967ba9226d16d7816992201a",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        75,
+        75,
+        950,
+        950
+      ],
+      "alpha128Bounds": [
+        121,
+        121,
+        903,
+        903
+      ],
+      "alphaCentroid": [
+        511.75,
+        511.75
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "drift-ring",
+      "file": "sprites/drift-ring.webp",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 183946,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "drift-ring.png",
+      "sourceCrop": null,
+      "sourceSha256": "9bdfb1eb9993b7f5cedfbf2ac898d7cad0c4f6e680832caa626248d09a5c5406",
+      "alphaExtrema": [
+        0,
+        226
+      ],
+      "alphaBounds": [
+        69,
+        70,
+        956,
+        955
+      ],
+      "alpha128Bounds": [
+        92,
+        89,
+        932,
+        932
+      ],
+      "alphaCentroid": [
+        512.44,
+        511.76
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "fx-plasma-wisp",
+      "file": "sprites/fx-plasma-wisp.webp",
+      "width": 512,
+      "height": 512,
+      "bytes": 12944,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "fx-plasma-wisp.png",
+      "sourceCrop": null,
+      "sourceSha256": "3c2906b938bc9a61f6fc82ec6b0474609ed0b96c82ac6230723b7ceda9c8eaea",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        49,
+        191,
+        463,
+        357
+      ],
+      "alpha128Bounds": [
+        52,
+        196,
+        460,
+        353
+      ],
+      "alphaCentroid": [
+        257.01,
+        283.3
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "fx-shock-ring",
+      "file": "sprites/fx-shock-ring.webp",
+      "width": 512,
+      "height": 512,
+      "bytes": 18590,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "fx-shock-ring.png",
+      "sourceCrop": null,
+      "sourceSha256": "01a5a509eddf1e5aab2dc4aaaa44a92bed471472ed2916c3a8212426a1afef31",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        29,
+        34,
+        484,
+        477
+      ],
+      "alpha128Bounds": [
+        50,
+        52,
+        462,
+        459
+      ],
+      "alphaCentroid": [
+        256.87,
+        254.56
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "fx-soft-glow",
+      "file": "sprites/fx-soft-glow.webp",
+      "width": 512,
+      "height": 512,
+      "bytes": 27684,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "fx-soft-glow.png",
+      "sourceCrop": null,
+      "sourceSha256": "da3ef4d18d02da799088f0fc62040beb2d0598c952b0961f1a6848426b72fa78",
+      "alphaExtrema": [
+        0,
+        254
+      ],
+      "alphaBounds": [
+        13,
+        11,
+        499,
+        500
+      ],
+      "alpha128Bounds": [
+        191,
+        191,
+        322,
+        322
+      ],
+      "alphaCentroid": [
+        255.75,
+        255.75
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "fx-spark",
+      "file": "sprites/fx-spark.webp",
+      "width": 512,
+      "height": 512,
+      "bytes": 12792,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "fx-spark.png",
+      "sourceCrop": null,
+      "sourceSha256": "85d9282708391c72b6105ee0633753439fa9a832873f791cf5c963f30aabe4e6",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        162,
+        162,
+        350,
+        350
+      ],
+      "alpha128Bounds": [
+        194,
+        240,
+        318,
+        272
+      ],
+      "alphaCentroid": [
+        255.5,
+        255.5
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "hazard-blinker",
+      "file": "sprites/hazard-blinker.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 18628,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "hazard-blinker.png",
+      "sourceCrop": null,
+      "sourceSha256": "a9ef25542d0901a8854ae4652b0927247a47b0110be5f2ac3f43207159da50ef",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        25,
+        25,
+        231,
+        231
+      ],
+      "alpha128Bounds": [
+        41,
+        38,
+        215,
+        218
+      ],
+      "alphaCentroid": [
+        127.5,
+        127.5
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "hazard-drifter",
+      "file": "sprites/hazard-drifter.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 20296,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "hazard-drifter.png",
+      "sourceCrop": null,
+      "sourceSha256": "7d25afbb11a4eeacee4e921338265587bd46f8cf7dfa818ed0ed52e5ed99292d",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        26,
+        26,
+        230,
+        230
+      ],
+      "alpha128Bounds": [
+        51,
+        56,
+        202,
+        204
+      ],
+      "alphaCentroid": [
+        129.69,
+        121.42
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "hazard-shard",
+      "file": "sprites/hazard-shard.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 16712,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "hazard-shard.png",
+      "sourceCrop": null,
+      "sourceSha256": "a6fe3397e32fc4c72f58cc937c7f6eb887b7fc02c8fe0f076b234f52a8ba40ad",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        26,
+        26,
+        230,
+        230
+      ],
+      "alpha128Bounds": [
+        57,
+        44,
+        199,
+        212
+      ],
+      "alphaCentroid": [
+        127.4,
+        127.24
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "power-blackhole",
+      "file": "sprites/power-blackhole.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 10012,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "power-blackhole.png",
+      "sourceCrop": null,
+      "sourceSha256": "a6688ea0972dc74cae29363d5d213a1d45f1d1f80065a43bfe4829b95af0d5a3",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        24,
+        77,
+        232,
+        179
+      ],
+      "alpha128Bounds": [
+        44,
+        86,
+        212,
+        170
+      ],
+      "alphaCentroid": [
+        127.03,
+        127.67
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "power-hyper",
+      "file": "sprites/power-hyper.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 23870,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "power-hyper.png",
+      "sourceCrop": null,
+      "sourceSha256": "58b223ec90c8a3fe8fc86857718b98b94e68d4c7333f13024cf7fffb58c86bce",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        19,
+        19,
+        237,
+        237
+      ],
+      "alpha128Bounds": [
+        68,
+        44,
+        188,
+        209
+      ],
+      "alphaCentroid": [
+        127.5,
+        135.22
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "power-mirror",
+      "file": "sprites/power-mirror.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 21848,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "power-mirror.png",
+      "sourceCrop": null,
+      "sourceSha256": "6bb4b403e428d756847469c2cf1985cb2b9cf31bc6bedce8bfaf2f5dad9ee386",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        23,
+        23,
+        233,
+        233
+      ],
+      "alpha128Bounds": [
+        37,
+        103,
+        219,
+        153
+      ],
+      "alphaCentroid": [
+        127.5,
+        127.5
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "power-nova",
+      "file": "sprites/power-nova.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 24302,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "power-nova.png",
+      "sourceCrop": null,
+      "sourceSha256": "d8944dbeb9346509b119332d07a1bbe08c02e7c22f334aca644ab4a37375272e",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        18,
+        18,
+        238,
+        238
+      ],
+      "alpha128Bounds": [
+        56,
+        45,
+        200,
+        211
+      ],
+      "alphaCentroid": [
+        127.5,
+        127.5
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "power-scorch",
+      "file": "sprites/power-scorch.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 24086,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "power-scorch.png",
+      "sourceCrop": null,
+      "sourceSha256": "799085e580fe08bb7c1e0c236f6a51a6bc7edea1f316af1e9b7e67ce24f70dc0",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        19,
+        41,
+        237,
+        256
+      ],
+      "alpha128Bounds": [
+        65,
+        54,
+        182,
+        207
+      ],
+      "alphaCentroid": [
+        127.11,
+        147.38
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "power-shield",
+      "file": "sprites/power-shield.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 20298,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "power-shield.png",
+      "sourceCrop": null,
+      "sourceSha256": "a66c49fa93ab341d1a4e6554962f9829b1815e73038f97133a6e9a368d5901cb",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        18,
+        16,
+        238,
+        236
+      ],
+      "alpha128Bounds": [
+        50,
+        50,
+        206,
+        211
+      ],
+      "alphaCentroid": [
+        127.46,
+        112.08
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "power-slip",
+      "file": "sprites/power-slip.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 21978,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "power-slip.png",
+      "sourceCrop": null,
+      "sourceSha256": "55d21521d32a602a2f50b1ee863e257617bbf28c44e868bb53679f1e09a50968",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        23,
+        23,
+        233,
+        233
+      ],
+      "alpha128Bounds": [
+        65,
+        73,
+        191,
+        182
+      ],
+      "alphaCentroid": [
+        126.73,
+        127.18
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "power-slow",
+      "file": "sprites/power-slow.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 22694,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "power-slow.png",
+      "sourceCrop": null,
+      "sourceSha256": "72386c6efc9b8c028cf44852383898265b584e3482938a588ff39a84ffe33f5a",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        23,
+        23,
+        233,
+        233
+      ],
+      "alpha128Bounds": [
+        69,
+        54,
+        187,
+        202
+      ],
+      "alphaCentroid": [
+        126.86,
+        126.69
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing. Maps to runtime warp."
+    },
+    {
+      "key": "power-spotlight",
+      "file": "sprites/power-spotlight.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 25686,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "power-spotlight.png",
+      "sourceCrop": null,
+      "sourceSha256": "077407aa4fd082c5b3d54f45e3b8429b40796fea526ca4c572bb4e1775cc6248",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        13,
+        35,
+        243,
+        256
+      ],
+      "alpha128Bounds": [
+        80,
+        42,
+        176,
+        203
+      ],
+      "alphaCentroid": [
+        127.5,
+        116.39
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing. Retired Spotlight art; not the current Magnet. Do not map to runtime spot."
+    },
+    {
+      "key": "power-trail",
+      "file": "sprites/power-trail.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 26132,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "power-trail.png",
+      "sourceCrop": null,
+      "sourceSha256": "66307c60f9310d5f33caaee3393f44bea35cbda8170a38f3a449fbc337930656",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        13,
+        23,
+        233,
+        236
+      ],
+      "alpha128Bounds": [
+        39,
+        71,
+        198,
+        210
+      ],
+      "alphaCentroid": [
+        113.94,
+        140.9
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "star-gold",
+      "file": "sprites/star-gold.webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 20930,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "star-gold.png",
+      "sourceCrop": null,
+      "sourceSha256": "04b418e00a8a7817a0fb4becd37b45572984bcde69303b7a92dd303afa03541d",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        25,
+        25,
+        231,
+        231
+      ],
+      "alpha128Bounds": [
+        43,
+        43,
+        213,
+        213
+      ],
+      "alphaCentroid": [
+        127.5,
+        127.5
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "ui-panel-frame",
+      "file": "sprites/ui-panel-frame.webp",
+      "width": 1024,
+      "height": 512,
+      "bytes": 4320,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "ui-panel-frame.png",
+      "sourceCrop": null,
+      "sourceSha256": "3e22970747f4eca01d4ad65c92d4732ab452d0cb49ff8e5d5e636bf86e1f640f",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        23,
+        23,
+        1001,
+        489
+      ],
+      "alpha128Bounds": [
+        24,
+        24,
+        1000,
+        488
+      ],
+      "alphaCentroid": [
+        511.5,
+        255.5
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "ui-primary-frame",
+      "file": "sprites/ui-primary-frame.webp",
+      "width": 1024,
+      "height": 256,
+      "bytes": 10450,
+      "sourceArchive": "cosmoassetssprites.zip",
+      "sourceFile": "ui-primary-frame.png",
+      "sourceCrop": null,
+      "sourceSha256": "7a65000a39e6e65c0bdb43a898b4885e56d37e709f918cd0c06308df289dd364",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        19,
+        19,
+        1005,
+        237
+      ],
+      "alpha128Bounds": [
+        22,
+        22,
+        1002,
+        234
+      ],
+      "alphaCentroid": [
+        511.49,
+        127.54
+      ],
+      "notes": "Original framing retained; genuine alpha preserved exactly after resizing."
+    },
+    {
+      "key": "nebula-arena",
+      "file": "worlds/nebula-arena.webp",
+      "width": 1080,
+      "height": 1935,
+      "bytes": 71318,
+      "sourceArchive": "Gemini_Generated_Image_f98jj5f98jj5f98j.zip",
+      "sourceFile": "Gemini_Generated_Image_81hhty81hhty81hh.png",
+      "sourceCrop": null,
+      "sourceSha256": "0db10c7d42fe338965867391e7711ce46e1b01765502f297d72a3c80bae07aa6",
+      "alphaExtrema": [
+        255,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        0,
+        1080,
+        1935
+      ],
+      "alpha128Bounds": [
+        0,
+        0,
+        1080,
+        1935
+      ],
+      "alphaCentroid": [
+        539.5,
+        967.0
+      ],
+      "notes": "Nebula border with central negative space; opaque image; small Gemini mark retained near lower-right."
+    },
+    {
+      "key": "drift-ringed-world",
+      "file": "worlds/drift-ringed-world.webp",
+      "width": 1080,
+      "height": 1935,
+      "bytes": 112084,
+      "sourceArchive": "Gemini_Generated_Image_f98jj5f98jj5f98j.zip",
+      "sourceFile": "Gemini_Generated_Image_tvbnfctvbnfctvbn.png",
+      "sourceCrop": null,
+      "sourceSha256": "7acb1354a0e91470724dcf81fea1ed807b221334391a8d4f22e06381bee22078",
+      "alphaExtrema": [
+        255,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        0,
+        1080,
+        1935
+      ],
+      "alpha128Bounds": [
+        0,
+        0,
+        1080,
+        1935
+      ],
+      "alphaCentroid": [
+        539.5,
+        967.0
+      ],
+      "notes": "Planet composition; contains baked dark header/footer bands and a small Gemini mark near lower-right."
+    },
+    {
+      "key": "tide-world",
+      "file": "worlds/tide-world.webp",
+      "width": 384,
+      "height": 688,
+      "bytes": 22144,
+      "sourceArchive": "Gemini_Generated_Image_f98jj5f98jj5f98j.zip",
+      "sourceFile": "Gemini_Generated_Image_f98jj5f98jj5f98j.png",
+      "sourceCrop": [
+        0,
+        0,
+        384,
+        688
+      ],
+      "sourceSha256": "1847f80999d6b3545b614bef1def2852739d5d464772322567f35da61a8812dc",
+      "alphaExtrema": [
+        255,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        0,
+        384,
+        688
+      ],
+      "alpha128Bounds": [
+        0,
+        0,
+        384,
+        688
+      ],
+      "alphaCentroid": [
+        191.5,
+        343.5
+      ],
+      "notes": "Panel split from original four-world sheet; low-resolution source, no upscaling or retouching."
+    },
+    {
+      "key": "dustlane-world",
+      "file": "worlds/dustlane-world.webp",
+      "width": 384,
+      "height": 688,
+      "bytes": 26440,
+      "sourceArchive": "Gemini_Generated_Image_f98jj5f98jj5f98j.zip",
+      "sourceFile": "Gemini_Generated_Image_f98jj5f98jj5f98j.png",
+      "sourceCrop": [
+        384,
+        0,
+        768,
+        688
+      ],
+      "sourceSha256": "1847f80999d6b3545b614bef1def2852739d5d464772322567f35da61a8812dc",
+      "alphaExtrema": [
+        255,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        0,
+        384,
+        688
+      ],
+      "alpha128Bounds": [
+        0,
+        0,
+        384,
+        688
+      ],
+      "alphaCentroid": [
+        191.5,
+        343.5
+      ],
+      "notes": "Panel split from original four-world sheet; low-resolution source, no upscaling or retouching."
+    },
+    {
+      "key": "glass-world",
+      "file": "worlds/glass-world.webp",
+      "width": 384,
+      "height": 688,
+      "bytes": 19660,
+      "sourceArchive": "Gemini_Generated_Image_f98jj5f98jj5f98j.zip",
+      "sourceFile": "Gemini_Generated_Image_f98jj5f98jj5f98j.png",
+      "sourceCrop": [
+        0,
+        688,
+        384,
+        1376
+      ],
+      "sourceSha256": "1847f80999d6b3545b614bef1def2852739d5d464772322567f35da61a8812dc",
+      "alphaExtrema": [
+        255,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        0,
+        384,
+        688
+      ],
+      "alpha128Bounds": [
+        0,
+        0,
+        384,
+        688
+      ],
+      "alphaCentroid": [
+        191.5,
+        343.5
+      ],
+      "notes": "Panel split from original four-world sheet; low-resolution source, no upscaling or retouching."
+    },
+    {
+      "key": "emberfall-small-world",
+      "file": "worlds/emberfall-small-world.webp",
+      "width": 384,
+      "height": 688,
+      "bytes": 22062,
+      "sourceArchive": "Gemini_Generated_Image_f98jj5f98jj5f98j.zip",
+      "sourceFile": "Gemini_Generated_Image_f98jj5f98jj5f98j.png",
+      "sourceCrop": [
+        384,
+        688,
+        768,
+        1376
+      ],
+      "sourceSha256": "1847f80999d6b3545b614bef1def2852739d5d464772322567f35da61a8812dc",
+      "alphaExtrema": [
+        255,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        0,
+        384,
+        688
+      ],
+      "alpha128Bounds": [
+        0,
+        0,
+        384,
+        688
+      ],
+      "alphaCentroid": [
+        191.5,
+        343.5
+      ],
+      "notes": "Panel split from original four-world sheet; low-resolution source, no upscaling or retouching."
+    },
+    {
+      "key": "emberfall-world",
+      "file": "worlds/emberfall-world.webp",
+      "width": 752,
+      "height": 1324,
+      "bytes": 52722,
+      "sourceArchive": "Gemini_Generated_Image_f98jj5f98jj5f98j.zip",
+      "sourceFile": "Gemini_Generated_Image_53fxlk53fxlk53fx.png",
+      "sourceCrop": [
+        0,
+        0,
+        752,
+        1324
+      ],
+      "sourceSha256": "fdab1aa9b6ff9c486e7e8e6763c0d6dcc73b772cfa741ea240c63de173848394",
+      "alphaExtrema": [
+        255,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        0,
+        752,
+        1324
+      ],
+      "alpha128Bounds": [
+        0,
+        0,
+        752,
+        1324
+      ],
+      "alphaCentroid": [
+        375.5,
+        661.5
+      ],
+      "notes": "Rectangular panel extracted above/below label gutters. Deepfield retains its Gemini mark. No artwork removed or retouched."
+    },
+    {
+      "key": "veil-world",
+      "file": "worlds/veil-world.webp",
+      "width": 752,
+      "height": 1324,
+      "bytes": 30768,
+      "sourceArchive": "Gemini_Generated_Image_f98jj5f98jj5f98j.zip",
+      "sourceFile": "Gemini_Generated_Image_53fxlk53fxlk53fx.png",
+      "sourceCrop": [
+        784,
+        0,
+        1536,
+        1324
+      ],
+      "sourceSha256": "fdab1aa9b6ff9c486e7e8e6763c0d6dcc73b772cfa741ea240c63de173848394",
+      "alphaExtrema": [
+        255,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        0,
+        752,
+        1324
+      ],
+      "alpha128Bounds": [
+        0,
+        0,
+        752,
+        1324
+      ],
+      "alphaCentroid": [
+        375.5,
+        661.5
+      ],
+      "notes": "Rectangular panel extracted above/below label gutters. Deepfield retains its Gemini mark. No artwork removed or retouched."
+    },
+    {
+      "key": "grid-world",
+      "file": "worlds/grid-world.webp",
+      "width": 752,
+      "height": 1300,
+      "bytes": 72268,
+      "sourceArchive": "Gemini_Generated_Image_f98jj5f98jj5f98j.zip",
+      "sourceFile": "Gemini_Generated_Image_53fxlk53fxlk53fx.png",
+      "sourceCrop": [
+        0,
+        1394,
+        752,
+        2694
+      ],
+      "sourceSha256": "fdab1aa9b6ff9c486e7e8e6763c0d6dcc73b772cfa741ea240c63de173848394",
+      "alphaExtrema": [
+        255,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        0,
+        752,
+        1300
+      ],
+      "alpha128Bounds": [
+        0,
+        0,
+        752,
+        1300
+      ],
+      "alphaCentroid": [
+        375.5,
+        649.5
+      ],
+      "notes": "Rectangular panel extracted above/below label gutters. Deepfield retains its Gemini mark. No artwork removed or retouched."
+    },
+    {
+      "key": "deepfield-world",
+      "file": "worlds/deepfield-world.webp",
+      "width": 752,
+      "height": 1300,
+      "bytes": 31632,
+      "sourceArchive": "Gemini_Generated_Image_f98jj5f98jj5f98j.zip",
+      "sourceFile": "Gemini_Generated_Image_53fxlk53fxlk53fx.png",
+      "sourceCrop": [
+        784,
+        1394,
+        1536,
+        2694
+      ],
+      "sourceSha256": "fdab1aa9b6ff9c486e7e8e6763c0d6dcc73b772cfa741ea240c63de173848394",
+      "alphaExtrema": [
+        255,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        0,
+        752,
+        1300
+      ],
+      "alpha128Bounds": [
+        0,
+        0,
+        752,
+        1300
+      ],
+      "alphaCentroid": [
+        375.5,
+        649.5
+      ],
+      "notes": "Rectangular panel extracted above/below label gutters. Deepfield retains its Gemini mark. No artwork removed or retouched."
+    }
+  ]
+}

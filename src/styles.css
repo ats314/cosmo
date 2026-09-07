@@ -1,0 +1,66 @@
+/* overscroll-behavior stops Safari's rubber-band and pull-to-refresh.
+     It does NOT stop an in-app browser sheet being swiped away — that gesture
+     belongs to the host app, above the web view, and no page can reach it.
+     Add to home screen is the only real answer there. */
+  html,body{margin:0;height:100%;overflow:hidden;background:#060913;
+    overscroll-behavior:none;touch-action:none;}
+  canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;touch-action:none;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  #bg{z-index:0}  /* the WebGL backdrop sits under the 2D game canvas */
+  #c{z-index:1;background:transparent}
+  #safe{position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;
+    padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+
+  /* THE ACCOUNT PANEL IS THE ONE PIECE OF DOM IN A CANVAS GAME, and it is DOM
+     for a reason that is not laziness. Everything else here is drawn, down to
+     the type, because the look is the product. But this screen asks for an
+     email address and a password, and a canvas cannot raise a phone keyboard,
+     cannot be filled by a password manager, has no caret, no selection, no
+     paste and no autofill. Hand-rolling those badly on a <canvas> would make
+     the one screen in the game with a keyboard the worst screen in the game.
+     So it is real markup, styled in the game's own palette, and it appears
+     only on the title screen. It never draws over a run. */
+  #acct{position:fixed;inset:0;z-index:5;display:none;align-items:center;
+    justify-content:center;padding:20px;box-sizing:border-box;
+    background:rgba(6,9,19,0.86);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+    font:500 15px/1.45 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    color:#dfe8ff;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #acct.on{display:flex}
+  #acct .pnl{width:100%;max-width:360px;background:linear-gradient(180deg,#101a33,#0a1020);
+    border:1px solid rgba(93,240,255,0.28);border-radius:16px;padding:22px 20px 20px;
+    box-shadow:0 18px 60px rgba(0,0,0,0.6),0 0 40px rgba(93,240,255,0.06);position:relative}
+  #acct h2{margin:0 0 4px;font-size:19px;letter-spacing:.16em;font-weight:800;color:#5df0ff}
+  #acct .sub{margin:0 0 16px;font-size:12.5px;color:rgba(190,205,235,0.62);letter-spacing:.02em}
+  #acct label{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:rgba(190,205,235,0.55);margin:12px 0 5px}
+  #acct input{width:100%;box-sizing:border-box;padding:11px 12px;border-radius:9px;
+    background:rgba(6,9,19,0.75);border:1px solid rgba(120,150,200,0.3);
+    color:#eaf2ff;font-size:16px;font-family:inherit}
+  #acct input:focus{outline:none;border-color:rgba(93,240,255,0.7);
+    box-shadow:0 0 0 3px rgba(93,240,255,0.12)}
+  #acct button{font-family:inherit;cursor:pointer}
+  #acct .go{width:100%;margin-top:18px;padding:12px;border-radius:999px;
+    background:rgba(93,240,255,0.1);border:1.5px solid rgba(93,240,255,0.75);
+    color:#5df0ff;font-size:15px;font-weight:800;letter-spacing:.18em}
+  #acct .go:disabled{opacity:.5;cursor:default}
+  #acct .alt{display:block;width:100%;margin-top:12px;background:none;border:none;
+    color:rgba(180,139,255,0.95);font-size:13px;letter-spacing:.04em;text-decoration:underline;
+    padding:6px}
+  #acct .x{position:absolute;top:10px;right:12px;background:none;border:none;
+    color:rgba(190,205,235,0.5);font-size:26px;line-height:1;padding:4px 8px}
+  #acct .msg{margin-top:14px;font-size:13px;line-height:1.4}
+  #acct .err{color:#ff5d73}
+  #acct .ok{color:#7bffc8}
+  #acct .rec{display:flex;gap:10px;margin:14px 0 4px}
+  #acct .rec div{flex:1;background:rgba(6,9,19,0.6);border:1px solid rgba(120,150,200,0.18);
+    border-radius:10px;padding:10px 8px;text-align:center}
+  #acct .rec b{display:block;font-size:20px;color:#ffc857;font-weight:800}
+  #acct .rec span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    color:rgba(190,205,235,0.5)}
+  #acct table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+  #acct td{padding:7px 4px;border-bottom:1px solid rgba(120,150,200,0.12)}
+  #acct td.r{color:rgba(190,205,235,0.5);width:2.2em}
+  #acct td.s{text-align:right;color:#ffc857;font-weight:700;font-variant-numeric:tabular-nums}
+  #acct tr.you td{color:#5df0ff}
+  #acct tr.you td.s{color:#5df0ff}
+  #acct .foot{margin-top:16px;font-size:11.5px;color:rgba(190,205,235,0.45);line-height:1.5}

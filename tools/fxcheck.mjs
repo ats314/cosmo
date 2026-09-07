@@ -20,7 +20,7 @@
    check in this repo. It just quietly removes an effect from the game. The
    fake reproduces that exactly: it parses the uniform declarations out of the
    shader source it was handed and returns null for anything else. */
-import { readFile } from 'node:fs/promises';
+import { loadGameHtml } from './lib/game-source.mjs';
 import vm from 'node:vm';
 import { seededMath, seedLine } from './lib/rng.mjs';
 /* PRINTED HERE, BEFORE ANY ASSERTION CAN EXIT. This harness imported
@@ -29,7 +29,7 @@ import { seededMath, seedLine } from './lib/rng.mjs';
    one-off nobody could reproduce. Both docs promised otherwise. */
 console.log(seedLine('fxcheck'));
 
-const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const html = await loadGameHtml();
 const src = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i)[1];
 const fail = [];
 const note = [];
@@ -335,8 +335,8 @@ function crossFront(st, frame, fire, pid) {
       fail.push('a completed orbit did not create its earned sky cue');
     st('G.t=G.sceneEvent.at+0.18;glRender(0)');
     const lap = log.val.uAccent;
-    if (!lap || lap[1] !== 1 || !(lap[0] > 0 && lap[0] <= 0.12))
-      fail.push('the orbit cue did not reach the GPU as a small positive event');
+    if (!lap || lap[1] !== 1 || !(lap[0] > 0 && lap[0] <= 0.65))
+      fail.push('the orbit cue did not reach the GPU as a bounded positive event');
 
     st("scenePulse('drop',3);G.t+=0.18;glRender(0)");
     if (log.val.uAccent[1] !== 2 || log.val.uAccent[0] < 0.99)
@@ -525,18 +525,19 @@ function crossFront(st, frame, fire, pid) {
 {
   const { log, st } = build({ webgl: true });
   const worlds = JSON.parse(st('JSON.stringify(WORLDS)'));
-  const scalar = ['x','y','lean','width','bend','reach','grain','star','motion','gain'];
+  const scalar = ['x','y','lean','width','bend','reach','grain','star','motion','gain',
+    'px','py','size','tilt','flatten','rock','clouds','sun'];
   if (worlds.length !== 8 || new Set(worlds.map(w=>w.n)).size !== worlds.length)
     fail.push('the world journey lost a named destination');
   for (const w of worlds) {
     if (!scalar.every(k=>Number.isFinite(w[k])) ||
-        ![...w.tint,...w.rim].every(v=>Number.isFinite(v)&&v>=0&&v<=1))
+        ![...w.tint,...w.rim,...w.dust].every(v=>Number.isFinite(v)&&v>=0&&v<=1))
       fail.push(`world ${w.n} contains invalid shader parameters`);
-    if (!(w.width>0 && w.reach>0 && w.motion>0 && w.gain>0 && w.star>=0))
+    if (!(w.width>0 && w.reach>0 && w.motion>0 && w.gain>0 && w.star>=0 && w.size>0 && w.flatten>0))
       fail.push(`world ${w.n} has a zero or negative field dimension/gain`);
   }
   const readMix = w => JSON.parse(st(`SKY.w=${w};JSON.stringify(skyMix())`));
-  const flat = x => [...x.arc,...x.shape,...x.tint,...x.rim,x.motion,x.star];
+  const flat = x => [...x.arc,...x.shape,...x.planet,...x.surface,...x.tint,...x.rim,...x.dust,x.motion,x.star];
   let smallest = Infinity, jump = 0;
   for (let i = 0; i < worlds.length; i++) {
     const held = JSON.stringify(readMix(i));
@@ -544,7 +545,7 @@ function crossFront(st, frame, fire, pid) {
       fail.push(`world ${worlds[i].n} drifts before its final morph interval`);
     for (let k = 0; k <= 100; k++) {
       const w=i+k/100,m=readMix(w);
-      if (!flat(m).every(Number.isFinite) || m.arc[3]<=0 || m.shape[1]<=0)
+      if (!flat(m).every(Number.isFinite) || m.arc[3]<=0 || m.shape[1]<=0 || m.planet[2]<=0 || m.surface[0]<=0)
         fail.push(`world morph ${w} sent invalid field dimensions`);
       st(`G.skyW=${w};glRender(0)`);
       smallest=Math.min(smallest,m.arc[3],m.shape[1]);

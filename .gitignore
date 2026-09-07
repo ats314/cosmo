@@ -4,3 +4,5 @@ node_modules/
 *.log
 _site/
 .netlify/
+dist/
+.vite/

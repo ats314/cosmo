@@ -31,6 +31,15 @@ the loudest event with the limiter barely working.
 
 ### Space for earned peaks
 
+Movement keeps one meaning throughout the soundtrack. A tap turns the comet;
+a swipe changes rings. Each committed move receives the same short chord-aware
+instrument, with register and direction reflecting that movement. There are no
+temporary melody, drum-playing or loop-recording tasks. Every release now has
+a complete authored answering melody on all six worlds, even with no input.
+Automatic drum fills and chorus transitions vary the accompaniment without
+instructions or input remapping. Death, pause and interruption clear unfinished
+phrases, fill state, legacy tape data and queued playback.
+
 Ordinary outer-ring flight uses a sparse arrangement: the world's chord walk
 and arp contour, a few separated bass notes in its rhythmic shape, one
 heartbeat per bar, and a long answering tone. Moving inward, building a
@@ -40,22 +49,30 @@ late-world difficulty alone cannot keep every instrumental voice running.
 
 The accompaniment also has its own `A.band` gain after the scheduled hush
 and sidechain pump: **0.72** at rest, rising toward **0.90** with groove, orbit
-streak, and engagement. Hypernova, overdrive, a drop/rise, and a star dive
+streak, and engagement. Hypernova, overdrive, Starfall, and a star dive
 open it to **1.0**. The player's close instrument and immediate cues bypass
 this control. Dark reverb trails behind the quieter band, preserving space
 while the musical grid and the world's own harmony keep running.
 
 `bedTick` sets this state gain with a short opening and a slower recovery;
-it does not modulate it periodically or create voices every frame. Spotlight
-lowers the band again to foreground the player's instrument. The drop's visual
-scene pulse is triggered with `fireDrop`; its downbeat impact still waits for
-the scheduled audio timestamp.
+it does not modulate it periodically or create voices every frame. Magnet has
+one pickup cue and does not create another ongoing music state. Starfall's
+visual scene pulse starts when the audible release reaches its timestamp.
 
 Temporary powers have short, distinct colours. Mirror answers with a quiet
 left/right pair once every two bars. Scorch leaves one dry root/fifth flicker
 per bar. Both yield to hypernova's established ascending run, and the scheduler
 hands off entirely for a drop, black hole, or star dive. Time slip darkens
 the pad cutoff without changing key or slowing the musical clock.
+
+Nova, hypernova and orbit milestones share a compact impact voice. A close
+transient and tuned low body lead into a root/fifth ring for nova, or a rising
+pentatonic figure for hypernova. The cue replaces their previous stacked hits;
+it does not sit above another braam and pickup arpeggio. It routes directly to
+the world bus so its brief accompaniment duck cannot swallow its own attack.
+Routine laps retain the lighter payout cue. Each impact uses at most five
+pitched voices and one brief noise source, stays in the world's key with a
+40 Hz sub floor, and is silent while muted or paused.
 
 These gain targets and arrangement changes are checked as control values,
 routing, and scheduled events in `musiccheck`; they are not new measured
@@ -86,6 +103,13 @@ recognisable voice on small speakers. The normal sustained pad stays near
 silence through the event; its louder exit recovery belongs to ordinary play.
 All six keys are checked across the three acts, including charge-dependent
 harmony, unique heartbeats, their visual timestamps, and the sub floor.
+
+## Earlier playtest record
+
+The notes below preserve earlier experiments and measurements. Current control
+and reward behavior is defined above and in `direction.md`: temporary musical
+input tasks and the timed drop-landing challenge have been retired. Starfall
+now gives a four-bar automatic release after successful star-fed orbits.
 
 ### How much of the run is the payoff, and why it is a quarter rather than a half
 
@@ -162,109 +186,36 @@ textures rather than three.
 30%, payoff 27%, mean gap 56.3s (was 33/26/41 at 34.6s). Level 4: 54/19/27 at
 58.0s. Level 6: 55/29/16 at 65.8s.
 
-## The drop
+## Starfall: the current release
 
-The arrangement builds and, when you earn it, releases. A drop
-needs three things and the third is the one usually missed: a rise, a
-**silence**, and the hit. The last bar runs an accelerating riser, the final
-two eighths cut almost everything, and the downbeat lands with six voices at
-once — without the hole, the loud part is just more loud.
+Three completed star-fed orbits earn Starfall; EARLY STARFALL needs two.
+Passive time, tapping and near misses do not charge it. With running audio,
+the scheduler releases it on the next quarter beat; muted or unavailable audio
+does not block the gameplay reward.
 
-### The payoff floor
+The musical phrase lasts four bars, about 9.23 seconds at the current tempo.
+It states a complete opening and answer automatically, with alternate openings
+and six authored world melodies. The second half adds a stronger backbeat.
+Every payoff kick dips the accompaniment briefly while the movement instrument
+retains its separate path. The keyed sub and brass impact keep their pitch
+class through the 40Hz sub-register floor.
 
-Playtest: "the payoff isn't big enough" and
-"the game needs more bass." The drop's impact now lands with a real sub
-boom — the fifth below the tonic, an octave and a fourth down, which is
-~41Hz on level 1, with its octave for speakers — and a braam — a fifth-stack
-brass bloom swelling out of the hit — and the section carries a bass line
-under the hook, sub sine plus octave square, riding the sidechain pump so
-it breathes with the kick. The boom is an interval, not a frequency, and it
-rides the 40Hz register turnaround: every fixed sub voice below 40Hz
-octave-doubles through `subF()`, because the six keys descend a whole tone
-each and by REDSHIFT and HEAT DEATH the literal had fallen to 26 and 23Hz —
-below anything a phone reproduces at all, so the game's biggest hits were
-silent on the two newest levels. Same pitch class, actual air behind it. When the eight bars run out the arrangement no
-longer snaps back to normal: every gate stays open through the four-bar
-breath that follows (the afterglow), so the record cools instead of
-stopping — the playtest's exact note was "and then continue on."
+Visual release follows the audible timestamp consumed from DROPQ, rather than
+the scheduler's advance scheduling call. Gameplay clears red, suppresses new
+hazards and gives three waves of double-value stars. The player sees Starfall,
+collects the stars and receives an actual score/count result. No landing
+countdown, perfect-tap bonus or temporary music control remains.
 
-### During the payoff, collecting is soloing
+The calm arrangement before the event and its recovery afterward provide
+contrast. A real Starfall reward interrupted by a black hole keeps its
+remaining waves and time; scheduler cleanup must not reissue it as another
+earned reward.
 
-A star grabbed inside the
-section fires a three-note run up the scale on the player's own bus instead
-of a single note — ride the section gathering stars and you are playing
-the keyboard solo over your own drop.
+## Earlier timing and arrangement notes
 
-### The section breathes
-
-Every payoff kick dips the whole band ~3dB through
-a dedicated gain after the hole and lets it back over a tenth of a second —
-the classic sidechain pump — while the player's own notes stand still: the
-response bars are skipped, because the lead voice there is theirs. The
-picture pumps with it — bloom and the ring strokes swell on each landed beat
-— and the whole sky flips into the warp palette for the section, ebbing out
-as the final bar drains. Earning a drop is *heard* the instant it happens
-(the same two-note stab a tier unlock uses), the armed wait leans forward on
-a creeping sixteenth shaker and an opening pad filter, and the style that
-earned it flavours the section itself: a RINGS drop swings, a TIME drop goes
-double-time two bars early, an ORBITS drop sustains, a SPARKS drop glitters.
-Every other section takes a second ending in bars 4–5, so two drops in a row
-never state the hook identically. And earned always stays earned: a drop
-interrupted by a mute, a backgrounded tab or a stall goes back to the bank
-and fires when the music is next free, instead of silently vanishing.
-
-It always fires on a downbeat. Earning one *arms* it, the rise latches at the
-next bar line, and the hit lands two bars later — about five to seven seconds
-of anticipation, never the up-to-fourteen the old fixed latch could produce,
-which was long enough that most players died holding a full meter and
-reasonably concluded the whole mechanic was broken. A drop that arrived
-mid-bar would not be a drop, it would be a noise. The cooldown is four bars —
-one full pass of the ordinary arrangement — because a drop that happens
-constantly is not an event, but a second drop a run can never reach is not a
-mechanic either.
-
-### Landing the drop
-
-Family playtesting killed every clever sentence this feature
-ever carried — no wording about "the drop" survived contact with a
-first-time player. So the words are gone: three beats out, the centre counts
-**3… 2… 1… NOW!**, and any move — the tap or hop you were making anyway,
-anywhere on the screen — landed on NOW is a huge bonus (+300 perfect, +100
-close, judged on the groove's own bias-corrected clock). A perfect also
-quietly doubles everything earned during the payoff, where tight-timed
-inputs pay and embers pay double, tallied at the end as "BONUS +N". A
-countdown is the one timing device that has never needed a manual.
-
-### The crown
-
-The ring you fire the drop from sets how rich the section
-plays — never how much it pays, because depth's reward in this game is the
-record itself. An inner-ring drop states the hook doubled at the octave with
-the full swing; an outer-ring drop plays it lean. Earn it anywhere; crown it
-inside.
-
-### The drop meter is invisible
-
-The owner's final call on the
-gauge: "get rid of the purple build-up timer — just have the beat drop
-incorporated into ideal moments for musical impact." The build economy
-still runs untouched underneath (playing well still brings the drop
-sooner, and it still latches on a bar line), but the violet arc, its
-white armed state, the payoff drain sweep and the BUILD strip are all
-deleted. The drop announces itself the musical way only: the shaker
-leaning in, BEAT DROP COMING…, the rise, and the countdown.
-
-### The drop is a timer the player accelerates
-
-The earning economy kept
-demanding to be understood, so it stopped being the story: a steady trickle
-guarantees a drop roughly every 50 seconds even for someone earning nothing,
-and everything the game considers playing well — gathering sparks, working
-the rings, tapping in time, closing orbits — pulls it sooner through the
-same meter, invisibly. The violet arc around the arena simply fills toward
-the next one (the payoff sweep later drains the same circle), and the only
-message the player ever sees is "BEAT DROP COMING…". Nothing earned while
-the music is busy is discarded; it counts toward the next.
+The remaining notes describe prior experiments and tuning history. Where
+they conflict with the current controls, Starfall contract or scene direction
+above, the current implementation governs.
 
 ### Timing is rewarded, and never punished
 
@@ -365,25 +316,23 @@ get 3000 where another is added, and so on." Four permanent layers join at
 600 / 1,400 / 2,400 / 3,600 — an offbeat electro pulse, a two-bar synth
 riff, a held sub drone (one note a bar, pure weight under the mix), and a
 high shimmer.
-Each is named in gold as it arrives. A row of dots under the level readout —
-the band meter — shows every layer currently in the record: five violet for
-the arrangement's own gates, gold for the bought ones, the newest pulsing.
+These layers remain available to the arrangement. The old standing band-meter
+dot row is retired; score, level progress and active powers own the HUD.
 
 ### The drum break
 
-Play hot and every so often the band steps out for one
-bar of drums walking a fill down — and the player's inputs ARE the fill:
-taps land as snares, hops as kicks, on the same grid as everything else.
-A crash brings the record back exactly on the downbeat. It can never start
-while a drop is anywhere in flight; the rise owns its bar.
+Sustained engaged play occasionally opens one authored bar of drums, followed
+by a crash on the next downbeat. The player's movement instrument stays the
+same. No caption requests taps, no input becomes a drum, and the fill finishes
+even without player input. A release in flight retains priority.
 
 ### Overdrive
 
 Hold the heat near max for a full bar — continuous, committed
 playing — and the game tips into eight bars of double-time sixteenths with
 every arrangement gate held open, embers and on-beat taps paying double
-under an "OVERDRIVE ×2" readout, the whole band meter running gold. A drop
-that rises mid-overdrive absorbs it (the bigger moment wins); otherwise it
+under an "OVERDRIVE ×2" readout. Starfall
+absorbs an active overdrive when its release starts; otherwise it
 ends the way a record ends, on the drum break. Forty-five seconds of
 cooldown keeps it an event rather than a state.
 
@@ -448,14 +397,9 @@ which is in key but indifferent to the bar's chord. Melodically safe,
 harmonically nowhere. Everything the player triggers now resolves through
 chTone(): taps cycle the sounding chord's own voicing, hops arpeggiate it
 up or down, the ring raises the octave, the harmony-under note is another
-chord tone, star pickups climb the chord with the combo, the loop
-recorder records chord-tone INDICES so a recorded loop transposes itself
-through the progression like a chord-following arpeggiator, and the
-finale's call phrase is chordal by construction — it can never clash with
-its own accompaniment. A nailed finale round is answered with the bar's
-whole chord. Registers are capped across the solo and payoff licks
-("too many high notes"): measured on the master bus, the 1-4kHz band
-dropped a further 3.2dB with the low end held.
+chord tone, star pickups climb the chord with the combo, and the
+finale's call phrase is chordal by construction. Movement stays in the same
+instrument through fills and releases; there is no recorded echo mode.
 
 ### The palette has discipline
 

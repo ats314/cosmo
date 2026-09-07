@@ -1,160 +1,108 @@
 # Cosmo
 
-A one-thumb arcade game that runs in a single HTML file. No build step, no
-dependencies, no assets — open it and play.
+A portrait space arcade for the web, Android and iOS. Turn a comet, change
+orbits, collect stars and escape red hazards inside a luminous cosmic world.
 
-**▶ [Play it](https://cosmo-arcade.netlify.app/)**
+**[Play Cosmo](https://cosmo-arcade.netlify.app/)** ·
+[GitHub Pages](https://ats314.github.io/cosmo/)
 
-> **Proprietary — all rights reserved.** Cosmo is a commercial product, not an
-> open-source project. This repository is public for playtesting only. No
-> permission is granted to use, copy, modify, host, redistribute, or build
-> derivative works from any part of it, and it is excluded from text and data
-> mining and from machine-learning training. See [LICENSE](LICENSE).
+Cosmo is proprietary commercial software. The game's original code and artwork
+remain all rights reserved; see [LICENSE](LICENSE). Third-party dependencies
+retain their own licenses, recorded in
+[THIRD_PARTY_LICENSES.txt](public/THIRD_PARTY_LICENSES.txt).
 
-You are a comet locked to a circular orbit. You cannot steer and you cannot
-stop. You get two verbs: reverse your direction, and hop between rings. Gather
-embers, dodge shards, and complete orbits.
+## Play
 
-The current direction is [awe, motion and release](docs/design/direction.md):
-a spacious reactive cosmos, clear orbital play, ten powerups and an optional
-black hole wager. Six levels are authored so far; they are the beginning of
-the content journey, not a fixed endpoint.
+Tap to turn around. Swipe to change rings. New players learn through a safe,
+playable introduction; **Learn to play** on the title screen reopens it.
 
-## Where everything is
+Collecting stars increases their combo value. Completing an orbit without
+turning pays for the stars collected along that route. Three star-fed orbits
+earn **Starfall**: a clear arena and three waves of double-value stars over
+about 9.23 seconds. The upgrade reduces the requirement to two orbits. The
+reward starts automatically; taps always turn and never become a music task.
 
-`index.html` is the product — the entire game in one self-contained file, with
-no build step and no dependencies. Everything else in this repository exists to
-keep that file correct.
+Ten powerups change the route or the risk: Shield, Slow-mo, Nova, Hypernova,
+Magnet, Mirror, Scorch, Slipstream, Star Trail and Black Hole. Magnet attracts
+nearby stars. The rare black hole opens a fourth ring: charge a reward inside,
+then reach the outer ring during its five-second escape window.
 
-| Path | What it is |
-|---|---|
-| `index.html` | **The whole game.** Engine, simulation, WebAudio arrangement, procedural art and UI, in one inline `<script>`. The distributed artifact. |
-| `MECHANICS.md` | The mechanics ledger: one row per player-facing mechanic, where it is introduced, every channel that explains it. |
-| `CLAUDE.md` | Operating context for agent sessions — what this is, what you may not do to it, how to ship. Read first. |
-| `AGENTS.md` | A pointer to `CLAUDE.md`, for tooling that looks for that filename. |
-| `LICENSE` | All-rights-reserved proprietary grant. Published with the game. |
-| `docs/` | Everything below. |
-| `tools/` | The CI harnesses. No dependencies; Node's `vm` and a stubbed DOM. |
-| `netlify/` | The optional cloud half: passwordless accounts, synced records and the leaderboard, as serverless functions. Not part of the game — `index.html` still plays with no network at all. |
-| `.github/workflows/pages.yml` | Runs every check on every push and PR; only `main` deploys, only on green, and only an allowlist. |
+Six levels are authored today. More worlds and levels can extend the journey.
+See [the current direction](docs/design/direction.md) and the
+[mechanics ledger](MECHANICS.md) for the design.
 
-### The design record — why the game is the way it is
-
-Each of these is the reasoning behind one system, including the things that were
-tried and abandoned. Read the one you are about to change.
-
-| Document | What it covers |
-|---|---|
-| [`docs/design/difficulty.md`](docs/design/difficulty.md) | The difficulty clock, the `MODES` knob table, where a run starts, and pause. |
-| [`docs/design/levels.md`](docs/design/levels.md) | The six levels, what each is for, and the black hole that runs from level 3 on. |
-| [`docs/design/ladders.md`](docs/design/ladders.md) | `G.tier` unlocks, `G.level` is what the player is told — and why they are never the same word. |
-| [`docs/design/teaching.md`](docs/design/teaching.md) | The curriculum, the death coach, lesson wording, and every channel that explains a mechanic. |
-| [`docs/design/powerups.md`](docs/design/powerups.md) | The orbs, the upgrade draft, and why a tile that does nothing is worse than a bad one. |
-| [`docs/design/audio.md`](docs/design/audio.md) | The bus, the drop, six keys, verse and chorus, and why every pitch is an interval. |
-
-### The engine — how it actually works
-
-| Document | What it covers |
-|---|---|
-| [`docs/engine/implementation.md`](docs/engine/implementation.md) | Baked sprites, the render path, the GPU glow chain, the sky shader, collision, storage. |
-| [`docs/engine/telemetry.md`](docs/engine/telemetry.md) | What is collected, what each property is named, and what never leaves the device. |
-| [`docs/engine/delivery.md`](docs/engine/delivery.md) | The allowlist deploy, the build stamp, and the freshness contract on the play link. |
-| [`docs/engine/cloud.md`](docs/engine/cloud.md) | Optional accounts, cloud-synced records, the leaderboard, and the seam they plug into. |
-
-### Working on it
-
-| Document | What it covers |
-|---|---|
-| [`docs/invariants.md`](docs/invariants.md) | The rules that are load-bearing, grouped by what you would have to be touching. Every entry was paid for by a bug that shipped. |
-| [`docs/harnesses.md`](docs/harnesses.md) | What each check covers, where a new test belongs, and what each assertion was bought with. |
-| [`docs/review.md`](docs/review.md) | The two halves of a review here, including the hygiene half people skip. |
-
-## Signing in (optional)
-
-Pick a name on the title screen and your best score and furthest level follow
-you to any device; a six-character code moves the account to a second one.
-There is no email and no password. It is **entirely optional** — the game keeps
-every record on the device either way, and plays with no network at all. See
-[`docs/engine/cloud.md`](docs/engine/cloud.md).
-
-## Running the checks
-
-```sh
-node tools/all.mjs --fast   # the quick four, ~5s — while editing
-node tools/all.mjs          # all eight, ~110s — before pushing
-```
-
-No dependencies beyond the browser the render check drives, and it says so
-rather than skipping quietly. `all.mjs` holds no list: it parses the CI workflow
-and runs exactly what CI runs, in CI's order. See
-[`docs/harnesses.md`](docs/harnesses.md).
-
-## Running it locally
-
-Any static server works. `file://` works too, except that Chrome's storage
-rules may block the high-score save.
-
-```sh
-python3 -m http.server 8000   # then open http://localhost:8000
-```
-
-## Controls
-
-| | Touch | Keyboard |
+| Action | Touch | Keyboard |
 |---|---|---|
-| Reverse | tap anywhere | `Space` / `Enter` |
-| Hop outward | swipe away from the centre | `↑` `W` `←` `A` |
-| Hop inward | swipe toward the centre | `↓` `S` `→` `D` |
-| Land the drop | any move on the downbeat | any move |
-| Mute | tap the speaker | `M` |
+| Turn around | Tap | Space / Enter |
+| Change ring | Swipe up/down by default; radial controls are available | Arrow keys / WASD |
+| Pause | Pause control | P / Escape |
+| Mute | Speaker control | M |
 
-Every keyboard row is a keyPRESS, not a key being down: `keydown` returns early
-on `e.repeat`, so holding a key does nothing after the first frame. Without that
-guard the OS auto-repeat rate *was* the input rate — a held `Space` called
-`reverse()` around twenty times a second and pinned the comet inside 0.23 rad of
-the circle, about thirteen degrees, for an entire run. The pointer path had
-always guarded the equivalent ("one gesture at a time: a second finger can't
-double-reverse"); the keyboard path never had. `smoke.mjs` now fires a burst of
-repeats and fails if the comet stops covering ground.
+Accounts are optional. Local records work offline; the existing name/account-code
+flow connects records across devices when online. A native install starts from
+bundled game assets and does not need a hosted page to play.
 
-There is no aimed input anywhere in this game. Landing the drop is any move —
-the tap or hop you were making anyway, wherever your thumb is — inside the
-window around the downbeat, and the move still does its normal job: if
-survival wanted a hop right then, that hop lands the drop.
+## Develop
 
-Swipes are read **radially** — measured against the line from the centre
-through the comet — so "away from the middle" always means outward no matter
-where on the circle you are. A tap reverses instantly and the sound follows a
-beat later, so a swipe that starts like a tap can be rolled back silently.
+Use Node 22 or newer.
 
-## How scoring works
+```sh
+npm ci
+npm run dev          # http://localhost:5173
+npm run build        # strict TypeScript checks, then Vite output in dist/
+npm run test:fast    # focused checks while editing
+npm test             # required suite before shipping
+```
 
-The two systems feed each other rather than competing:
+The render harness needs Chromium; install it with
+`npx playwright install chromium` when no supported browser is available.
+Open the Vite URL for development. The source entry is a module and is not a
+standalone file to open through `file://`.
 
-- **Embers** are worth a rising combo (up to ×6) while you keep collecting.
-- **Orbits** — 360° of travel without reversing — pay out based on how many
-  embers you gathered *during* that orbit. A bare orbit is worth almost
-  nothing; a full one is worth a lot, and consecutive fed orbits stack a
-  streak bonus.
+## Architecture
 
-Reversing costs you the current orbit and the streak, but the embers already
-gathered stay banked. Gates exist to force reversals, so they must not delete
-the score you turned around to protect.
+Phaser **4.2.1** owns boot, scenes, input, resize and the frame loop. Strict
+TypeScript defines the scene and platform contracts. The tuned simulation,
+WebAudio composition, canvas UI and GPU background remain in
+`src/game/runtime.js`, a JavaScript runtime behind that typed interface.
+This is an incremental migration; the gameplay core is not fully converted to
+TypeScript.
 
-## License
+| Path | Responsibility |
+|---|---|
+| `index.html`, `src/main.ts` | HTML shell and Phaser startup |
+| `src/scenes/` | Asset boot, input forwarding, display and lifecycle ownership |
+| `src/game/contracts.ts` | Typed runtime/host boundary |
+| `src/game/runtime.js` | Existing gameplay, audio, canvas drawing and GPU effects |
+| `src/platform/native.ts` | Pause/resume, Android Back and optional haptics |
+| `public/` | Files intentionally shipped: art, icons, manifest and licenses |
+| `dist/` | Generated web release; the only site directory to publish |
+| `capacitor.config.ts`, `android/`, `ios/` | Capacitor 8 native projects |
+| `netlify/` | Optional account, record and leaderboard functions |
+| `tools/` | Deterministic functional and browser checks |
 
-**Proprietary. Copyright (c) 2026 Alex Smith ([@ats314](https://github.com/ats314)).
-All rights reserved.** See [LICENSE](LICENSE).
+The asset boot scene reads `public/art/manifest.json`. Original art can be added
+as individual PNG/WebP files with recorded provenance. Current procedural
+planet, atmosphere, nebula and gameplay effects remain available as fallbacks.
 
-This is not open source. No permission is granted to use, copy, modify, host,
-redistribute, or build derivative works from any part of this repository —
-including the game itself, its assets, and its tooling. Playing the game at its
-published address is the only permitted use; the source your browser receives in
-order to run it is not yours to keep or reuse. The code is also excluded from
-text and data mining and from machine-learning training of any kind.
+## Native apps
 
-Licensing enquiries: open an [issue](https://github.com/ats314/cosmo/issues).
+```sh
+npm run native:sync
+npm run native:android
+npm run native:ios
+```
 
-One caveat the license itself names: GitHub's Terms of Service let any GitHub
-user view and fork a repository its owner has set public, and no LICENSE file
-overrides that. Making the repository private is the only way to withdraw it.
+Android and iOS projects are generated and synchronized with Capacitor 8.5.1.
+They include portrait settings, Cosmo icons, dark launch screens and the App
+and Haptics plugins. **No APK or iOS binary has been built or signed in this
+Windows workspace.** Android needs its SDK/JDK; iOS builds require macOS and
+Xcode. See [native setup](docs/engine/native.md).
+
+## Project guide
+
+Read [CLAUDE.md](CLAUDE.md) before changing the project. Then use
+[the invariants](docs/invariants.md), [harness guide](docs/harnesses.md),
+[delivery guide](docs/engine/delivery.md), and [document index](docs/README.md).
+License questions go to the owner through
+[the repository](https://github.com/ats314/cosmo/issues).

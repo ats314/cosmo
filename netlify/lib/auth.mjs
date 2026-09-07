@@ -40,6 +40,9 @@ export function json(body, status = 200) {
 const ALLOWED = new Set([
   'https://cosmo-arcade.netlify.app',
   'https://ats314.github.io',
+  'https://localhost',          // Bundled Capacitor Android WebView.
+  'capacitor://localhost',      // Bundled Capacitor iOS WebView.
+  'http://localhost:5173',      // Vite development server.
   'http://localhost:8000',
   'http://localhost:8888',
 ]);

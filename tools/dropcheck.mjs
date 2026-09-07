@@ -2,7 +2,7 @@
 /* Drop-pipeline smoke: same DOM stub as tools/smoke.mjs but WITH a stubbed
    AudioContext, so MU/BED/A exist and the full build -> arm -> rise -> fire ->
    payoff -> cooldown cycle runs. Reproduces the "build meter broken" report. */
-import { readFile } from 'node:fs/promises';
+import { loadGameHtml } from './lib/game-source.mjs';
 import vm from 'node:vm';
 import { seededMath, seedLine } from './lib/rng.mjs';
 /* PRINTED HERE, BEFORE ANY ASSERTION CAN EXIT. This harness imported
@@ -11,7 +11,7 @@ import { seededMath, seedLine } from './lib/rng.mjs';
    one-off nobody could reproduce. Both docs promised otherwise. */
 console.log(seedLine('dropcheck'));
 
-const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const html = await loadGameHtml();
 const src = html.match(/<script\b[^>]*>([\s\S]*?)<\/script>/i)[1];
 
 let nowMs = 0;
@@ -174,43 +174,150 @@ bpid = passPowerSelect(st, frame, fire, pev, bpid);
 bpid = passLevelSelect(st, frame, fire, pev, bpid);
 console.log('MU exists:', !!st('MU'), '| state:', st('G.state'));
 
-/* Deathless drop-cadence regression: feed the meter, hold invulnerability,
-   and assert the pipeline actually delivers. Guards the three failure modes
-   shipped at one point or another: the frozen meter, the 9-second silent
-   latch, and the unreachable second drop. */
-let armAt=-1,fireAt=-1,worstLatch=0,fires=0;
-let wasArmed=false,wasPay=false;
-for (let i = 0; i < 60 * 150; i++) {          /* 150 seconds, no dying */
-  if (i % 30 === 0) st('build(0.10,"ember")');
-  st('G.invuln=G.t+9');
-  /* the level card: an invulnerable 150s run crosses level finish lines —
-     tap through so the cadence measurement continues */
-  /* the star dive: this invulnerable bot never collects the trail, so
-     fast-forward its 45s timeout — cadence, not the dive, is under test */
-  if (st('FIN && FIN.on')) st('FIN.t0 = G.t - 51');
-  if (st('G.state') === 'lvend') {
-    /* the card gates the next level behind an upgrade tile from level 2 on, so
-       a fixed tap point simply waits there forever — press the real control */
-    let tx = 200, ty = 420;
-    if (st('G.offer && G.offer.length ? 1 : 0')) {
-      const r = JSON.parse(st('JSON.stringify(G.offerRects[0]||null)') || 'null');
-      if (r) { tx = r.x + r.w / 2; ty = r.y + r.h / 2; }
-    }
-    fire('pointerdown', pev(9, tx, ty, 'pointerdown'));
-    fire('pointerup', pev(9, tx, ty, 'pointerup'));
-  }
-  frame(16.7);
-  const armed=st('MU.armed'),pay=st('MU.pay')>0;
-  if(armed&&!wasArmed)armAt=nowMs/1000;
-  if(pay&&!wasPay){fireAt=nowMs/1000;fires++;
-    if(armAt>0)worstLatch=Math.max(worstLatch,fireAt-armAt);armAt=-1;}
-  wasArmed=armed;wasPay=pay;
+/* Starfall is earned by star-fed orbits, and its reward begins when the
+   scheduled music reaches the listener. Drive real frames for collection,
+   wave timing, pause/black-hole suspension and repeated releases. */
+function check(ok, message) {
+  if (!ok) { console.error('FAIL  ' + message); process.exit(1); }
 }
-const fail=[];
-if(st('G.state')!=='playing')fail.push('run ended despite invulnerability: '+st('G.state'));
-if(fires<3)fail.push('only '+fires+' drops in 150s of heavy earning (want >=3)');
-if(worstLatch>8)fail.push('arm-to-drop latency '+worstLatch.toFixed(1)+'s (want <=8)');
-if(st('G.build')<0.2&&st('MU.pay')<=0&&!st('MU.armed')&&!st('MU.rise')&&!st('MU.pend'))
-  fail.push('meter empty and idle at end — earnings discarded?');
-if(fail.length){for(const f of fail)console.error('FAIL  '+f);process.exit(1);}
-console.log('OK  '+fires+' drops in 150s, worst arm-to-drop '+worstLatch.toFixed(1)+'s, meter live');
+const read = expression => JSON.parse(st('JSON.stringify(' + expression + ')') || 'null');
+function resetRun() {
+  st("startGame();if(G.intro)finishIntro();G.invuln=G.t+1e9;G.stars=[];G.spikes=[];G.pows=[];" +
+    "G.starT=1e9;G.powT=1e9;G.lapEmbers=0;G.lapAcc=0;G.upg={};G.build=0;" +
+    "G.sceneEvent=null;G.teach=0;G.teachHint=null;G.started=G.t-15;" +
+    "MU.cool=0;MU.pend=null;MU.armed=false;MU.rise=false;MU.pay=0;DROPQ.length=0");
+  check(st('G.state') === 'playing' && !st('G.starfall'), 'a fresh run retained Starfall state');
+}
+
+resetRun();
+check(st('dropNeed()') === 3, 'Starfall does not require three fed orbits');
+st("for(let i=0;i<80;i++){build(1,'time');build(1,'ember');build(1,'hop');build(1,'tap');build(.006,'orbit');build(.039,'orbit');}");
+for (let i = 0; i < 120; i++) frame(16.7);
+check(st('G.build') === 0 && !st('MU.armed||MU.pend||G.starfall'),
+  'time, stars, taps, hops or near misses charged Starfall');
+for (let i = 1; i <= 2; i++) {
+  st("build(.043,'orbit')");
+  check(st('G.build') === i && !st('MU.armed||MU.pend||G.starfall'),
+    'fed orbit ' + i + ' did not add exactly one charge, or released early');
+}
+st("build(.043,'orbit')");
+check(st('MU.armed||MU.pend') && st('G.dropsEarned') === 1 && !st('G.starfall'),
+  'the third fed orbit did not arm exactly one future release');
+resetRun();
+st("G.upg.hairtrig=1;build(.043,'orbit')");
+check(st('dropNeed()') === 2 && st('G.build') === 1 && !st('MU.armed||MU.pend'),
+  'the faster-charge upgrade does not leave one orbit still to earn');
+st("build(.043,'orbit')");
+check(st('MU.armed||MU.pend') && st('G.dropsEarned') === 1,
+  'the faster-charge upgrade did not arm on its second fed orbit');
+console.log('OK  Starfall charge: three fed orbits, two with upgrade; other sources contribute nothing');
+
+resetRun();
+st('MU.landT=AC.currentTime;MU.landDone=0');
+const landingScore = st('G.score');
+st('tryLand()');
+check(st('G.score') === landingScore, 'the retired drop-landing timing bonus still awards points');
+check(st('PAY') === 32 && st('PAYREST') === 0, 'Starfall is not a four-bar release without a cooldown tax');
+st('G.spikes.push(mkSpike(G.angle+1,0,{life:8}));fireDrop(AC.currentTime+.20)');
+check(!st('G.starfall'), 'Starfall started at scheduling time instead of audible time');
+for (let i = 0; i < 10; i++) frame(16.7);
+check(!st('G.starfall'), 'Starfall started before its scheduled audible onset');
+for (let i = 0; i < 6 && !st('G.starfall'); i++) frame(16.7);
+check(st('G.starfall'), 'the audible release did not start the gameplay reward');
+const first = read('G.starfall'), beganAt = st('G.t');
+check(Number.isFinite(first.total) && first.total > 8 && first.total < 11 &&
+      Number.isFinite(first.left) && first.left > 0 && first.left <= first.total,
+  'Starfall has no finite four-bar gameplay duration');
+check(st('G.invuln') > st('G.t') + 1, 'Starfall did not protect the opening blast');
+for (let i = 0; i < 45 && st('G.spikes.length'); i++) frame(16.7);
+check(st('G.spikes.length') === 0, 'Starfall opening blast did not clear existing hazards');
+check(st('G.stars.some(s=>s.starfall)') && first.wave === 1, 'Starfall opened without its first gold-star wave');
+
+/* Place one existing reward just ahead of the comet, then let the ordinary
+   swept-contact loop collect it. No direct score or pickup helper is used. */
+const gotBefore = st('G.embers'), scoreBefore = st('G.score');
+st("const reward=G.stars.find(s=>s.starfall);reward.ring=G.ringI;reward.a=G.angle+G.dir*.004;reward.t=1;G.hopP=1;");
+frame(16.7);
+check(st('G.embers') > gotBefore && st('G.score') > scoreBefore,
+  'a physically collected Starfall star did not award its ordinary pickup reward');
+frame(16.7); // the live tally samples collected rewards on the following update
+check(st('G.starfall.got') > first.got && st('G.starfall.score') > 0,
+  'Starfall did not report its collected reward');
+
+let previous = st('G.starfall.left'), lastWave = 1, waveTimes = [0], expiredAt = null;
+for (let i = 0; i < 800 && st('starfallActive()'); i++) {
+  st('G.invuln=G.t+9;G.spikeT=-1;G.teach=0');
+  frame(16.7);
+  const current = read('G.starfall');
+  if (!st('starfallActive()')) { expiredAt = st('G.t'); break; }
+  check(st('G.state') === 'playing', 'the Starfall wave probe left the live run');
+  check(Number.isFinite(current.left) && current.left > 0 && current.left <= previous + 1e-8,
+    'Starfall duration increased or became non-finite');
+  check(st('G.spikes.length') === 0, 'the ordinary spawn loop put hazards into active Starfall');
+  if (current.wave !== lastWave) {
+    check(current.wave === lastWave + 1, 'Starfall skipped or repeated a wave');
+    waveTimes.push(st('G.t') - beganAt); lastWave = current.wave;
+    check(st('G.stars.some(s=>s.starfall)'), 'a scheduled wave produced no collectible stars');
+  }
+  previous = current.left;
+}
+check(expiredAt !== null, 'Starfall never released the arena');
+check(lastWave === 3 && waveTimes.length === 3 &&
+      waveTimes[1] > 2 && waveTimes[1] < 4.5 && waveTimes[2] > 5 && waveTimes[2] < 7.5,
+  'Starfall did not stage three spaced waves: ' + waveTimes.map(t=>t.toFixed(2)).join(', '));
+check(Math.abs(expiredAt - beganAt - first.left) < .15,
+  'Starfall gameplay duration drifted from its countdown');
+console.log('OK  audible onset, actual star collection, three staged waves and hazard-free countdown');
+
+resetRun();
+st('startStarfall()');
+check(st('G.starfall'), 'the Starfall reward could not be started for suspension probes');
+st('pauseGame()');
+check(st('PAUSE.on'), 'the pause control did not enter its real frozen state');
+const paused = read('[G.starfall.left,G.starfall.wave,G.t]');
+for (let i = 0; i < 90; i++) frame(16.7);
+check(JSON.stringify(read('[G.starfall.left,G.starfall.wave,G.t]')) === JSON.stringify(paused),
+  'Starfall countdown or waves advanced while paused');
+st('unpauseGame()');
+for (let i = 0; i < 240 && st('frozen()'); i++) frame(16.7);
+check(!st('frozen()') && st('G.starfall.left') === paused[0],
+  'the pause resume countdown consumed the Starfall reward');
+st('startBlackHole()');
+const suspended = read('[G.starfall.left,G.starfall.wave]');
+for (let i = 0; i < 100; i++) frame(16.7);
+check(st('BH.phase') > 0 &&
+      JSON.stringify(read('[G.starfall.left,G.starfall.wave]')) === JSON.stringify(suspended),
+  'the black hole consumed Starfall duration or released a wave');
+st('G.build=2;startGame()');
+check(!st('G.starfall') && st('G.build') === 0 && !st('G.stars.some(s=>s.starfall)'),
+  'retry retained an old Starfall or its reward stars');
+console.log('OK  Starfall pauses, survives black-hole suspension and resets on retry');
+
+/* A bounded cadence run catches a silent latch or an unreachable successor.
+   Feeding still calls the same orbit contribution path; a release must arrive
+   on the next unscheduled quarter, with no former eight-bar rise or cooldown.
+   The scheduler commits 160ms ahead, so an already queued quarter cannot be
+   replaced; allow that look-ahead plus two frame boundaries in the bound. */
+resetRun();
+st('const dropEvents=[];const observedFireDrop=fireDrop;fireDrop=function(t){dropEvents.push({at:t,step:MU.step});return observedFireDrop(t);};');
+let armAt = -1, worstLatch = 0, fires = 0, wasArmed = false, wasReward = false;
+for (let i = 0; i < 60 * 40; i++) {
+  if (i % 30 === 0) st("build(1,'orbit')");
+  st('G.invuln=G.t+9;G.starT=1e9;G.powT=1e9;G.spikes=[];G.lapEmbers=0;G.started=G.t-15;G.diff=0');
+  const armedBeforeFrame = !!st('MU.armed');
+  if (armedBeforeFrame && !wasArmed) armAt = nowMs / 1000;
+  frame(16.7);
+  const armed = !!st('MU.armed'), reward = !!st('starfallActive()');
+  if (armed && !wasArmed && armAt < 0) armAt = nowMs / 1000;
+  if (reward && !wasReward) {
+    fires++;
+    if (armAt >= 0) worstLatch = Math.max(worstLatch, nowMs / 1000 - armAt);
+    armAt = -1;
+  }
+  wasArmed = armed; wasReward = reward;
+}
+check(st('G.state') === 'playing', 'cadence run ended despite invulnerability');
+check(fires >= 3, 'only ' + fires + ' Starfalls in 40 seconds of repeated fed-orbit earnings');
+check(read('dropEvents').every(e => e.step % 2 === 0), 'Starfall released between quarter beats');
+check(worstLatch <= st('SPB') + .16 + .0334, 'earned Starfall waited ' + worstLatch.toFixed(2) + 's for its audible onset');
+console.log('OK  ' + fires + ' Starfalls in 40s; worst arm-to-reward ' + worstLatch.toFixed(2) + 's');

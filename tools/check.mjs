@@ -1,14 +1,12 @@
 /* @lane fast */
-/* Sanity check for index.html.
-   The whole game is one inline script with no test suite, so the cheapest
-   useful guard is: does it still parse, and are the pieces the script needs
-   still in the document? vm.Script compiles without executing, so this is a
-   pure syntax check — no DOM, no dependencies. */
+/* Static runtime, app-shell, mechanics and distribution guards. */
 import { readFile, readdir } from 'node:fs/promises';
 import vm from 'node:vm';
+import { loadGameHtml, loadGameSource } from './lib/game-source.mjs';
 
 const root = new URL('../', import.meta.url);
-const html = await readFile(new URL('index.html', root), 'utf8');
+const html = await loadGameHtml();
+const appShell = await readFile(new URL('index.html', root), 'utf8');
 const fail = [];
 
 const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
@@ -16,7 +14,7 @@ if (scripts.length !== 1) {
   fail.push(`expected exactly 1 <script> block, found ${scripts.length}`);
 } else {
   try {
-    new vm.Script(scripts[0][1], { filename: 'index.html' });
+    new vm.Script(scripts[0][1], { filename: 'runtime harness body' });
   } catch (e) {
     fail.push(`script does not parse: ${e.message}`);
   }
@@ -235,7 +233,8 @@ const persisted = [...new Set([...CODE.matchAll(/savePref\(\s*'cometloop:(\w+)'/
    the devices that have one, along with the `:chill` records — see the note
    above recKey. Removing a key from this list is as much a decision as adding
    one, which is why the count below is a floor and not a range. */
-const persistedKnown = ['intro', 'groove', 'hopped', 'landed', 'muted', 'runs',
+// The retired drop-timing challenge no longer writes the historical landed key.
+const persistedKnown = ['intro', 'groove', 'hopped', 'muted', 'runs',
                         'seen', 'seen2', 'struggle', 'swipe'].sort();
 if (persisted.length < persistedKnown.length) {
   fail.push(`only ${persisted.length} persisted keys found, expected at least ${persistedKnown.length} `
@@ -464,110 +463,58 @@ if (wired.has('rendercheck.mjs') && !/playwright[^\n]*install/i.test(wf)) {
     + 'and report success, which silently removes the only check in this repo that looks at a pixel');
 }
 
-/* THE PUBLISHED SITE IS AN ALLOWLIST, AND THIS IS WHAT KEEPS IT ONE.
-   The deploy used to upload `path: .`, so every file in the repository was
-   served from the Pages URL — CLAUDE.md, README.md, MECHANICS.md and every
-   harness among them. Repository visibility never covered that: Pages serves
-   the artifact, so turning the repo private would have left the operating doc
-   and the design record readable at their public URLs, which is the opposite
-   of what anyone would have assumed.
-
-   The workflow now copies a named list into _site. A named list has its own
-   failure mode in each direction, and both are silent, so both are checked
-   here rather than trusted:
-     - a new ASSET that nobody adds to the list 404s on the live site, and
-       nothing in this repository loads the live site to notice;
-     - a new INTERNAL document is published the moment somebody widens the list
-       or reverts to `path: .`, which is exactly the bug being fixed.
-   So every entry at the repository root must be classified. A file in neither
-   list fails the build with the question attached, which turns "what happens
-   to this file" into a decision somebody makes on purpose. */
-/* THE STAGING STEP AND THE UPLOAD PATH ARE TWO HALVES, AND CHECKING ONE IS
-   CHECKING NEITHER. The first version of this guard only looked for the
-   `cp … _site/` command, which reads as sufficient and is not: flip
-   `path: _site` back to `path: .` and the staging step still sits there,
-   still copying files into a directory nobody uploads, while the deploy
-   publishes the entire repository again. Every internal document goes public
-   and this file says OK — the precise regression the guard was written to
-   prevent, waved through by the guard. Both halves are checked below. */
+/* Vite publishes build output, never the repository. Public files are copied
+   verbatim, so exclude internal/configuration files from both asset trees. */
 const up = wf.match(/upload-pages-artifact@[\w.]+\s*\n\s*with:\s*\n\s*path:\s*(\S+)/);
-if (!up) {
-  fail.push('could not read the upload-pages-artifact `path:` from pages.yml — the guard that '
-    + 'keeps the published site down to an allowlist cannot run');
-} else if (up[1] !== '_site') {
-  fail.push(`the deploy uploads '${up[1]}', not the staged '_site' directory. If this is `
-    + '`.`, every file in the repository is published again — CLAUDE.md, README.md, '
-    + 'MECHANICS.md and every harness, each at its own public URL, and repository '
-    + 'visibility does not cover it because Pages serves the artifact, not the repo.');
+if (!up || up[1] !== 'dist') fail.push('Pages must upload only the Vite dist directory');
+if (!/run:\s*npm run build\b/.test(wf)) fail.push('Pages never builds the Vite artifact');
+if (!/<script\b[^>]*type=["']module["'][^>]*src=["'][^"']+["'][^>]*>/i.test(appShell))
+  fail.push('the app shell has no module entry for the Phaser application');
+if (/<script\b(?![^>]*\bsrc=)[^>]*>[\s\S]*?\bconst\s+G\s*=/i.test(appShell))
+  fail.push('index.html still contains a second copy of the canonical game');
+if (!/copyright/i.test(appShell) || !/all rights reserved/i.test(appShell))
+  fail.push('the proprietary copyright notice is missing from the app shell');
+async function assetFiles(dir) {
+  const files = [];
+  const walk = async (folder, prefix = '') => {
+    for (const e of await readdir(folder, { withFileTypes: true })) {
+      const name = prefix + e.name;
+      if (e.isSymbolicLink()) fail.push(dir + '/' + name + ' is a symlink in a published asset tree');
+      else if (e.isDirectory()) await walk(new URL(e.name + '/', folder), name + '/');
+      else files.push(name);
+    }
+  };
+  await walk(new URL(dir + '/', root));return files;
 }
-
-const cp = wf.match(/\bcp\s+([\s\S]*?)\s+_site\//);
-if (!cp) {
-  fail.push('the `cp … _site/` staging step is gone from pages.yml — either the deploy '
-    + 'publishes something other than an allowlist now, or the guard below cannot run. '
-    + 'If the site is back to `path: .`, every internal document is public again.');
-} else {
-  const published = cp[1].split(/[\s\\]+/).filter(Boolean);
-  /* Not published, and each for a stated reason. `docs/` and the three
-     markdown files are how this game gets built, not part of it; `tools/` is
-     the test suite; the dotfiles are machinery. LICENSE is deliberately on the
-     PUBLISHED side instead — the terms of an all-rights-reserved work should be
-     reachable from the artifact that carries them. */
-  const internal = ['.git', '.github', '.gitignore', 'node_modules', '_site',
-                    'AGENTS.md', 'CLAUDE.md', 'MECHANICS.md', 'README.md', 'docs', 'tools',
-                    /* THE CLOUD HALF, AND IT IS INTERNAL ON PURPOSE. `netlify/`
-                       is server code that runs on Netlify, never in a browser;
-                       `netlify.toml` is deploy configuration; `package.json`
-                       exists only so Netlify can resolve the one import those
-                       functions make. None of the three is part of the game,
-                       and publishing any of them would put the deploy's own
-                       configuration at a public URL. The game itself is still
-                       one file with no build step and nothing to install —
-                       that property is unchanged, and this list is where it is
-                       kept honest. */
-                    'netlify', 'netlify.toml', 'package.json', 'package-lock.json'];
-  const known = new Set([...published, ...internal]);
-  /* WHAT GIT IGNORES, THIS IGNORES. The classifier reads the working directory
-     rather than the index, so without this it fails on files that are not part
-     of the repository at all — a stray .DS_Store or a *.log at the root turns
-     the required local check red for a reason that has nothing to do with the
-     change being made, on a machine where the fix is "delete a file macOS will
-     recreate". A check that cries wolf on a clean tree is a check people learn
-     to run with their eyes closed, which costs more than the guard is worth.
-     Ignored files cannot reach the site in any case: the deploy copies named
-     files, so an untracked one was never a candidate for publication.
-     This understands the two pattern forms this repository's .gitignore uses —
-     a plain name and a `*.ext` suffix. Anything more exotic is simply not
-     matched, so the classifier stays STRICT and asks about the file rather than
-     going quiet, which is the correct direction to fail in. The one accepted
-     cost: a tracked file that also matches an ignore pattern is skipped. */
-  /* No .gitignore means nothing is ignored, which leaves the classifier asking
-     about every file — strict, and the safe direction. Reading it with a throw
-     instead crashed the whole check with a stack trace for a missing optional
-     file: still a non-zero exit, so CI stayed honest, but the operator is told
-     'ENOENT' when the answer is 'that file is optional'. */
-  const patterns = (await readFile(new URL('.gitignore', root), 'utf8').catch(() => ''))
-    .split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'))
-    .map(l => l.replace(/\/$/, ''));
-  const gitIgnored = name => patterns.some(p =>
-    p.startsWith('*.') ? name.endsWith(p.slice(1)) : name === p);
-  for (const entry of await readdir(root)) {
-    if (gitIgnored(entry)) continue;
-    if (!known.has(entry)) {
-      fail.push(`'${entry}' sits at the repository root and is neither published nor internal — `
-        + 'decide which it is: add it to the `cp … _site/` list in pages.yml if the game needs '
-        + 'it at runtime, or to `internal` in check.mjs if it does not. An asset left out 404s '
-        + 'on the live site; a document left in becomes a public URL.');
-    }
+const internalAsset = name => /(^|\/)(?:\.git[^/]*|\.env[^/]*|node_modules|netlify|tools|docs|src)(\/|$)/i.test(name) ||
+  /(?:^|\/)(?:AGENTS|CLAUDE|README|MECHANICS)(?:\.|$)/i.test(name) ||
+  /(?:^|\/)(?:package(?:-lock)?\.json|netlify\.toml|(?:vite|capacitor|tsconfig)[^/]*\.(?:ts|js|json))$/i.test(name) ||
+  /\.(?:md|map|pem|key|p12|pfx|toml|ya?ml)$/i.test(name);
+const publicAsset = name => /(?:^|\/)LICENSE$/.test(name) || name === 'THIRD_PARTY_LICENSES.txt' || name === '.nojekyll' ||
+  /\.(?:png|jpe?g|webp|avif|gif|svg|ico|webmanifest|json|woff2?|ttf|otf|mp3|ogg|wav|m4a|aac|flac|mp4|webm)$/i.test(name);
+let published = [];
+try { published = await assetFiles('public'); }
+catch (e) { fail.push('public/ cannot be checked: ' + e.message); }
+for (const name of published)
+  if (internalAsset(name) || !publicAsset(name)) fail.push('public/' + name + ' is not an approved runtime asset');
+if (!published.includes('LICENSE')) fail.push('public/LICENSE must travel with the distributed game');
+try {
+  const files = await assetFiles('dist');
+  for (const name of files) {
+    const compiled = /^assets\/[^/]+\.(?:js|css)$/i.test(name);
+    if (internalAsset(name) || !(name === 'index.html' || compiled || publicAsset(name)))
+      fail.push('dist/' + name + ' contains an internal or unexpected published file');
   }
-  for (const f of published) {
-    try {
-      await readFile(new URL(f, root));
-    } catch {
-      fail.push(`pages.yml publishes '${f}', which does not exist — the deploy will fail, `
-        + 'or worse, publish a site missing a file the game asks for');
-    }
-  }
+  if (!files.includes('index.html') || !files.some(name => /^assets\/.*\.js$/.test(name)))
+    fail.push('dist/ is missing the Vite entry page or compiled application');
+  for (const name of published)
+    if (!files.includes(name)) fail.push('dist/ is missing public/' + name + '; rebuild the artifact');
+  const built = await readFile(new URL('dist/index.html', root), 'utf8');
+  if (!/copyright/i.test(built) || !/all rights reserved/i.test(built))
+    fail.push('Vite removed the proprietary notice from the built entry page');
+} catch (e) {
+  if (e.code !== 'ENOENT') fail.push('dist/ cannot be checked: ' + e.message);
+  // Fast source checks may precede a build. enginecheck requires a real dist.
 }
 
 /* ================= A DOC THAT NAMES A CONSTANT MUST KNOW ITS VALUE =========
@@ -588,7 +535,7 @@ if (!cp) {
    discusses a constant at all, the constant's CURRENT value must appear in
    that document somewhere. History may stay; ignorance may not. */
 {
-  const src = await readFile(new URL('index.html', root), 'utf8');
+  const { body: src } = await loadGameSource();
   const consts = new Map();
   for (const m of src.matchAll(/\bconst\s+([A-Z][A-Z0-9_]{4,})\s*=\s*(-?\d+\.?\d*)\s*[;,]/g)) {
     consts.set(m[1], m[2]);
@@ -658,5 +605,5 @@ if (fail.length) {
   for (const f of fail) console.error(`FAIL  ${f}`);
   process.exit(1);
 }
-console.log('OK  index.html parses, has the elements the script needs, '
+console.log('OK  canonical runtime parses, app elements and published assets are valid, '
   + 'and the repository still describes itself accurately');
