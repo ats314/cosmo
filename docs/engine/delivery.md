@@ -78,7 +78,21 @@ the Pages workflow reads `GITHUB_SHA`, a git-linked Netlify build reads
 `COMMIT_REF`, and a deploy pushed from a laptop with the CLI has neither — so
 `build.mjs` asks git directly. It did not at first, and the first Netlify deploy
 published a page stamped `dev`: honest, and useless for the one job the stamp
-has. It draws faintly at the bottom of
+has.
+
+**A CLI-uploaded Netlify deploy still cannot name its source commit, and this is
+the reason to link the repository.** The CLI ships a tarball; the builder
+git-inits it, so `git rev-parse HEAD` there answers about a repository created
+seconds ago and `COMMIT_REF` holds a deploy ref Netlify assigned. Both are
+seven hex characters that name nothing in this repository. The page is stamped
+and the stamp is not traceable — which is the failure the stamp exists to
+prevent, wearing a convincing costume. Two deploys of the same commit will not
+even agree with each other.
+
+Connecting the Netlify project to the GitHub repository fixes it at the root:
+`COMMIT_REF` becomes the real commit, both hosts stamp identically, and pushing
+to `main` deploys both instead of one automatically and one by hand. Until then,
+trust the Pages stamp and treat the Netlify one as a deploy id. It draws faintly at the bottom of
 the title screen and is readable as `window.COSMO_BUILD`. It exists because a
 day was lost to screenshots that could not say which build they came from: a
 fix deployed at 1:01:42pm, a screenshot taken at 1:02pm, and GitHub Pages'
