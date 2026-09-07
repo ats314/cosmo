@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { createCosmoRuntime } from '../game/runtime.js';
 import type { GamePointer, GameRuntime } from '../game/contracts';
 import { haptic, installNativeBridge, isNative } from '../platform/native';
+import { createFlightWorld, type FlightFrame, type FlightWorld } from '../game/flight-world';
 
 /** Render directly into Phaser's Canvas renderer. No iframe, second animation
  * loop, or per-frame upload of a full CanvasTexture is involved. The separate
@@ -21,6 +22,14 @@ export class CosmoScene extends Phaser.Scene {
   private disposeNative?: () => void;
   private disposed = false;
   private engineUpdates = 0;
+  private flight?: FlightWorld;
+  private background?: HTMLCanvasElement;
+  private flightFailed = false;
+  private resetFlight = (): void => {
+    this.flight?.dispose();
+    this.flight = undefined;
+    this.flightFailed = false;
+  };
   private resizeWindow = (): void => { this.resizeToWindow(); };
 
   constructor() { super('Cosmo'); }
@@ -31,11 +40,16 @@ export class CosmoScene extends Phaser.Scene {
     const background = document.querySelector<HTMLCanvasElement>('#bg');
     const context = canvas.getContext('2d');
     if (!background || !context) throw new Error('Cosmo needs its game canvas and sky canvas.');
+    this.background = background;
+    background.addEventListener('webglcontextlost', this.resetFlight);
+    background.addEventListener('webglcontextrestored', this.resetFlight);
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.runtime = createCosmoRuntime({
       canvas, context, background,
       width: window.innerWidth, height: window.innerHeight, dpr,
       externalLoop: true, externalLifecycle: true, native: isNative, haptic,
+      flightEnabled: new URLSearchParams(window.location.search).get('flight') !== '0',
+      renderFlight: (frame) => this.renderFlight(frame),
       getTexture: (key) => {
         if (!this.textures.exists(key)) return null;
         const source = this.textures.get(key).getSourceImage();
@@ -59,6 +73,7 @@ export class CosmoScene extends Phaser.Scene {
     window.COSMO_APP = { engine: 'Phaser', version: Phaser.VERSION, snapshot: () => ({
       ...runtime.snapshot(), loopOwner: 'Phaser', engineUpdates: this.engineUpdates,
       sceneCount: this.game.scene.getScenes(true).length,
+      background: { ...runtime.snapshot().background, flight: !!this.flight && !this.flightFailed },
     }) };
     void installNativeBridge({
       pause: () => runtime.pause(),
@@ -69,6 +84,25 @@ export class CosmoScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void { this.engineUpdates++; this.runtime?.step(delta); }
+
+  private renderFlight(frame: FlightFrame): void {
+    if (!frame.enabled || this.disposed || this.flightFailed) return;
+    try {
+      // Reuse the runtime's already-created context, never acquire another sky.
+      if (!this.flight) {
+        const gl = this.background?.getContext('webgl');
+        if (!gl || gl.isContextLost()) return;
+        this.flight = createFlightWorld(gl);
+      }
+      this.flight.render(frame);
+    } catch (error) {
+      // A decorative pass cannot interrupt the original playable game.
+      this.flight?.dispose();
+      this.flight = undefined;
+      this.flightFailed = true;
+      console.warn('Cosmo flight presentation unavailable; original sky remains.', error);
+    }
+  }
 
   private pointerEvent(pointer: Phaser.Input.Pointer, type: GamePointer['type']): GamePointer {
     const event = pointer.event as MouseEvent | TouchEvent | PointerEvent;
@@ -114,6 +148,10 @@ export class CosmoScene extends Phaser.Scene {
     this.input.off(Phaser.Input.Events.POINTER_UP, this.pointerUp, this);
     this.input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.pointerUp, this);
     this.input.keyboard?.off('keydown', this.keyDown, this);
+    this.background?.removeEventListener('webglcontextlost', this.resetFlight);
+    this.background?.removeEventListener('webglcontextrestored', this.resetFlight);
+    this.resetFlight();
+    this.background = undefined;
     this.runtime?.destroy();
     this.runtime = undefined;
     delete window.COSMO_APP;

@@ -1,0 +1,986 @@
+{
+  "version": 1,
+  "sourceSHA256": "dcb8dc53d1998943e686def1106bf90ceea1ce4a78634e5627bb614ec9d36270",
+  "functions": {
+    "angDist": "7f42686503551e93b1b9be211d03add634a101c022a641a63430aeed67dcb7e3",
+    "radiusOf": "3388e71b055e510eb53ca2579a4d517db50726e23ca76494eb7123efda59b6d2",
+    "posAt": "ace245bc07022b50908a7b359b2edea766b677ca5b560e98a754ca334751b450",
+    "ecx": "d564832e77353a3cbfbd573347a30c893c84e3fe81640a175e302d29786e4892",
+    "ecy": "10abbd1658093ed3bce271665882f341b7b27161e5f93245dddb4d058a3fad04",
+    "buildBus": "44495cea9b691a6a858e1fbb441cd3d0c60a60b7d9e10a66b8cfba160ec10300",
+    "buildBed": "3f11fbca277452c240af153647e03abda617705cfddf1df8ae5416442a10dab7",
+    "subF": "045228665cfc1d260e32b6f7bc34a8d195af7213b273ff3aa0c52809d95a4bbc",
+    "note": "6ba9ef4c0dcbb0fe1a29abd30c8bfb2b8ae77950f9a5ff54671a02b101e83ecd",
+    "hat": "f51ed96e35d2d85fda0409a0001cea1deba8c25339f067e585f080328cfa1bf8",
+    "kick": "b857c17110902713d03bff70e9c19fb97a7cce22965b091e9697a67df2c30b1e",
+    "snare": "db8cd6693f48ecaa34a592e32fc7c97db130c98351801d4373a62ee4f389bd71",
+    "bassN": "7d33b3e3391a6fa682f51695a1a5c0f44bb9afa5fa47a64ebe9a022fbc4c7282",
+    "swellPad": "4db3ba4a74d6af4844ef4187a0652b56183fd46e0722181cd13b2af3dd5b304b",
+    "riser": "a49984550f83bb7c4b23f98105f6397bfd27613dafe3922b94e8987e38fa043d",
+    "lead": "887f3eef63f65b9895a3445dc5733fa46dc2e1055258bc59d2f84d39546b76bb",
+    "gtr": "75a298f2f65837106a479d49fa40aece8d441e3836737b16a9b377fa37357e46",
+    "dropNeed": "6ca7b38b7bca3b585cc74f1d39e827c91cb7bb93e58e802dafa92ec0b94176d6",
+    "starfallActive": "9a656a2ad2f01fcefd6f01959e2ee110fa0d1a2b88c4704f860ae19014cbd893",
+    "build": "80345607fda275d9818c4f564315a21ba85353edf880f543310e0c68a72dd0ad",
+    "tryLand": "a2bec1881871469b0f0565d4c97c6cf671e9b474717bf4d0ebafb251bb5b0654",
+    "starfallWave": "6b83d2e784488cf11f9cdae7ed388afa3f2cd53939d4d18549cb7220e6b13c2e",
+    "startStarfall": "89df912dcf16ca1201403b0eb9dadcc1eab47cab5d11de16ed1657861e536114",
+    "tickStarfall": "44ceacd4e0de60e0e05cab468e1d3dccffbc4b930c2b9792934b17794df0dad1",
+    "armDrop": "405e95f89128bf6cf610d678e33df9d7e4517b54a66c84398abb59adb5fa1c30",
+    "schedulePreDrop": "a8693a72ab1988b7a0e775a60e7785cde5fdc5e37c774b5921a45c88237108a0",
+    "fireDrop": "8116762357ff3e0c1528f16e9c6afd80efd3d89c8c76c807c2543c4406758f99",
+    "payoffStep": "67e3d007639c5019a6c1578a35b6c4e7cc64c8b19cf1c55e5c07e86dc6407644",
+    "endSection": "efc857a5e7c78dbb7f89c25d669fbcdd219e8c4d088445967095f4e1a14139d0",
+    "fireLift": "f03c0c9b6ec5a954402a36b69fad59b33945956c86929aad83ea8331254ef2ea",
+    "breakStep": "f2df61a0613fba99360ebe3586e6d097f0238ba8b0c5660b4e28a2ee8e135353",
+    "powerColour": "5167c430cd49bbfb54d83ecb63fa3af05f08e0479ba10a076585cb03d80ddb5b",
+    "orbitMusicState": "0e1d89008d86d2b8a67b269aa6eefff1513809e0a8203e2758a7388ba1fba7d5",
+    "orbitColour": "e09422c16249156879cc650c3e5d37ea8cbd007a3a0efa28d8ccb07e1c55ed68",
+    "musicStep": "b62ffccda5aedd1484ca1582dc377c9ff09a866d328b302ea2a6849c937663ce",
+    "chI": "66e7a0ae086f990a0be5ee54c3b9be9268951ca1352601c4f5118ae891801273",
+    "chTone": "704115b0af3ebc6be1f0c7aed72c8c79ac0fd5dfc63831a4bfbf5f71b59f875f",
+    "bhDensity": "caf7e1622ed4b5b042a9d7008aa3a8b7d731b477ff252c0383b447f21d389774",
+    "bhActive": "1975ee58a88d14b89f9c0ae36b0bdeeec8b4e2f4648db5094f263cf1c68f7f69",
+    "bhTick": "4adaab82c79800ac8c2483043bceecfce178a7921558f64d8074cefb6f04282b",
+    "startBlackHole": "170ad125f1f329acf671656560f47d774b57b75f5e55d28c9e4908c2c2262ad2",
+    "endBlackHole": "bc6f8e1f3ee385fc60a12db52f069a0b2092a21ee00e98b88ff422e03ff1493f",
+    "bhStep": "45979e279ca77b708653a0f730aa6e6f8ac72806849280d0bf2d6b7d02bc7125",
+    "finStep": "17fd2364712f5a695b1929fb766ca4f6ab403d431b12c066950606e1787e197a",
+    "gridNear": "ecb14f2e601e49221c1463ce1cb3698c507df3ddac5ab49c9af83d657b759e5e",
+    "cueTone": "80bee0adffb79f434c1a49ff597f61d17ff5cb6c6e088e4c35266940082fe5d9",
+    "gridOff": "614eabaa90acc669770b922f336790ebbee15cad4dad7a72c20c5e1f83f8a179",
+    "judgeTiming": "35ffbf33649c5b1ff0f48e64303493430242fe5b51232b5836287f29f2844d2c",
+    "performerHit": "e0444acc79b494495146cfe08c00c1ae7b75fc1fdd845ed83b9fa0ca04763201",
+    "musicTick": "58cdf833008327f5e47b0e84f17639acd4043511999737e370b502dcb69cfd3d",
+    "bedTick": "582e7cba358b73777973825f98dcb61125bc447755aa391cf4f2396e44161a3f",
+    "duckBed": "61f2e5ef01c7a30c90d3d031e38c8121c3d6cc0bdcda91dab2bd3f187579c7ac",
+    "ensureAudio": "bdc895c2d26c05a9e066b87123b880b280eab045df3b47ea8347214f9de2f6dc",
+    "runtimeVisibilityChanged": "df7f4f3269f3b32585bd48d5bb78793a3fd37dfcf7dc912c6f0f2faf171a338b",
+    "toggleMute": "1899bfac862d25aa09146e7a23b3121160ce4c01969574d3f9063211bf2966d2",
+    "beep": "1bfe626c70c84c87318294c299afa47aef4756f3fe8d4d581e4b64eaa3dc0b9f",
+    "panAt": "c5929692b2e29771d4981adb64d4a53113b29958eee546d47a14bd7073e82e8c",
+    "MD": "6a25267efcbae0f3b8eb7f44d9897acf4ff8587527457cfabe2c9946ff451918",
+    "recKey": "2df47f7a8228aec6ae46b1954456abd9a120f6b1c0f2eaed5e10a38d480eae4c",
+    "useMode": "48182d52d785d8d11d40559a1686899bbf8f74cb67c7663ddd9613840ace1181",
+    "labGhost": "cc9753d287689984018db0cd00ba99deff0b6089c96798e2d4ee1bede2afbe1a",
+    "pauseNow": "7c7f97998bf7c0b1377a0637ae2308ee852418e261311fc3f55d45b738ac6b78",
+    "pausedSeconds": "b202cc6ce73e99e1e819328b35005eab5f0b844278591fe2c7e415baf5703d93",
+    "frozen": "9a68f3c46e0d6d764a271f9a6cf1ecf5f1b22d61031d45c73393fddbb1100a8b",
+    "canPause": "10911663c93fdc72ca52319db26e9d22e4df1258d224a88c16797ae6b5d95044",
+    "pauseAudio": "3e2ef904b092bed89540aad2c7fb1ff026ea3cfdf300977bcee125027a739a92",
+    "pauseGame": "440fed21f1682122d2c54635607a1bee001a6816d205527d155de29cdb1916eb",
+    "unpauseGame": "d4374ee6bf2bfda230edeb43da7522374d73e62f0ae0467da839e9c3a8de0107",
+    "applySect": "42ef3d324392d3ce6ad893da71fa88e23b6a4b8548f3f6e2a94d8be94f133b52",
+    "applyLevelMusic": "98263a0489bb8ee50407e434ab0a085e6e2b70c15dfedf64419db8613b018fdb",
+    "braam": "28718e20ecbb2612715a2704bcf33bee6da6c9cfd596209c8db7dff248959845",
+    "soundImpact": "114a67d00e0414ef2f643f762938013a2ea79c6a7ceb61f2bd5fcd033c8da9b4",
+    "swipeWords": "78b95286f158517db257542fa3f50a8920566863dafdf06129f331d46daef115",
+    "swipeOut": "da6c765fd92270965a15a8b7443a48fa298e60ddc700fee830f815499f72062f",
+    "swipeLean": "8ce5e440356301f11a18f38356851aa2bc2afb26eac1109685a3e620aaba54f9",
+    "say": "152f4edd5f51808ca573059ebb573ab75068a46bbc61d240f0cc1d83bf85df00",
+    "sayNow": "15343c866bc9f7a3be6fd8221697ba6bdabeb5780a1cee6b98ba83f67c66087d",
+    "annPump": "f1fa3d1420d045d2ef34b165278ff7c2c0a6ace77a8c4ec8e5a416497628bd5d",
+    "age": "3cc85d8a23cc0713b6bdc9fda49a879e01e2e3d79c625398d5e620df763b7ec4",
+    "dl": "3feb69c71a0ef204ed634fa93809e36ef21a119988eb45f04b8a7f0e5c3a1770",
+    "dlOld": "b1daa56cb94700553242209cdcf7be11c3d145ce58178dd7c0c05707a1a817a2",
+    "speedAt": "aecb95751ed671302cd2cc95ed35c4a1f1278b6ed907aa3d439dfaa2603a7079",
+    "warnTime": "2afe799cc28a53b9a57dc0703791b44e2663a4857915eafb2d6f1c4877a22d97",
+    "shardCap": "e6b1f7c26320b2f24abd1b0d143764591e97ccc4ca2ac77812fc63785cc46f68",
+    "spawnGap": "8479f9830c415369e568e25d7546214ffadb7d41cc77998a4b7a801ec2b86c46",
+    "rookie": "b0c79603ff5d9a50d1f84ef73cd667ab09bf3d4c32db2af7a10a06ffbeadb00d",
+    "firstShardAt": "6eb0dead135b19bb83602b2d139960f1cd500db1558990937701043d798a0d25",
+    "emberCap": "d7dce1f21195b0dfbc24ec0d42c893d748a4465eb26dddea757cea2321d6fb06",
+    "emberGap": "81ee33c39c26e75e915431bb046d49580d4cee13581c6c6e6158751a9a4bd2ca",
+    "tierIndex": "6e37325620eaaa65707a6eca713ec48d351e78d93eddc3bc3d7b65774091e2d7",
+    "featuredTier": "73ccc6701b33af18f2a25270ca2e99dba8c6162db3484176d3f1171fe38048b7",
+    "pickType": "b6d199293f4789fc823121f3d0b51f68eab97939217a4f540da09b43f2756f65",
+    "shieldMax": "71803bae72630bc93fe56a6099fff64f3bed2e0e006e828ab123f8c54b2e914c",
+    "starPath": "c85d1423966623d80d4f94f4cc81623d1e50633aa4accc6da56ffc27a2a50de7",
+    "rollOffer": "d0185dcdcee23aed68f3f11b0f45905f0fc16140688754f893f48ec348385c05",
+    "curR": "46286f737bea8238fc9dd90512d947b44bc1812182f02a497238ab55344bb654",
+    "posPlayer": "c0437190f4f88107a2e32610eaa4545571c0bbc630ff9f7c90c62dfa79054628",
+    "effRing": "4e319818c8ba13a33e0970974845d78b252bf7f96525e4a2e66dc3419584f269",
+    "starfallFlightPos": "68843d171c61e29e88d04f4ecff202f38a9ed7371337b4048b9fc2b4b74b11de",
+    "starVisualPos": "0798f4ed15b4508db7b564ed416c5c5689295226aefc7cc957ec1a57e9bc48ba",
+    "updateMagnetStar": "0ad9e2eb7b58c775d02404398a2e263544c4d84ad004fff05eff22f2ed1d6fbe",
+    "starTouchesPlayer": "65a878595a992590025f10ded25324f8bd8f274192b729df748ebadbfbe29c76",
+    "sweptHit": "aef2a66bd26c74a956fb6808415a6c718377b958bfa3c3f5bf4f6ae960c78d7d",
+    "burst": "bfb777cc80fa9694d25e2553a7e6907353db649946f84a1027fbd307150c2640",
+    "ripple": "fa42c37423de816df92779e06b8b5353c2a5b2096c543201f3680a5715193b96",
+    "arcFlash": "7db201e961b832aac1dd179eb62f70496cec5bb113ba16abc99efe13e4ae039d",
+    "popup": "bbd02ba11462f442852b29e2b8340bce9014adae47b4a288510f52a70fe65646",
+    "novaBlast": "050e84a5074c0cf92ad24a5c2db36855f53f322b70caa9ab7f74fdb2cfb1e5f7",
+    "novaConvert": "7c3221d98bb836d620ecba5e135da5366aea682d1bc60bd97a184921aa72a313",
+    "ignite": "8c053615bfddb6c07a02399b766b1da6d33cacedfff72f49d7eddfa13b5d7343",
+    "checkMile": "f75cf58e64944f10d437bbe4b405d1a78e731c67be1aed8d2098968128e05836",
+    "hitTol": "460c2bd0a43cebcc86127e3902d35fca9d14503bb6dc207a1e1d95387d4cf276",
+    "sep": "03a32fd39ce488a2371390a9467367269add35520870a51ffd219f3311555ba9",
+    "behindPad": "79b3e20d7bd18cce0665fff4a28a707db733aff023ee8cd2a88f018db06b40ce",
+    "farFromAll": "0d6ba8ebaaeca65407e28a227ed056e3e6bf4e6dfc562ad2be1f065d0a663099",
+    "spawnStar": "8caba8abfb678b3fa0f0c4a7f7f9eec91b600f8aa79f842e90bb36d5a6d1e881",
+    "mkSpike": "360371a932a276891b179c9d4fa1c90c76df2f496c2bbab9e6a04b09dc32ee89",
+    "saucerOK": "25fff3838ccee89820ed171061ea9a12bfa3a4617f6a04bd232a179f9edfc03f",
+    "reverseEscape": "64c7037de9ad2c6f5e99887e389a409ec3bef19439d1cf42f25d20e89e4c6e12",
+    "firstMeet": "8a2542f7cadc55111059784f9ac02ebccdc123b78f123816c43035ba9ca9f433",
+    "spawnSpike": "89cd2a3b03b4cbeae7ef3d7c5381770913ed47f6c6c069a02761861e1951dfe1",
+    "burnIdx": "563cb1ca8fe793d80c4ac035eba799eeaf54103b24ef0a8980eeae899bf61825",
+    "burning": "119829b571ca7e9191ae72092f0e6d667a729431896a9aed143b411d9c6c04b3",
+    "layStarTrail": "fddbccea2ee748cf66c2825b8945c8af53ec90665c4317c53240f8f6b252bee4",
+    "updateOrbMotion": "75892e75c5842069a284d914f42dbd2f6fe0387b620b6a243171eb33046326f7",
+    "spawnPow": "1b90e605cbb9c445c040b548ba90d70385ae0a2b97b3da59513cd8a7094cbe15",
+    "startGame": "3b8840caf03a3f17f75b10b2f95b22276e1a02f16906934d5a81d0c80f769bea",
+    "die": "642f7c9c8ba7a4a22005b5158de39430cac2fc4df579764d589656fbf1f7cee5",
+    "reverseFX": "f7558c786248d7836d7fadf78f49e4a72e4a011d4d869cb111bf3633c4eba72a",
+    "reverse": "ef5cb889052f599772ea6ff212d25cd233d36275f7b291a187b4c2419e2a44fd",
+    "commitReverseFX": "d1e48c9ad20e44cbeb8f9e5ecd052963fe43992dca075dd286a7837cdd45c368",
+    "retry": "0fdd71776e44de6e645e85c89691c6133fe753dfa31c245148faa6855f7bf27d",
+    "enterSwipeSel": "6dbd39dad636017724f5c6c8966a2428ffe352352d82a94905d21515fd3b034a",
+    "enterMenu": "ac97ba3a855064c97c15cd31c3af6a2baaa993a04da6588c2d7dc12bfb00c445",
+    "enterPowerSel": "f11b8fcc44044cd4e534c4b90d36941921b5d3957938eaeac79a62045786a061",
+    "startLab": "40431b0bf560d88df56045ddefecc65c2f86a9adcef127b5f0543667ef42f0ac",
+    "enterLevelSel": "01e690fa4d89feb41aaa6dee34b40098f170c6917a3f1fa9732c88c9bc707b2d",
+    "menuStep": "9620b0719fa4f790e6dfcaa60f266146b677e7d5bc0141c2d3cfde52e82353c1",
+    "pickOrb": "13859f403c59f8cf0f453eb5e9b09da68c639031077eef0cee612f98fb876955",
+    "toggleGhost": "52ab6a244031f8bebc89ddf8ec6506386ad1dd06bec6423f7a0bfcac00082de3",
+    "beginIntro": "4091d0a7454261aeefeb4bedd2d3af01640e3f6ab46a97cb6c878982c901898b",
+    "introPrompt": "49de3cddf86a099211715e8bdfba263efcd0a05c3f402fdb3dfc9002bd3eec57",
+    "introFeedback": "6f354f80982e29001426cbd84c14e231e4a459215306c24d2bb2c8bd526b69ee",
+    "introAction": "02511750f0783d0ed741ccbd9c060cea94d98f848c30911891b6b39ad07463fd",
+    "finishIntro": "bfea8a09b26a2affb14b8d4092155f9c8f311f2744d420e7398fef343aa38a41",
+    "introTick": "2d0857678611dd565062deaf95f7190f866d5a5ec12363c026783ff1719fab0b",
+    "enterRunStart": "215f9af44f106c964e88a872a6af89cc8f1a19e080d7c47e150b63b3ca21a73c",
+    "leaveMenu": "afbc25a631857ceb117aeb89611e14a61e705e158e4d3718a493dccac8c50b04",
+    "openLab": "80efa5b1821bd46f50aceaac940720b4748ce3c1b5b638ce4b0ce4ce7fc41b7a",
+    "startFromSelect": "4f571fc5e50ef8d838622039965f287a03035857cd628a35624dbb7dcaaca311",
+    "cardDone": "bf010412c93d8400b0b51111038b8780380074b61eab91019ab970acc672f997",
+    "flushLesson": "3aaae0060a8eea196536480ce9303afd907ed388558f38aa3b002c71a320cb45",
+    "bump": "9fa6726f1e5c17fc52dde7d1efe78be7eda97beed0e4a6f3e7d9f4ce9cfa7c29",
+    "hop": "e9fe19a77a2039cdb6da411f6c6b214d19c9f99cd9a41d0a9090e8fe7686cce0",
+    "runTime": "a4462434b74c91e2b6ebae6f3a062eaba3d14dadd740b19814db51edf511740b",
+    "tierLabel": "15ad5cd17c1e85a24ec1d7e2cc44d7a5e2dd462c5fb8fc73f2a82c3caf6cb2db",
+    "levelName": "d8616221423149127866641973c984ce2e5fcf20daaf40a3afa4c639e96b15fe",
+    "runSummary": "d8c50d6efd53ca1aacf2841cdadba5b1ec980c17e85ce30803e9e44052cdf90f",
+    "doShare": "01e54c15cd2d0cbead41a359257bf90654be0b5838e0f7077dc6da0d3c10d56b",
+    "muteRect": "f42618eebcd145326f2acf11f4ccaa2b84c4f12b1c8a877207ed82b158f4fbf4",
+    "pauseRect": "bb1678c5c9dcfd57d2cfd9904830e4ec355f1936a5b0b0a5ef48aef41abf5331",
+    "inPause": "39cefb3e68191bfa6f5783642a10fd4f0d7976e224aaa9970c4c7761f7b4bcf1",
+    "shieldRect": "0c75f03a2a85c921c3c7271fa3aca1d9c30d1da2b585a8eeee5e41cdb4bf55df",
+    "inMute": "6c657854ae7ca135a1fb667a70aa8d6ab08eb616e8ab51ae10b98cceef02f16c",
+    "deadSeqDone": "6832deee6906743f37e36879701c5a35fa6d2df8fcaa27c1c8768c7cdf487b89",
+    "shareRect": "bcf5c1bcf0c734107419c2515f6a5e85cc82bcabc4c9e825ed6ddacb449d0fb8",
+    "inShare": "7910ef8557ef5c121e4395da9ed68111c9ce2d9cffbd1e44cc8947e5ba22fd3b",
+    "pointerDown": "790231d3954065d6650ec650564249a2ffe3f90f0f6bec15405ff3554f52469b",
+    "pointerMove": "16ec2998e388138bc82a1fac03057b16af6a4d748a19dc2c719a4dab47a1f5b1",
+    "pdEnd": "d62459c946209406395bcd3c194e0f3127ea11971a9c506993ad61bcaf46f55e",
+    "pointerUp": "0dacd47e379a55093497152286495c5b5e6627ad3aaf1b70e0bf2fa410080c2b",
+    "pointerCancel": "567e699116793404c3e15d1fd29c53a03517b6c09d5f5ce223fbdef7ce507e04",
+    "keyDown": "8f360bc04c97c5fc2909bba878ecf74448aa1a7ab345f7c704858c74f8c21aea",
+    "trailCap": "0dabb10e802accff3b5078036539ff80f805eebb0bb4a6d96791dc4e7bcf0cc7",
+    "pushTrail": "1c98754037e98d7d928ac68c546297c45a3b2cfd222cdc50e737924c68428d5c",
+    "menuDemo": "b6a24330ae8e6a70508addd49e997fbe357bfd4c9637fe2afa6c251ff85466dd",
+    "blinkPhase": "f24ae022df8207aa7cdc662e7d9f330995f82332d3aa94e5484b7dcac693d2d1",
+    "duty": "865c1a6b4cc0ea3c11a28ff355da72e8098b581471863aeaa14ffed3fa6bab1e",
+    "armed": "cef96b4708364e8daff5558be491cde7be797e3c358fe5a4782fc82053120e42",
+    "updateSpikes": "565b1cb3390a923bb39ce421bd1fc4e9a3be915278d835020f9ab3de043a183d",
+    "update": "bad13e908ab5692cf2ad81a1b83f8cace3106f5afca470425f1bd35174ab10d4",
+    "artifactPoly": "bd823b386791f6f8b05bcd4902ef7a57b81bfe0987ddecdfc92f5c94deb30368",
+    "artifactStarPoints": "05fe10b75fb75a6ef4cab6679a1a5c6b282408d2de6834d9cc5580c5c2f31833",
+    "artifactGlow": "be6d0d4faae69802a2f3245c8a1c47ce7c5e93023ccbbb1015f398ed692deb68",
+    "artifactFacet": "092d151497a4be9b83874355d516630f3457089356af0327efdf7b724ee01b26",
+    "artifactGlyph": "c46468546c248f893296d2610f73f9a7bc6bebeeecc74ca60d2fc47a5d01db6b",
+    "artifactSprite": "b836bf94b29d568e554dadc8e6cae329de7b680773a1dbd804eb7cb9f4d6db8e",
+    "runtimeStep": "2fd012311cd1a0241adcdd74751c9438596dfc103f382e628337b8bd0f147931",
+    "runtimePause": "58358f8434ccaeac06bfbaeb28c33410858a1e0b30d25bb5e13f4fda62741411",
+    "runtimeResume": "1f24da3d89561c0e8188355ea48411922ea7b423cc723f0c43e08077a5c5b9d0",
+    "runtimeBack": "4c626892be9a635206f0c307ae603b49e6d457b788a13d401d7160321aa6d530"
+  },
+  "constants": {
+    "RAD_OFF": "5dfbe6d5e258d84946077d4a9f1ae9b216bd6edb05cc556d5ae5c1cac6ef6849",
+    "RAD_BH": "45d81b015c3ad4dce8c6dca689b9c060688810c619d4affc9d1cda03c7e4c4fc",
+    "RINGS": "39b64f42ac1e67da5147aee973ad1d71112b09dcc194a5a7546ee4e86a617b5a",
+    "LV": "e0d829ccabc58282612ee89835a4bcbab57b0604b47e02bb8a37d5ce11eb99bf",
+    "MODES": "de7692bfba49d341e704e00388a5f9e82c9939254b756f54757feb9cd17469bf",
+    "TIERS": "2d1931ccf11432f787c65b7e2cd899cce15d9b41d804307b4a340ac28cddd23d",
+    "UPG": "f8e9f9466fe1423541e2a3ea7162f67b93a7c551527c886248e4ecfa1983d1c0",
+    "PROG": "7be63ceb31e7a5a56b0984de8e57c97e2d2ff1a73ccf439c9981e9290ea4d097",
+    "PROGB": "003c9c28f69104ffac0c737b325427d681b7536cdaca98d0b574f72f98856d11",
+    "HOOKL": "3a6c6bf1b5540280e8f6ab64fdf9e64f01a8bf7d23b66695b21c34a2467420f7",
+    "HOOKBL": "be5472e7c6b32ab2ff07f9b5bcfb4faaaab153e664a4afdf5d870293911c244e"
+  },
+  "trajectories": {
+    "311:normal": {
+      "menu": {
+        "state": "6fcdfc5aad068f7c349a57cace2ca1814bd5753664b297c7ba37fc4a5ce87091",
+        "rng": 375,
+        "audio": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "audioCalls": 0,
+        "store": "8aac5b8967401c237f4a695afff58d03adfa681c179b740f3a1fbb40852fe50a"
+      },
+      "level-1:moving": {
+        "state": "484c64f401d5bc66390040e3a42a820570b80cb857f65308616da91e87bc01d6",
+        "rng": 207680,
+        "audio": "463fcba0c81612fa259266fbaf46a5c893ea11c43f3fffbc9661d29ad55fdaae",
+        "audioCalls": 595,
+        "store": "e4f0926fa9507f0220de850fe1c34fe3ca4d7447a53fec578997a1c439dc14ad"
+      },
+      "level-1:held-tap": {
+        "state": "c7152eaf92e193a27da00ee1323654421898bf94f16cc4b6d237edb3958dc33b",
+        "rng": 207691,
+        "audio": "4772d8e6b448fdb7e60012fd58f7c418081336b023fa038b4acebc99ecbba0bd",
+        "audioCalls": 694,
+        "store": "e4f0926fa9507f0220de850fe1c34fe3ca4d7447a53fec578997a1c439dc14ad"
+      },
+      "level-1:committed-tap": {
+        "state": "c919d89f1e51af1dc9390092c4e415bc3ed4a614e33ca316be3b8bac2f3d1124",
+        "rng": 207785,
+        "audio": "6b9a6054557a83a9379a747f6112bf25f21a42c37c022a8e6a7b48b011b8ba4b",
+        "audioCalls": 1024,
+        "store": "e4f0926fa9507f0220de850fe1c34fe3ca4d7447a53fec578997a1c439dc14ad"
+      },
+      "level-1:screen-swipe": {
+        "state": "56b7819b658ea6fc7eec95285993c1920d7201f225c41c7b828edc228786dbf0",
+        "rng": 207822,
+        "audio": "d084bea5987d6abe398006161fb30323ecae3e638272479cf17071c884c33893",
+        "audioCalls": 1253,
+        "store": "e4f0926fa9507f0220de850fe1c34fe3ca4d7447a53fec578997a1c439dc14ad"
+      },
+      "level-1:radial-swipe": {
+        "state": "94ad791f970af57bf45135c846b37a29a4c3f428eee6c0393bdf1f92edbe8bad",
+        "rng": 207852,
+        "audio": "b35d30db97fe906eac473fa7a9ea49359c6f794157639d863ff93f553e70e848",
+        "audioCalls": 1536,
+        "store": "e4f0926fa9507f0220de850fe1c34fe3ca4d7447a53fec578997a1c439dc14ad"
+      },
+      "level-1:keyboard-repeat": {
+        "state": "53b3bf50f0fb563237c690151bde9b74a7052b1d160e1d537bc28a6e4431d004",
+        "rng": 207890,
+        "audio": "9673888b9affe4d2206f7df5c7fd4288023afee1ef7f3d73c2f179d7b01e3794",
+        "audioCalls": 1884,
+        "store": "e4f0926fa9507f0220de850fe1c34fe3ca4d7447a53fec578997a1c439dc14ad"
+      },
+      "level-2:moving": {
+        "state": "0aa41fd5a96d59a48f8e98271070362fe8965fa969bcf93dced4cc6d95e1d2c2",
+        "rng": 207925,
+        "audio": "35efa535d0bd697ffc46ffffed21f2f1cac69020ad8f48c8dfa5e5967df1e489",
+        "audioCalls": 2249,
+        "store": "e029b4f7f27aab1881351ee861de46f877d85ecf49d5eb300162cc9a410b3ad8"
+      },
+      "level-2:held-tap": {
+        "state": "c1b83b2f7b28aff268bb50d663d22d86eb6d630541a39883fe1b6a2bcebbad9a",
+        "rng": 207936,
+        "audio": "0a8a9590865667fe128ee93c5f587163c4b96db5aa87b706ddf0f6d0af26d7fb",
+        "audioCalls": 2521,
+        "store": "e029b4f7f27aab1881351ee861de46f877d85ecf49d5eb300162cc9a410b3ad8"
+      },
+      "level-2:committed-tap": {
+        "state": "d63e73e4f07a1e7017ce9aaad1e1604ac2058eaf23521d82a5415895beb0ceab",
+        "rng": 207974,
+        "audio": "957fa44838f993a63e6c5944f15352259a6a3177c69f7e58a0aa5ececd1a9167",
+        "audioCalls": 2801,
+        "store": "e029b4f7f27aab1881351ee861de46f877d85ecf49d5eb300162cc9a410b3ad8"
+      },
+      "level-2:screen-swipe": {
+        "state": "43cf3f33f4a9779c29fc8b57ff59002ff90162d093c1d6fe30dbef542edebdbd",
+        "rng": 207999,
+        "audio": "8c60339c5cd8de3cba1635c5a16707b01943fa2cf30f9ac90986c0400e55f9ab",
+        "audioCalls": 3083,
+        "store": "b8a06d53f5258aeb6bfa460e6d3e368a736b4ba7d12b20108f8790e4257f62c5"
+      },
+      "level-2:radial-swipe": {
+        "state": "f282091b476156976e84e90c59c513b160566c7e76cb2b2ca103dee23554d332",
+        "rng": 208013,
+        "audio": "03b037b275d3b961fb5911e88480d85cb25674945a95207589a2bd49a1aaca0b",
+        "audioCalls": 3485,
+        "store": "b8a06d53f5258aeb6bfa460e6d3e368a736b4ba7d12b20108f8790e4257f62c5"
+      },
+      "level-2:keyboard-repeat": {
+        "state": "b5aed16c08316c74582beb9c04d196ad22c31862ac4e0b700b719dd41cf4cc67",
+        "rng": 208062,
+        "audio": "b27ec91ad7a5471eab3bc317f9f31fcce9f83796b12e374cf2c990e0c2e0c10c",
+        "audioCalls": 3862,
+        "store": "b8a06d53f5258aeb6bfa460e6d3e368a736b4ba7d12b20108f8790e4257f62c5"
+      },
+      "level-3:moving": {
+        "state": "eb9db097f843aa0909eebd30372ddb137e813944497811719836f4f6a0c41de9",
+        "rng": 208097,
+        "audio": "4faaac9f686e6c3f1eb7af3cb28228d36c54ee33403a6b33928f7bc94ff09d30",
+        "audioCalls": 4469,
+        "store": "9c1fa188f42719072a543b1882bcad8877ac494f73637e748d9712d6a67c9da2"
+      },
+      "level-3:held-tap": {
+        "state": "cad58b32abebe9ed3aba1be3b6338f905e0dd90c179fa8e0d5d9a1f104e60c31",
+        "rng": 208108,
+        "audio": "1cb52fd1c66d81f4ba05368e527a395d765329ac09a37707b46976865e5e0762",
+        "audioCalls": 4568,
+        "store": "9c1fa188f42719072a543b1882bcad8877ac494f73637e748d9712d6a67c9da2"
+      },
+      "level-3:committed-tap": {
+        "state": "6816be6c662476aabeee6695dfbdc3062fc7feab7d581bd9a7290b5241ba082f",
+        "rng": 208153,
+        "audio": "373dda6d2308d3661e8c584c56a78c65c6b3aa6916f010535556a3cc8e2a6d56",
+        "audioCalls": 4946,
+        "store": "9c1fa188f42719072a543b1882bcad8877ac494f73637e748d9712d6a67c9da2"
+      },
+      "level-3:screen-swipe": {
+        "state": "2c451e7b0391a6b48530854918e79087d41cd58c45305811a613372614394b6a",
+        "rng": 208171,
+        "audio": "2e3a72409f4c72de70f5a5951ef547deb16dc88f08735deb350aceed01b68d23",
+        "audioCalls": 5370,
+        "store": "9c1fa188f42719072a543b1882bcad8877ac494f73637e748d9712d6a67c9da2"
+      },
+      "level-3:radial-swipe": {
+        "state": "bd94b11df6ebe885c0cc80c2837445a3438e3a87c7b2cef368a56f9d9990b9b0",
+        "rng": 208191,
+        "audio": "445fe3b807b235399cc6df2f7a2192fe51f27185ad5abef16f04573ef1480a97",
+        "audioCalls": 5710,
+        "store": "9c1fa188f42719072a543b1882bcad8877ac494f73637e748d9712d6a67c9da2"
+      },
+      "level-3:keyboard-repeat": {
+        "state": "b1e620e0dfb756ff5e730a394deb8133a0570d3da86a6e0ff4b0f738c8b44167",
+        "rng": 208229,
+        "audio": "e6d10b4ab9240d88e9a7652b61a92171b3219ecb917b74af8b1cda4367e4ba5e",
+        "audioCalls": 6002,
+        "store": "9c1fa188f42719072a543b1882bcad8877ac494f73637e748d9712d6a67c9da2"
+      },
+      "level-4:moving": {
+        "state": "db2bc2ed39208f603f3cf76bce58d5d6fa1f7b7d5e7f85a9da0d3aa6be26120d",
+        "rng": 208271,
+        "audio": "4c1ad6e6f5df54f3579fc8dec52d52a85dc2af10d3e52bdc9a5ffbc249f2c694",
+        "audioCalls": 6559,
+        "store": "9c8fa0d80bb3511cd16a4a679061a0e81cceabc39ef53e4142537f76f7353f1f"
+      },
+      "level-4:held-tap": {
+        "state": "13f82df3b4bf0071a6233b6501158a7cb484fb39f2a066484796d7c0ba81f116",
+        "rng": 208282,
+        "audio": "bc9804e3dd6ad8a510934d51702c82317eb4e98700182c9de83dce9d83c4fbf3",
+        "audioCalls": 6658,
+        "store": "9c8fa0d80bb3511cd16a4a679061a0e81cceabc39ef53e4142537f76f7353f1f"
+      },
+      "level-4:committed-tap": {
+        "state": "c02ceca097011b385560e8b4f1b6150eeda89ebcf32147e2fe125aaf0f8c43c6",
+        "rng": 208324,
+        "audio": "200f7459dffa34b3953ea9bcd6f5fd8965a4d9427b38187573e46cdb72e194ed",
+        "audioCalls": 7033,
+        "store": "9c8fa0d80bb3511cd16a4a679061a0e81cceabc39ef53e4142537f76f7353f1f"
+      },
+      "level-4:screen-swipe": {
+        "state": "8c1711cb7ab0065d57b7ca58ce52b26e4c497fa26818223c7be95ad610b6e3de",
+        "rng": 208398,
+        "audio": "9aede6dc49bf31f70744b5f29ef08925faf4d3f90f5858afd53016b20f2f104c",
+        "audioCalls": 7504,
+        "store": "9c8fa0d80bb3511cd16a4a679061a0e81cceabc39ef53e4142537f76f7353f1f"
+      },
+      "level-4:radial-swipe": {
+        "state": "45f8181fdcc4767837879b304158d33783327c86038b629fe267d93caf5f0726",
+        "rng": 208412,
+        "audio": "d31ce0fe5d5c17873bf16fb9df9c223e59d8bbe66163446996c4ffbaeeed3d06",
+        "audioCalls": 8036,
+        "store": "9c8fa0d80bb3511cd16a4a679061a0e81cceabc39ef53e4142537f76f7353f1f"
+      },
+      "level-4:keyboard-repeat": {
+        "state": "e649a4f9090981b05d2a57d54bd648271536f678dcdcb31588f30185debabdf4",
+        "rng": 208454,
+        "audio": "25cd9f74de82a481706f2dfc4a446e99b4ce63075de826600e6b5d7de9f31f06",
+        "audioCalls": 8427,
+        "store": "9c8fa0d80bb3511cd16a4a679061a0e81cceabc39ef53e4142537f76f7353f1f"
+      },
+      "level-5:moving": {
+        "state": "f73378bbe9fb7983c857a2e48ccf92796f85d18066b809400acf100e216d7253",
+        "rng": 208489,
+        "audio": "eca0be83702df0146bbfe5bed5635ac2eafe668b250930f560a1702060972edf",
+        "audioCalls": 8814,
+        "store": "955652bae9c9f843f69c7afb77fa11eeb5ffa54c2da4c227725408644aa8b38a"
+      },
+      "level-5:held-tap": {
+        "state": "f9b5eb0106dea1d3e291655da3f89f3f5d5067097583cb4f1e517733d97bd747",
+        "rng": 208507,
+        "audio": "0f16f355c2687838e80475709aae2ee79d6c39ad621e9066da41cc389137c651",
+        "audioCalls": 8940,
+        "store": "955652bae9c9f843f69c7afb77fa11eeb5ffa54c2da4c227725408644aa8b38a"
+      },
+      "level-5:committed-tap": {
+        "state": "e5a0a5794e978ae0da1821c7f0cbe02ea0f517b2d914cba6f926f9d63e126452",
+        "rng": 208549,
+        "audio": "b77ace9d584df933a43a2c985122773d8b6afb0acbb9b4de5b77019da60ff908",
+        "audioCalls": 9204,
+        "store": "955652bae9c9f843f69c7afb77fa11eeb5ffa54c2da4c227725408644aa8b38a"
+      },
+      "level-5:screen-swipe": {
+        "state": "9f292344d9e581d95769e77f45f39b8c9cfd6de0d860c42116e3022908504212",
+        "rng": 208623,
+        "audio": "18a6283b58d0212805cceb6f2689e91fc53c9852468e30557f4fd7c749ae286a",
+        "audioCalls": 9601,
+        "store": "955652bae9c9f843f69c7afb77fa11eeb5ffa54c2da4c227725408644aa8b38a"
+      },
+      "level-5:radial-swipe": {
+        "state": "d294094db83469667af6be6a83b5d113c9552ac1e221155afceb343b1df8d959",
+        "rng": 208630,
+        "audio": "60ec9d6a47a7b832ef8a4045420580ccd68be9e16adfd81fdb0e469c7b6a4b1a",
+        "audioCalls": 9953,
+        "store": "955652bae9c9f843f69c7afb77fa11eeb5ffa54c2da4c227725408644aa8b38a"
+      },
+      "level-5:keyboard-repeat": {
+        "state": "adf4557af5f14cabd5f7baa9fde6d1f9ac239057e488e6d5bddb33096cefa10e",
+        "rng": 208679,
+        "audio": "b350a2591e09737c6bfe3c829f5b2476d07c7a4397bce9653696cca8bf2d55c2",
+        "audioCalls": 10200,
+        "store": "955652bae9c9f843f69c7afb77fa11eeb5ffa54c2da4c227725408644aa8b38a"
+      },
+      "level-6:moving": {
+        "state": "7e5754b86df9260ea62a4f6f11906d0fd5d12f7836a7a14d461c90b9db7abc7f",
+        "rng": 208714,
+        "audio": "c4b3d8e90ea9678c35395041c634e3f81c58eca15930141daec7cc3b85d39a73",
+        "audioCalls": 10878,
+        "store": "6921ed7f15d93b98c1f4c763d3bd651cf06c4efd94cf930c53ccac5ce6a5dc0a"
+      },
+      "level-6:held-tap": {
+        "state": "12dea250cb173f702df117c0d56dcb997fa1609cfc3e7d7cc33b07596a2afc3a",
+        "rng": 208725,
+        "audio": "4b620959877c27d58d94b01e7ea3f59c741c0270809d05920a0906797993bd95",
+        "audioCalls": 11065,
+        "store": "6921ed7f15d93b98c1f4c763d3bd651cf06c4efd94cf930c53ccac5ce6a5dc0a"
+      },
+      "level-6:committed-tap": {
+        "state": "00768654f6352f255571d66bd451fa0a90374975bad85cdec268d485c2e18629",
+        "rng": 208767,
+        "audio": "daea348e1420190d4992d578bbf8721ab81747f015ef8c906ab3cda9d395f3bc",
+        "audioCalls": 11328,
+        "store": "6921ed7f15d93b98c1f4c763d3bd651cf06c4efd94cf930c53ccac5ce6a5dc0a"
+      },
+      "level-6:screen-swipe": {
+        "state": "01170cfeae3520594320e4826c796d3d9a8fabfd4dda64d0cee1fbbff45cea65",
+        "rng": 208785,
+        "audio": "9519c71208e8284767d2ae3348603dd828b656aa8b4b94bc5b6e1a824956686e",
+        "audioCalls": 11610,
+        "store": "6921ed7f15d93b98c1f4c763d3bd651cf06c4efd94cf930c53ccac5ce6a5dc0a"
+      },
+      "level-6:radial-swipe": {
+        "state": "a160ca898f2528fdb40143f1de1563bb93e636c2c315aa9459382c1a0ae3336e",
+        "rng": 208799,
+        "audio": "80b6c0c4e749905a71b3891a086dc3178d1b5d30eacea3d91a8b9df50c0b27e0",
+        "audioCalls": 11940,
+        "store": "6921ed7f15d93b98c1f4c763d3bd651cf06c4efd94cf930c53ccac5ce6a5dc0a"
+      },
+      "level-6:keyboard-repeat": {
+        "state": "2e2402a6ef1fe838e4cae66e8062a936d8b0f044109b226fd71e9d06e6e02590",
+        "rng": 208850,
+        "audio": "5d1018ea2d8de9b3929b73f062572e6cc4158652b980804c49d8558c4989a548",
+        "audioCalls": 12225,
+        "store": "6921ed7f15d93b98c1f4c763d3bd651cf06c4efd94cf930c53ccac5ce6a5dc0a"
+      },
+      "pause-frozen": {
+        "state": "ad19a7373a4a45fa6143559c3b46dac1c9f651096d89ae4e4c2b69ec9b72e61c",
+        "rng": 208850,
+        "audio": "0cddaed6db65a39fa351ceb331fa2bcc09c6c8d4f0f78f22f465bafcc4a019dd",
+        "audioCalls": 12231,
+        "store": "6921ed7f15d93b98c1f4c763d3bd651cf06c4efd94cf930c53ccac5ce6a5dc0a"
+      },
+      "resume-count-in": {
+        "state": "ce253d44dc302612da6a6fc243d87dbb67399fefb0e373a708bc32437cc216d5",
+        "rng": 208850,
+        "audio": "0cddaed6db65a39fa351ceb331fa2bcc09c6c8d4f0f78f22f465bafcc4a019dd",
+        "audioCalls": 12231,
+        "store": "6921ed7f15d93b98c1f4c763d3bd651cf06c4efd94cf930c53ccac5ce6a5dc0a"
+      },
+      "resume-live": {
+        "state": "a4c01c4c4779ac3784f58b978bc34b96e9551c808330cc9b941dafd72447570f",
+        "rng": 208850,
+        "audio": "8d5f8cbfd8caaecfec03f933e0adc97427bb2adacb1b840df3e3e5dab7b690ac",
+        "audioCalls": 12306,
+        "store": "6921ed7f15d93b98c1f4c763d3bd651cf06c4efd94cf930c53ccac5ce6a5dc0a"
+      },
+      "power-shield": {
+        "state": "bf6fc67873ff31d112633630b0e46f4b15657854be45b5dd628295023fdbabae",
+        "rng": 208920,
+        "audio": "e0df017d42fffef76a25920260f4392213c2ff73adef1f8fca00c699e0dbcea1",
+        "audioCalls": 12473,
+        "store": "1560e61fc1084e5dfac5ed9a24bb2481d38daaf0316c59a3ef494cd6f4e8e0a1"
+      },
+      "power-warp": {
+        "state": "cb3ccee7849a4950e6f0f0da1398fccbfb0af2da78728aa500b0b2277ddc0960",
+        "rng": 208990,
+        "audio": "180a337fa0ff4edcbd7fb0b653e987e47ba0ef457089ca0228f0afa3cfeb04c4",
+        "audioCalls": 12620,
+        "store": "1560e61fc1084e5dfac5ed9a24bb2481d38daaf0316c59a3ef494cd6f4e8e0a1"
+      },
+      "power-nova": {
+        "state": "caae10ea1f20d868ab4b94d88206bba7941adda00380ce56251bb060f4485e29",
+        "rng": 209198,
+        "audio": "ff223be9196185b269448e205a023f4400123ae14ec93685a14eddc57ba63194",
+        "audioCalls": 12953,
+        "store": "1560e61fc1084e5dfac5ed9a24bb2481d38daaf0316c59a3ef494cd6f4e8e0a1"
+      },
+      "power-spot": {
+        "state": "ca6370c2a7346de15878ff66f1c740eab702aa69cb8a4963f435698ed1ec270e",
+        "rng": 209296,
+        "audio": "dc85549313439c1b554418ab4d289d70e87b09074f7d806ce83b212def4e60d2",
+        "audioCalls": 13260,
+        "store": "d8c7335e1b6ddb46944070f2f9daff5c906a4b894a256525b3c572e59e920938"
+      },
+      "power-hyper": {
+        "state": "dd37674c24097d104cf46377f7560d4a912fdcfb6d598a8ac04fe59eee1ad143",
+        "rng": 209484,
+        "audio": "1a76f1dea3c94c8503390d9fbd94eceb35d31d89be9ea00c723b3bf334173f19",
+        "audioCalls": 13508,
+        "store": "e2881d5f65480b1faddddfea753b3fda14014ee3503ab16f6693557c5c8fdbd2"
+      },
+      "power-mirror": {
+        "state": "436918f9860d8aba991ee9adfc6b6214e7f7fc7754b5981bf3ed95ccbbcc0db1",
+        "rng": 209592,
+        "audio": "3b9886e8af2074b363356d397c5d5006c0b04fc0edcb3d263c39fd7cf3c52bb8",
+        "audioCalls": 13981,
+        "store": "b867dfc8e8668942523ac467f2946cb37cd8f97c8c2d39da859951a2badebfe5"
+      },
+      "power-scorch": {
+        "state": "15879e8c4ee8fa1d2ff3f44c737b7f41c73d27b71e2ea38e3b623c212b78adb5",
+        "rng": 209720,
+        "audio": "3cb5200ddfb1423e48168459239276284aaa60bd38012a4f0c46af64d52ad9b8",
+        "audioCalls": 14324,
+        "store": "d975766851578a6f8e5e7cf8645c7ab470d8bf0ffb0f1f2d15f81ea044fdec77"
+      },
+      "power-slip": {
+        "state": "35e47a2ca2715d8845e6f450c4bbab6ba74d2b4b65fbc349059f60df3bbcb23e",
+        "rng": 209820,
+        "audio": "50ade9f4952a24b9677b87ec7ebac16428a6e088c5b9d24fae398cd73c444a01",
+        "audioCalls": 14817,
+        "store": "bc58bf8b40c8ed67cbebbb4d2320cd455c6a58262f8d2131a380565fdf56e933"
+      },
+      "power-trail": {
+        "state": "ceae74fb84278bae6881458720383ff6c1111c0ac441c18abe70b6c37365faa6",
+        "rng": 209929,
+        "audio": "3f91a5023647b7266e2a524a34f3792e5f91e29a687689a5b3808f0132833cf1",
+        "audioCalls": 15082,
+        "store": "ff00aa1954db2f20f2682268a8ee298a90a272c6916d7ec4d5f6e36a6c4f00a0"
+      },
+      "starfall-active": {
+        "state": "88cbebaf3885c7d5d928eb6f31cc20b4edfd7e161cec515e94e8a55a5fb3ee90",
+        "rng": 211261,
+        "audio": "a92a9c7b642e9cef743738f39d1dc306e7d27cad503ff3670dba669581162b45",
+        "audioCalls": 18386,
+        "store": "ff00aa1954db2f20f2682268a8ee298a90a272c6916d7ec4d5f6e36a6c4f00a0"
+      },
+      "black-hole-opening": {
+        "state": "0a527c138b3510e00656b8fed562a341686e7d4b4171c6d2db04547b2a8c84e6",
+        "rng": 211352,
+        "audio": "96b92e1547e10d4c5b94d9ba5f884515c8b45105f89c8391996dcd30b7b8eea1",
+        "audioCalls": 19497,
+        "store": "ff00aa1954db2f20f2682268a8ee298a90a272c6916d7ec4d5f6e36a6c4f00a0"
+      },
+      "black-hole-inner-charge": {
+        "state": "b4a41e5528ef045f251646fdd6ba962a76992dc8cce567e0f52cc39eef225d9a",
+        "rng": 211802,
+        "audio": "e5e78b17bc2fd68139bf818a12b18a93d900cc782bcdcc38f65f7d36810a4d95",
+        "audioCalls": 24370,
+        "store": "ff00aa1954db2f20f2682268a8ee298a90a272c6916d7ec4d5f6e36a6c4f00a0"
+      },
+      "black-hole-escape-and-reward-resume": {
+        "state": "3a9a05301e140559afdf30460d839671db4101068a419d198894daacfc0a3247",
+        "rng": 212098,
+        "audio": "ae4408b7993ad5fb008a16d9ff1f2257d91300f6133a8f3371ec0f60b181364e",
+        "audioCalls": 26201,
+        "store": "ff00aa1954db2f20f2682268a8ee298a90a272c6916d7ec4d5f6e36a6c4f00a0"
+      },
+      "death": {
+        "state": "30ea4801499dc1b92ddbf4b3677c0ef018ff8d21772927e5493b29ff3b334cf3",
+        "rng": 212268,
+        "audio": "3b70a877a25ae1406c3edd430119f97777e2b163d5025eec3f051b1af38cf7db",
+        "audioCalls": 26769,
+        "store": "6c4e5dd9fc1fe93d1fd4c7bbd577e9ab0e87e020a529194b1cde2a2089c8861e"
+      },
+      "retry": {
+        "state": "409358b0b6deef19326641d48a62bff4eb0866596f10c7c3a774b98a46ed22c8",
+        "rng": 212268,
+        "audio": "954649795993efe4791880ca1e50a3869b91f2a11735cafe768afb2d6985f7a3",
+        "audioCalls": 27099,
+        "store": "6c4e5dd9fc1fe93d1fd4c7bbd577e9ab0e87e020a529194b1cde2a2089c8861e"
+      }
+    },
+    "1907:reduced": {
+      "menu": {
+        "state": "6fcdfc5aad068f7c349a57cace2ca1814bd5753664b297c7ba37fc4a5ce87091",
+        "rng": 375,
+        "audio": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "audioCalls": 0,
+        "store": "e4e96413408a163372b4f48f21d8d815de85be2ac98ace27aa9ee5674156f11c"
+      },
+      "level-1:moving": {
+        "state": "83f72c8fe58faa76e500f47744537c2fcace54260f18cd46f42a37471c0aa8e0",
+        "rng": 207645,
+        "audio": "463fcba0c81612fa259266fbaf46a5c893ea11c43f3fffbc9661d29ad55fdaae",
+        "audioCalls": 595,
+        "store": "5fd67bbc90753c7a4c72eacc670be384ab33bf649419722140b6e58bcbad09c0"
+      },
+      "level-1:held-tap": {
+        "state": "3d6d7572fa2e2b4493bd649099c2c9054c22e38425879e84d103fb2706dd0d1d",
+        "rng": 207649,
+        "audio": "4772d8e6b448fdb7e60012fd58f7c418081336b023fa038b4acebc99ecbba0bd",
+        "audioCalls": 694,
+        "store": "5fd67bbc90753c7a4c72eacc670be384ab33bf649419722140b6e58bcbad09c0"
+      },
+      "level-1:committed-tap": {
+        "state": "49e50ed600bae574816861dd3712a38498480b3ae198cafebc1b8190e383e57f",
+        "rng": 207673,
+        "audio": "54f2849eeb163cfe61b04163591043569a90d04d6546406a45b225f3c06006a5",
+        "audioCalls": 938,
+        "store": "5fd67bbc90753c7a4c72eacc670be384ab33bf649419722140b6e58bcbad09c0"
+      },
+      "level-1:screen-swipe": {
+        "state": "8c40c72cafa2d9247c3e50358e688e10d6142d3aa01493e3775b3bc1dcfb53bc",
+        "rng": 207689,
+        "audio": "2c8ec918b7030536a7d090b80e386ca6243c8c125adc19694e00ecaeb6f6ce77",
+        "audioCalls": 1167,
+        "store": "5fd67bbc90753c7a4c72eacc670be384ab33bf649419722140b6e58bcbad09c0"
+      },
+      "level-1:radial-swipe": {
+        "state": "35ae506cef8e0b6a8cd7697d65fa882f4bacfe655bd64c2272e01fa7a786b697",
+        "rng": 207705,
+        "audio": "c15506ac6ca454aa1cd9522f618df1284f0f6ff8322cc4bfdf342397df596c3e",
+        "audioCalls": 1450,
+        "store": "5fd67bbc90753c7a4c72eacc670be384ab33bf649419722140b6e58bcbad09c0"
+      },
+      "level-1:keyboard-repeat": {
+        "state": "006c45fd2051e9906ac6fdd547bebc2445e2e7c8d8773679b0db6f3cf8adc96c",
+        "rng": 207729,
+        "audio": "2b36f623f9fa131440d0e7f714b4a0569c2b2bcb281675998d941e8affb471f5",
+        "audioCalls": 1798,
+        "store": "5fd67bbc90753c7a4c72eacc670be384ab33bf649419722140b6e58bcbad09c0"
+      },
+      "level-2:moving": {
+        "state": "464dc73bd5811064cac07635b16d53c96b6c95f09bdcb912afa961e36c75fa32",
+        "rng": 207729,
+        "audio": "7095c156088a97ff3379113f22dc11b8caa957c6774fcad13deb4f2bd62f038e",
+        "audioCalls": 2163,
+        "store": "35fe9405cc4cc33f450558fab03d0398be2f187999bde0ba47bf722239276adc"
+      },
+      "level-2:held-tap": {
+        "state": "688aea559453f71ed4dba79c320a6e0416f8c8c7d573986b630b479f33d02d09",
+        "rng": 207733,
+        "audio": "4f9c92c0f3860d79727874ab8ba0083ec3cafa9a0b0111bc35a776927ba9112a",
+        "audioCalls": 2435,
+        "store": "35fe9405cc4cc33f450558fab03d0398be2f187999bde0ba47bf722239276adc"
+      },
+      "level-2:committed-tap": {
+        "state": "5039fa5a63cb8da99a112a8984605a6702895551bb1bb9eb4b1fbb75e14e4d7b",
+        "rng": 207761,
+        "audio": "22404b28428f0f0ae0ba6d86f1852476e17c61bee90155f4f2340fe34adaca19",
+        "audioCalls": 2715,
+        "store": "35fe9405cc4cc33f450558fab03d0398be2f187999bde0ba47bf722239276adc"
+      },
+      "level-2:screen-swipe": {
+        "state": "0fd0c5e9b32b00c8d640b4c6538d086d10cbecd1c98c21ac3acec69fe3dc0566",
+        "rng": 207761,
+        "audio": "2a4b0dea6452e1862a60b03a6ea764b0eea619dcb512f36c8fdceb5eb17c1a87",
+        "audioCalls": 2997,
+        "store": "0da630a63c94371d5235fe3fa31373f80d0e53d567f9fe19c2d5777625e7b135"
+      },
+      "level-2:radial-swipe": {
+        "state": "28c871de14d6b63745ca2ed31333164869b9edb919b0dc0017e927d3d1f0c602",
+        "rng": 207765,
+        "audio": "bc6f3a5a9027837ad194d66b10fbb80a9e3cbc48a38fa0e884f75dda40e9cc48",
+        "audioCalls": 3399,
+        "store": "0da630a63c94371d5235fe3fa31373f80d0e53d567f9fe19c2d5777625e7b135"
+      },
+      "level-2:keyboard-repeat": {
+        "state": "2b8d411183103d3e04f4621fd258fc70c588a8ce0df702f5b6c1bd8d0402d56a",
+        "rng": 207789,
+        "audio": "11f38a36b6e20ad8cd3ce69f8d0fa09aa052346d021472a8886188f622216732",
+        "audioCalls": 3776,
+        "store": "0da630a63c94371d5235fe3fa31373f80d0e53d567f9fe19c2d5777625e7b135"
+      },
+      "level-3:moving": {
+        "state": "f010525d54c5831a180fb8ed9a1f17bdfd29606d7a3078417ba15deb35f7cc41",
+        "rng": 207789,
+        "audio": "2ed7b9493083bf5dbebf164e17215d30cbb792ff5a5599e67aee3e01424d0978",
+        "audioCalls": 4383,
+        "store": "13ad7d903f968d57d6305fd2ed30407798ad4b0534ab928ad91f58cbf77e9dd8"
+      },
+      "level-3:held-tap": {
+        "state": "c3eecd8c1bb29d7a3d95e351219c5b0fec2c4ec0f92a4d11ec5dfdb64eed7147",
+        "rng": 207793,
+        "audio": "ba037c728cb6a7bedef9cf9d04293e323574e5fea2d214b24f3818331a47fa1c",
+        "audioCalls": 4482,
+        "store": "13ad7d903f968d57d6305fd2ed30407798ad4b0534ab928ad91f58cbf77e9dd8"
+      },
+      "level-3:committed-tap": {
+        "state": "b4bc8922d650a6d958476e2adfdba72ab69ebd398614630e163106ca519b087f",
+        "rng": 207817,
+        "audio": "eaa50121c92b93a5f157690d65365dc19f469638f0423d5b855d8786b6161fe1",
+        "audioCalls": 4860,
+        "store": "13ad7d903f968d57d6305fd2ed30407798ad4b0534ab928ad91f58cbf77e9dd8"
+      },
+      "level-3:screen-swipe": {
+        "state": "1381914a1fe4d3f3edc7aac4b1f3c173310264e2019eb56ea60347694f382988",
+        "rng": 207821,
+        "audio": "6944695abe1151f9b4e0fc336b5cf7a1866e17e81ddc39310b461acf26f43ac2",
+        "audioCalls": 5284,
+        "store": "13ad7d903f968d57d6305fd2ed30407798ad4b0534ab928ad91f58cbf77e9dd8"
+      },
+      "level-3:radial-swipe": {
+        "state": "74185cec8e7f509c2e3632c9d139531fa31516a1b5f73223d6d8c98787620b68",
+        "rng": 207825,
+        "audio": "a1c607834081afd68c95b7941a56a06f2bfbc1ff6e93e1dee979e3906c578eb8",
+        "audioCalls": 5624,
+        "store": "13ad7d903f968d57d6305fd2ed30407798ad4b0534ab928ad91f58cbf77e9dd8"
+      },
+      "level-3:keyboard-repeat": {
+        "state": "e2b0aab0e642994f4c21e188284df5dcedaaf8c1fb9d79269240f1fdb7834d95",
+        "rng": 207853,
+        "audio": "bbf42e24fece54a88bef0c38cb939ab3ab0a004b7d8071240bdc00c56aa02f6e",
+        "audioCalls": 5916,
+        "store": "13ad7d903f968d57d6305fd2ed30407798ad4b0534ab928ad91f58cbf77e9dd8"
+      },
+      "level-4:moving": {
+        "state": "aed80d32ebb4cf175feb6e53e6303c2096d330512dbcfbaf914ab96938dbbf30",
+        "rng": 207853,
+        "audio": "9ee80a0bf0ae9cf55f4a8a03947c55c78ddeb7ebcb0991363526c8a6d86b2597",
+        "audioCalls": 6473,
+        "store": "9e1cfe5c38155daca6aaf43817c92f19de2c6a7ab14bf4cb23299d7fe34e4117"
+      },
+      "level-4:held-tap": {
+        "state": "29009924a5a0a37dd5258c606fe3e094e46768cd624482248502f8de26408008",
+        "rng": 207857,
+        "audio": "2abe7e740decc86c65a75ee495e82b32391d11702d429636410ae095eb4267e6",
+        "audioCalls": 6572,
+        "store": "9e1cfe5c38155daca6aaf43817c92f19de2c6a7ab14bf4cb23299d7fe34e4117"
+      },
+      "level-4:committed-tap": {
+        "state": "50444f47b6ed999299261041e278693226c99ff687c00d0c347ce417dacf3b36",
+        "rng": 207885,
+        "audio": "417f4807df508e254e159e63f93af6d329631f72dac9bf4080e365d0618fd621",
+        "audioCalls": 6947,
+        "store": "9e1cfe5c38155daca6aaf43817c92f19de2c6a7ab14bf4cb23299d7fe34e4117"
+      },
+      "level-4:screen-swipe": {
+        "state": "3fe9a527578f4371aea619d1ce5c591dfbddcc6fc752b5e45ae010557b0969a1",
+        "rng": 207941,
+        "audio": "cc44598825feb6b61953bbe7cadddb390b9466161220c8738354ad4e28bea644",
+        "audioCalls": 7418,
+        "store": "9e1cfe5c38155daca6aaf43817c92f19de2c6a7ab14bf4cb23299d7fe34e4117"
+      },
+      "level-4:radial-swipe": {
+        "state": "6868eb60e7fcef7ab533bb3710f1edaabb63ede6cdd79f3a66ae7f3f5f896f07",
+        "rng": 207945,
+        "audio": "2ede122d879fa4d7238654bdc2717d3abc99783262b71683a716286c8e9bcc54",
+        "audioCalls": 7950,
+        "store": "9e1cfe5c38155daca6aaf43817c92f19de2c6a7ab14bf4cb23299d7fe34e4117"
+      },
+      "level-4:keyboard-repeat": {
+        "state": "8050a4596241055341adec134228ba0e80ec307cd55aa3d61717ecd18e198b76",
+        "rng": 207973,
+        "audio": "bab5952b029eb106f5bef6e04b330ff1754e2829330b9c1e27ad18bad529f004",
+        "audioCalls": 8341,
+        "store": "9e1cfe5c38155daca6aaf43817c92f19de2c6a7ab14bf4cb23299d7fe34e4117"
+      },
+      "level-5:moving": {
+        "state": "17ce12691e78c4e46babc61c4278d629117dd3960ac7fab2189b264916b6cbe8",
+        "rng": 207973,
+        "audio": "62570581061cf3b4f6639f43c94580727e79df23da660405231c3e71b4d97169",
+        "audioCalls": 8728,
+        "store": "60d53f145bdf9284e8e951d3e5ac72cbe940d9b88eaa9dc6ed08bea0cb4fe9cb"
+      },
+      "level-5:held-tap": {
+        "state": "a2447106fa6c657641f13e594fc1d93916cd13b14978f1c690bfda0e03979bc2",
+        "rng": 207977,
+        "audio": "b7ffcba37502cae2c792725877773aaabd0fa88956e00a9f954ea7f06ee1713d",
+        "audioCalls": 8854,
+        "store": "60d53f145bdf9284e8e951d3e5ac72cbe940d9b88eaa9dc6ed08bea0cb4fe9cb"
+      },
+      "level-5:committed-tap": {
+        "state": "352f203a9826b6420446dfa385f3a70907457569dd89d7eaf418f4690a6228e8",
+        "rng": 208005,
+        "audio": "98c3d707b1fb614a17663e1ff90cffd31a4d69d7618080fa6d1898893e7313d6",
+        "audioCalls": 9118,
+        "store": "60d53f145bdf9284e8e951d3e5ac72cbe940d9b88eaa9dc6ed08bea0cb4fe9cb"
+      },
+      "level-5:screen-swipe": {
+        "state": "1fb786a6df4b6476e1bf9c1cdec17904831cfaf85db2989f19006baf3af8b71a",
+        "rng": 208005,
+        "audio": "19fcc6e12c8fe30c1b9dbfa0f37bafbbe9c6937b4a5d3503c09d20b2dbc0417b",
+        "audioCalls": 9436,
+        "store": "60d53f145bdf9284e8e951d3e5ac72cbe940d9b88eaa9dc6ed08bea0cb4fe9cb"
+      },
+      "level-5:radial-swipe": {
+        "state": "cbae83e683fb797c752c02582e22f577f57f8ecc4727715dd026a0313975a026",
+        "rng": 208009,
+        "audio": "3ebe49834d67fa3c586dc3edf89d3de8ebee82c54066ac477ab0cf83552c31f0",
+        "audioCalls": 9788,
+        "store": "60d53f145bdf9284e8e951d3e5ac72cbe940d9b88eaa9dc6ed08bea0cb4fe9cb"
+      },
+      "level-5:keyboard-repeat": {
+        "state": "16d3c836f9971afc058dbaaf908725fc496c063948964c96ed1fd8293845340e",
+        "rng": 208037,
+        "audio": "31aae3725f7756ee8976d927f7d5ba69e838ee418d4d9f1d5f392ecba18118b0",
+        "audioCalls": 10035,
+        "store": "60d53f145bdf9284e8e951d3e5ac72cbe940d9b88eaa9dc6ed08bea0cb4fe9cb"
+      },
+      "level-6:moving": {
+        "state": "f4facced3e33cbc0ff7e46647db04a396fa23f398eb2b08973727948348a5bc1",
+        "rng": 208037,
+        "audio": "185c69230a5fb2df81e5c0907dbdd1759d1a2505f0aae91a0a7567afe3f49771",
+        "audioCalls": 10713,
+        "store": "7c32464a60a14927a1e7455c03d18337984267716e8188d22a58ce7baaba8416"
+      },
+      "level-6:held-tap": {
+        "state": "cd4cc0132fcedead870551d150d7b4770f11bc3fd636e0eb7061021fcb2c5a6c",
+        "rng": 208041,
+        "audio": "6a4f5dc24294ddc91e20dc87831610acf4e9f161b689f8f5dea5839a38dc1d39",
+        "audioCalls": 10900,
+        "store": "7c32464a60a14927a1e7455c03d18337984267716e8188d22a58ce7baaba8416"
+      },
+      "level-6:committed-tap": {
+        "state": "7bb5d0b132b8c0d0d646521627b04cc66c4ed8f777db2eedbbb4ab2a83db74d3",
+        "rng": 208069,
+        "audio": "86d34c1c8ad2969a08e98a0b69c36be3f4b2fd3880a3c85806ffe20cc0c89709",
+        "audioCalls": 11163,
+        "store": "7c32464a60a14927a1e7455c03d18337984267716e8188d22a58ce7baaba8416"
+      },
+      "level-6:screen-swipe": {
+        "state": "447b6aa7e3caf29bdd7fc6235f78fc7e42c2f75f19fecec5977026e0daf04c37",
+        "rng": 208069,
+        "audio": "e04cffc24f4e068cb17348ce8cbf6973a27f0e2eb1e22927242abe1527ff3b16",
+        "audioCalls": 11445,
+        "store": "7c32464a60a14927a1e7455c03d18337984267716e8188d22a58ce7baaba8416"
+      },
+      "level-6:radial-swipe": {
+        "state": "863c4f2037900ceb4f22488c9eecf398f881b350c63c4466ca76853d2f217d65",
+        "rng": 208073,
+        "audio": "9201b3c4c0a0a5bc38caf11fede226f872d694cc65f6fa1e7d3d44ccd49d8307",
+        "audioCalls": 11775,
+        "store": "7c32464a60a14927a1e7455c03d18337984267716e8188d22a58ce7baaba8416"
+      },
+      "level-6:keyboard-repeat": {
+        "state": "07fa4200fc34459fcf18fcacef7f6323e9224f2b49219da8b7d5f1131f7036f8",
+        "rng": 208101,
+        "audio": "acc724cfd020d6bc0565b4e7c31a2f608ebd31dc4530d0e4f0d987eefef67f48",
+        "audioCalls": 12060,
+        "store": "7c32464a60a14927a1e7455c03d18337984267716e8188d22a58ce7baaba8416"
+      },
+      "pause-frozen": {
+        "state": "323f04ff02133a8482d2528ee766f374c3f7491d4ca2ef9799d8094b1fbcc031",
+        "rng": 208101,
+        "audio": "3fe71f0527889d7cbb8da6ebc879c666de2b038592af41faba51f553792d3c7a",
+        "audioCalls": 12066,
+        "store": "7c32464a60a14927a1e7455c03d18337984267716e8188d22a58ce7baaba8416"
+      },
+      "resume-count-in": {
+        "state": "556105f915f8661e5260a3c70edf12f07dffb883c8c2c5b7e4f20612b8a8774f",
+        "rng": 208101,
+        "audio": "3fe71f0527889d7cbb8da6ebc879c666de2b038592af41faba51f553792d3c7a",
+        "audioCalls": 12066,
+        "store": "7c32464a60a14927a1e7455c03d18337984267716e8188d22a58ce7baaba8416"
+      },
+      "resume-live": {
+        "state": "8e1562018c91654190efa44696cf9d0f68772af15399c2796d19dd5b9650fd5f",
+        "rng": 208101,
+        "audio": "13469046da376200a181c255dfeba51615783045ae22a85fd4ebe1c200a353e0",
+        "audioCalls": 12141,
+        "store": "7c32464a60a14927a1e7455c03d18337984267716e8188d22a58ce7baaba8416"
+      },
+      "power-shield": {
+        "state": "baaafe29ca91b17ce501b58a7fd8796d635d8e8de5c8ecec68102be03ffaf167",
+        "rng": 208157,
+        "audio": "84b5f89424ddfd9ad9b570ad4d8cac26120a96aa631777f09a63817bf0b6cd39",
+        "audioCalls": 12308,
+        "store": "7441aec41cf8881db090127cd98434b52f3757e7e2fb8b5d3e10fc336741a304"
+      },
+      "power-warp": {
+        "state": "7a4c20e8767f283b458a46cdc1edff99727f8412198dfa8e0e042deba0dfec9a",
+        "rng": 208213,
+        "audio": "d5da9366ee15dbdd42eeb752cf863069308ab981ca87af8efcfd7b3ae810bde3",
+        "audioCalls": 12455,
+        "store": "7441aec41cf8881db090127cd98434b52f3757e7e2fb8b5d3e10fc336741a304"
+      },
+      "power-nova": {
+        "state": "fd2c63aca7a87ae3cf1c92be6ed56484cd0f5387a48c07f587699919e3c606ad",
+        "rng": 208409,
+        "audio": "1614edc23e6fc38099aa6f6cbf0cfbffb8debdc494d8b5e266a53c64db19be1a",
+        "audioCalls": 12788,
+        "store": "7441aec41cf8881db090127cd98434b52f3757e7e2fb8b5d3e10fc336741a304"
+      },
+      "power-spot": {
+        "state": "caca92a5767a9ea4bdf7d054a54f89638d1b6a3fd01ff03a51c17043bce25089",
+        "rng": 208489,
+        "audio": "6bb5f1746eb7ab768305165994159559cf68cc7f89abb6acebfbc5b64fc81c18",
+        "audioCalls": 13095,
+        "store": "4504f87b4d94f479b4310fc69788747fec632a4526f067dc1146007c104d1101"
+      },
+      "power-hyper": {
+        "state": "409dca7429290bcdb7604258d4cf5ed8d6529fbe6d3ba56b33adb53faa350a07",
+        "rng": 208641,
+        "audio": "7be57429d84d381790f38b2c2e2de9d814b7d95e18d00b67b7f171bb494a7ddc",
+        "audioCalls": 13343,
+        "store": "ddbeb9dba603c44512a53906d0ecbf35b042da137fba81c0df41b2695f918675"
+      },
+      "power-mirror": {
+        "state": "4a22a480a1ad0c03d205504b3b9475881f5bdc54e815a4b38dc340bdc0bf65c0",
+        "rng": 208717,
+        "audio": "d50172487bd9aadb61afc8618d6ceb3202f347216462fd07479f32f7befebcc4",
+        "audioCalls": 13816,
+        "store": "7026013bc2c2209b920bc7b6940c2759484c35c460d3ff265bb8aa1cbb96a2d4"
+      },
+      "power-scorch": {
+        "state": "ff2a59de70e4fe4014f4297af3a308e51e693efc15a32fd4fa71cddf9ff67149",
+        "rng": 208853,
+        "audio": "ab675f40650906bbd3294fb3b4e55fc1b36de04d74cacab32411ad125ff1cdb9",
+        "audioCalls": 14238,
+        "store": "fe846a734047b095b6c6f009f4ae495f00af9e8dcac7308334008bbfc8ed6393"
+      },
+      "power-slip": {
+        "state": "f93845f2ca587f200634b7396ba26f3e378aaf143c1fad6bd4adf4d58ee90667",
+        "rng": 208917,
+        "audio": "27ee237bcb9cd5f28dc7c64167042017b13061bd36b9ca8832a88799eed932fc",
+        "audioCalls": 14731,
+        "store": "b1f6b10083ed48e4d1241ba60ea0bb1a9fcaaeb4aa0629f46d89b052591d5442"
+      },
+      "power-trail": {
+        "state": "e15ab8402a9f2dbebe342cafee21e09f07e911b239f33f4b79a368f784ea5ded",
+        "rng": 208977,
+        "audio": "7a585fe7d815307f69ff360e676a1690a26bec07876a68fd93a5c3fe08be4255",
+        "audioCalls": 15007,
+        "store": "614451d79207492d7e8f28e6c1639b69865f9af778ba296260e597b22b581413"
+      },
+      "starfall-active": {
+        "state": "6ccc758e5cd47a5c388fb1c76a58d3611199d113e236585124d0dd3a41daf5ed",
+        "rng": 209705,
+        "audio": "c2c77bb98388439b726eaf4e3f74036a7cc83d98f19fd6a0af89eb64e1f40b9b",
+        "audioCalls": 18082,
+        "store": "614451d79207492d7e8f28e6c1639b69865f9af778ba296260e597b22b581413"
+      },
+      "black-hole-opening": {
+        "state": "23a68e5d8223c6e25a2e4cb3242728f95c49ea3869a79a88aa20362329953bd8",
+        "rng": 209705,
+        "audio": "8ec870b7114eb8069f3be544155e4d0af81588141efbb74071fb91c10930d443",
+        "audioCalls": 19283,
+        "store": "614451d79207492d7e8f28e6c1639b69865f9af778ba296260e597b22b581413"
+      },
+      "black-hole-inner-charge": {
+        "state": "5891fad7ac259ca56d3911b1243738604158ae5848cb755090eba0a1a3ebb854",
+        "rng": 209705,
+        "audio": "3a5c1fb8c9d74fa23bf031a6825ba9807b0c08d5254d4e31daca1ec3c3e557f4",
+        "audioCalls": 24096,
+        "store": "614451d79207492d7e8f28e6c1639b69865f9af778ba296260e597b22b581413"
+      },
+      "black-hole-escape-and-reward-resume": {
+        "state": "c9ddca22682036dd210613683aeb781e77b6b41014fc325acf93b230d63d5362",
+        "rng": 209761,
+        "audio": "a3eecc38e32bfde95355afa5a85391b4d0af0c71e005df8804e2e9eafdda4396",
+        "audioCalls": 25906,
+        "store": "614451d79207492d7e8f28e6c1639b69865f9af778ba296260e597b22b581413"
+      },
+      "death": {
+        "state": "fa1238a3fdaff89e03faab1297776031e5d0c29e94a3ac2c4dd80ed496031522",
+        "rng": 209929,
+        "audio": "1987fc9b56094545180a25566506e321a04d308a5173f1bb47855f47a0608acc",
+        "audioCalls": 26488,
+        "store": "a42a928fd7b7b9809f48d879a2a54e3ed30b892f412836a9aa59605713228783"
+      },
+      "retry": {
+        "state": "ff8e59b927f8811e35cd21ece0db16b695275a87872c1fda38df55c373215a36",
+        "rng": 209929,
+        "audio": "53fce032a82f2947e748672c3a1d3842d4de61436be77be8dfc2452feeed2c9c",
+        "audioCalls": 26818,
+        "store": "a42a928fd7b7b9809f48d879a2a54e3ed30b892f412836a9aa59605713228783"
+      }
+    }
+  }
+}

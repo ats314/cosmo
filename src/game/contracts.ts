@@ -1,4 +1,5 @@
 import type { HapticKind } from '../platform/native';
+import type { FlightFrame } from './flight-world';
 
 export interface HitRect { id: string; x: number; y: number; w: number; h: number }
 export interface GameSnapshot {
@@ -17,7 +18,7 @@ export interface GameSnapshot {
   loopOwner?: 'Phaser';
   sceneCount?: number;
   engineUpdates?: number;
-  background: { gpu: boolean; materialCount: number };
+  background: { gpu: boolean; materialCount: number; flight?: boolean };
   reward: { orbits: number; starfall: boolean; wave: number };
 }
 export interface GamePointer {
@@ -39,6 +40,8 @@ export interface RuntimeHost {
   native?: boolean;
   haptic?: (kind: HapticKind) => void;
   getTexture?: (key: string) => HTMLImageElement | HTMLCanvasElement | null;
+  flightEnabled?: boolean;
+  renderFlight?: (frame: FlightFrame) => void;
 }
 export interface GameRuntime {
   step(deltaMs: number): void;
@@ -53,6 +56,7 @@ export interface GameRuntime {
   resume(): void;
   back(): boolean;
   snapshot(): GameSnapshot;
+  flightFrame(): FlightFrame;
   destroy(): void;
 }
 

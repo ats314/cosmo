@@ -37,6 +37,7 @@ jobs:
       - run: node tools/drawcheck.mjs
       - run: node tools/rendercheck.mjs
       - run: node tools/enginecheck.mjs
+      - run: node tools/flightcheck.mjs
       # Ship the exact bundle that passed every check. Do not rebuild in deploy.
       - if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3

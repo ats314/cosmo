@@ -23,20 +23,21 @@ not an endless exam or a prohibition on new mechanics.
 
 ## Two implementations, and which one you are in
 
-Cosmo is being rebuilt on Godot. Both trees are live and neither is a copy of
-the other, so establish which one your change lands in before you edit.
+The owner has chosen to continue the original web game with a 3D visual
+upgrade. The web game's existing behavior is authoritative. The Godot
+prototype remains available as a reference for the feeling of forward flight.
 
-- **`native-godot/`** — the Godot 4.7.2 port, and where new game work belongs.
+- **`native-godot/`** — the preserved Godot 4.7.2 prototype.
   Read native-godot/PORT_STATUS.md first; it is the authoritative record of what
   has actually been ported and, more usefully, what has not.
-- **Repository root** — the shipping Phaser web product. It still builds,
-  deploys and passes its harnesses. Change it for fixes to what is live, not to
-  add what the port should carry.
+- **Repository root** — the shipping Phaser web product and the home of the
+  approved forward-flight visual upgrade.
 
-The rebuild works from the design record rather than transliterating the
-JavaScript. Design intent, the tuned numbers and the original art carry over;
-the implementation is written fresh in Godot idiom. A tuned number is worth as
-much in Godot as it was in WebAudio — carry the value, not the function.
+Keep the original input, WebAudio composition and scheduling, gameplay rules,
+progression, teaching, UI and accounts. A graphics upgrade is not permission
+to recreate these systems or replace their behavior. See
+[flight presentation](docs/engine/flight-presentation.md) for the read-only
+boundary and the classic comparison switch.
 
 ## Architecture — the Godot port
 
@@ -64,6 +65,8 @@ much in Godot as it was in WebAudio — carry the value, not the function.
   Phaser's cache. The runtime can render its procedural fallback without them.
 - CosmoScene forwards normalized input and renders the runtime through a
   Phaser display object. There is no iframe or second live animation loop.
+- flight-world.ts renders perspective geometry on the existing sky context
+  from copied runtimeFlightFrame data. It owns no gameplay or audio.
 - src/game/contracts.ts and runtime.d.ts define the typed runtime boundary.
   src/game/runtime.js still contains the tuned JavaScript gameplay, audio,
   drawing and GPU effects. Do not claim that this core is fully TypeScript.

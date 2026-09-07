@@ -88,6 +88,7 @@ try {
   assert.equal(state.state, 'menu');
   assert.equal(state.background.gpu, true, 'the built host did not initialize the GPU background');
   assert.equal(state.background.materialCount, 3, 'the GPU background did not receive its three Phaser materials');
+  assert.equal(state.background.flight, true, 'the forward-flight geometry failed to initialize');
   const launch = state.menuRects.find(r => r.id === 'start');
   assert(launch && [launch.x, launch.y, launch.w, launch.h].every(Number.isFinite), 'LAUNCH has no finite hit area');
   await page.touchscreen.tap(launch.x + launch.w / 2, launch.y + launch.h / 2);
@@ -131,8 +132,26 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForFunction(() => window.COSMO_APP.snapshot().viewport.width === 390);
   assert.equal(await page.evaluate(() => window.__drawErr?.message || null), null, 'runtime rendering threw');
+  assert.equal((await snapshot()).background.flight, true, 'flight geometry failed after resize');
+  // Exercise the shared sky's actual GPU lifecycle. Input and the Canvas game
+  // must survive the fallback, then the new renderer must be recreated.
+  await page.evaluate(() => {
+    const gl = document.querySelector('#bg').getContext('webgl');
+    const extension = gl.getExtension('WEBGL_lose_context');
+    if (!extension) throw new Error('WebGL context-loss test extension unavailable');
+    extension.loseContext();
+    setTimeout(() => extension.restoreContext(), 250);
+  });
+  await page.waitForFunction(() => !window.COSMO_APP.snapshot().background.gpu);
+  await page.waitForFunction(() => window.COSMO_APP.snapshot().background.flight);
+  assert.equal((await snapshot()).background.gpu, true, 'the original sky did not recover with flight geometry');
+  await page.goto(origin + '/?flight=0');
+  await page.waitForFunction(() => window.COSMO_APP?.snapshot().menuRects.length > 0);
+  state = await snapshot();
+  assert.equal(state.background.gpu, true, 'classic comparison lost the original sky');
+  assert.equal(state.background.flight, false, 'classic comparison still renders flight geometry');
   assert.deepEqual(errors, [], 'the built app raised a browser exception');
-  console.log('ENGINECHECK OK  Phaser boot, three GPU materials, LAUNCH, pointer tap, touch swipe, portrait/landscape resize and one loop');
+  console.log('ENGINECHECK OK  Phaser boot, sky/flight geometry, LAUNCH, pointer tap, touch swipe, resize, one loop, context recovery and classic comparison');
 } finally {
   try { if (browser) await browser.close(); }
   finally {

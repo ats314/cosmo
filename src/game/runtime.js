@@ -712,6 +712,8 @@ function radiusOf(i){return R*RADII[i];}
 let ARENA_PARALLAX=1.0;
 const PARA_K=1.15;          /* the arena's swing as a multiple of the dolly's */
 let paX=0,paY=0;            /* set once per frame in draw(), from camX/camY */
+/* Presentation-only copy of the translation actually drawn this frame. */
+let flightShakeX=0,flightShakeY=0;
 function depthOf(r){return R>0?Math.min(1.35,r/R):0;}
 function posAt(a,r){
   const d=depthOf(r);
@@ -9459,7 +9461,7 @@ const GL_MOTION=1.0;               /* seconds of visible, differential sky flow 
 const GL={on:false,g:null,pr:null,u:{},cv:null,vw:0,vh:0,tw:0,flowVt:null,stream:0,currentDir:1,art:[]};
 const GL_FS=`precision highp float;
 uniform vec2 uRes,uCtr;
-uniform float uTime,uCalm;
+uniform float uTime,uCalm,uFlightMode;
 uniform vec4 uArc,uShape,uAccent,uPlanet,uSurface;
 uniform vec3 uTint,uRim,uDust,uEventTint,uArena,uArt,uLive;
 uniform vec4 uCurrent,uPowerFlow;
@@ -9555,6 +9557,29 @@ void main(){
   vec3 col=vec3(0.008,0.012,0.027)+uTint*0.009;
   col+=mist*cloudLight*(0.52+crevice*1.06);
   col+=uRim*pow(max(0.0,grain-0.50)*3.0,2.0)*structure*0.44;
+  if(uFlightMode>0.5){
+  /* A continuous volume surrounds the flight axis. Reciprocal ray depth
+     makes its broad clouds expand toward us instead of sliding over glass.
+     Sample the circular direction directly: there is no polar seam, camera
+     roll or bright series of hoops. Near dust belongs to the flight mesh. */
+  vec2 ray=uv-uCtr;
+  ray.y/=max(0.2,uArena.z);
+  float rayRadius=length(ray);
+  vec2 rayDirection=ray/max(rayRadius,0.025);
+  float rayDepth=0.32/max(rayRadius,0.075);
+  float passage=uTime*0.085;
+  vec2 volumePoint=vec2(rayDirection.x*2.7+rayDirection.y*1.3,
+    rayDepth*1.65-passage);
+  volumePoint.x+=sin(rayDepth*0.8+uLive.y*0.035)*0.24;
+  float volume=noise2(volumePoint)*0.65+
+    noise2(volumePoint*2.1+vec2(5.3,1.7))*0.35;
+  float shoulder=smoothstep(uArena.x*0.86,uArena.x+0.14,rr);
+  float distanceHaze=exp(-rayDepth*0.22);
+  float folds=smoothstep(0.34,0.78,volume)*distanceHaze*shoulder;
+  vec3 passageTint=mix(uDust,uTint,volume);
+  col*=1.0-folds*0.16;
+  col+=passageTint*folds*0.15;
+  }
   /* An unmarked transparent plasma wisp supplies fine material only.
      The authored procedural cloud volume still owns shape and density. */
   if(uArt.x>0.5){
@@ -9637,26 +9662,41 @@ void main(){
      beneath it and its illuminated strands make the scale unmistakable. */
   col=mix(col,col*(1.0-ringOpacity*0.70)+ringLight,front);
 
-  /* Three sparse depths with native-pixel cores. Stars are absent behind the
-     opaque world, with rare diffraction glints belonging to the brightest. */
+  /* Three distant star planes approach the same flight axis. Their staggered
+     far/near fades hide depth recycling; native-pixel cores stay quiet behind
+     the foreground particles. The opaque world still occludes every plane. */
   for(int layer=0;layer<3;layer++){
     float l=float(layer),scale=19.0+l*17.0;
+    float starDepth=1.0,starFade=1.0;
     vec2 starTravel=vec2(uTime*0.0018*(l+1.0),uTime*0.00075*(l+1.0));
     vec2 su=(uv+drift*(l+1.0)*0.7+starTravel+vec2(0.73+l*2.1,0.47))*scale;
+    if(uFlightMode>0.5){
+    float starCycle=uTime*0.025+l/3.0;
+    float starPhase=fract(starCycle);
+    starDepth=mix(1.9,0.8,starPhase);
+    starFade=smoothstep(0.0,0.13,starPhase)*
+      (1.0-smoothstep(0.82,1.0,starPhase));
+    starTravel=vec2(uLive.y*0.0007*(l+1.0),0.0);
+    su=((uv-uCtr)*starDepth+uCtr+drift*(l+1.0)*0.7+
+      starTravel+vec2(0.73+l*2.1,0.47+floor(starCycle)*1.7))*scale;
+    }
     vec2 cell=floor(su),sf=fract(su)-0.5;
     float h=hash21(cell+19.7+l*5.0);
-    if(h>0.91){
+    float starThreshold=uFlightMode>0.5?0.955:0.91;
+    if(h>starThreshold){
       vec2 off=vec2(hash21(cell+1.3),hash21(cell+8.7))-0.5;
-      vec2 sd=(sf-off*0.70)/scale;
+      vec2 sd=(sf-off*0.70)/(scale*starDepth);
       vec2 radial=normalize(raw-uCtr+vec2(0.0001));
       float stretch=1.0+hyper*2.0;
       sd-=radial*dot(sd,radial)*(1.0-1.0/stretch);
       float size=(0.48+(h-0.91)*8.0)/(uRes.y*0.5);
+      if(uFlightMode>0.5)size=(0.48+(h-0.955)*16.0)/(uRes.y*0.5);
       float core=exp(-dot(sd,sd)/(size*size));
       float rays=exp(-abs(sd.x)/(size*0.22)-abs(sd.y)/(size*5.0))+
                  exp(-abs(sd.y)/(size*0.22)-abs(sd.x)/(size*5.0));
       vec3 starColor=mix(vec3(0.58,0.76,1.0),vec3(1.0,0.81,0.61),hash21(cell+4.6));
-      col+=starColor*(core*(0.30+l*0.12)+rays*0.10*step(0.985,h))*uAccent.z*(1.0-planetMask)*0.88/stretch;
+      col+=starColor*(core*(0.30+l*0.12)+rays*0.10*step(0.985,h))*
+        uAccent.z*(1.0-planetMask)*0.88*starFade/stretch;
     }
   }
   float inside=1.0-smoothstep(uArena.x+0.008,uArena.x+0.065,rr);
@@ -9664,6 +9704,18 @@ void main(){
   col*=1.0-uCalm*inside*outside*0.38;
   float eclipse=amp*amp*(3.0-2.0*amp);
   col*=1.0-blackhole*eclipse*0.62*exp(-rr*rr/0.20);
+  if(uFlightMode>0.5){
+  /* A shaded throat makes the singularity a destination in this same
+     volume. It stays inside the inner route, preserving the wager's lanes
+     and charge/escape display rather than putting a disc over gameplay. */
+  float throat=max(0.015,uArena.y*0.68);
+  float throatR=length(raw-uCtr);
+  float throatShade=1.0-smoothstep(throat*0.46,throat,throatR);
+  float throatLimb=exp(-pow((throatR-throat)/(throat*0.18),2.0));
+  float throatSide=0.35+0.65*max(0.0,dot(normalize(raw-uCtr+vec2(0.0001)),sun.xy));
+  col*=1.0-blackhole*eclipse*throatShade*0.90;
+  col+=mix(uDust,uRim,0.35)*throatLimb*throatSide*blackhole*eclipse*0.07;
+  }
   /* Soft photographic shoulder protects highlights without clipping a sun
      into a white patch. Positive space colour survives every morph. */
   col=vec3(1.0)-exp(-max(col,0.0)*1.35);
@@ -9694,7 +9746,7 @@ function glInit(){
     const loc=g.getAttribLocation(pr,'p');
     g.enableVertexAttribArray(loc);g.vertexAttribPointer(loc,2,g.FLOAT,false,0,0);
     GL.u={};
-    for(const n of ['uRes','uCtr','uTime','uCalm','uArc','uShape','uAccent','uPlanet','uSurface','uTint','uRim','uDust','uEventTint','uArena','uArt','uLive','uCurrent','uPowerFlow','uFlight','uRelease','uNebulaMap','uPlanetMap','uRingMap'])
+    for(const n of ['uRes','uCtr','uTime','uCalm','uFlightMode','uArc','uShape','uAccent','uPlanet','uSurface','uTint','uRim','uDust','uEventTint','uArena','uArt','uLive','uCurrent','uPowerFlow','uFlight','uRelease','uNebulaMap','uPlanetMap','uRingMap'])
       GL.u[n]=g.getUniformLocation(pr,n);
     const blank=g.createTexture(),pixel=document.createElement('canvas');pixel.width=pixel.height=1;
     g.bindTexture(g.TEXTURE_2D,blank);
@@ -9991,6 +10043,7 @@ function glRender(dt){
     g.uniform2f(GL.u.uCtr,(cx-W*0.5)/H,((H-cy)-H*0.5)/H);
     g.uniform1f(GL.u.uTime,GL.tw);
     g.uniform1f(GL.u.uCalm,SKY_ARENA_CALM);
+    g.uniform1f(GL.u.uFlightMode,runtimeHost.flightEnabled?1:0);
     g.uniform4f(GL.u.uArc,SM.arc[0],SM.arc[1],SM.arc[2],SM.arc[3]);
     g.uniform4f(GL.u.uShape,SM.shape[0],SM.shape[1],SM.shape[2],SM.shape[3]);
     g.uniform4f(GL.u.uPlanet,SM.planet[0],SM.planet[1],SM.planet[2],SM.planet[3]);
@@ -10703,7 +10756,11 @@ function draw(){
   ctx.save();
   ctx.translate(camX,camY);   /* the world rides the dolly; HUD stays pinned */
   drawCurrentWake();
-  if(G.shake>0)ctx.translate(rand(-G.shake,G.shake)*0.5,rand(-G.shake,G.shake)*0.5);
+  flightShakeX=0;flightShakeY=0;
+  if(G.shake>0){
+    flightShakeX=rand(-G.shake,G.shake)*0.5;flightShakeY=rand(-G.shake,G.shake)*0.5;
+    ctx.translate(flightShakeX,flightShakeY);
+  }
 
   /* Magnet connections follow the stars actually captured by its field. */
   if(G.spot>0&&!bhActive()){
@@ -12235,6 +12292,9 @@ function runtimeRender(){
     if(Number.isFinite(alpha))ctx.globalAlpha=alpha;
     if(typeof blend==='string')ctx.globalCompositeOperation=blend;
   }
+  /* The host reads a copied view after the original game has drawn. Its
+     renderer has no access to game objects, input, audio or the random stream. */
+  if(runtimeHost.renderFlight)runtimeHost.renderFlight(runtimeFlightFrame());
 }
 function frame(now){
   if(runtimeDestroyed)return;
@@ -12276,6 +12336,25 @@ function runtimeSnapshot(){
     score:G.score,level:G.level,build:BUILD,destroyed:runtimeDestroyed,
     background:{gpu:GL.on,materialCount:GL.art.filter(Boolean).length},
     reward:{orbits:G.build||0,starfall:starfallActive(),wave:G.starfall?G.starfall.wave:0}
+  };
+}
+function runtimeFlightFrame(){
+  const amb=RM?0:G.vt,point=posPlayer(),outer=radiusOf(0);
+  const camX=(RM?0:Math.sin(amb*0.065)*1.4*u)+flightShakeX;
+  const camY=(RM?0:Math.cos(amb*0.051)*1.4*u)+flightShakeY;
+  const sm=SKY.mix||{tint:[0.1,0.3,0.5],rim:[0.3,0.7,0.9],dust:[0.3,0.5,0.6]},f=G.currentFlow||{};
+  const planet=sm.planet;
+  return {
+    enabled:!!runtimeHost.flightEnabled&&GL.on&&!runtimeDestroyed,
+    width:W,height:H,dpr:DPR,center:[cx,cy],
+    outerCenter:[ecx(outer)+camX,ecy(outer)+camY],radii:[outer,outer*AY],
+    comet:[point[0]+camX,point[1]+camY],angle:G.angle,direction:G.dir,
+    visualTime:amb,travel:amb*100,active:G.state==='playing',reducedMotion:RM,
+    palette:{tint:sm.tint.slice(),rim:sm.rim.slice(),dust:sm.dust.slice()},
+    planet:planet?{center:[W*0.5+(planet[0]+Math.sin(GL.tw*0.14)*0.014*0.35)*H,
+      H*0.5-(planet[1]+Math.cos(GL.tw*0.11)*0.009*0.35)*H],radius:planet[2]*H}:undefined,
+    effects:{turn:f.turn||0,hop:f.hop||0,radial:f.radial||0,magnet:f.magnet||0,
+      scorch:f.scorch||0,release:f.release||0,blackHole:f.bh||0}
   };
 }
 function runtimeDisposeGpu(target){
@@ -12330,6 +12409,6 @@ if(!runtimeHost.externalLoop){
     step:runtimeStep,render:runtimeRender,resize,
     pointerDown,pointerMove,pointerUp,pointerCancel,keyDown,
     pause:runtimePause,resume:runtimeResume,back:runtimeBack,
-    snapshot:runtimeSnapshot,destroy:runtimeDestroy
+    snapshot:runtimeSnapshot,flightFrame:runtimeFlightFrame,destroy:runtimeDestroy
   };
 }
