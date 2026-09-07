@@ -40,6 +40,8 @@ var _built := false
 var _reduced_motion := false
 var _last_time := -1.0
 var _last_travel := 0.0
+var _decorative_clock := 0.0
+var _decorative_travel := 0.0
 var _sample_left := 0.0
 var _last_ring_count := -1
 var _last_lane := -1
@@ -58,6 +60,7 @@ var _dust: MultiMesh
 var _dust_seeds: Array[Vector3] = []
 var _comet: MeshInstance3D
 var _comet_core: MeshInstance3D
+var _comet_halo: Sprite3D
 var _power_icons: Array[Sprite3D] = []
 var _mirror: MeshInstance3D
 var _shield_ring: MeshInstance3D
@@ -170,6 +173,15 @@ func _ensure_world() -> void:
 	var comet_mesh := _comet_mesh()
 	_comet = _mesh_node("Comet", comet_mesh, _comet_material)
 	_comet_core = _mesh_node("CometIceCore", comet_mesh, _solid_material(Color(0.84, 0.99, 1.0), 1.40))
+	_comet_halo = Sprite3D.new()
+	_comet_halo.name = "CometLocalHalo"
+	_comet_halo.texture = preload("res://assets/particles/fx-soft-glow.png")
+	_comet_halo.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_comet_halo.pixel_size = 54.0 / 256.0
+	_comet_halo.modulate = Color(0.15, 0.64, 1.0, 0.22)
+	_comet_halo.shaded = false
+	_comet_halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_comet_halo)
 	_mirror = _mesh_node("MirrorComet", comet_mesh, _solid_material(Color(0.68, 0.51, 1.0), 0.52))
 	_mirror.visible = false
 	for index in range(POOL_SIZE):
@@ -265,7 +277,10 @@ func update_simulation(sim, delta: float) -> void:
 		travel_delta = 0.0
 	_last_time = float(sim.visual_time)
 	_last_travel = float(sim.travel)
-	var clock: float = float(sim.visual_time)
+	if not _reduced_motion:
+		_decorative_clock += presentation_delta
+		_decorative_travel += travel_delta
+	var clock: float = _decorative_clock
 	var player: Vector3 = sim.player_position()
 	var movement: Vector2 = Vector2(-sin(float(sim.angle)) * _radii.x, -cos(float(sim.angle)) * _radii.y) * float(sim.direction)
 	var movement_angle := movement.angle() - PI * 0.5
@@ -275,6 +290,8 @@ func update_simulation(sim, delta: float) -> void:
 	_comet_core.position = player + (camera.position - player).normalized() * 5.0
 	_comet_core.basis = Basis(Vector3.BACK, movement_angle) * Basis.from_scale(Vector3(3.6, 6.8, 3.0))
 	_comet_core.visible = _comet.visible
+	_comet_halo.position = player - (camera.position - player).normalized() * 6.0
+	_comet_halo.visible = _comet.visible
 	var comet_color := CYAN
 	if sim.has_power("hyper"):
 		comet_color = Color(0.75, 0.77, 1.0)
@@ -347,7 +364,7 @@ func _update_encounters(sim, clock: float) -> void:
 		if not obj.active or obj.hit or obj.suspended:
 			continue
 		var position: Vector3 = obj.position
-		var phase: float = 0.0 if _reduced_motion else float(obj.age) * 0.50
+		var phase: float = clock * 0.50 + float(obj.serial) * 0.27
 		var angle: float = float(obj.angle)
 		var diamond_basis := Basis.from_euler(Vector3(0.30, phase + float(obj.serial) * 1.1, -angle))
 		if obj.kind == "star":
@@ -466,7 +483,7 @@ func _update_trail(sim, player: Vector3, dt: float, travel_delta: float) -> void
 func _update_currents(sim) -> void:
 	_flow_mesh.clear_surfaces()
 	_flow_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-	var travel: float = 0.0 if _reduced_motion else float(sim.travel)
+	var travel: float = _decorative_travel
 	for strand in range(6):
 		var base_angle := float(strand) * TAU / 6.0
 		for index in range(44):
@@ -549,6 +566,74 @@ func _update_beams(sim) -> void:
 			_ribbon_segment(_beam_mesh, a, b, width, width, color, color)
 	if begun:
 		_beam_mesh.surface_end()
+
+
+func _update_tidal(sim) -> void:
+	_tidal_mesh.clear_surfaces()
+	_tidal_particles.visible_instance_count = 0
+	_tidal_arrows.visible_instance_count = 0
+	var tidal = sim.get("tidal")
+	if tidal == null or not tidal.active:
+		return
+	var warning: bool = float(tidal.warning) > 0.0
+	var growth := clampf(1.0 - float(tidal.warning) / 3.0, 0.0, 1.0) if warning else 1.0
+	var hue := Color(0.52, 0.51, 0.91)
+	if str(tidal.element) in ["scorch", "fire", "molten"]:
+		hue = Color(0.94, 0.52, 0.23)
+	elif str(tidal.element) in ["shield", "tide", "water", "ice"]:
+		hue = Color(0.32, 0.76, 0.91)
+	_tidal_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for index in range(112):
+		var t_a := float(index) / 112.0
+		var t_b := float(index + 1) / 112.0
+		var a: Vector3 = tidal.point(sim, t_a)
+		var b: Vector3 = tidal.point(sim, t_b)
+		var before: Vector3 = tidal.point(sim, maxf(0.0, t_a - 1.0 / 112.0))
+		var after: Vector3 = tidal.point(sim, minf(1.0, t_b + 1.0 / 112.0))
+		var tangent_a := b - before
+		var tangent_b := after - a
+		var side_a := Vector3(-tangent_a.y, tangent_a.x, 0.0).normalized()
+		var side_b := Vector3(-tangent_b.y, tangent_b.x, 0.0).normalized()
+		var end_fade := smoothstep(0.0, 0.07, t_a) * (1.0 - smoothstep(0.89, 1.0, t_b))
+		var arrival := 1.0 - smoothstep(growth - 0.06, growth + 0.03, t_a)
+		var width := lerpf(5.5, 12.0, sin(t_a * PI))
+		var body_alpha := end_fade * (0.045 + arrival * (0.045 if warning else 0.10))
+		_ribbon_quad(_tidal_mesh, a, b, side_a, side_b, width, width, Color(hue, body_alpha), Color(hue, body_alpha))
+		var core_alpha := end_fade * (0.10 if warning else 0.29) * arrival
+		_ribbon_quad(_tidal_mesh, a, b, side_a, side_b, 1.2, 1.2, Color(hue.lightened(0.18), core_alpha), Color(hue.lightened(0.18), core_alpha))
+	_tidal_mesh.surface_end()
+	var flow_clock := _decorative_clock
+	var grain_count := 0
+	for index in range(96):
+		var t := fposmod(float(index) / 96.0 + flow_clock * 0.19, 1.0)
+		if t > growth or t < 0.02 or t > 0.97:
+			continue
+		var position: Vector3 = tidal.point(sim, t)
+		var neighbor: Vector3 = tidal.point(sim, minf(1.0, t + 0.008))
+		var tangent := (neighbor - position).normalized()
+		var side := Vector3(-tangent.y, tangent.x, 0.0).normalized()
+		var lane_offset := sin(float(index) * 8.32) * (2.0 + sin(t * PI) * 4.0)
+		position += side * lane_offset
+		var scale := 1.2 if warning else 2.0
+		var color := hue * (0.46 if warning else 0.76)
+		_place(_tidal_particles, grain_count, position, Basis.IDENTITY.scaled(Vector3(scale, scale, scale * 1.6)), color)
+		grain_count += 1
+	_tidal_particles.visible_instance_count = grain_count
+	var arrow_count := 0
+	for index in range(14):
+		var t := (float(index) + 0.5) / 14.0
+		if t > growth or t < 0.18 or t > 0.91:
+			continue
+		var position: Vector3 = tidal.point(sim, t)
+		var next: Vector3 = tidal.point(sim, minf(1.0, t + 0.01))
+		var from_screen := camera.unproject_position(position)
+		var to_screen := camera.unproject_position(next)
+		var screen_tangent := Vector2(to_screen.x - from_screen.x, from_screen.y - to_screen.y)
+		var angle := screen_tangent.angle() - PI * 0.5
+		var basis := Basis(Vector3.BACK, angle) * Basis.from_scale(Vector3(2.6, 4.5, 2.0))
+		_place(_tidal_arrows, arrow_count, position, basis, hue * (0.65 if warning else 0.94))
+		arrow_count += 1
+	_tidal_arrows.visible_instance_count = arrow_count
 
 
 func _ribbon_segment(mesh: ImmediateMesh, a: Vector3, b: Vector3, width_a: float, width_b: float, color_a: Color, color_b: Color) -> void:

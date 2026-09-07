@@ -41,6 +41,8 @@ var _size := Vector2(540.0, 960.0)
 var _center := Vector2(270.0, 480.0)
 var _radii := Vector2(218.0, 310.0)
 var _world := 0
+var _journey := -1.0
+var _planet_placement := Vector3(-0.235, 0.140, 0.725)
 var _clock := 0.0
 var _visual_clock := 0.0
 var _visual_travel := 0.0
@@ -58,6 +60,9 @@ var _hop_radius := 0.76
 var _release := 0.0
 var _tunnel_enabled := true
 var _singularity_strength := 1.0
+var _tidal_strength := 0.0
+var _tidal_phase := 0.0
+var _tidal_last_clock := 0.0
 
 
 func _ready() -> void:
@@ -109,27 +114,51 @@ func configure(size: Vector2, center: Vector2, radii: Vector2) -> void:
 
 func set_world(index: int) -> void:
 	_world = posmod(index, WORLD_NAMES.size())
+	_journey = float(_world)
 	_ensure_layers()
+	_apply_world_blend(_world, _world, 0.0)
+
+
+func set_journey(value: float) -> void:
+	## Authored portraits blend over the final fifth of each leg. The last world
+	## remains a destination; this does not invent an endless gameplay level.
+	var journey := clampf(value, 0.0, float(WORLD_NAMES.size() - 1))
+	if is_equal_approx(journey, _journey):
+		return
+	_journey = journey
+	_world = floori(journey)
+	var next_world := mini(_world + 1, WORLD_NAMES.size() - 1)
+	var blend := smoothstep(0.80, 1.0, journey - float(_world))
+	_ensure_layers()
+	_apply_world_blend(_world, next_world, blend)
+
+
+func _apply_world_blend(first: int, second: int, blend: float) -> void:
+	var tint: Color = WORLD_TINTS[first].lerp(WORLD_TINTS[second], blend)
+	var rim: Color = WORLD_RIMS[first].lerp(WORLD_RIMS[second], blend)
+	var dust: Color = WORLD_DUST[first].lerp(WORLD_DUST[second], blend)
 	for shader_material in [_sky_material, _planet_material]:
-		shader_material.set_shader_parameter("world_tint", WORLD_TINTS[_world])
-		shader_material.set_shader_parameter("world_rim", WORLD_RIMS[_world])
-		shader_material.set_shader_parameter("world_dust", WORLD_DUST[_world])
-		shader_material.set_shader_parameter("world_seed", float(_world))
-	_singularity_material.set_shader_parameter("world_rim", WORLD_RIMS[_world])
-	var shape: Array = WORLD_SHAPES[_world]
-	_sky_material.set_shader_parameter("field_lean", shape[0])
-	_sky_material.set_shader_parameter("field_bend", shape[1])
-	_sky_material.set_shader_parameter("field_grain", shape[2])
-	_planet_material.set_shader_parameter("planet_tilt", shape[3])
-	_planet_material.set_shader_parameter("planet_flatten", shape[4])
-	_planet_material.set_shader_parameter("rock_amount", shape[5])
-	_planet_material.set_shader_parameter("cloud_amount", shape[6])
-	_planet_material.set_shader_parameter("light_angle", shape[7])
+		shader_material.set_shader_parameter("world_tint", tint)
+		shader_material.set_shader_parameter("world_rim", rim)
+		shader_material.set_shader_parameter("world_dust", dust)
+		shader_material.set_shader_parameter("world_seed", lerpf(float(first), float(second), blend))
+	_singularity_material.set_shader_parameter("world_rim", rim)
+	var shape_a: Array = WORLD_SHAPES[first]
+	var shape_b: Array = WORLD_SHAPES[second]
+	_sky_material.set_shader_parameter("field_lean", lerpf(shape_a[0], shape_b[0], blend))
+	_sky_material.set_shader_parameter("field_bend", lerpf(shape_a[1], shape_b[1], blend))
+	_sky_material.set_shader_parameter("field_grain", lerpf(shape_a[2], shape_b[2], blend))
+	_planet_material.set_shader_parameter("planet_tilt", lerpf(shape_a[3], shape_b[3], blend))
+	_planet_material.set_shader_parameter("planet_flatten", lerpf(shape_a[4], shape_b[4], blend))
+	_planet_material.set_shader_parameter("rock_amount", lerpf(shape_a[5], shape_b[5], blend))
+	_planet_material.set_shader_parameter("cloud_amount", lerpf(shape_a[6], shape_b[6], blend))
+	_planet_material.set_shader_parameter("light_angle", lerp_angle(shape_a[7], shape_b[7], blend))
+	_planet_placement = PLANET_PLACEMENTS[first].lerp(PLANET_PLACEMENTS[second], blend)
 	_apply_planet_placement()
 
 
 func _apply_planet_placement() -> void:
-	var placement: Vector3 = PLANET_PLACEMENTS[_world]
+	var placement: Vector3 = _planet_placement
 	_planet_material.set_shader_parameter("planet_center", Vector2(placement.x, placement.y) * _size.x)
 	_planet_material.set_shader_parameter("planet_radius", placement.z * _size.x)
 
@@ -137,15 +166,43 @@ func _apply_planet_placement() -> void:
 func get_tidal_source(geometry) -> Vector3:
 	## The current starts on this authored planet's visible rim, then enters the same
 	## world space as the comet. Inverse projection preserves the exact source pixel.
-	var placement: Vector3 = PLANET_PLACEMENTS[_world]
+	var placement: Vector3 = _planet_placement
 	var planet_center := Vector2(placement.x, placement.y) * _size.x
 	var planet_radius := placement.z * _size.x
-	var toward_arena := (geometry.center - planet_center).normalized()
-	var source_pixel := planet_center + toward_arena * (planet_radius * 0.994)
+	var toward_arena: Vector2 = (geometry.center - planet_center).normalized()
+	var source_pixel: Vector2 = planet_center + toward_arena * (planet_radius * 0.994)
 	var depth := 900.0
 	var projection_scale: float = (float(geometry.focal_length) + depth) / float(geometry.focal_length)
 	var local: Vector2 = (source_pixel - geometry.center) * projection_scale
 	return Vector3(local.x, -local.y, -depth)
+
+
+func update_tidal(tidal, geometry) -> void:
+	## Extraction changes only a localized patch's texture flow. The source point
+	## and body silhouette stay pinned to the shared physical bridge geometry.
+	_ensure_layers()
+	if _visual_clock < _tidal_last_clock:
+		_tidal_strength = 0.0
+		_tidal_phase = 0.0
+	var delta := maxf(0.0, _visual_clock - _tidal_last_clock)
+	_tidal_last_clock = _visual_clock
+	var active: bool = tidal != null and tidal.active
+	var target := 0.0
+	if active:
+		var growing := clampf(1.0 - float(tidal.warning) / 3.0, 0.0, 1.0)
+		target = smoothstep(0.0, 1.0, growing)
+		var placement: Vector3 = _planet_placement
+		var planet_center := Vector2(placement.x, placement.y) * _size.x
+		var source_pixel: Vector2 = geometry.project_world(tidal.source)
+		var local_point := (source_pixel - planet_center) / (placement.z * _size.x)
+		_planet_material.set_shader_parameter("tidal_point", local_point)
+	_tidal_strength = move_toward(_tidal_strength, target, delta * (0.70 if active else 0.50))
+	if active:
+		_tidal_phase += delta * _tidal_strength
+	elif _tidal_strength <= 0.001:
+		_tidal_phase = 0.0
+	_planet_material.set_shader_parameter("tidal_amount", _tidal_strength)
+	_planet_material.set_shader_parameter("tidal_phase", _tidal_phase)
 
 
 func set_tunnel_enabled(enabled: bool) -> void:
@@ -235,3 +292,6 @@ func reset_effects() -> void:
 	_hop_strength = 0.0
 	_release = 0.0
 	_player_direction = 1.0
+	_tidal_strength = 0.0
+	_tidal_phase = 0.0
+	_tidal_last_clock = 0.0

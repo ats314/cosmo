@@ -7,6 +7,7 @@ const Profile = preload("res://scripts/cosmo_profile.gd")
 const Backdrop = preload("res://scripts/living_backdrop.gd")
 const Audio = preload("res://scripts/reactive_audio.gd")
 const Spatial = preload("res://scripts/spatial_world.gd")
+const Tidal = preload("res://scripts/tidal_current.gd")
 var sim = Simulation.new()
 var gestures = Gestures.new()
 var profile = Profile.new()
@@ -37,6 +38,13 @@ var automated = false
 var auto_elapsed = 0.0
 var auto_duration = 20.0
 var shutting_down = false
+var tidal_started = false
+var last_tidal_start = -100.0
+var tidal_lab_element = "nebula"
+var displayed_journey = 0.0
+var resume_left = 0.0
+var pause_cooldown = 0.0
+var resume_label: Label
 var _font: SystemFont
 const CYAN = Color("74ecf8")
 const GOLD = Color("e6bf76")
@@ -48,6 +56,7 @@ func _ready() -> void:
 	_font = SystemFont.new()
 	_font.font_names = PackedStringArray(["Bahnschrift", "Avenir Next", "Segoe UI"])
 	profile.load_profile()
+	sim.tidal = Tidal.new()
 	gestures.mode = str(profile.data.swipe_mode)
 	var back_layer = CanvasLayer.new()
 	back_layer.layer = -10
@@ -60,6 +69,7 @@ func _ready() -> void:
 	music = Audio.new()
 	music.name = "ReactiveAudioEngine"
 	add_child(music)
+	music.eighth_step.connect(sim.music_eighth_step)
 	music.set_muted(bool(profile.data.muted))
 	var ui_layer = CanvasLayer.new()
 	ui_layer.layer = 10
@@ -80,7 +90,7 @@ func _ready() -> void:
 	progress.max_value = 1.0
 	progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(progress)
-	pause_button = _button(hud, "Ⅱ", _pause, false)
+	pause_button = _button(hud, "II", _pause, false)
 	skip_button = _button(hud, "Skip introduction", _skip_tutorial, false)
 	page = Control.new()
 	page.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -88,7 +98,11 @@ func _ready() -> void:
 	sim.event.connect(_game_event)
 	sim.message.connect(_show_instruction)
 	sim.ended.connect(_ended)
-	gestures.turned.connect(sim.turn)
+	gestures.started.connect(sim.begin_pointer_turn)
+	gestures.reverted.connect(sim.rollback_pointer_turn)
+	gestures.turned.connect(sim.commit_pointer_turn)
+	gestures.canceled.connect(sim.cancel_pointer_turn)
+	gestures.unresolved.connect(sim.unresolved_swipe)
 	gestures.hopped.connect(_hop)
 	get_viewport().size_changed.connect(_resize)
 	_resize()
@@ -142,6 +156,8 @@ func _resize() -> void:
 	sim.geometry.radii = Vector2(horizontal, horizontal * 1.413)
 	backdrop.configure(ui_size, sim.geometry.center, sim.geometry.radii)
 	spatial.configure(ui_size, sim.geometry.center, sim.geometry.radii)
+	if sim.tidal != null and sim.tidal.active:
+		sim.tidal.source = backdrop.get_tidal_source(sim.geometry)
 	stats.position = Vector2(30, safe_top)
 	stats.size = Vector2(ui_size.x - 120, 68)
 	level_label.position = Vector2(30, safe_top + 38)
@@ -163,12 +179,31 @@ func _resize() -> void:
 func _physics_process(dt: float) -> void:
 	gestures.tick(dt)
 	if mode == "play":
+		pause_cooldown = maxf(0.0, pause_cooldown - dt)
+		if sim.tidal != null and not sim.tidal.active and not sim.black_hole and sim.tutorial < 0 and sim.finish_age < 0.0:
+			if sim.lab and sim.lab_power == "tidal" and sim.time - last_tidal_start > 16.0:
+				_start_tidal(tidal_lab_element)
+			elif not sim.lab and not tidal_started and sim.rings >= 3 and sim.level_time >= 30.0:
+				var body = int(round(displayed_journey))
+				var element = "molten" if body == 4 else ("ice" if body in [1, 3] else "nebula")
+				_start_tidal(element)
 		sim.step(dt)
 		instruction_left = maxf(0.0, instruction_left - dt)
 		if automated:
 			_auto_play(dt)
 
 func _process(dt: float) -> void:
+	if mode == "resume":
+		resume_left = maxf(0.0, resume_left - dt)
+		if is_instance_valid(resume_label):
+			resume_label.text = str(maxi(1, ceili(resume_left)))
+		if resume_left <= 0.0:
+			mode = "play"
+			sim.paused = false
+			pause_cooldown = 5.0
+			music.set_paused(false)
+			_clear_page()
+			_update_hud()
 	if automated:
 		auto_elapsed += dt
 		if auto_elapsed >= auto_duration and capture_output.is_empty():
@@ -187,14 +222,19 @@ func _process(dt: float) -> void:
 	if sim.starfall_left > 0.0:
 		var elapsed = Content.STARFALL_SECONDS - sim.starfall_left
 		release = minf(1.0, elapsed / 0.9) * minf(1.0, sim.starfall_left / 1.2)
+	# Hold the source body throughout extraction; catch up gently after release.
+	if mode == "play" and not sim.lab and not sim.tidal.active:
+		displayed_journey = move_toward(displayed_journey, sim.world_progress, dt * 0.12)
+	backdrop.set_journey(displayed_journey)
 	backdrop.update_world(sim.visual_time, sim.angle, sim.lane, sim.travel, float(sim.charge) / Content.starfall_need(sim.upgrades), release, 1.0 if sim.has_power("spot") else 0.0, bool(profile.data.reduced_motion))
-	spatial.update_simulation(sim, 0.0 if mode in ["pause", "result", "draft"] else dt)
+	backdrop.update_tidal(sim.tidal, sim.geometry)
+	spatial.update_simulation(sim, 0.0 if mode in ["pause", "resume", "result", "draft"] else dt)
 	hud_clock += dt
 	if hud_clock >= 0.08:
 		hud_clock = 0.0
 		_update_hud()
 		music.set_lane(sim.target_lane)
-		music.set_intensity(clampf(sim.flow * 0.7 + sim.difficulty / 1500.0 + (0.35 if sim.starfall_left > 0.0 else 0.0), 0.0, 1.0))
+		music.set_intensity(clampf(sim.heat * 0.7 + (0.35 if sim.starfall_left > 0.0 else 0.0), 0.0, 1.0))
 		music.set_dilated(sim.has_power("warp") or sim.black_hole)
 	if capture_time >= 0.0:
 		capture_time -= dt
@@ -202,12 +242,13 @@ func _process(dt: float) -> void:
 			_capture.call_deferred()
 
 func _update_hud() -> void:
-	var visible_play = mode in ["play", "pause"]
+	var visible_play = mode in ["play", "pause", "resume"]
 	stats.visible = visible_play
 	level_label.visible = visible_play
 	status.visible = visible_play
 	progress.visible = visible_play
 	pause_button.visible = mode == "play"
+	pause_button.disabled = pause_cooldown > 0.0
 	skip_button.visible = mode == "play" and sim.tutorial >= 0
 	instruction.visible = mode == "play" and instruction_left > 0.0
 	if not visible_play:
@@ -216,10 +257,7 @@ func _update_hud() -> void:
 	stats.text = str(sim.score).pad_zeros(4)
 	stats.add_theme_font_size_override("font_size", 29)
 	level_label.text = "POWER LAB" if sim.lab else str(level.name)
-	var pips = ""
-	for i in sim.shields:
-		pips += "◈ "
-	var state_text = "Shields %s" % pips
+	var state_text = "Shields %d" % sim.shields
 	if sim.black_hole:
 		state_text += "   ·   %s" % ("Escape %ds" % ceili(17.0 - sim.bh_time) if sim.bh_time >= 12.0 else "Charge %d%%" % roundi(sim.bh_charge * 100))
 	elif sim.starfall_left > 0.0:
@@ -284,9 +322,9 @@ func _heading(title: String, subtitle: String = "") -> void:
 		sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
-func _shade() -> void:
+func _shade(opacity: float = 0.75) -> void:
 	var shade = ColorRect.new()
-	shade.color = Color(0.005, 0.012, 0.025, 0.75)
+	shade.color = Color(0.005, 0.012, 0.025, opacity)
 	shade.size = ui_size
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	page.add_child(shade)
@@ -297,16 +335,19 @@ func _menu() -> void:
 		profile.end_lab()
 		music.set_muted(bool(profile.data.muted))
 	mode = "menu"
+	resume_left = 0.0
 	sim.running = false
 	sim.paused = false
 	sim.black_hole = false
+	sim.tidal.reset()
 	sim.powers.clear()
 	sim.starfall_left = 0.0
 	sim.charge = 0
 	for obj in sim.objects:
 		obj.active = false
 	music.stop_run()
-	backdrop.set_world(0)
+	displayed_journey = 0.0
+	backdrop.set_journey(displayed_journey)
 	backdrop.reset_effects()
 	spatial.clear_trail()
 	_rebuild_page()
@@ -371,11 +412,14 @@ func _rebuild_page() -> void:
 			for power in Content.powers():
 				_button(col, str(power.name), _start_lab.bind(str(power.id)))
 			_button(col, "STARFALL", _start_lab.bind("starfall"))
+			_button(col, "TIDAL BRIDGE · NEBULA", _start_lab.bind("tidal_nebula"))
+			_button(col, "TIDAL BRIDGE · MOLTEN", _start_lab.bind("tidal_molten"))
+			_button(col, "TIDAL BRIDGE · ICE", _start_lab.bind("tidal_ice"))
 			var back = _button(page, "Back", _menu)
 			back.position = Vector2(30, ui_size.y - safe_bottom - 55)
 			back.size = Vector2(ui_size.x - 60, 54)
 		"pause":
-			_shade()
+			_shade(1.0)
 			_heading("FLIGHT PAUSED", "Your orbit is waiting.")
 			var col = _column(ui_size.y * 0.56)
 			_button(col, "RESUME", _resume, true)
@@ -383,6 +427,11 @@ func _rebuild_page() -> void:
 			if sim.lab:
 				_button(col, "Choose another power", _show_lab)
 			_button(col, "Return to title", _menu)
+		"resume":
+			resume_label = _label(page, str(maxi(1, ceili(resume_left))), 64, Color("e0eef6"))
+			resume_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			resume_label.position = Vector2(0, ui_size.y * 0.5 - 48)
+			resume_label.size = Vector2(ui_size.x, 96)
 		"result":
 			_shade()
 			_heading("PASSAGE COMPLETE" if run_won else "COMET LOST", Content.level_at(sim.level_index).name)
@@ -428,7 +477,10 @@ func _start(index: int, teach: bool = false, carry: bool = false) -> void:
 	if not carry:
 		profile.begin_run()
 	mode = "play"
+	resume_left = 0.0
+	pause_cooldown = 0.0
 	_clear_page()
+	tidal_started = false
 	if teach and not bool(profile.data.tutorial_seen):
 		profile.set_preference("swipe_mode", "screen")
 	gestures.mode = str(profile.data.swipe_mode)
@@ -438,7 +490,8 @@ func _start(index: int, teach: bool = false, carry: bool = false) -> void:
 			if str(id) not in sim.upgrades:
 				sim.upgrades.append(str(id))
 	sim.shields = 3 if "deepbank" in sim.upgrades else 2
-	backdrop.set_world(int(Content.level_at(index).world))
+	displayed_journey = sim.world_progress
+	backdrop.set_journey(displayed_journey)
 	backdrop.reset_effects()
 	spatial.clear_trail()
 	music.stop_run()
@@ -450,13 +503,31 @@ func _start_lab(id: String) -> void:
 	if not profile.lab_active:
 		profile.begin_lab()
 	mode = "play"
+	resume_left = 0.0
+	pause_cooldown = 0.0
 	_clear_page()
-	sim.lab_power = "bh" if id == "blackhole" else id
+	var is_tidal = id.begins_with("tidal")
+	sim.lab_power = "tidal" if is_tidal else ("bh" if id == "blackhole" else id)
 	sim.begin(0, true)
+	tidal_started = false
+	displayed_journey = 0.0
+	backdrop.set_journey(displayed_journey)
 	backdrop.reset_effects()
 	spatial.clear_trail()
 	music.start_run()
+	if is_tidal:
+		tidal_lab_element = id.trim_prefix("tidal_") if id != "tidal" else "nebula"
+		displayed_journey = 4.0 if tidal_lab_element == "molten" else (1.0 if tidal_lab_element == "ice" else 0.0)
+		backdrop.set_journey(displayed_journey)
+		_start_tidal(tidal_lab_element)
 	_update_hud()
+
+func _start_tidal(element: String) -> void:
+	if sim.tidal == null:
+		return
+	sim.tidal.begin(sim, element, backdrop.get_tidal_source(sim.geometry))
+	tidal_started = sim.tidal.active
+	last_tidal_start = sim.time
 
 func _show_levels() -> void:
 	mode = "levels"
@@ -473,22 +544,23 @@ func _settings() -> void:
 	mode = "settings"
 	_rebuild_page()
 
-func _pause() -> void:
-	if mode != "play":
+func _pause(force: bool = false) -> void:
+	if mode not in ["play", "resume"] or (not force and (pause_cooldown > 0.0 or mode == "resume")):
 		return
 	mode = "pause"
+	resume_left = 0.0
 	sim.paused = true
 	gestures.cancel()
 	music.set_paused(true)
 	_rebuild_page()
 
 func _resume() -> void:
-	mode = "play"
-	sim.paused = false
+	if mode != "pause":
+		return
+	mode = "resume"
+	resume_left = 3.0
 	gestures.cancel()
-	music.set_paused(false)
-	_clear_page()
-	_update_hud()
+	_rebuild_page()
 
 func _toggle_sound() -> void:
 	var muted = not bool(profile.data.muted)
@@ -528,8 +600,18 @@ func _hop(delta: int) -> void:
 		backdrop.react_hop(float(delta))
 
 func _game_event(kind: StringName) -> void:
+	if kind == &"overdrive":
+		music.set_overdrive(true)
+	elif kind == &"overdrive_end":
+		music.set_overdrive(false, true)
+	elif kind == &"overdrive_stop":
+		music.set_overdrive(false, false)
 	if kind == &"turn":
 		backdrop.react_turn(sim.direction)
+	elif kind == &"tide_warning":
+		_show_instruction("A current is forming. Follow its arrows.", 3.0)
+	elif kind == &"tide":
+		_show_instruction("Ride with the current to gather stellar matter.", 3.0)
 	if kind == &"tutorial_done":
 		profile.set_preference("tutorial_seen", true)
 		return
@@ -559,8 +641,14 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		_quit_cleanly(0)
 	elif what in [NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_APPLICATION_PAUSED]:
-		if is_instance_valid(music):
-			_pause()
+		# Pausing when the player switches away is correct on a phone and stays.
+		# The automated driver is the one exception: it runs unattended while
+		# other windows take focus, so honouring this would have it capture the
+		# pause screen instead of the game. That is not a hypothetical — the
+		# first capture after the shader work photographed FLIGHT PAUSED and
+		# read as a gameplay regression until the frame was actually looked at.
+		if is_instance_valid(music) and not automated:
+			_pause(true)
 	elif what == NOTIFICATION_WM_GO_BACK_REQUEST:
 		if mode == "play":
 			_pause()
@@ -597,9 +685,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if mode != "play":
 		return
 	if event is InputEventScreenTouch and event.pressed:
-		gestures.begin(event.index, event.position, sim.geometry.center)
+		gestures.begin(event.index, event.position, sim.geometry.center, sim.geometry.orbit(sim.angle, sim.lane))
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		gestures.begin(0, event.position, sim.geometry.center)
+		gestures.begin(0, event.position, sim.geometry.center, sim.geometry.orbit(sim.angle, sim.lane))
 
 func _parse_test_arguments() -> void:
 	for arg in OS.get_cmdline_user_args():

@@ -11,7 +11,7 @@
     59
   ],
   "harmony_source": "scripts/cosmo_content.gd",
-  "harmony_source_sha256": "36f41e4c7b9ea0973589d971196ddcf699455c66692ac53cefc910221b3bf866",
+  "harmony_source_sha256": "402132ef2efd8683663060a67c2d0fad6d890db2e2143cc461fde71e060e1394",
   "harmony_profiles": [
     {
       "tonic_midi": 69,
@@ -207,10 +207,10 @@
       "bytes": 1152044,
       "channels": 1,
       "peak": 0.24,
-      "rms": 0.09402834778893993,
+      "rms": 0.07423148828405302,
       "loop": true,
-      "boundary_delta": 0.00020019756630063057,
-      "sha256": "f74e5c39afaab6b8995ced905e0b7c27d93a0c391b710588f9aa09492260d6ed"
+      "boundary_delta": 0.0002250696998089552,
+      "sha256": "8d4c5a867628dab1f5e2a92231bde42b106b94ea8803b952dd2df30e7226c11c"
     },
     {
       "name": "turn.wav",
@@ -284,10 +284,10 @@
       "bytes": 1264364,
       "channels": 2,
       "peak": 0.69,
-      "rms": 0.18743487079594476,
+      "rms": 0.1672707091802341,
       "loop": false,
       "boundary_delta": 0,
-      "sha256": "68ee379d2efa607b73aa21d354554257b4e89779a93c29477d7246c74c25d27c"
+      "sha256": "5fd01c5d5e4430c7d6380184e6a6f5e60d5fabb821f70a0f358257fcbb896b5a"
     },
     {
       "name": "finish_69.wav",
@@ -339,10 +339,10 @@
       "bytes": 1152044,
       "channels": 1,
       "peak": 0.24,
-      "rms": 0.10096889288061395,
+      "rms": 0.07084400148029417,
       "loop": true,
-      "boundary_delta": 0.00017589423805475235,
-      "sha256": "a2f58cdae6d1d7d0f7c89435429da2f4edb04db04dd3b13a9ebb553b6d5760b9"
+      "boundary_delta": 0.0007380642928183079,
+      "sha256": "de07a0e94c4da13bb12fa65fd57dcd1f912fcaf926af922db311d7c77540d6f2"
     },
     {
       "name": "starfall_67.wav",
@@ -350,10 +350,10 @@
       "bytes": 1264364,
       "channels": 2,
       "peak": 0.69,
-      "rms": 0.1932823924733094,
+      "rms": 0.17047131614363234,
       "loop": false,
       "boundary_delta": 0,
-      "sha256": "e9ed4a4fe1bf127f3862319b14408bd9f308a91f83fafce6d6c3478bd679e64b"
+      "sha256": "005830e4a9525c40f9d9799fe60bf40fc785112ddbd4cc81d6a936793f422920"
     },
     {
       "name": "finish_67.wav",
@@ -405,10 +405,10 @@
       "bytes": 1152044,
       "channels": 1,
       "peak": 0.24,
-      "rms": 0.09204726528305406,
+      "rms": 0.08057891508364266,
       "loop": true,
-      "boundary_delta": 0.00014777714386582375,
-      "sha256": "41b87b89738fdc1a78e607209d03cae13b825d83a0739a047778920d4c30b6ae"
+      "boundary_delta": 0.00016685202717781067,
+      "sha256": "a61034ece1726210d23c13b365eefd7fac69665b38919582b81da93e7f675420"
     },
     {
       "name": "starfall_65.wav",
@@ -416,10 +416,10 @@
       "bytes": 1264364,
       "channels": 2,
       "peak": 0.69,
-      "rms": 0.18766165170523288,
+      "rms": 0.1594674419339815,
       "loop": false,
       "boundary_delta": 0,
-      "sha256": "bd9cf0ed9dc833e5016897f363d4c1c28535c6132ec43dfbff8211e1960d94c0"
+      "sha256": "2199d83452e32d3cd1d9a2c08f48a317d4bafd6beec797805248d9350064ae6a"
     },
     {
       "name": "finish_65.wav",
@@ -471,10 +471,10 @@
       "bytes": 1152044,
       "channels": 1,
       "peak": 0.24,
-      "rms": 0.093448744178903,
+      "rms": 0.07675301875620265,
       "loop": true,
-      "boundary_delta": 0.00008518015965819359,
-      "sha256": "ae42d0308bab2a44d9cc5ac9b7ae558321dd65a641d3282a78db92334f8744d4"
+      "boundary_delta": 0.0001696702092885971,
+      "sha256": "f49eadd16884499e8468baba3c9aed17eb75f28601e75766804368dbf784de48"
     },
     {
       "name": "starfall_63.wav",
@@ -482,10 +482,10 @@
       "bytes": 1264364,
       "channels": 2,
       "peak": 0.69,
-      "rms": 0.18588479064789276,
+      "rms": 0.16926818422754417,
       "loop": false,
       "boundary_delta": 0,
-      "sha256": "c4a73a33460d44e471ff5ac80cd5679a5d013c088da671f71c3e8b7c203430e2"
+      "sha256": "afb2d74f3f453f0f3b5d1ac9dd1a1f73d2ff178f5b6827ffa1d949ef61029da8"
     },
     {
       "name": "finish_63.wav",
@@ -537,10 +537,10 @@
       "bytes": 1152044,
       "channels": 1,
       "peak": 0.24,
-      "rms": 0.09159665880183099,
+      "rms": 0.07746735749394734,
       "loop": true,
-      "boundary_delta": 0.0005179084837436676,
-      "sha256": "ecaaf9df6201cd6ead6845d008a3a95679f6144f43511141e0f7f095fddcdaa6"
+      "boundary_delta": 0.0003729632589966059,
+      "sha256": "4538479445e908a3c395dbc4e1a68ceab65b12441f2caec9b3623900e2cb2f45"
     },
     {
       "name": "starfall_61.wav",
@@ -548,10 +548,10 @@
       "bytes": 1264364,
       "channels": 2,
       "peak": 0.69,
-      "rms": 0.19831695737614874,
+      "rms": 0.16116450099331087,
       "loop": false,
       "boundary_delta": 0,
-      "sha256": "40c4fe22ebc15cfc4551111a95dd89d995b4af2888c626caf65a4738c92748ff"
+      "sha256": "45ac0c7d9623ba58a15c33a237f4eda656ced19e1fd19eba80136190969665a9"
     },
     {
       "name": "finish_61.wav",
@@ -603,10 +603,10 @@
       "bytes": 1152044,
       "channels": 1,
       "peak": 0.24,
-      "rms": 0.09827332280582292,
+      "rms": 0.07010149360583705,
       "loop": true,
-      "boundary_delta": 0.00048204604536294937,
-      "sha256": "cf32a23c75ce9c7169bc6d5c02cc726bd36be2b910ba1b2f5cc75478727ff192"
+      "boundary_delta": 0.00019179703667759895,
+      "sha256": "3247122eda8e04ba7e5f0c66b57edb0ebfd0bdc9abf7d980cf3da933325c3cb1"
     },
     {
       "name": "starfall_59.wav",
@@ -614,10 +614,10 @@
       "bytes": 1264364,
       "channels": 2,
       "peak": 0.69,
-      "rms": 0.204144799661471,
+      "rms": 0.17232762750783778,
       "loop": false,
       "boundary_delta": 0,
-      "sha256": "f371ed797efaa649d88ceba19cfff4093df9100613b6a07a819225312a068da2"
+      "sha256": "e1b97e93acc2e353e891cde9f622e996292709f87cfe02f658b370ca0cc37066"
     },
     {
       "name": "finish_59.wav",
@@ -632,12 +632,12 @@
     }
   ],
   "arrangement_peaks": {
-    "59": 0.48208387613296505,
-    "61": 0.46921202898025505,
-    "63": 0.48958542913198466,
-    "65": 0.5168897196650505,
-    "67": 0.51125825881958,
-    "69": 0.5256663197278977
+    "59": 0.4649166059494018,
+    "61": 0.5101913304626942,
+    "63": 0.4736068224906921,
+    "65": 0.49455032289028167,
+    "67": 0.4692434239387512,
+    "69": 0.5158679348230362
   },
   "total_bytes": 45274008
 }

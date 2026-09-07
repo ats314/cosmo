@@ -41,6 +41,10 @@ class Encounter extends RefCounted:
 	var follow_wait = 0.0
 	var heading = 1.0
 	var arrival_delay = 0.0
+	var current_t = 0.0
+	var current_lane = 0
+	var current_flight = false
+	var current_position = Vector3.ZERO
 	func reset(id: int) -> void:
 		active = true
 		kind = "star"
@@ -74,6 +78,10 @@ class Encounter extends RefCounted:
 		follow_wait = 0.0
 		heading = 1.0
 		arrival_delay = 0.0
+		current_t = 0.0
+		current_lane = 0
+		current_flight = false
+		current_position = Vector3.ZERO
 	func lethal() -> bool:
 		if kind != "hazard" or suspended or age < warn or hit:
 			return false
@@ -84,6 +92,7 @@ class Encounter extends RefCounted:
 		return age < warn + lifetime
 
 var geometry = Geometry.new()
+var tidal = null
 var rng = RandomNumberGenerator.new()
 var objects: Array[Encounter] = []
 var serial = 0
@@ -98,6 +107,7 @@ var time = 0.0
 var visual_time = 0.0
 var level_time = 0.0
 var travel = 0.0
+var world_progress = 0.0
 var difficulty = 0.0
 var difficulty_reward = 0.0
 var score = 0
@@ -144,9 +154,17 @@ var nova_serial = 0
 var burn: PackedFloat32Array = PackedFloat32Array()
 var trail: Array[Vector3] = []
 var flow = 0.0
+var heat = 0.0
 var overdrive_left = 0.0
+var overdrive_eighths = 0
 var overdrive_cooldown = 0.0
 var hot_time = 0.0
+var external_music_clock = false
+var music_release_active = false
+var music_release_pending = false
+var music_rising = false
+var _external_eighth = -1
+var _fallback_eighth = 0
 var slip_cooldown = 0.0
 var finish_age = -1.0
 var finish_got = 0
@@ -171,6 +189,9 @@ var groove_until = 0.0
 var timing_bias = 0.0
 var timing_samples = 0
 var timing_last_slot = -999999
+var pointer_turn_pending = false
+var _pointer_lap = 0.0
+var _pointer_streak = 0
 var hyper_duration = 0.0
 var nova_speed = 560.0
 var current_level: Dictionary = {}
@@ -192,9 +213,12 @@ func _init() -> void:
 	finale_rules = Content.finale()
 
 func begin(index: int = 0, practice: bool = false, teach: bool = false, carry: bool = false) -> void:
+	if tidal != null:
+		tidal.reset()
 	level_index = clampi(index, 0, 5)
 	current_level = Content.level_at(level_index)
 	difficulty_floor = float(current_level.dl_start)
+	world_progress = maxf(world_progress, float(current_level.world)) if carry else float(current_level.world)
 	if not carry:
 		score = 0
 		start_level = level_index
@@ -257,9 +281,17 @@ func begin(index: int = 0, practice: bool = false, teach: bool = false, carry: b
 	power_count = 0
 	since_shield = 0
 	flow = 0.0
+	heat = 0.0
 	hot_time = 0.0
 	overdrive_left = 0.0
+	overdrive_eighths = 0
 	overdrive_cooldown = 0.0
+	external_music_clock = false
+	music_release_active = false
+	music_release_pending = false
+	music_rising = false
+	_external_eighth = -1
+	_fallback_eighth = 0
 	slip_cooldown = 0.0
 	saucer_cooldown = 0.0
 	teach_left = 0.0
@@ -267,6 +299,7 @@ func begin(index: int = 0, practice: bool = false, teach: bool = false, carry: b
 	groove = 0
 	groove_until = 0.0
 	timing_last_slot = -999999
+	pointer_turn_pending = false
 	did_hop = false
 	trail.clear()
 	burn.fill(0.0)
@@ -276,9 +309,9 @@ func begin(index: int = 0, practice: bool = false, teach: bool = false, carry: b
 	paused = false
 	if tutorial >= 0:
 		message.emit("Tap to turn", 100.0)
-	elif lab:
+	elif lab and lab_power != "tidal":
 		activate_power(lab_power)
-	else:
+	elif not lab:
 		message.emit(str(current_level.name), 2.0)
 	spawn_star(angle + direction * 0.65, 0)
 
@@ -291,9 +324,46 @@ func has_power(id: String) -> bool:
 func turn() -> void:
 	if not running or paused:
 		return
+	_flip_turn()
+	_commit_turn_effects()
+
+func _flip_turn() -> void:
 	direction *= -1.0
+	# A reversal banks the travelled fraction before the scoring lap resets.
+	world_progress += (lap / TAU) / 7.0
 	lap = 0.0
 	streak = 0
+
+func begin_pointer_turn() -> void:
+	if not running or paused or pointer_turn_pending:
+		return
+	_pointer_lap = lap
+	_pointer_streak = streak
+	pointer_turn_pending = true
+	# The comet responds at press. Sound, timing heat, teaching and saucer
+	# commitment wait until a tap is confirmed at lift.
+	_flip_turn()
+
+func rollback_pointer_turn() -> void:
+	if not pointer_turn_pending:
+		return
+	pointer_turn_pending = false
+	direction *= -1.0
+	lap = _pointer_lap
+	streak = _pointer_streak
+
+func commit_pointer_turn() -> void:
+	if not pointer_turn_pending or not running or paused:
+		return
+	pointer_turn_pending = false
+	_commit_turn_effects()
+
+func cancel_pointer_turn() -> void:
+	# Focus loss and menus drop the held contact. Its immediate movement has
+	# already happened; no delayed sound or input survives the abandoned press.
+	pointer_turn_pending = false
+
+func _commit_turn_effects() -> void:
 	flow = minf(1.0, flow + 0.13)
 	judge_timing()
 	event.emit(&"turn")
@@ -311,8 +381,13 @@ func turn() -> void:
 func hop(delta: int, forced: bool = false) -> void:
 	if not running or paused:
 		return
+	if hop_progress < 1.0 and not forced:
+		return
 	var destination = clampi(target_lane + delta, 0, rings - 1)
 	if destination == target_lane:
+		if not forced:
+			unresolved_swipe()
+			judge_timing()
 		return
 	hop_from = lane
 	target_lane = destination
@@ -332,6 +407,10 @@ func hop(delta: int, forced: bool = false) -> void:
 		if tutorial == 3:
 			tutorial = 4
 
+func unresolved_swipe() -> void:
+	if running and not paused:
+		event.emit(&"bump")
+
 func step(dt: float) -> void:
 	if not running or paused:
 		return
@@ -344,6 +423,13 @@ func step(dt: float) -> void:
 
 func _tick(dt: float) -> void:
 	time += dt
+	heat = maxf(0.0, heat - dt * 0.34)
+	overdrive_cooldown = maxf(0.0, overdrive_cooldown - dt)
+	if not external_music_clock:
+		var eighth = floori(time / (BEAT * 0.5))
+		while _fallback_eighth < eighth:
+			_fallback_eighth += 1
+			_advance_overdrive_eighth()
 	if tutorial < 0:
 		level_time += dt
 	var adjusted_age = level_time + minf(difficulty_reward * 0.22, 40.0)
@@ -360,9 +446,12 @@ func _tick(dt: float) -> void:
 		speed *= 1.0 + 0.9 * hv
 	if finish_age >= 0.0:
 		speed *= 1.0 + 0.06 * finish_got
+	elif tidal != null and not black_hole:
+		speed *= float(tidal.factor(self))
 	var sd = dt * slow
 	visual_time += sd
 	travel += sd * 100.0
+	world_progress += sd / 150.0
 	previous_angle = angle
 	previous_lane = lane
 	var player_before = player_position()
@@ -413,7 +502,12 @@ func _tick(dt: float) -> void:
 	if has_power("scorch"):
 		var sector = int(fposmod(angle, TAU) / TAU * 72.0)
 		burn[clampi(roundi(lane), 0, rings - 1) * 72 + sector] = maxf(2.6, TAU / speed + 0.2)
+	_update_overdrive(dt)
+	if tidal != null and not black_hole and finish_age < 0.0:
+		tidal.step(self, dt)
 	_update_objects(sd, dt, player_before, player_after)
+	if not running:
+		return
 	if tutorial >= 0:
 		return
 	if finish_age >= 0.0:
@@ -446,20 +540,54 @@ func _tick(dt: float) -> void:
 	if power_timer <= 0.0 and not black_hole and starfall_left <= 0.0 and count_kind("power") < 1 and difficulty >= 6.0:
 		spawn_power()
 		power_timer = rng.randf_range(2.2,3.6) if lab else maxf(6.0, rng.randf_range(10.0,15.0) - difficulty * 0.02)
-	overdrive_cooldown = maxf(0.0, overdrive_cooldown - dt)
-	if not black_hole:
-		overdrive_left = maxf(0.0, overdrive_left - dt)
-		hot_time = hot_time + dt if flow >= 0.85 else 0.0
-		if hot_time > BEAT * 4.0 and overdrive_cooldown <= 0.0 and starfall_left <= 0.0:
-			overdrive_left = BEAT * 32.0
-			overdrive_cooldown = 45.0
-			message.emit("Overdrive · stars pay double", 2.0)
+
+func _update_overdrive(dt: float) -> void:
+	# runtime8079: the code uses SPB*8 (eight quarter notes), despite the
+	# older nearby comment describing one bar. Released/armed Starfall wins.
+	var release_live = starfall_left > 0.0 or music_release_active
+	var eligible_heat = tutorial < 0 and not black_hole and not release_live and not music_rising and overdrive_eighths <= 0 and heat > 0.75
+	hot_time = hot_time + dt if eligible_heat else 0.0
+	if hot_time > BEAT * 8.0 and overdrive_cooldown <= 0.0 and starfall_wait < 0.0 and not music_release_pending and difficulty > 18.0 and finish_age < 0.0:
+		overdrive_eighths = 64
+		overdrive_left = float(overdrive_eighths) * BEAT * 0.5
+		hot_time = 0.0
+		overdrive_cooldown = 45.0
+		event.emit(&"overdrive")
+		message.emit("Overdrive · stars and on-time taps pay more", 2.0)
+
+func music_eighth_step(step_index: int) -> void:
+	# The audio transport publishes crossed eighths. Muting does not stop it;
+	# a simulation without an audio node uses the fixed-tempo fallback above.
+	external_music_clock = true
+	if _external_eighth < 0 or step_index < _external_eighth:
+		_external_eighth = step_index
+		return
+	if step_index == _external_eighth:
+		return
+	_external_eighth = step_index
+	_advance_overdrive_eighth()
+
+func _advance_overdrive_eighth() -> void:
+	if not running or paused or black_hole or finish_age >= 0.0 or starfall_left > 0.0 or music_release_active or music_rising or overdrive_eighths <= 0:
+		return
+	overdrive_eighths -= 1
+	overdrive_left = float(overdrive_eighths) * BEAT * 0.5
+	if overdrive_eighths == 0:
+		event.emit(&"overdrive_end")
+
+func _cancel_overdrive() -> void:
+	if overdrive_eighths > 0 or overdrive_left > 0.0:
+		event.emit(&"overdrive_stop")
+	overdrive_eighths = 0
+	overdrive_left = 0.0
+	hot_time = 0.0
 
 func complete_orbit() -> void:
 	var fed = lap_stars > 0
 	streak = streak + 1 if fed else 0
 	score += Content.orbit_score(lap_stars, streak)
 	orbits += 1
+	world_progress += 1.0 / 7.0
 	difficulty_reward += 1.0
 	lap_stars = 0
 	event.emit(&"orbit")
@@ -467,7 +595,7 @@ func complete_orbit() -> void:
 	if fed and tutorial < 0 and not lab and finish_age < 0.0 and not black_hole and starfall_left <= 0.0 and starfall_wait < 0.0:
 		charge += 1
 		if charge >= (2 if "hairtrig" in upgrades else 3):
-			starfall_wait = BEAT * 0.25 - fposmod(time, BEAT * 0.25)
+			starfall_wait = BEAT - fposmod(time, BEAT)
 	if tutorial == 2:
 		tutorial = 3
 		rings = 2
@@ -487,6 +615,7 @@ func judge_timing() -> int:
 	if slot == timing_last_slot:
 		return groove
 	timing_last_slot = slot
+	heat = minf(1.0, heat + 0.26)
 	var off4 = fposmod(time + BEAT * 0.5, BEAT) - BEAT * 0.5
 	var off16 = fposmod(time + BEAT * 0.125, BEAT * 0.25) - BEAT * 0.125
 	var window = 0.045 if "steadyhand" in upgrades else 0.032
@@ -519,6 +648,8 @@ func judge_timing() -> int:
 	return 0
 
 func begin_finale() -> void:
+	if tidal != null:
+		tidal.reset()
 	finish_age = 0.0
 	finish_got = 0
 	finish_score = 0
@@ -548,7 +679,7 @@ func _update_starfall(dt: float) -> void:
 			starfall_left = BEAT * 16.0
 			wave_index = 0
 			charge = 0
-			overdrive_left = 0.0
+			_cancel_overdrive()
 			nova_age = 0.0
 			nova_origin = player_position()
 			nova_serial = serial
@@ -714,7 +845,9 @@ func end_black_hole() -> void:
 			obj.active = false
 			continue
 		obj.suspended = false
-		if not obj.captured:
+		if obj.current_flight:
+			obj.position = obj.current_position
+		elif not obj.captured:
 			obj.position = geometry.world(obj.angle, obj.lane, obj.depth, travel)
 		obj.previous = obj.position
 	trail.clear()
@@ -727,7 +860,7 @@ func _update_objects(sd: float, dt: float, player_before: Vector3, player_after:
 		if obj.suspended:
 			continue
 		obj.previous = obj.position
-		obj.age += dt if obj.bonus or obj.starfall or obj.captured else sd
+		obj.age += dt if obj.bonus or obj.starfall or obj.captured or obj.current_flight else sd
 		if obj.age < obj.arrival_delay:
 			continue
 		obj.angle += obj.velocity * sd
@@ -744,10 +877,11 @@ func _update_objects(sd: float, dt: float, player_before: Vector3, player_after:
 			if obj.kind == "power" and not power_collected.has(obj.shape) and guaranteed_powers.has(obj.shape):
 				guaranteed_powers[obj.shape] = false
 			continue
-		obj.position = geometry.world(obj.angle, obj.lane, obj.depth, travel)
+		obj.position = obj.current_position if obj.current_flight else geometry.world(obj.angle, obj.lane, obj.depth, travel)
 		if obj.kind == "star":
 			if obj.finale_index < 0 and not obj.exit_sun and has_power("spot") and not obj.captured and absf(obj.lane - roundi(lane)) <= 1.0 and obj.position.distance_to(player_after) <= 110.0:
 				obj.captured = true
+				obj.current_flight = false
 				obj.flight_from = obj.position
 				obj.flight_age = 0.0
 			if obj.captured:
@@ -787,6 +921,7 @@ func _update_objects(sd: float, dt: float, player_before: Vector3, player_after:
 					obj.resolved = true
 					score += 3
 					flow = minf(1.0, flow + 0.1)
+					heat = minf(1.0, heat + 0.1)
 					event.emit(&"graze")
 		elif distance < 22.0:
 			if obj.kind == "star":
@@ -884,6 +1019,8 @@ func _hit(cause: String) -> void:
 		ended.emit(false)
 
 func finish_level() -> void:
+	if not running:
+		return
 	running = false
 	event.emit(&"finish")
 	ended.emit(true)
@@ -1113,6 +1250,8 @@ func spawn_formation() -> void:
 		_teach_shape(shape)
 		return
 func spawn_power() -> void:
+	if lab and lab_power == "tidal":
+		return
 	var id = "shield"
 	var level = level_index + 1
 	if lab:

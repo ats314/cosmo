@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#020714">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>$GODOT_PROJECT_NAME</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #020714; color: #dcf6ff; touch-action: none; overscroll-behavior: none; }
+    body { font: 15px/1.5 system-ui, sans-serif; }
+    #stage { position: fixed; inset: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    #canvas { display: block; width: 100%; height: 100%; outline: none; touch-action: none; }
+    #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; background: #020714; padding: 32px; text-align: center; }
+    .mark { width: 24px; height: 24px; margin-bottom: 30px; border: 1px solid #63dfe5; transform: rotate(45deg); box-shadow: 0 0 25px #3be0dc24; }
+    h1 { font-size: 27px; letter-spacing: .32em; font-weight: 400; margin: 0 0 24px .32em; }
+    #status { font-size: 13px; color: #8dabbf; margin: 18px 0; max-width: 300px; }
+    progress { width: min(240px, 65vw); height: 3px; border: 0; background: #112434; accent-color: #67d4d9; }
+    progress::-webkit-progress-bar { background: #112434; }
+    progress::-webkit-progress-value { background: #67d4d9; }
+    #retry { background: #14313e; color: #dcf6ff; border: 1px solid #376775; border-radius: 12px; font: inherit; padding: 11px 25px; }
+    [hidden] { display: none !important; }
+  </style>
+  $GODOT_HEAD_INCLUDE
+</head>
+<body>
+  <div id="stage"><canvas id="canvas" tabindex="0" aria-label="Cosmo game"></canvas></div>
+  <div id="loading" role="status" aria-live="polite">
+    <div class="mark" aria-hidden="true"></div><h1>COSMO</h1>
+    <progress id="progress"></progress><p id="status">Opening your universe…</p>
+    <button id="retry" hidden>Try again</button>
+  </div>
+  <noscript>Enable JavaScript to play Cosmo.</noscript>
+  <script src="$GODOT_URL"></script>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const stage = document.getElementById('stage');
+    const loading = document.getElementById('loading');
+    const progress = document.getElementById('progress');
+    const status = document.getElementById('status');
+    const retry = document.getElementById('retry');
+    // Limit fill rate on dense phone screens while keeping native touch coordinates.
+    // Godot's input layer scales CSS coordinates to this backing canvas itself.
+    function fitCanvas() {
+      const rect = stage.getBoundingClientRect();
+      const scale = Math.min(window.devicePixelRatio || 1, 1.5,
+        Math.sqrt(1100000 / Math.max(1, rect.width * rect.height)));
+      const width = Math.max(1, Math.round(rect.width * scale));
+      const height = Math.max(1, Math.round(rect.height * scale));
+      if (canvas.width !== width) canvas.width = width;
+      if (canvas.height !== height) canvas.height = height;
+    }
+    fitCanvas();
+    window.addEventListener('resize', fitCanvas);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', fitCanvas);
+    const engine = new Engine($GODOT_CONFIG);
+    function showError(error) {
+      console.error(error);
+      status.textContent = error instanceof Error ? error.message : String(error);
+      progress.hidden = true;
+      retry.hidden = false;
+    }
+    retry.addEventListener('click', () => window.location.reload());
+    const missing = Engine.getMissingFeatures({ threads: false });
+    if (missing.length) {
+      showError('This browser needs WebGL 2 and WebAssembly to play. Try an updated Safari or Chrome.');
+    } else {
+      engine.startGame({
+        canvas, canvasResizePolicy: 0,
+        onProgress(current, total) {
+          if (total > 0) {
+            progress.max = total;
+            progress.value = current;
+            status.textContent = current < total ? 'Opening your universe… ' + Math.round(current / total * 100) + '%' : 'Entering the field…';
+          }
+        }
+      }).then(() => {
+        fitCanvas();
+        loading.remove();
+        canvas.focus();
+      }).catch(showError);
+    }
+  </script>
+</body>
+</html>

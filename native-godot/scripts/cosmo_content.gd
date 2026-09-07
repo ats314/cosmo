@@ -26,7 +26,7 @@ static func levels() -> Array[Dictionary]:
 			"chord_degrees": [0, 6, 5, 3], "arp": [0, 3, 1, 4, 2, 4, 3, 1], "new_powers": ["hyper", "slip"]},
 		{"level": 3, "name": "THE STORM", "subtitle": "Collect stars, then complete an orbit",
 			"rules": ["Tap to turn before a moving wall reaches you", "Collect stars, then complete an orbit"],
-			"dl_start": 215.0, "dl_end": 340.0, "tonic_midi": 65, "key": "F minor", "world": 2, "world_name": "VEIL",
+			"dl_start": 215.0, "dl_end": 340.0, "tonic_midi": 65, "key": "F minor", "world": 2, "world_name": "DUSTLANE",
 			"chord_degrees": [0, 2, 4, 5], "arp": [0, 1, 3, 2, 4, 2, 3, 1], "new_powers": ["spot", "trail"]},
 		{"level": 4, "name": "EVENT HORIZON", "subtitle": "Black hole: reach the outer ring at ESCAPE",
 			"rules": ["Watch which ring the red obstacle moves to", "Black hole: reach the outer ring at ESCAPE"],

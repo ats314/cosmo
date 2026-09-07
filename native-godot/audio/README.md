@@ -47,6 +47,11 @@ dilation, cue playback, ending and audio-bus teardown.
 `scripts/reactive_audio.gd` owns one `AudioStreamSynchronized` music player, one
 release player, eight reused cue players and one private audio bus with a
 low-pass filter and a -1 dB peak limiter for overlapping action cues.
+Every player explicitly uses Stream playback. This preserves synchronized
+mixing and bus effects on Web, whose default Sample mode does not support
+AudioEffects. Single-thread Web streaming can have higher device latency;
+music starts from the player's Launch tap, and gameplay never waits for audio.
+[Godot Web audio](https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_web.html#audio-playback).
 All bus resources and playback are released when the node exits the tree.
 The host awaits `shutdown()` before quitting the application. This stops and
 clears player streams, lets the native mixer retire them for 0.2 seconds, and
@@ -58,7 +63,8 @@ and a stalled device falls back to a pause-aware local clock.
 
 The scene calls `start_run()`, `stop_run()`, `set_paused(bool)`,
 `set_muted(bool)`, `set_intensity(float)` (0–1), `set_lane(int)` (0 outermost),
-`set_tonic(int)`, `set_dilated(bool)`, `beat_position()` and `cue(StringName)`.
+`set_tonic(int)`, `set_dilated(bool)`, `set_overdrive(bool, break_on_exit = true)`,
+`beat_position()` and `cue(StringName)`.
 Supported core cues are `turn`, `hop`, `star`, `orbit`, `magnet`, `hit`,
 `starfall` and `finish`. `finish` can play after `stop_run()`. Additional power
 aliases are documented in the script's cue dispatch. Movement and pickups have
@@ -67,6 +73,13 @@ quantized answer; Starfall adds a complete four-bar release on the next quarter.
 The `cue_started(kind)` signal identifies the expected audible start of a
 quantized cue. The scene must retain ownership of rewards and cannot require
 this signal to advance. Missing/muted audio reports the cue immediately.
+Starfall already announced by the simulation within 0.1 seconds of a quarter
+uses that quarter, avoiding an extra beat of delay. `eighth_step(step)` reports
+consecutive crossed half-beats starting at 1, freezes while paused, and continues
+when muted or using the device fallback clock. Simulation retains its own
+silent timing fallback. Overdrive opens existing rhythm layers without changing
+tempo; normal exit gives a four-beat percussion break. Passing false for
+`break_on_exit` lets Starfall absorb Overdrive without that break.
 
 The music stems start and pause as one stream. The audio clock compensates for
 mix/output latency, rejects backward jitter, and unwraps loop position.

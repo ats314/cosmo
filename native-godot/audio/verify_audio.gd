@@ -4,6 +4,7 @@ extends SceneTree
 
 const AudioController = preload("res://scripts/reactive_audio.gd")
 var _failures: Array[String] = []
+var _eighths: Array[int] = []
 
 
 func _initialize() -> void:
@@ -16,11 +17,20 @@ func _expect(condition: bool, message: String) -> void:
 		push_error(message)
 
 
+func _on_eighth(step: int) -> void:
+	_eighths.append(step)
+
+
 func _run() -> void:
 	var buses_before: int = AudioServer.bus_count
 	var audio: Node = AudioController.new()
 	root.add_child(audio)
+	audio.eighth_step.connect(_on_eighth)
 	_expect(AudioServer.bus_count == buses_before + 1, "Audio owns one private bus")
+	_expect(audio._music.playback_type == AudioServer.PLAYBACK_TYPE_STREAM, "Synchronized music forces the Web-compatible Godot mixer")
+	_expect(audio._special.playback_type == AudioServer.PLAYBACK_TYPE_STREAM, "Release retains mixer bus effects on Web")
+	for player: AudioStreamPlayer in audio._voices:
+		_expect(player.playback_type == AudioServer.PLAYBACK_TYPE_STREAM, "Cue playback retains limiter on Web")
 	var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://audio/manifest.json"))
 	_expect(int(manifest["beats_per_chord"]) == 4, "Source changes harmony once per 4-beat bar")
 	var profile_index: int = 0
@@ -51,13 +61,16 @@ func _run() -> void:
 	audio.set_lane(2)
 	await create_timer(0.4).timeout
 	_expect(audio.beat_position() > 0.0, "Transport advances")
+	_expect(not _eighths.is_empty(), "Transport emits crossed eighth notes")
 	var pause_beat: float = audio.beat_position()
+	var paused_eighths: int = _eighths.size()
 	audio.cue(&"starfall")
 	audio.set_paused(true)
 	_expect(audio._music.stream_paused, "Music pauses as one synchronized stream")
 	_expect(audio._queued.is_empty(), "Pause drains unfinished cue queue")
 	await create_timer(0.3).timeout
 	_expect(audio.beat_position() == pause_beat, "Pause freezes musical clock")
+	_expect(_eighths.size() == paused_eighths, "Pause freezes eighth-note events")
 	audio.set_paused(false)
 	await create_timer(0.35).timeout
 	_expect(audio.beat_position() > pause_beat, "Resume continues musical clock")
@@ -71,6 +84,8 @@ func _run() -> void:
 	_expect(audio._queued.is_empty(), "Muted reward never waits on audio")
 	await create_timer(0.2).timeout
 	_expect(audio.beat_position() > muted_beat, "Mute preserves transport")
+	for index: int in range(_eighths.size()):
+		_expect(_eighths[index] == index + 1, "Eighth-note boundaries remain consecutive across pause and mute")
 	audio.set_muted(false)
 	audio.set_tonic(67)
 	var switch_deadline: int = Time.get_ticks_msec() + 2900
@@ -80,6 +95,10 @@ func _run() -> void:
 		await process_frame
 	_expect(audio._tonic == 67, "Running key change commits at the next bar")
 	_expect(audio._music.pitch_scale == 1.0, "Key changes preserve 104 BPM")
+	audio.set_overdrive(true)
+	await create_timer(0.1).timeout
+	_expect(audio._music.pitch_scale == 1.0, "Overdrive preserves 104 BPM")
+	audio.set_overdrive(false)
 	audio.cue(&"turn")
 	audio.cue(&"hop")
 	audio.cue(&"star")
@@ -105,5 +124,5 @@ func _run() -> void:
 	await process_frame
 	_expect(AudioServer.bus_count == buses_before, "Teardown returns audio bus count")
 	if _failures.is_empty():
-		print("Native audio passed: six source harmony/arp profiles, equal loops, live key change, pause/resume, mute, dilation, cues, release, ending, teardown.")
+		print("Native audio passed: six source harmony/arp profiles, equal loops, live key change, pause/resume, mute, eighth-note transport, dilation/overdrive, cues, release, ending, teardown.")
 	quit(0 if _failures.is_empty() else 1)

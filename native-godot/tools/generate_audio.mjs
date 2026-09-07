@@ -21,6 +21,57 @@ const contentSource = fs.readFileSync(new URL('../scripts/cosmo_content.gd', imp
 const PROFILES = [...contentSource.matchAll(/"tonic_midi":\s*(\d+),[\s\S]*?"chord_degrees":\s*(\[[\d,\s]+\]),\s*"arp":\s*(\[[\d,\s]+\])/g)]
   .map((match) => ({ tonic_midi: Number(match[1]), chord_degrees: JSON.parse(match[2]), arp: JSON.parse(match[3]) }));
 if (PROFILES.length !== 6 || new Set(PROFILES.map((profile) => profile.tonic_midi)).size !== 6) throw new Error('Expected six unique source harmony profiles');
+
+// THE AUTHORED HOOKS, READ FROM THE ORIGINAL RATHER THAN REINVENTED.
+//
+// The first cut of this generator built its melody by walking each world's
+// eight-note pentatonic `arp` in a rotating pattern. That produced a tune, but
+// it was not COSMO'S tune: the game's actual melodies are the hand-written
+// HOOKL tables in the web runtime, six levels of eight bars at sixteenth
+// resolution, with deliberate rests and a composed contour. Deriving a melody
+// from the chord degrees threw all of that away, which is exactly why the port
+// sounded like a different game.
+//
+// So the hooks are read from src/game/runtime.js, the file that owns them, and
+// transcribed nowhere. HOOKL holds indices into PENT (-1 is a rest); PENT is a
+// frequency table, and every pitch in the original is an INTERVAL OVER THE
+// LEVEL'S TONIC rather than an absolute — which is why converting to a MIDI
+// offset here and letting `transpose` place it in the key is the faithful
+// reading, not a shortcut.
+const RUNTIME = fileURLToPath(new URL('../../src/game/runtime.js', import.meta.url));
+function readAuthoredHooks() {
+  let source;
+  try { source = fs.readFileSync(RUNTIME, 'utf8'); }
+  catch { throw new Error(`Cannot read ${RUNTIME}. The authored melodies live in the original runtime; without it these stems would be an invented tune again.`); }
+
+  const table = (name) => {
+    const at = source.indexOf(`const ${name}=[`);
+    if (at < 0) throw new Error(`${name} is not in the runtime any more — the melody source moved and this generator must be repointed`);
+    // Walk brackets so the nested per-level arrays are captured whole, and so a
+    // comment containing a bracket cannot end the match early.
+    let depth = 0, start = source.indexOf('[', at), i = start;
+    for (; i < source.length; i++) {
+      const c = source[i];
+      if (c === '[') depth++;
+      else if (c === ']') { depth--; if (depth === 0) break; }
+    }
+    const body = source.slice(start, i + 1).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const parsed = JSON.parse(body.replace(/,\s*]/g, ']'));
+    return parsed;
+  };
+
+  const pent = table('PENT');
+  const hooks = table('HOOKL');
+  if (hooks.length < 6) throw new Error(`HOOKL carries ${hooks.length} levels; six are needed`);
+  // PENT is frequencies; the synth speaks MIDI. 440Hz is A4 = 69.
+  const toMidi = (hz) => Math.round(69 + 12 * Math.log2(hz / 440));
+  return hooks.slice(0, 6).map((hook) => {
+    if (hook.length !== 128) throw new Error(`A hook is ${hook.length} slots; expected 128 (8 bars x 16 sixteenths)`);
+    return hook.map((degree) => (degree < 0 || degree >= pent.length ? -1 : toMidi(pent[degree])));
+  });
+}
+const HOOKS = readAuthoredHooks();
+let MELODY_LEVEL = 0;
 const TONICS = PROFILES.map((profile) => profile.tonic_midi);
 const MINOR = [0, 2, 3, 5, 7, 8, 10];
 const PENTATONIC = [0, 3, 5, 7, 10];
@@ -175,19 +226,33 @@ function worldChords(profile) {
   });
 }
 function worldMelody(profile, bar, release = false) {
-  // Preserve each world's eight-note pentatonic contour. A slower statement
-  // spans two bars; the release answers in eighths with the same dark voice.
-  const slots = release ? 8 : 4;
+  // THE LEVEL'S OWN HOOK, at the sixteenth resolution it was written at.
+  //
+  // Sixteen slots to the bar, so an offset step is a quarter of a beat. A -1 is
+  // a rest and stays a rest: the gaps are the composition. Where the original
+  // leaves whole bars empty it is making room for the player's own notes, and
+  // filling them in "to keep the melody going" is precisely the instinct that
+  // turned this into a different tune the first time.
+  //
+  // A note runs until the next attack, capped, so the phrase breathes instead
+  // of machine-gunning at a fixed length.
+  const hook = HOOKS[MELODY_LEVEL];
   const phrase = [];
-  for (let slot = 0; slot < slots; slot++) {
-    const index = release ? (slot + bar) % 8 : (slot + (bar % 2) * 4 + Math.floor(bar / 4)) % 8;
-    const note = 57 + PENTATONIC[profile.arp[index]];
-    const offset = slot * (release ? 0.5 : 1) + (release ? 0 : 0.15);
-    phrase.push([offset, note, release ? 0.55 : 0.85]);
+  const base = bar * 16;
+  for (let slot = 0; slot < 16; slot++) {
+    const note = hook[base + slot];
+    if (note < 0) continue;
+    let gap = 1;
+    while (slot + gap < 16 && hook[base + slot + gap] < 0) gap++;
+    const beats = gap * 0.25;
+    phrase.push([slot * 0.25, note, Math.min(release ? 0.9 : 1.4, Math.max(0.22, beats * 0.92))]);
   }
   return phrase;
 }
-for (const profile of PROFILES) {
+for (const [levelIndex, profile] of PROFILES.entries()) {
+// Which level's authored hook this render uses. PROFILES is in level order and
+// so is HOOKL, so the index is the pairing — level 1 gets LIFT OFF's melody.
+MELODY_LEVEL = levelIndex;
 const tonic = profile.tonic_midi;
 const chords = worldChords(profile);
 transpose = tonic - 69;
