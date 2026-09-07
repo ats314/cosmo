@@ -1378,12 +1378,37 @@ try {
     if (st('G.score') !== 6 || st('G.lastPopPaid') !== 6)
       throw new Error('Magnet changed the ordinary star reward or left Spotlight doubling active');
 
-    // Every visual consumer must follow captured stars away from their ring.
-    for (const pattern of [
-      /for\(const st of G\.stars\)\{\s*const p=starVisualPos\(st\);\s*bloomDot/,
-      /for\(const s of G\.stars\)\{\s*const p=starVisualPos\(s\);\s*let al=1/,
-      /const p=starVisualPos\(route\[i\]\)/
-    ]) if (!pattern.test(src)) throw new Error('a star visual pass stopped using the authoritative position');
+    // Capture actual draw positions. A source-layout assertion rejected the
+    // new birth/expiry fades despite every pass still following the star.
+    fresh();
+    st(`(() => {
+      G.stars=[
+        {a:0.7,ring:0,t:1,life:20,trail:true,trailI:0,mag:{x:25,y:-30}},
+        {a:2.1,ring:1,t:1,life:20,trail:true,trailI:1,mag:{x:-43,y:17}}
+      ];
+      const expected=G.stars.map(starVisualPos), dots=[], sprites=[];
+      let path=[], routeDrawn=false;
+      const saved={bloomDot,artifactStar,beginPath:ctx.beginPath,
+        moveTo:ctx.moveTo,lineTo:ctx.lineTo,stroke:ctx.stroke};
+      const same=(a,b)=>a&&b&&Math.hypot(a[0]-b[0],a[1]-b[1])<1e-8;
+      try {
+        bloomDot=(g,x,y,r,col)=>{if(r===8*u&&col===COL.ember)dots.push([x,y]);
+          return saved.bloomDot(g,x,y,r,col);};
+        artifactStar=(x,y,s,al)=>{if(G.stars.includes(s))sprites.push([x,y]);
+          return saved.artifactStar(x,y,s,al);};
+        ctx.beginPath=(...args)=>{path=[];return saved.beginPath.apply(ctx,args);};
+        ctx.moveTo=(x,y)=>{path.push([x,y]);return saved.moveTo.call(ctx,x,y);};
+        ctx.lineTo=(x,y)=>{path.push([x,y]);return saved.lineTo.call(ctx,x,y);};
+        ctx.stroke=(...args)=>{if(path.length===2&&same(path[0],expected[0])&&
+          same(path[1],expected[1]))routeDrawn=true;return saved.stroke.apply(ctx,args);};
+        draw();
+        if(!expected.every(p=>dots.some(q=>same(p,q))&&sprites.some(q=>same(p,q)))||!routeDrawn)
+          throw new Error('star body, bloom or route left the captured star position');
+      } finally {
+        bloomDot=saved.bloomDot;artifactStar=saved.artifactStar;
+        for(const key of ['beginPath','moveTo','lineTo','stroke'])ctx[key]=saved[key];
+      }
+    })()`);
 
     // The black-hole bank accrues only during a settled inner-ring dwell.
     fresh(); st('startBlackHole();bhTick(BH_WARP);BH.t=0;G.ringI=3;G.hopP=1;bhTick(2)');
