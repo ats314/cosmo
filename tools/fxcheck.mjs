@@ -339,8 +339,15 @@ function crossFront(st, frame, fire, pid) {
       fail.push('the orbit cue did not reach the GPU as a bounded positive event');
 
     st("scenePulse('drop',3);G.t+=0.18;glRender(0)");
+    if(log.val.uAccent[0]>=0.15)
+      fail.push('an earned transition still has an abrupt onset');
+    const eventAt=st('G.sceneEvent.at'),impactCount=st('G.impacts.length');
+    st("scenePulse('drop',3)");
+    if(st('G.sceneEvent.at')!==eventAt||st('G.impacts.length')!==impactCount)
+      fail.push('duplicate audio/gameplay cues restarted the transition or stacked an impact');
+    st('G.t=G.sceneEvent.at+0.9;glRender(0)');
     if (log.val.uAccent[1] !== 2 || log.val.uAccent[0] < 0.99)
-      fail.push('an earned drop did not reach the GPU at full attack');
+      fail.push('an earned drop did not complete its gradual material transition');
     st("scenePulse('orbit',1.4);scenePulse('spot',3)");
     if (st('G.sceneEvent.kind') !== 'drop')
       fail.push('a lower-priority pickup or orbit interrupted a live drop');
@@ -352,7 +359,7 @@ function crossFront(st, frame, fire, pid) {
       fail.push('an expired scene event left light behind');
 
     for (const kind of ['nova','hyper','spot','warp','mirror','scorch','slip','trail']) {
-      st(`G.sceneEvent=null;scenePulse('${kind}',2.5);G.t+=0.18;glRender(0)`);
+      st(`G.sceneEvent=null;scenePulse('${kind}',2.5);G.t+=0.9;glRender(0)`);
       if (!(log.val.uAccent[0]>0.99))
         fail.push(`the ${kind} pickup cannot own a visible scene event`);
       if (!log.val.uEventTint.every(Number.isFinite))

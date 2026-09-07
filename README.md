@@ -82,8 +82,10 @@ TypeScript.
 | `tools/` | Deterministic functional and browser checks |
 
 The asset boot scene reads `public/art/manifest.json`. Original art can be added
-as individual PNG/WebP files with recorded provenance. Current procedural
-planet, atmosphere, nebula and gameplay effects remain available as fallbacks.
+as individual PNG/WebP files with recorded provenance. Procedural planets,
+atmosphere, rings and nebula form the world; 24 transparent sprites add object
+art and material detail. Opaque world plates are archived outside the game and
+are absent from the release manifest. See the [current art and motion direction](docs/design/direction.md).
 
 ## Native apps
 

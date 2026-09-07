@@ -1524,6 +1524,104 @@ vm.runInContext("muted=true;soundImpact('nova',1);muted=false;PAUSE.on=true;soun
 if(LOG.osc.length||LOG.buf.length)fail('impact played while muted or paused');
 else ok('major impacts remain keyed and bounded; muted and paused calls stay silent');
 
+/* Orbit pressure changes the existing pad's spectral balance, not its voice
+   count or gain budget. A committed reversal releases that pressure. */
+{
+  startLevel(1,0);
+  vm.runInContext(`endSection();BH.phase=0;BH.on=false;FIN.on=false;
+    PAUSE.on=false;PAUSE.resumeT=0;G.intro=false;G.slow=0;G.groove=0;
+    G.lapStreak=0;G.lapEmbers=0;G.lapAcc=0;G.ringI=0;G.hopP=1;
+    currentWakeReset();MU.next=100;`,ctx);
+  const sample=()=>{
+    vm.runInContext('bedTick(0);',ctx);
+    const gains=$('BED').gains.map(g=>g.gain.value);
+    return {sum:gains.reduce((a,b)=>a+b,0),root:gains[0],upper:gains[4],cut:$('BED').lp.frequency.value};
+  };
+  LOG.osc.length=0;
+  const calm=sample();
+  vm.runInContext('G.lapEmbers=1;G.lapAcc=TAU*.8;G.lapStreak=2;',ctx);
+  const pressure=sample();
+  vm.runInContext('G.currentFlow.turn=1;',ctx);
+  const turn=sample();
+  if([calm,pressure,turn].some(s=>Math.abs(s.sum-.16)>1e-9)||LOG.osc.length||
+     !(pressure.root<calm.root&&pressure.upper>calm.upper&&pressure.cut>calm.cut&&
+       turn.upper<pressure.upper&&turn.cut<pressure.cut))
+    fail('orbit pressure must open harmony and release on reversal without adding pad voices or gain');
+  else ok('fed-orbit pressure opens upper harmony; reversal releases it with the same eight-voice gain budget');
+}
+/* Actual one-shot starts prove a complete orbit gets only two spaced, rising
+   accents in each world's harmony, even when the scheduler polls repeatedly. */
+for(const L of LEVELS){
+  startLevel(L,0);
+  vm.runInContext(`endSection();BH.phase=0;BH.on=false;FIN.on=false;
+    PAUSE.on=false;PAUSE.resumeT=0;G.intro=false;G.lapStreak=0;
+    G.lapEmbers=1;G.lapAcc=0;G.orbits=0;currentWakeReset();`,ctx);
+  LOG.osc.length=0;
+  for(let step=0;step<24;step++){
+    AUDIO_T=step*$('SPB')/2;
+    vm.runInContext(`G.lapAcc=TAU*Math.min(1,${step}/15);
+      orbitColour(AC.currentTime,CH[0],${step}%8,orbitMusicState());`,ctx);
+  }
+  const root=$('CH')[0][0],notes=LOG.osc.slice();
+  const wrong=notes.some(v=>{
+    const semis=12*Math.log2(v.f/root),nearest=Math.round(semis);
+    return v.f<40||Math.abs(semis-nearest)>.02||!MINOR.has((nearest%12+12)%12);
+  });
+  if(wrong||notes.length!==2||notes[1].f<=notes[0].f||notes[1].t-notes[0].t<$('SPB')*1.5)
+    fail(`level ${L}: orbit accents lost their two-note budget, rising shape, spacing or key`);
+  else ok(`level ${L}: two spaced orbit accents rise within the world's harmony`);
+}
+/* These envelopes cannot add a competing figure during another passage or
+   replay an interrupted milestone after mute, pause, death or a context gap. */
+{
+  startLevel(1,0);
+  vm.runInContext(`endSection();G.intro=false;G.lapEmbers=1;G.lapAcc=TAU*.8;
+    currentWakeReset();PAUSE.on=false;PAUSE.resumeT=0;BH.phase=0;BH.on=false;`,ctx);
+  LOG.osc.length=0;
+  for(const gate of ['BH.phase=2','MU.pay=8','MU.armed=true','G.hyper=8','FIN.on=true',
+                    'PAUSE.on=true',"G.state='dead'",'G.currentFlow.release=1']){
+    vm.runInContext(`BH.phase=0;MU.pay=0;MU.armed=false;G.hyper=0;FIN.on=false;
+      PAUSE.on=false;G.state='playing';G.currentFlow.release=0;${gate};
+      orbitColour(AC.currentTime,CH[0],2,orbitMusicState());`,ctx);
+  }
+  vm.runInContext(`G.currentFlow.release=0;muted=true;
+    orbitColour(AC.currentTime,CH[0],2,orbitMusicState());muted=false;
+    orbitColour(AC.currentTime+2,CH[0],6,orbitMusicState());
+    AC.state='suspended';G.lapAcc=0;orbitColour(AC.currentTime,CH[0],2,orbitMusicState());
+    AC.state='running';endSection();`,ctx);
+  if(LOG.osc.length||$('MU').orbitTone!==null)
+    fail('orbit accents competed with a protected passage or replayed an interrupted/muted milestone');
+  else ok('orbit accents respect protected passages, mute, pause and phrase cleanup');
+  vm.runInContext('G.lapEmbers=0;G.lapAcc=0;G.lapStreak=0;currentWakeReset();',ctx);
+}
+
+/* Music keeps scheduling through every passage, but its queued beat times
+   cannot seed a shared brightness envelope, including the denser late hook. */
+for(const mode of ['ordinary','late Starfall','black hole','finale']){
+  startLevel(1,0);
+  vm.runInContext(`endSection();BH.phase=0;BH.on=false;FIN.on=false;
+    PAUSE.on=false;PAUSE.resumeT=0;G.intro=false;G.beat=0;G.starfall=null;
+    G.lapEmbers=0;G.lapStreak=0;G.slow=0;G.mirror=0;G.scorch=0;
+    currentWakeReset();BEATQ.length=0;DROPQ.length=0;MU.next=100;`,ctx);
+  if(mode==='late Starfall')vm.runInContext('MU.pay=16;MU.payEnd=100;',ctx);
+  if(mode==='black hole')vm.runInContext('BH.phase=2;BH.on=true;BH.t=BH_ESCAPE+1;BH.step=0;',ctx);
+  if(mode==='finale')vm.runInContext('FIN.on=true;FIN.pend=false;FIN.step=0;FIN.got=6;FIN.voices=2;',ctx);
+  LOG.osc.length=0;LOG.buf.length=0;
+  let queued=0,flash=false;
+  const count=mode==='late Starfall'||mode==='finale'?8:16;
+  for(let step=0;step<count;step++){
+    AUDIO_T=step*$('SPB')/2;
+    vm.runInContext(`musicStep(${step},AC.currentTime,.4);`,ctx);
+    queued+=$('BEATQ').length;
+    vm.runInContext('bedTick(0);',ctx);
+    if($('G').beat!==0||$('BEATQ').length!==0)flash=true;
+  }
+  if(flash||queued===0||LOG.osc.length+LOG.buf.length===0)
+    fail(`${mode}: beat timestamps must drain without a brightness impulse while music remains scheduled`);
+  else ok(`${mode}: ${queued} beat timestamps consumed, music remains audible, no shared brightness impulse`);
+}
+vm.runInContext('BH.phase=0;BH.on=false;FIN.on=false;endSection();',ctx);
+
 if (LOG.errors.length) LOG.errors.forEach(e => fail(e));
 
 if (failures) {

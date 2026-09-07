@@ -317,25 +317,39 @@ try {
     }
     note.push(`8 textured celestial worlds: mean ${Math.min(...seen.map(s=>s.mean)).toFixed(1)}-${Math.max(...seen.map(s=>s.mean)).toFixed(1)}; closest hue ${pair} ${closest.toFixed(3)}, spatial r=${pairShape.toFixed(2)}`);
 
-    /* Strong events reveal the same form. Beats and streaks cannot modulate
-       it, the envelope ends completely, and the black hole has sole priority. */
+    /* Continuous motion and earned orbital pressure belong to the world.
+       A beat impulse alone cannot flash it; events expire at the same clock,
+       and the black hole retains sole priority over reward lighting. */
     const quiet=await skyRGB(p,{world:0,clock:5});
-    await p.evaluate(()=>{G.beat=1;G.lapStreak=30;G.pocket=1;G.combo=12;});
+    await p.evaluate(()=>{G.beat=1;G.pocket=1;G.combo=12;});
     const ordinary=await skyRGB(p);
     if(Math.abs(ordinary.mean-quiet.mean)>.01)
-      fail.push('ordinary beat/streak state changed the rendered sky');
-    await p.evaluate(()=>{scenePulse('drop',3);G.t+=.18;});
+      fail.push('an ordinary beat impulse flashed the rendered sky');
+    await p.evaluate(()=>{G.build=dropNeed()-1;});
+    const charged=await skyRGB(p);
+    if(Math.abs(charged.mean-ordinary.mean)<.01||charged.mean>ordinary.mean*1.30)
+      fail.push('earned orbital pressure is invisible or overwhelms the resting world');
+    const moving=await skyRGB(p,{clock:7});
+    const motion=moving.cells.reduce((s,v,i)=>s+Math.abs(v-charged.cells[i]),0)/moving.cells.length;
+    if(motion<.20)fail.push(`the living field barely moves across two seconds (${motion.toFixed(3)} cell luma)`);
+    await skyRGB(p,{clock:5});
+    await p.evaluate(()=>{scenePulse('drop',3);G.t+=.9;});
     const peak=await skyRGB(p);
-    if(peak.mean/quiet.mean<1.20||peak.mean/quiet.mean>3.2||peak.p90<quiet.p90+15)
-      fail.push(`the earned drop lacks controlled visual contrast (ratio ${(peak.mean/quiet.mean).toFixed(2)})`);
+    const deformation=peak.cells.reduce((s,v,i)=>s+Math.abs(v-charged.cells[i]),0)/peak.cells.length;
+    if(peak.mean/charged.mean>1.16||peak.mean/charged.mean<0.84)
+      fail.push(`an earned material transition flashes the world (luma ratio ${(peak.mean/charged.mean).toFixed(2)})`);
+    if(deformation<.20)fail.push('an earned scene event lost its visible material response');
     await p.evaluate(()=>{G.t+=3;});
     const settled=await skyRGB(p);
-    if(Math.abs(settled.mean-quiet.mean)>.01)
-      fail.push('the scene did not return exactly to its quiet field after an event');
+    await p.evaluate(()=>{G.sceneEvent=null;});
+    const withoutEvent=await skyRGB(p);
+    if(Math.abs(settled.mean-withoutEvent.mean)>.01)
+      fail.push('an expired scene event still affected the field at the same clock');
     await p.evaluate(()=>{scenePulse('nova',3);G.t+=.18;BH.phase=2;BH.warp=1;});
     const hole=await skyRGB(p);
     if(hole.mean>=quiet.mean)
       fail.push('the black hole stacked a peak over its eclipse instead of owning the scene');
+    note.push(`living field: two-second motion ${motion.toFixed(2)} cell luma; orbit pressure, event expiry and BH priority rendered`);
     await p.close();
 
   }

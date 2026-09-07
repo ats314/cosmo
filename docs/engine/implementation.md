@@ -6,28 +6,43 @@ Part of the [Cosmo design record](../../README.md#where-everything-is).
 
 ---
 
-Everything is two `<canvas>` elements — `#bg` for the WebGL backdrop, `#c` for
-the 2D game — driven by one inline `<script>` of about 12,000 lines of plain
-JavaScript. No build step, no dependencies, no external assets.
+The app is built with Vite and a TypeScript boundary around a Phaser scene.
+Phaser owns the frame loop and texture cache; `src/game/runtime.js` contains
+the canonical game simulation, procedural audio and drawing code. The runtime
+draws the WebGL background on `#bg` and gameplay on the 2D `#c` canvas. The
+same runtime can run without the Phaser host in the functional harnesses.
+See [the repository guide](../../README.md) for build and native-shell commands.
 
 ## Current presentation
 
-The current sky uses `SKY_ARENA_CALM = 0.62` and `GL_MOTION = 0.25`.
+The current sky uses `SKY_ARENA_CALM = 0.62` and `GL_MOTION = 1.0`.
 Values in the historical record below belong to earlier rendering systems.
 
-See [Awe, motion, release](../design/direction.md). The WebGL sky now evaluates
-one authored swept cloud volume with sparse stable stars. The canvas fallback
-uses the same field parameters. A single scene event controls temporary light;
-the old random event, fog, grid, spin and wash stack is retired. Fine orbital
-paths and a short tapered comet trail establish contrast. Powerup durations
-share the HUD; the black hole has one central silhouette and charge/escape
-instrument. All gameplay coordinates still use the live elliptical arena.
+See [Awe, motion, release](../design/direction.md). Eight procedural worlds
+combine distinct planet, ring and cloud geometry with stable stars. Unmarked
+alpha textures add material detail; opaque background plates do not replace
+the scene. The canvas fallback uses the same field parameters.
+
+Committed flight drives persistent currents. Star-fed orbits pressurize ring
+geometry, powers reshape the field, and Starfall sends physical gold stars
+from the planet toward the playable orbits. Bounded scene events coordinate
+movement and gradual material hue changes, with no full-field flashes or
+shared beat-driven light gain. Steady material illumination remains. The
+[event-by-event effects audit](../design/effects-audit.md) records the removed
+sources and their replacements.
+
+Fine orbital paths and the comet's moving trail establish contrast. Power
+durations share the HUD; the black hole has a central silhouette and
+charge/escape instrument. All gameplay coordinates use the live elliptical
+arena, including stars that are still flying into place.
 
 ## Historical implementation record
 
 The following preserves prior measurements, playtest findings and engineering
-lessons. Descriptions of retired background layers and their old tuning are
-historical; the current renderer and direction above take precedence.
+lessons. Descriptions of retired background layers, flash effects, furnace
+flicker, beat lighting and old tuning are historical. They are not current
+implementation requirements; the renderer, direction and effects audit above
+take precedence.
 
 ### Sprites are baked once
 

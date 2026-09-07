@@ -23,16 +23,6 @@
     "power-trail": "sprites/power-trail.webp",
     "star-gold": "sprites/star-gold.webp",
     "ui-panel-frame": "sprites/ui-panel-frame.webp",
-    "ui-primary-frame": "sprites/ui-primary-frame.webp",
-    "nebula-arena": "worlds/nebula-arena.webp",
-    "drift-ringed-world": "worlds/drift-ringed-world.webp",
-    "tide-world": "worlds/tide-world.webp",
-    "dustlane-world": "worlds/dustlane-world.webp",
-    "glass-world": "worlds/glass-world.webp",
-    "emberfall-small-world": "worlds/emberfall-small-world.webp",
-    "emberfall-world": "worlds/emberfall-world.webp",
-    "veil-world": "worlds/veil-world.webp",
-    "grid-world": "worlds/grid-world.webp",
-    "deepfield-world": "worlds/deepfield-world.webp"
+    "ui-primary-frame": "sprites/ui-primary-frame.webp"
   }
 }

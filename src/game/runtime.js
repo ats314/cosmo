@@ -237,9 +237,6 @@ const MOTES=[];
 for(let i=0;i<44;i++)MOTES.push({ang:Math.random()*TAU,rr:1.08+Math.random()*0.67,
   ph:Math.random()*TAU,sp:(0.5+Math.random()*1.1)*(Math.random()<0.5?-1:1),
   sz:0.5+Math.random()*0.6});
-/* a fixed flicker table for the comet's furnace core — random at bake, so
-   the flicker never costs a Math.random() per frame */
-const FLK=[];for(let i=0;i<16;i++)FLK.push(Math.random());
 
 /* ---------- sprite cache (shadowBlur is done once, not every frame) ---------- */
 const SPR={};
@@ -260,14 +257,6 @@ const SKY_BANDS=[
    neb:['150,70,190','96,80,200','120,100,220'],limb:'190,150,255'},
   {bg:['#241a28','#150f1e','#0e0a16','#06040c'],
    neb:['200,120,80','170,70,140','120,90,200'],limb:'255,200,140'}];
-/* ---- SKY MOTION. These three numbers are the whole feel of the backdrop.
-   SKY_SWELL  depth of the musical breath (0 = dead still, 1 = strong).
-   SKY_FLOW   how far the clouds wander, as a fraction of the screen.
-   SKY_RATE   master speed of every background LFO; lower is calmer.
-   The sky is deliberately quieter than the arena: the brief is alive and
-   relaxing, and every band still obeys the luminance rule above — none of
-   this may ever let the backdrop compete with a shard for "danger". ---- */
-const SKY_SWELL=0.08,SKY_FLOW=0.008,SKY_RATE=0.20;
 let skyI=0;
 /* Eight authored celestial portraits. Every destination owns a monumental
    globe, its light and rings, and the dust cloud behind it. Position and scale
@@ -1340,9 +1329,21 @@ function tryLand(){} // Retired: a reward never asks for a different tap.
 function starfallWave(){
   const sf=G.starfall;if(!sf||sf.wave>=3)return;
   const base=effRing(),near=base===G.nRings-1?Math.max(0,base-1):base+1;
+  const world=SKY.mix||skyMix(),planet=world.planet;
+  const px=W*.5+planet[0]*H,py=H*.5-planet[1]*H,pr=planet[2]*H;
+  const inward=Math.atan2(cy-py,cx-px);
   for(let j=0;j<5&&G.stars.length<30;j++){
-    G.stars.push({a:(G.angle+G.dir*(0.55+j*0.42)+TAU*4)%TAU,
-      ring:j%3===2?near:base,t:0,life:5,starfall:true,wave:sf.wave});
+    const s={a:(G.angle+G.dir*(0.55+j*0.42)+TAU*4)%TAU,
+      ring:j%3===2?near:base,t:0,life:5,starfall:true,wave:sf.wave};
+    if(!RM){
+      const a=inward+(j-2)*.13+sf.wave*.12;
+      const x=px+Math.cos(a)*pr*1.06,y=py+Math.sin(a)*pr*1.06;
+      const target=posAt(s.a,radiusOf(s.ring));
+      const bend=(40+j*12)*u*G.dir;
+      s.flight={x:(x-cx)/u,y:(y-cy)/u,cx:((x+target[0])/2-cx+bend)/u,
+        cy:((y+target[1])/2-cy-48*u)/u,delay:j*.065,duration:.68+j*.045};
+    }
+    G.stars.push(s);
   }
   sf.wave++;
 }
@@ -1391,8 +1392,6 @@ function armDrop(why,src){
      vocabulary for "something was just earned" stays one thing. */
   note(PENT[8]*0.5,AC.currentTime,0.30,'square',0.028,3000,-0.2);
   note(PENT[5]*0.5,AC.currentTime,0.22,'square',0.026,3000,0.2);
-  const p=posPlayer();
-  ripple(p[0],p[1],COL.warp);
   gameHaptic('reward',18);
 }
 /* THE RULE THIS WHOLE FEATURE HANGS OFF: every duck writes its own undo at
@@ -1557,6 +1556,7 @@ function endSection(){
   MU.pend=bank;MU.pendSrc=bank?bankSrc:null;MU.flavor=null;MU.lateAt=4;MU.crown=0;
   MU.landT=0;MU.landDone=0;
   MU.brk=0;MU.brkEnd=false;MU.brkCool=0;MU.glow=0;
+  MU.orbitTone=null;
   LOOP.pat=null;LOOP.n=0;LOOP.until=0;LOOP.heard=false;LOOPQ.length=0;
   PLAY.tape.length=0;PLAY.slot=-1;PLAY.idx=0;
   G.loopFx=0;G.odBrk=false;
@@ -1619,6 +1619,35 @@ function powerColour(t,ch,beat,bar){
     note(ch[0],t,0.085,'sawtooth',0.018,950,-0.12);
     note(ch[0]*1.49831,t+S16,0.070,'triangle',0.013,1200,0.12);
   }
+}
+/* The same committed-motion envelopes drive dust, light and musical space.
+   Pressure comes from a star-fed route, never from an autonomous volume LFO. */
+function orbitMusicState(){
+  const f=G.currentFlow||{};
+  const active=G.state==='playing'&&!frozen()&&!G.intro&&!bhActive()&&!FIN.on&&
+    G.hyper<=0&&G.od<=0&&!(MU&&(MU.pay>0||MU.armed||MU.rise))&&!(f.release>0.05);
+  const turn=active?Math.min(1,Math.max(0,f.turn||0)):0;
+  const hop=active?Math.min(1,Math.max(0,f.hop||0)):0;
+  const q=active&&G.lapEmbers>0?Math.min(1,Math.max(0,G.lapAcc/TAU)):0;
+  const streak=active?Math.min(1,Math.max(0,G.lapStreak||0)/3):0;
+  return {active:active,q:q,turn:turn,hop:hop,radial:f.radial||0,dir:f.dir||G.dir,
+    pressure:Math.min(1,(q*0.65+streak*0.35)*(1-turn*0.8))};
+}
+/* At most two quiet notes per orbit, only on the accompaniment's quarter-note
+   slots. Completed-orbit fanfares already own the resolution; do not double it. */
+function orbitColour(t,ch,beat,state){
+  if(!MU||!AC||AC.state!=='running')return false;
+  if(!state.active){MU.orbitTone=null;return false;}
+  let memo=MU.orbitTone;
+  if(!memo||memo.lap!==G.orbits||memo.dir!==G.dir||memo.run!==G.started)
+    memo=MU.orbitTone={lap:G.orbits,dir:G.dir,run:G.started,mark:0,next:t};
+  const mark=state.q>=2/3?2:state.q>=1/3?1:0;
+  if(mark===0){memo.mark=0;return false;}
+  if((beat!==2&&beat!==6)||mark<=memo.mark||t<memo.next)return false;
+  memo.mark=mark;memo.next=t+SPB*1.5;
+  note(ch[mark===1?2:3]*2,t,0.46,'triangle',0.024,1800+900*state.pressure,
+    state.dir*0.24,undefined,0.36);
+  return true;
 }
 function musicStep(i,t,k){
   const bar=(i/8)|0,beat=i%8;
@@ -1733,9 +1762,8 @@ function musicStep(i,t,k){
     MU.brk--;if(MU.brk<=0)MU.brkEnd=true;
     return;
   }
-  /* the crash brings the record back exactly on the downbeat after the break */
-  if(MU.brkEnd){MU.brkEnd=false;hat(t,0.055,2600,0.5,0.5);
-    if(!RM)flashHit(0.18);}
+  /* The cymbal returns the arrangement; an automatic fill earns no visual hit. */
+  if(MU.brkEnd){MU.brkEnd=false;hat(t,0.055,2600,0.5,0.5);}
   if(rise){
     /* THE RISE, AND NOTHING ELSE. It measured -19.8dB against an ordinary
        bar's -19.6 because the arp, counter-line and root kept playing
@@ -1765,6 +1793,7 @@ function musicStep(i,t,k){
   /* overdrive and the payoff's afterglow hold open every gate the clock or
      the heat could — see G.od and MU.glow */
   const hot=G.od>0||G.hyper>0||t<MU.glow;
+  const orbit=orbitMusicState(),orbitNote=orbitColour(t,ch,beat,orbit);
   /* Open space is a real arrangement, not the busy one turned down. Each
      world keeps its chord walk and arp contour; bass phrases remember its
      rhythmic identity in a few separated notes. The player opens the engine
@@ -1779,7 +1808,7 @@ function musicStep(i,t,k){
       const f=G.level>=4&&at>0?ch[1]:at>0?ch[3]/2:ch[0];
       bassN(f,t,0.24,0.026);
     }
-    if(beat===2){
+    if(beat===2&&!orbitNote){
       const d=ARP[(i+bar)%ARP.length];
       note(PENT[d]*0.5,t,SPB*1.6,'triangle',0.028,1700,bar%2?-0.28:0.28,undefined,0.42);
     }
@@ -1916,7 +1945,7 @@ function musicStep(i,t,k){
      same key, same degrees, a band that grows up with the run. And heat can
      open every layer the clock would: playing hard means hearing more NOW. */
   const av=G.tier>=T_VOICE[2]?'sawtooth':'square';
-  if((k>0.18||PLAY.heat>0.30||hot)&&beat%2===0){
+  if(!orbitNote&&(k>0.18||PLAY.heat>0.30||hot)&&beat%2===0){
     /* AN OCTAVE DOWN — and ONE tenant per band: when the riff layer
        unlocks it REPLACES the arp in this register instead of stacking on
        it. The arrangement evolves; it does not accumulate. */
@@ -2073,7 +2102,7 @@ function musicStep(i,t,k){
      the run, each named as it arrives — see the layer ladder in update(). */
   if(G.score>=LAYER_AT[0]&&beat%2===0)
     note(ch[0]*2,t+S16,0.10,'square',0.011,1000,beat%4?0.2:-0.2,undefined,0.35);
-  if(G.score>=LAYER_AT[1]){
+  if(G.score>=LAYER_AT[1]&&!orbitNote){
     /* the arp's successor — same register, richer tune (see the arp gate) */
     const rd=RIFFL[G.level-1][(bar%2)*8+beat];
     if(rd>=0){
@@ -2632,7 +2661,6 @@ function judgeTiming(x,y){
     if(G.groove>=2)firstMeet('beat');
     /* the summit says what it bought — once per run, at the moment ×8 lands */
     if(G.groove===8&&!G.said8){G.said8=true;say('GREAT TIMING',2,8);}
-    if(G.groove>=3)popup(x,y-34*u,'ON TIME',COL.warp,0.85+0.05*G.groove);
     return G.groove;
   }
   /* a miss costs one link, never the chain and never points — losing eight for
@@ -2660,14 +2688,19 @@ function performerHit(kind,dir,ring){
     [0,2,1,3,2,0,3,1][PLAY.idx%8])+rg;
   PLAY.idx++;
   const p=posPlayer(),gr=judgeTiming(p[0],p[1]),rv=RINGS[rg];
+  const flow=G.currentFlow||{},motion=kind==='hop'?(flow.hop||0):(flow.turn||0);
+  const spread=motion*(kind==='hop'?0.16:0.10);
+  const side=kind==='hop'?(flow.radial||-dir):(flow.dir||G.dir);
+  const pan=Math.max(-0.75,Math.min(0.75,panAt(p[0])+side*spread));
   /* Turning always sounds like turning; hopping always follows its direction.
      Sections never remap controls, record a phrase or ask for musical input. */
   const g=(.032+.024*PLAY.heat)*(1+.08*gr);
   if(MU.pay>0){MU.payHits++;MU.barHits++;}
   note(chTone(ci+2),t,.16,rv.wave,g,(1500+1200*PLAY.heat)*(1+.16*gr)*rv.cut,
-    panAt(p[0]),A.perf,.12);
-  note(chTone(ci),t,.13,rv.wave,g*.34,1100*rv.cut,panAt(p[0]),A.perf);
-  if(rg>=2)note(chTone(ci+4),t,.09,'sine',g*.25,3600,panAt(p[0]),A.perf);
+    pan,A.perf,.12);
+  note(chTone(ci),t,.13,rv.wave,g*.34,1100*rv.cut,
+    Math.max(-0.75,Math.min(0.75,pan-side*spread*2)),A.perf);
+  if(rg>=2)note(chTone(ci+4),t,.09,'sine',g*.25,3600,pan,A.perf);
 }
 /* Lookahead stays on the audio clock, independent of rendering stalls. */
 function musicTick(){
@@ -2697,6 +2730,14 @@ function bedTick(dt){
   const t=AC.currentTime;
   const playing=G.state==='playing';
   const k=playing?Math.min(1,dl()/170):0;
+  const orbit=orbitMusicState();
+  /* Redistribute the existing pad budget: root/octave weight opens into
+     third/fifth color. The sum stays 0.16; no new oscillator or master gain. */
+  for(let v=0;v<4;v++)for(let pair=0;pair<2;pair++){
+    const weight=orbit.active?(v<2?0.065-0.02*orbit.pressure:0.015+0.02*orbit.pressure):
+      (v<2?0.05:0.03);
+    BED.gains[v*2+pair].gain.setTargetAtTime(weight/2,t,0.22);
+  }
   /* not gated on muted: the bus already is, and gating here made unmuting
      produce a 0.9s pad swell that read as a fade-in rather than a switch */
   /* THE DEADLINE. bedTick runs from update() unconditionally, so this catches
@@ -2763,21 +2804,14 @@ function bedTick(dt){
   /* engagement decays over ~3s, so a flurry lifts the arrangement and then
      settles rather than latching */
   PLAY.heat=Math.max(0,PLAY.heat-dt*0.34);
-  /* in the pocket the LANDED beat itself strikes the sky: a ripple seeds at
-     the comet through the same two-slot interference field every tap uses,
-     so the backdrop visibly plays the beat the player is holding */
-  while(BEATQ.length&&BEATQ[0]<=t){BEATQ.shift();G.beat=1;if(G.pocket>0.55)glRipple();}
+  /* Keep the audio timestamps for phase, never turn each note into a shared
+     brightness impulse. The timing marker follows beatPhase continuously. */
+  while(BEATQ.length&&BEATQ[0]<=t)BEATQ.shift();
   LOOPQ.length=0;G.loopFx=0;  /* retired recorder state cannot restart */
   while(DROPQ.length&&DROPQ[0]<=t){
     DROPQ.shift();startStarfall();G.dropFx=1;
-    /* the world answers the downbeat */
-    if(!RM){
-      flashHit(0.34);G.shake=Math.max(G.shake,9);
-      for(let i=0;i<G.nRings;i++)
-        G.rings.push({x:cx,y:cy,r:radiusOf(i),life:1,col:COL.warp,sp:230,dec:1.3});
-      G.rings.push({x:cx,y:cy,r:12*u,life:1,col:'#ffffff',sp:640,dec:1.2,fat:1});
-    }
-    const q=posPlayer();burst(q[0],q[1],COL.warp,26,300);
+    // Starfall owns one conversion front and its actual arriving stars.
+    // The scheduler must not add another set of shockwaves or screen light.
     gameHaptic('reward',[34,30,70]);
   }
   if(BEATQ.length>32)BEATQ.length=0;      /* a stall must not bank a burst */
@@ -2791,15 +2825,15 @@ function bedTick(dt){
     +(G.od>0?420:0)+(G.hyper>0?520:0)+((MU&&t<MU.glow)?280:0) /* overdrive, hypernova and afterglow run bright */
     +((MU&&MU.sect)?200:0)               /* the chorus opens the pad — half the lift */
     +(FIN.on?90*FIN.got:0);                      /* the dive opens with every star */
+  if(orbit.active)cut=Math.max(520,cut+750*orbit.pressure-280*orbit.turn+
+    160*orbit.hop*orbit.radial);
   if(MU&&MU.pay>0)cut=Math.min(cut,((PAY-MU.pay)>>3)<(MU.lateAt||4)?380:700);
   /* Time slip darkens the air, while every note keeps the level's pitch and
      the scheduler keeps its grid. The drop still owns its darker filter. */
   else if(G.slow>0&&!bhActive())cut=Math.max(520,cut*0.68);
-  /* the slow breath: textures in the reference genres move over MINUTES —
-     one gentle sine on the cutoff, ~2.3 minute period, nothing else */
-  if(playing)cut+=170*Math.sin(t*0.045);
   /* schedulePreDrop owns this param through the hole; do not fight it */
-  if(!MU||t>=MU.lpLock)BED.lp.frequency.setTargetAtTime(cut,t,0.5);
+  if(!MU||t>=MU.lpLock)BED.lp.frequency.setTargetAtTime(cut,t,
+    orbit.active&&(orbit.turn>0||orbit.hop>0)?0.13:0.5);
   musicTick();
 }
 /* Big moments push the bed and the reverb tail out of the way, then let them
@@ -3629,7 +3663,6 @@ function levelComplete(){
     fin_perfect:(FIN.on||FIN.done)&&FIN.got>=11
   });
   braam(0.07);
-  flashHit(0.6);
   ripple(cx,cy,COL.ember);
   if(!RM)G.rings.push({x:cx,y:cy,r:radiusOf(0),life:1,col:COL.ember,sp:420,dec:1.0,fat:1});
   gameHaptic('reward',[40,30,40,30,90]);
@@ -4388,14 +4421,7 @@ function annPump(){
   G.sayFx={str:a.str,t:0};
   annNext=G.t+2.8;
 }
-/* ---------- one flash ----------
-   Seven systems max() into G.flash, which at mid-game density strobed the
-   screen near-continuously. Small flashes now rate-limit to one per 0.45s;
-   the few genuinely big moments (perfect landing, nova) always pass. */
-function flashHit(v){
-  if(v<0.5&&G.t-G.flashT<0.45)return;
-  G.flashT=G.t;G.flash=Math.max(G.flash,v);
-}
+/* Events report their effect locally. There is no full-screen flash channel. */
 function age(){return G.t-G.started;}
 /* DIFFICULTY IS A CLOCK. Scoring well nudges it forward a little, but the
    nudge is capped, so playing well can never accelerate you into the wall.
@@ -4638,7 +4664,7 @@ const TIERS=[
   {at:40, type:null,    name:'THIRD RING',  sub:'Swipe to another ring to reach more stars',rings:3},
   {at:100,type:'gate',  name:'GATES',       sub:'A wall blocks every ring; tap to turn around'},
   {at:128,type:'drift', name:'DRIFTERS',    sub:'This red obstacle moves; tap to turn away'},
-  {at:165,type:'blink', name:'BLINKERS',    sub:'Pass while dim; bright red costs a shield'},
+  {at:165,type:'blink', name:'SHUTTERS',    sub:'Pass through the open shape; avoid solid red'},
   /* THE TWO HARDEST SHAPES NOW LAND IN LEVEL 3 (owner: "the hardest mechanics
      should be reserved for level 3 teaching, that will allow more time to
      learn"). Both are COMPOUNDS — a gate that also drifts, a twin that also
@@ -4675,7 +4701,7 @@ const TIERS=[
      tier banners may not fire inside level 4 (curriculum.mjs) and dl 340 is
      THE EYE's, so 275 is the last slot with room for its lesson to land. */
   {at:275,type:'saucer',name:'THE SAUCER',sub:'Turning triggers its shot; swipe to another ring'},
-  {at:310,type:'blinktwin',name:'FLICKER PAIRS',sub:'One flashes red; pass the dim one'},
+  {at:310,type:'blinktwin',name:'SHUTTER PAIRS',sub:'The shapes take turns opening; pass through the open one'},
   /* THE EYE, not STORM. This sub can never render — a dl 340 crossing on
      level 3 always falls inside the suppressed endgame window, and on level 4
      startGame pre-climbs G.tier before the first frame — but the NAME is the
@@ -4722,7 +4748,7 @@ const TIERS=[
    than quietly re-timing the audio ladder. */
 const T_VOICE=[0,
   TIERS.findIndex(function(t){return t.name==='THIRD RING';}),
-  TIERS.findIndex(function(t){return t.name==='BLINKERS';}),
+  TIERS.findIndex(function(t){return t.name==='SHUTTERS';}),
   TIERS.findIndex(function(t){return t.name==='THE EYE';})];
 /* and the same for the sky's four palette bands, for the same reason. These
    two rungs happen not to have shifted this time — the insert went in above
@@ -5051,7 +5077,7 @@ const G={
   dropsEarned:0,loopN:0,nearN:0,bestCombo:0,holdTimeout:false, /* play-style aggregates for run_ended */
   stars:[],spikes:[],pows:[],parts:[],trail:[],rings:[],pops:[],arcs:[],laps:[],novas:[],
   stop:0, /* hitstop: freezes the comet while the celebration plays */
-  starT:0.6,spikeT:1.2,powT:6,powN:0,introN:0,shake:0,flash:0,tier:0,banner:null,featT:0,
+  starT:0.6,spikeT:1.2,powT:6,powN:0,introN:0,shake:0,tier:0,banner:null,featT:0,
   sauT:0,   /* earliest G.t another saucer may arrive — see saucerOK */
   runs:0,didReverse:false,didHop:false,didLap:false,
   teach:0,teachKind:null,teachHint:null,teachType:null,seen:{},seen2:{},campT:0, /* lessons + outer-ring camp clock */
@@ -5069,7 +5095,7 @@ const G={
   layerN:0,bandN:0,bandFx:0,           /* score layers unlocked; band-meter dot count + pulse */
   bandSeen:false,embSeen:false,        /* each HUD meter appears once it has a reading, then stays */
   sndAt:0,sndStr:null,                 /* a NEW SOUND announcement waiting for its banner to clear */
-  flashT:0,meetNext:0,teachSoft:false, /* flash rate-limit; lesson spacing; lesson-without-slowmo */
+  meetNext:0,teachSoft:false, /* lesson spacing; lesson-without-slowmo */
   holdD:0,hopHintT:0,                   /* the hop lesson: gate, hint clock */
   everHopped:false,struggle:0,coach:null,  /* lifetime hop pref, struggle streak, death coaching */
   bgFade:0,revFlip:0,impactT:0,killer:null, /* sky crossfade, reverse flip, death impact */
@@ -5097,11 +5123,18 @@ function effRing(){return G.hopP<0.5?G.hopFromI:G.ringI;}
    bloom and route drawing. Coordinates are in scale units around the hub, so
    resize cannot strand a captured star in the old viewport. */
 const MAGNET_RANGE=110,MAGNET_SECS=10,MAGNET_FLIGHT=0.38;
+function starfallFlightPos(s,at){
+  const target=posAt(s.a,radiusOf(s.ring)),f=s.flight;
+  if(!f)return target;
+  const t=Math.max(0,Math.min(1,(at-f.delay)/f.duration)),q=1-(1-t)*(1-t),k=1-q;
+  return [cx+(k*k*f.x+2*k*q*f.cx)*u+q*q*(target[0]-cx),
+    cy+(k*k*f.y+2*k*q*f.cy)*u+q*q*(target[1]-cy)];
+}
 function starVisualPos(s){
-  return s.mag?[cx+s.mag.x*u,cy+s.mag.y*u]:posAt(s.a,radiusOf(s.ring));
+  return s.mag?[cx+s.mag.x*u,cy+s.mag.y*u]:starfallFlightPos(s,s.t);
 }
 function updateMagnetStar(s,dt){
-  if(bhActive())return;
+  if(bhActive()||(s.flight&&s.t<s.flight.delay))return;
   const target=posPlayer(),tx=(target[0]-cx)/u,ty=(target[1]-cy)/u;
   if(!s.mag&&G.spot>0&&Math.abs(s.ring-effRing())<=1){
     const p=starVisualPos(s),x=(p[0]-cx)/u,y=(p[1]-cy)/u;
@@ -5120,7 +5153,8 @@ function updateMagnetStar(s,dt){
   m.y=k*k*m.y0+2*k*q*m.cy+q*q*ty;
 }
 function starTouchesPlayer(s,er){
-  if(s.mag){
+  if(s.flight&&s.t<s.flight.delay)return false;
+  if(s.mag||(s.flight&&s.t<s.flight.delay+s.flight.duration)){
     const p=starVisualPos(s),c=posPlayer();
     return Math.hypot(p[0]-c[0],p[1]-c[1])<=22*u;
   }
@@ -5469,7 +5503,7 @@ const MEET={
      is no input in this game that stops you moving. Both halves named a
      behaviour the player would then watch not happen. */
   drift:   {t:'This red obstacle moves; tap to turn away',g:'shard'},
-  blink:   {t:'Pass while dim; bright red costs a shield',g:'shard'},
+  blink:   {t:'Pass through the open shape; avoid solid red',g:'shard'},
   driftgate:{t:'The wall moves; tap to turn before it reaches you',g:'tap'},
   /* NAMES A VERB THE GAME HAS AND CLAIMS ONLY WHAT IS TRUE. Not "shake it"
      (you cannot — it follows the hop), not "outrun it" and not "get past it"
@@ -5479,7 +5513,7 @@ const MEET={
      check every clause of it against the screen inside one charge, which is
      the test the two twin wordings failed. */
   saucer:  {t:'Turning triggers its shot; swipe to another ring',g:'swipe'},
-  blinktwin:{t:'One flashes red; pass the dim one',g:'shard'},
+  blinktwin:{t:'The shapes take turns opening; pass through the open one',g:'shard'},
   /* NAMES THE ONE THING THAT IS NEW AND NOTHING ELSE. Every other shard in
      the game answers "which ring?" once; this is the only one whose answer
      changes, so the sentence is about the answer changing and about where to
@@ -6161,7 +6195,7 @@ function startGame(){
   PLAY.tape.length=0;
   LOOP.pat=null;LOOP.n=0;LOOP.until=0;LOOP.heard=false;
   G.bandN=0;G.bandFx=0;G.sndAt=0;G.sndStr=null;G.bandSeen=false;G.embSeen=false;
-  G.flashT=0;G.meetNext=0;G.teachSoft=false;G.teachType=null;ANN.length=0;annNext=0;
+  G.meetNext=0;G.teachSoft=false;G.teachType=null;ANN.length=0;annNext=0;
   G.lapCut=0;G.lapCutDir=1;G.lapFx=null;G.beatPop=false;G.lsnN=0;G.said8=false;
   G.chorusN=0;G.chorusBars=0;   /* per level, the scale `seconds` uses; saidChor is per run, above */
   G.loopFx=0;G.bandCap=false;G.bandCapT=0;LOOPQ.length=0;
@@ -6190,6 +6224,7 @@ function startGame(){
   GEST.tap=0;GEST.swipe=0;GEST.lateSwipe=0;GEST.unresolved=0;
   G.angle=-Math.PI/2;G.prevAngle=G.angle;G.sweep=0;G.dir=1;G.speed=1.40;
   G.nRings=1;G.ringI=0;G.hopFromI=0;G.hopP=1;
+  currentWakeReset();
   /* an extra shield while learning: one mistake should not end the lesson */
   /* Two to start, always. One was a single mistake between a new player and
      the retry screen, and shields are now purely "you live" — see the block
@@ -6431,7 +6466,7 @@ function die(){
      the rule where the rule lives. */
   G.newLevel=!LAB.on&&G.startLevel===1&&G.level>G.lvlMax;
   if(G.newLevel){G.lvlMax=G.level;REC[MODE].lvlMax=G.lvlMax;savePref(recKey('gl'),G.lvlMax);}
-  if(!RM){G.shake=16;G.flash=0.9;}
+  if(!RM)G.shake=5;
   const p=posPlayer();
   burst(p[0],p[1],COL.shard,26,240);
   burst(p[0],p[1],COL.comet,16,170);
@@ -6539,15 +6574,13 @@ function die(){
   });
 }
 function reverseFX(){
+  currentWakeTurn();
   introAction('turn');
   const p=posPlayer();
   G.revFlip=G.t+0.09;   /* the comet visibly turns end-for-end — see the draw */
   ripple(p[0],p[1]);
   burst(p[0],p[1],COL.comet,6,90);
   beep(300,0.07,'square',0.045,540);
-  /* during a drum break the inputs ARE the fill — give the snare a face,
-     so the mechanic exists for muted players too */
-  if(MU&&MU.brk>0&&!RM)G.rings.push({x:p[0],y:p[1],r:9*u,life:0.45,col:'#ffffff'});
   /* THE COST, COMMITTED. reverseFX only ever runs for a reverse that stuck
      (a rolled-back swipe restores the lap and clears lapCut), so this is
      the one safe place to teach what the reverse just spent: the discarded
@@ -6930,6 +6963,7 @@ function hop(step){
   G.hopFromI=G.ringI;
   G.ringI=t;
   G.hopP=0;
+  currentWakeHop(step);
   if(G.slip>0&&!bhActive()){
     /* The clear belongs to a successful player hop, never to the gravity
        pull or a swipe beyond the available rings. The short grace is metered:
@@ -7638,9 +7672,8 @@ function updateSpikes(sdt,lethal){
         if(G.shields>=shieldMax())cueState(false); /* overcharge closes with the spent shield */
         G.shields--;G.invuln=G.t+0.9;G.blocks++;
         s.phase=2;s.t=0;
-        /* a block is an impact: one short flash and stop, so the save is
-           FELT rather than deduced from the pip count */
-        if(!RM){flashHit(0.28);G.stop=Math.max(G.stop,0.04);}
+        /* The shield breaks into fragments; a short hit-stop carries contact. */
+        if(!RM)G.stop=Math.max(G.stop,0.04);
         const p=posPlayer();
         burst(p[0],p[1],COL.shield,18,180);
         ripple(p[0],p[1],COL.shield);
@@ -7720,7 +7753,6 @@ function update(dt){
   G.t+=dt;
   const rewardDt=bhActive()?0:dt;
   G.shake=Math.max(0,G.shake-dt*45);
-  G.flash=Math.max(0,G.flash-dt*1.6);
   G.scorePop=Math.max(0,G.scorePop-dt*3.5);
   G.beat=Math.max(0,G.beat-dt*4.5);
   G.grooveFx=Math.max(0,G.grooveFx-dt*2.2);
@@ -7882,7 +7914,7 @@ function update(dt){
   if(G.state==='swipesel'){G.sweep=0;G.angle+=0.62*dt*G.dir;pushTrail();return;}
   if(G.state==='dead'){G.sweep=0;updateSpikes(dt,false);return;}
 
-  if(G.intro){introTick(dt);return;}
+  if(G.intro){introTick(dt);currentWakeUpdate(pdt);return;}
   /* playing */
   G.teach=Math.max(0,G.teach-dt);
   if(G.nRings>=3&&G.ringI===0)G.campT+=dt;else G.campT=0;
@@ -8020,11 +8052,9 @@ function update(dt){
       if(all){
         G.score+=200;FIN.score+=200;
         popup(p2[0],p2[1]-32*u,'ALL STARS +200',COL.ember,1.5);
-        flashHit(0.55);
       }else{
         G.score+=100;FIN.score+=100;
         popup(p2[0],p2[1]-32*u,'LEVEL COMPLETE +100',COL.ember,1.3);
-        flashHit(0.4);
       }
       gameHaptic('reward',[40,30,90]);
       FIN.on=false;FIN.done=true;G.finEnd=1;
@@ -8053,7 +8083,7 @@ function update(dt){
     say('Double points for stars and on-beat taps',3,6);
     fireLift();braam(0.045);
     const op=posPlayer();burst(op[0],op[1],COL.warp,20,240);
-    if(!RM){flashHit(0.2);
+    if(!RM){
       G.rings.push({x:cx,y:cy,r:radiusOf(G.ringI),life:1,col:COL.warp,sp:260,dec:1.6});}
   }
   /* the spotlight burns down; golden lap is retired — the finale is the
@@ -8224,6 +8254,7 @@ function update(dt){
   G.angle=(G.angle+G.dir*G.speed*sdt)%TAU;
   pushTrail();
   updateOrbMotion(rewardDt,sdt);
+  currentWakeUpdate(pdt);
   /* the furnace sheds: a stream of sparks off the comet's tail, denser
      during the payoff, one in four ember-gold */
   if(!RM){
@@ -8691,7 +8722,7 @@ function update(dt){
         burst(p[0],p[1],'#ffffff',22,280);
         burst(p[0],p[1],COL.ember,16,200);
         ripple(p[0],p[1],COL.ember);
-        if(!RM){G.stop=Math.max(G.stop,0.09);flashHit(0.5);G.shake=Math.max(G.shake,9);}
+        if(!RM){G.stop=Math.max(G.stop,0.06);G.shake=Math.max(G.shake,3);}
         soundImpact('hyper',1);
         gameHaptic('impact',[20,30,20,30,80]);
       }else{
@@ -8713,8 +8744,7 @@ function update(dt){
           /* longer than the orbit's 75ms — this is the rarest thing here and
              should outrank the routine celebration, not sit beneath it */
           G.stop=Math.max(G.stop,0.11);
-          flashHit(0.55);
-          G.shake=Math.max(G.shake,11);
+          G.shake=Math.max(G.shake,3);
         }
         soundImpact('nova',1);
         gameHaptic('impact',[26,40,60]);
@@ -8896,58 +8926,48 @@ function artifactSprite(kind){
   });
   artifactBank.sprites[kind]=sp;return sp;
 }
-function artifactGlint(x,y,rot,size,al){
-  ctx.save();ctx.translate(x,y);ctx.rotate(rot);
-  ctx.globalAlpha=al;ctx.strokeStyle='#fff8de';ctx.lineWidth=0.75*u;
-  ctx.beginPath();ctx.moveTo(-size*u,0);ctx.lineTo(size*u,0);
-  ctx.moveTo(0,-size*u);ctx.lineTo(0,size*u);ctx.stroke();ctx.restore();
-}
 function artifactStar(x,y,s,al){
   const tilt=RM?0:Math.sin(s.t*1.1+s.a)*0.18;
-  const pulse=1+(RM?0.035:0.065*G.beat);
+  const pulse=1;
   ctx.save();ctx.globalCompositeOperation='source-over';
   blit(artifactSprite('star'),x,y,pulse,tilt,al);
   if(s.trail){
     ctx.globalAlpha=al*0.8;ctx.strokeStyle='#fff1b5';ctx.lineWidth=0.7*u;
     ctx.beginPath();ctx.moveTo(x-7*u,y+10*u);ctx.lineTo(x,y+12*u);ctx.lineTo(x+7*u,y+10*u);ctx.stroke();
   }
-  if(!RM){
-    const gleam=Math.pow(Math.max(0,Math.sin(s.t*2.5+s.a*3)),10);
-    if(gleam>0.08)artifactGlint(x-1.5*u,y-6.5*u,tilt,2.8,al*gleam);
-  }
   rimLight(x,y,pulse,al*0.3);ctx.restore();
 }
 function artifactPower(x,y,s,al){
-  const pulse=1+(RM?0.035:0.075*G.beat);
+  const pulse=1;
   const tilt=RM?0:Math.sin(s.t*1.25)*0.075;
   ctx.save();ctx.globalCompositeOperation='source-over';
   blit(artifactSprite(s.type),x,y,pulse,tilt,al);
-  if(!RM){
-    const gleam=Math.pow(Math.max(0,Math.sin(s.t*2.2)),8);
-    if(gleam>0.06)artifactGlint(x-5*u,y-7*u,tilt,3.1,al*gleam);
-  }
   rimLight(x,y,pulse*1.05,al*0.3);ctx.restore();
 }
 function artifactShard(x,y,s){
   const kind=s.blink&&!s.gate?'blinker':s.va&&!s.gate?'drifter':'shard';
+  const solid=kind==='blinker'?'shard':kind;
   const rot=s.a+(kind==='drifter'?(s.va>0?Math.PI/2:-Math.PI/2):0);
-  if(s.phase===1&&armed(s)){blit(artifactSprite(kind),x,y,1,rot,1);return;}
+  if(s.phase===1&&armed(s)){blit(artifactSprite(solid),x,y,1,rot,1);return;}
   if(s.phase===2){
-    const k=s.t/FADE;blit(artifactSprite(kind),x,y,1-k*0.4,rot,1-k);return;
+    const k=Math.min(1,s.t/FADE);blit(artifactSprite(solid),x,y,1-k*0.4,rot,1-k);return;
   }
   const waking=s.phase===0;
-  const k=waking?Math.min(1,s.t/(s.warn||WARN))
-    :(blinkPhase(s)-BLINK*duty(s))/(BLINK*(1-duty(s)));
+  const k=Math.max(0,Math.min(1,waking?s.t/(s.warn||WARN)
+    :(blinkPhase(s)-BLINK*duty(s))/(BLINK*(1-duty(s)))));
   ctx.save();ctx.translate(x,y);ctx.rotate(rot);
-  const r=(waking?8+2.6*k:10.4)*u;
-  ctx.globalAlpha=waking?0.42+0.38*k:0.38+0.35*k;
-  ctx.strokeStyle=COL.shard;ctx.lineWidth=(waking?1.1:0.9)*u;
-  artifactPoly(ctx,[[0,-r],[r*0.64,-r*0.36],[r,0],[r*0.64,r*0.36],[0,r],[-r*0.64,r*0.36],[-r,0],[-r*0.64,-r*0.36]]);
-  ctx.stroke();
-  /* Hollow means safe; the central red crystal fills toward the live state. */
-  const core=(1.2+3.8*Math.max(0,k))*u;
-  ctx.globalAlpha=0.24+0.55*k;ctx.fillStyle=COL.shard;
-  artifactPoly(ctx,[[0,-core],[core*0.55,0],[0,core],[-core*0.55,0]]);ctx.fill();
+  ctx.globalCompositeOperation='source-over';
+  const r=(waking?8+2.6*k:10.4)*u,inner=r*(0.64-0.18*k);
+  /* An open shutter stays visibly hollow until armed() actually closes it.
+     Geometry counts down; opacity does not pulse or turn the hazard invisible. */
+  ctx.globalAlpha=0.78;ctx.fillStyle='#854252';ctx.strokeStyle='#df8294';ctx.lineWidth=0.9*u;
+  for(let q=0;q<4;q++){
+    ctx.save();ctx.rotate(q*Math.PI/2);
+    ctx.beginPath();ctx.moveTo(-r*0.22,-r);ctx.lineTo(r*0.22,-r);
+    ctx.lineTo(r*0.48,-r*0.72);ctx.lineTo(r*0.30,-inner);
+    ctx.lineTo(-r*0.30,-inner);ctx.lineTo(-r*0.48,-r*0.72);
+    ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+  }
   ctx.restore();
 }
 function drawShardOutline(x,y,r,al,dash,core){
@@ -8985,7 +9005,7 @@ function rimLight(x,y,scale,al){
 function drawPow(x,y,s,al){
   if(s.type==='blackhole'&&host.getTexture&&host.getTexture('power-blackhole')){artifactPower(x,y,s,al);return;}
   if(s.type!=='blackhole'){artifactPower(x,y,s,al);return;}
-  const pulse=1+(RM?0.10:0.15*G.beat);
+  const pulse=1;
     /* THE ONLY DARK OBJECT IN THE GAME. Everything else on the board emits;
        this one takes. Drawn as a hole rather than a ball: a flat black disc
        with a violet accretion ring leaning around it and a lensing halo that
@@ -9128,9 +9148,9 @@ function bloomDot(g,x,y,r,col){
   g.fillStyle=col;g.beginPath();g.arc(x,y,r,0,TAU);g.fill();
   if(!haloG||!bloomHalo)return;
   haloG.fillStyle=col;
-  haloG.globalAlpha=HALO_W1;
+  haloG.globalAlpha=HALO_W1*g.globalAlpha;
   haloG.beginPath();haloG.arc(x,y,r*HALO_K1,0,TAU);haloG.fill();
-  haloG.globalAlpha=HALO_W2;
+  haloG.globalAlpha=HALO_W2*g.globalAlpha;
   haloG.beginPath();haloG.arc(x,y,r*HALO_K2,0,TAU);haloG.fill();
 }
 function drawBloom(){
@@ -9158,14 +9178,20 @@ function drawBloom(){
   g.setTransform(s,0,0,s,0,0);
   g.globalCompositeOperation='lighter';
   for(const st of G.stars){
+    if(st.flight&&st.t<st.flight.delay)continue;
     const p=starVisualPos(st);
-    bloomDot(g,p[0],p[1],10*u,COL.ember);
+    g.globalAlpha=Math.min(1,st.t/0.45,Math.max(0,(st.life-st.t)/0.65));
+    bloomDot(g,p[0],p[1],8*u,COL.ember);
   }
+  g.globalAlpha=1;
   for(const sp of G.spikes){
-    if(sp.phase!==1||!armed(sp))continue;
+    // Shutters communicate danger with their shape, never a toggled halo.
+    if(sp.blink||sp.phase!==1||!armed(sp))continue;
     const p=posAt(sp.a,radiusOf(sp.ring));
-    bloomDot(g,p[0],p[1],11*u,COL.shard);
+    g.globalAlpha=Math.min(1,sp.t/0.6);
+    bloomDot(g,p[0],p[1],7*u,COL.shard);
   }
+  g.globalAlpha=1;
   if(FIN.on)for(const ts of FIN.trail){
     if(ts.got)continue;
     const p=posAt(ts.a,radiusOf(ts.ring));
@@ -9183,24 +9209,15 @@ function drawBloom(){
       pw.type==='mirror'?COL.mirror:
       pw.type==='scorch'?COL.scorch:COL.nova);
   }
-  for(const pt of G.parts){
-    if(pt.life<=0)continue;
-    bloomDot(g,pt.x,pt.y,pt.size*pt.life*1.6,pt.col);
-  }
+  // Debris has its own silhouette; adding every fragment to bloom turned
+  // one collision into an area-wide light burst.
   if(G.state!=='dead'){
     const p=posPlayer();
-    bloomDot(g,p[0],p[1],13*u,'#7ce9ff');
-    bloomDot(g,p[0],p[1],4.5*u,'#ffffff');
+    bloomDot(g,p[0],p[1],10*u,'#7ce9ff');
   }
-  /* the hub lamp blooms too, harder while the drop is landing — and NOT AT
-     ALL inside a black hole. Gating the lamp's own draw was not enough: this
-     is a second, independent light at dead centre, and it is the one the
-     screenshot after that fix was still showing burning in the middle of the
-     shadow. The singularity is the one object in the game whose entire read is
-     that light goes in and does not come out; two separate passes had to be
-     told. Rides BH.warp so it leaves and returns with the orbits. */
+  /* The small steady hub light gradually disappears into the black hole. */
   const hubLamp=1-Math.min(1,BH.warp);
-  if(hubLamp>0.004)bloomDot(g,cx,cy,(9+9*G.dropFx)*u*hubLamp,'#9db9ff');
+  if(hubLamp>0.004)bloomDot(g,cx,cy,7*u*hubLamp,'#9db9ff');
   g.setTransform(1,0,0,1,0,0);
   /* THE GPU PATH, when it is up: two gaussian levels and the lens, off the
      buffer that was just filled. It can fail on this very frame (a lost
@@ -9246,20 +9263,20 @@ function drawBloom(){
      sets a pure scale with no dolly. */
   ctx.setTransform(DPR,0,0,DPR,0,0);
   ctx.globalCompositeOperation='lighter';
-  /* the bloom breathes with the payoff kick — the visual half of the pump */
-  const bp=1+((G.pay>0&&!RM)?0.45*G.beat:0);
+  /* Fixed light budget. Music changes motion and orchestration, never the
+     gain of every object on screen at once. */
   /* Additive, so the order buys nothing mathematically; widest first because
      that is the order the light is built in and the one a reader expects. */
   if(fxOK){
-    ctx.globalAlpha=FX_A*bp;
+    ctx.globalAlpha=FX_A;
     ctx.drawImage(FX.cv,0,0,W,H);
   }else if(bloomHalo){
-    ctx.globalAlpha=HALO_WA*bp;
+    ctx.globalAlpha=HALO_WA;
     ctx.drawImage(haloWC,0,0,W,H);
-    ctx.globalAlpha=HALO_A*bp;
+    ctx.globalAlpha=HALO_A;
     ctx.drawImage(haloC,0,0,W,H);
   }
-  ctx.globalAlpha=BLOOM_ALPHA*bp;
+  ctx.globalAlpha=BLOOM_ALPHA;
   ctx.drawImage(bloomC,0,0,W,H);
   ctx.restore();
 }
@@ -9276,8 +9293,7 @@ function drawRingGlow(){
      which ring you are on as plainly as the arrangement does */
   ctx.strokeStyle='rgb('+RINGS[Math.min(RINGS.length-1,effRing())].tint+')';
   for(const L of RING_LIT){
-    /* the light under the comet breathes with the landed beat */
-    ctx.globalAlpha=L[1]*(RM?1:1+0.30*G.beat);
+    ctx.globalAlpha=L[1];
     ctx.lineWidth=L[2]*u;
     ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,G.angle-L[0],G.angle+L[0]);ctx.stroke();
   }
@@ -9328,15 +9344,9 @@ function tailRibbon(n,am,ghost){
   /* the ghost is two passes, not three: it is an after-image, and giving it
      the hot white core the live ribbon has would make it read as a second
      comet rather than as the first one's past */
-  /* THE STAR'S TAIL. "A comet flying through orbit with a brilliant tail" —
-     so during a hypernova the ribbon stops being the groove's scoreboard and
-     becomes the thing itself: five passes instead of three, a wide magenta
-     bloom outside a hot gold body inside a white core, running the length of
-     a ribbon that is also longer and nearly twice as wide. The colours are
-     COL.hyper's magenta and the ember gold, which is what the orb and its
-     popup already are — the tail is the same object as the pickup, not a new
-     palette. Crossfaded on hyperGlow so it arrives and leaves with the
-     corona; at hyperGlow 0 the arithmetic reduces to the ordinary passes. */
+  /* Hypernova widens and recolors the same ribbon gradually. Its three
+     passes keep their light budget as the width increases; there is no
+     second white core or abrupt switch to a brighter rendering stack. */
   const hg=RM||bhActive()?0:G.hyperGlow;
   const hmix=function(base,star){
     return 'rgb('+Math.round(base[0]+(star[0]-base[0])*hg)+','+
@@ -9345,22 +9355,15 @@ function tailRibbon(n,am,ghost){
   };
   const passes=ghost?[
     [3.0,0.055,'rgb(150,110,240)'],
-    [1.5,0.10,'rgb(196,166,255)']]:hg>0.02?[
-    /* outermost first, the order light is built in */
-    [4.2,0.055*hg,'rgb(255,79,216)'],
-    [2.5,0.075+0.06*hg,hmix([93,240,255],[255,120,225])],
-    [1.35,0.16+0.10*hg,hmix([142,242,255],[255,200,120])],
-    [0.6,0.34+0.30*hg,hmix([230,253,255],[255,255,255])],
-    [0.26,0.30*hg,'#ffffff']]:[
+    [1.5,0.10,'rgb(196,166,255)']]:[
     [3.1,0.055,mix([68,202,255],[150,108,255])],
-    [1.25,0.20,mix([93,240,255],[194,165,255])],
-    [0.52,0.54,mix([170,250,255],[237,211,255])],
-    [0.16,0.84,'#f3ffff']];
+    [1.25,0.20,hmix([93,210,225],[218,137,199])],
+    [0.40,0.54,hmix([169,223,226],[224,193,186])]];
   ctx.save();
-  ctx.globalCompositeOperation='lighter';
+  ctx.globalCompositeOperation='source-over';
   for(let k=0;k<passes.length;k++){
     const m=passes[k][0];
-    ctx.globalAlpha=passes[k][1]*am;
+    ctx.globalAlpha=passes[k][1]*am/(1+0.85*hg);
     ctx.fillStyle=passes[k][2];
     ctx.beginPath();
     for(let i=0;i<n;i++){
@@ -9406,18 +9409,7 @@ function drawTail(){
   }
 }
 
-/* ---------- the visible beat ----------
-   The old pulse breathed the RINGS, at peak alpha 0.05 against static strokes
-   on the same path summing to ~0.265 — and it PEAKED ON THE BEAT. You cannot
-   synchronise to a flash that arrives at the same moment as the thing it is
-   announcing; human reaction is ~250ms and an eighth here is 288ms. It was also
-   4.5x brighter at groove x8 than at x0, so the game showed you the beat most
-   clearly exactly when you least needed it and dimmest while you were trying
-   to find it.
-
-   What people actually synchronise to is continuous motion with a predictable
-   arrival, and it has to land where the eye already is. So: a ring that
-   contracts onto the comet over the half-beat BEFORE each beat, and lands. */
+/* A continuous musical phase marker with fixed light and no catch flash. */
 function beatPhase(){
   if(!AC||!MU||!MU.next||AC.state!=='running'||G.state!=='playing')return -1;
   /* MU.next is the next UNSCHEDULED eighth and sits ahead of now by the
@@ -9429,52 +9421,12 @@ function beatPhase(){
 function drawBeat(p){
   if(bhActive())return;
   const ph=beatPhase();if(ph<0)return;
-  /* fades back for a veteran who has clearly found it, and stays for everyone
-     else. It is a teaching aid first and an ornament second. */
-  let vis=(G.runs>6&&G.bestGroove>=5)?0.45:1;
-  /* THE COUNT-IN. Through the final bar before the drop lands, this same
-     ring — at the comet, where the eyes already are — turns white-hot and
-     swells beat by beat. The landing is read where you play, never at a
-     target. */
-  let cd=-1;
-  if(MU&&MU.landT&&!MU.landDone&&AC)cd=MU.landT-(AC.currentTime-PLAY.bias);
-  const cin=(cd>-LAND_WIN&&cd<SPB*4)?1-Math.max(0,cd)/(SPB*4):0;
-  if(cin>0)vis=1+1.4*cin;
-  ctx.save();ctx.globalCompositeOperation='lighter';
-  /* in the pocket the ring runs white-hot like the count-in: same vocabulary,
-     same place — "you are exactly where the count-in asks you to be" */
-  ctx.strokeStyle=(cin>0||G.pocket>0.9)?'#ffffff':
-    ((G.groove>=3||G.pay>0)?COL.warp:'rgba(200,225,255,1)');
-  if(RM){
-    /* one opacity step per beat is 1.73Hz — far below any flash threshold,
-       and it still carries the anticipation */
-    ctx.globalAlpha=(ph>0.62?0.28:0.09)*vis;ctx.lineWidth=2*u;
-    ctx.beginPath();ctx.arc(p[0],p[1],32*u,0,TAU);ctx.stroke();
-  }else{
-    const a=Math.max(0,(ph-0.5)*2);        /* 288ms of visible approach */
-    if(a>0){
-      ctx.globalAlpha=(0.05+0.24*a*a)*vis;ctx.lineWidth=(1.2+1.3*a)*u;
-      ctx.beginPath();ctx.arc(p[0],p[1],(15+12*(1-a))*u,G.angle-0.8,G.angle+0.8);ctx.stroke();
-    }
-    if(G.beat>0.02){                       /* the landing, at a level you see */
-      /* THE CATCH: a climb throws its weight into the next landing — the tap
-         that raised the chain is answered by the ring it was aimed at, which
-         is the contingency the old system never showed */
-      ctx.globalAlpha=G.beat*(0.30+0.045*G.groove+0.10*G.payOpen+0.30*G.grooveFx)*vis;
-      ctx.lineWidth=(1.6+3.2*G.beat+1.4*G.grooveFx)*u;
-      ctx.beginPath();ctx.arc(p[0],p[1],(15+3*(1-G.beat))*u,G.angle-0.8,G.angle+0.8);ctx.stroke();
-    }
-  }
-  /* THE MISS SAYS WHICH WAY: a dim arc beside the ring, leading side for
-     early, trailing side for late. No text, no penalty — just the answer to
-     the question the contracting ring asks. Drawn under RM too: it is a
-     static fading arc, not motion. */
-  if(G.missFx){
-    ctx.globalAlpha=0.22*G.missFx.t*vis;
-    ctx.strokeStyle='rgba(165,185,215,1)';ctx.lineWidth=2*u;
-    const a0=-Math.PI/2+(G.missFx.s>0?0.35:-1.15);
-    ctx.beginPath();ctx.arc(p[0],p[1],32*u,a0,a0+0.8);ctx.stroke();
-  }
+  // A continuously orbiting tick gives music a physical clock. Its opacity,
+  // width and radius stay fixed, including at the quarter-note wrap.
+  ctx.save();ctx.globalCompositeOperation='source-over';
+  ctx.strokeStyle='#90aebc';ctx.globalAlpha=0.4;ctx.lineWidth=1.2*u;
+  const a=RM?-Math.PI/2:ph*TAU-Math.PI/2;
+  ctx.beginPath();ctx.arc(p[0],p[1],17*u,a,a+0.45);ctx.stroke();
   ctx.restore();
 }
 /* ---------- draw ---------- */
@@ -9504,12 +9456,14 @@ function musPos(){
    materials. The arena owns gameplay objects and the singularity silhouette. */
 const GL_SCALE=1.0;                /* fixed quality; no performance downgrade */
 const GL_MOTION=1.0;               /* seconds of visible, differential sky flow */
-const GL={on:false,g:null,pr:null,u:{},cv:null,vw:0,vh:0,tw:0,flowVt:null,art:[]};
+const GL={on:false,g:null,pr:null,u:{},cv:null,vw:0,vh:0,tw:0,flowVt:null,stream:0,currentDir:1,art:[]};
 const GL_FS=`precision highp float;
 uniform vec2 uRes,uCtr;
 uniform float uTime,uCalm;
 uniform vec4 uArc,uShape,uAccent,uPlanet,uSurface;
 uniform vec3 uTint,uRim,uDust,uEventTint,uArena,uArt,uLive;
+uniform vec4 uCurrent,uPowerFlow;
+uniform vec2 uFlight,uRelease;
 uniform sampler2D uNebulaMap,uPlanetMap,uRingMap;
 /* Planet: centre, radius, ring tilt. Surface: ring inclination, terrain,
    cloud cover, sun angle. The globe, rings and atmosphere share one light. */
@@ -9532,9 +9486,16 @@ float cloud(vec2 p){
 vec2 turn(vec2 p,float a){
   float c=cos(a),s=sin(a);return vec2(c*p.x-s*p.y,s*p.x+c*p.y);
 }
+/* Material changes redistribute the existing light; an event is never a
+   multiplier on illumination. A dark part of the cloud remains dark. */
+vec3 materialHue(vec3 base,vec3 hue,float amount){
+  vec3 weights=vec3(0.299,0.587,0.114);
+  vec3 recolored=hue*dot(base,weights)/max(0.001,dot(hue,weights));
+  return mix(base,recolored,clamp(amount,0.0,1.0));
+}
 vec3 belt(vec2 p,vec3 light,float amp,out float opacity,out float front){
-  vec2 q=turn(p,-uPlanet.w-sin(uTime*0.16)*0.035);
-  float r=length(vec2(q.x,q.y/uSurface.x))/uPlanet.z;
+  vec2 q=turn(p,-uPlanet.w-sin(uTime*0.16)*0.035-uLive.x*0.024-amp*0.10);
+  float r=length(vec2(q.x,q.y/uSurface.x))/(uPlanet.z*(1.0+uLive.z*0.035+amp*0.075));
   float ring=smoothstep(1.16,1.25,r)*(1.0-smoothstep(1.88,2.13,r));
   float angle=atan(q.y/uSurface.x,q.x);
   float lanes=0.50+0.19*sin(r*108.0+sin(angle*3.0-uTime*0.7)*1.8)+0.11*sin(r*249.0-uTime*0.35)+0.10*sin(r*47.0);
@@ -9545,30 +9506,44 @@ vec3 belt(vec2 p,vec3 light,float amp,out float opacity,out float front){
   front=step(q.y,0.0);
   vec3 mineral=mix(uDust,uRim,0.58+lanes*0.30);
   if(uArt.z>0.5){
-    vec2 atlas=turn(vec2(q.x,q.y/uSurface.x)/(uPlanet.z*4.85),uTime*0.075);
-    vec4 paint=texture2D(uRingMap,vec2(atlas.x,-atlas.y)+0.5);
+    vec2 atlas=turn(vec2(q.x,q.y/uSurface.x)/(uPlanet.z*4.85),uLive.y*0.075);
+    vec4 paint=texture2D(uRingMap,atlas+0.5);
     float lum=dot(paint.rgb,vec3(0.25,0.55,0.20));
-    mineral=mix(mineral,mix(uDust,uRim,clamp(lum,0.0,1.0))*1.4,paint.a*0.74);
+    mineral=mix(mineral,mix(uDust,uRim,clamp(lum,0.0,1.0))*1.4,paint.a*0.42);
     lanes*=0.70+lum*0.65;
   }
-  return mineral*(ring*(0.34+lanes*0.56)*gap+haze*0.06)*(0.42+lit*0.72)*(1.0+amp*2.4);
+  return mineral*(ring*(0.34+lanes*0.56)*gap+haze*0.06)*(0.42+lit*0.72);
 }
 void main(){
   vec2 raw=(gl_FragCoord.xy-0.5*uRes)/uRes.y;
   float amp=uAccent.x;
   float blackhole=step(3.5,uAccent.y)*(1.0-step(4.5,uAccent.y));
-  float fire=amp*(1.0-blackhole);
+  float fire=max(amp,uPowerFlow.z*0.65)*(1.0-blackhole);
   float hyper=step(2.5,uAccent.y)*(1.0-step(3.5,uAccent.y))*fire;
   vec2 ar=raw-uCtr;ar.y/=max(0.2,uArena.z);
   float rr=length(ar);
   /* A smooth radial remap bends the existing sky during a singularity.
      There is no angular seam, full-frame rotation or independent glare wedge. */
-  float pressure=fire*sin(rr*23.0-uTime*3.3)*exp(-rr*1.8)*0.027;
-  float lens=1.0+blackhole*amp*0.36*exp(-rr*3.0)/(rr+0.17)+pressure+uLive.y*0.035;
+  float pressure=fire*exp(-rr*2.3)*0.022;
+  float releaseRadius=mod(max(0.0,uRelease.x),max(0.1,uRelease.y))*0.38;
+  float releasePhase=mod(max(0.0,uRelease.x),max(0.1,uRelease.y))/max(0.1,uRelease.y);
+  float fromPlanet=length(raw-uPlanet.xy);
+  float releaseWave=exp(-pow((fromPlanet-releaseRadius)/0.048,2.0))*
+    exp(-releaseRadius*1.25)*step(0.0,uRelease.x)*(1.0-blackhole)*
+    smoothstep(0.0,0.12,releasePhase)*(1.0-smoothstep(0.75,1.0,releasePhase));
+  float lens=1.0+blackhole*amp*0.36*exp(-rr*3.0)/(rr+0.17)+pressure;
   vec2 uv=uCtr+turn((raw-uCtr)*lens,blackhole*amp*0.34*exp(-rr*3.0));
+  uv+=(raw-uPlanet.xy)/max(fromPlanet,0.05)*releaseWave*0.035;
+  /* Real flight pushes the local volume. Reversal steers a curl, a hop
+     sends a radial displacement, and Magnet draws matter toward the comet. */
+  vec2 fromComet=uv-uFlight;
+  float influence=exp(-dot(fromComet,fromComet)*12.0)*(1.0-blackhole);
+  uv=uFlight+turn(fromComet,uCurrent.x*uCurrent.w*0.16*influence);
+  uv+=fromComet*influence*uPowerFlow.x*0.22;
+  uv+=(raw-uCtr)/max(rr,0.05)*uCurrent.y*uCurrent.z*0.038*influence;
   vec2 drift=vec2(sin(uTime*0.14)*0.014,cos(uTime*0.11)*0.009);
   vec2 nq=turn(uv-uArc.xy-drift,uArc.z);
-  vec2 flow=vec2(uTime*0.043,-uTime*0.028);
+  vec2 flow=vec2(uLive.y*0.043,-uTime*0.028);
   vec2 warp=vec2(cloud(nq*3.1+2.7+flow),cloud(nq*3.1+8.3-flow*0.73));
   float grain=cloud(nq*9.2+warp*3.0+flow*1.6);
   float vein=cloud(nq*22.0+warp*5.0-flow*2.3);
@@ -9580,26 +9555,28 @@ void main(){
   vec3 col=vec3(0.008,0.012,0.027)+uTint*0.009;
   col+=mist*cloudLight*(0.52+crevice*1.06);
   col+=uRim*pow(max(0.0,grain-0.50)*3.0,2.0)*structure*0.44;
-  /* The supplied nebula is sampled as moving cloud material. Two opposed
-     flows deform its filaments; neither layer is an opaque screen plate. */
+  /* An unmarked transparent plasma wisp supplies fine material only.
+     The authored procedural cloud volume still owns shape and density. */
   if(uArt.x>0.5){
-    vec2 page=vec2(uv.x/max(0.47,uRes.x/uRes.y),-uv.y)+0.5;
+    vec2 page=vec2(nq.x*0.82,nq.y*0.60)+0.5;
     vec2 eddy=vec2(sin(page.y*7.0+uTime*0.38),cos(page.x*8.0-uTime*0.29));
     eddy+=(warp-0.5)*2.0;
     vec2 path1=(page-0.5)*0.93+0.5+eddy*0.046;
     vec2 path2=(page-0.5)*1.16+0.5-eddy*0.033+vec2(sin(uTime*0.10),cos(uTime*0.12))*0.025;
-    vec3 n1=texture2D(uNebulaMap,clamp(path1,0.015,0.985)).rgb;
-    vec3 n2=texture2D(uNebulaMap,clamp(path2,0.015,0.985)).rgb;
-    float light1=max(0.0,dot(n1,vec3(0.22,0.56,0.22))-0.055);
-    float light2=max(0.0,dot(n2,vec3(0.22,0.56,0.22))-0.070);
+    vec4 n1=texture2D(uNebulaMap,clamp(path1,0.015,0.985));
+    vec4 n2=texture2D(uNebulaMap,clamp(path2,0.015,0.985));
+    float light1=max(0.0,dot(n1.rgb,vec3(0.22,0.56,0.22))-0.055)*n1.a;
+    float light2=max(0.0,dot(n2.rgb,vec3(0.22,0.56,0.22))-0.070)*n2.a;
     vec3 painted=mix(uDust,uRim,smoothstep(0.03,0.42,light1));
     vec3 farPaint=mix(uTint,uDust,smoothstep(0.04,0.32,light2));
     float edge=0.22+0.78*smoothstep(uArena.x+0.01,uArena.x+0.15,rr);
-    col+=(painted*light1*1.65+farPaint*light2*0.85)*edge*(0.88+uLive.x*0.17+fire*0.85);
+    col+=(painted*light1*0.30+farPaint*light2*0.16)*edge*structure*0.96;
   }
+  float burning=uPowerFlow.y*influence*(0.32+grain*0.68);
+  col=materialHue(col,vec3(1.0,0.40,0.12),burning*0.35);
   /* A second light source illuminates the far side of this same cloud volume. */
   col+=uDust*exp(-length(uv-vec2(-uPlanet.x,-0.35))*3.8)*0.095;
-  col*=1.0+fire*0.60;
+  col=materialHue(col,vec3(1.0,0.76,0.32),releaseWave*0.18);
 
   vec2 planetP=uv-uPlanet.xy-drift*0.35;
   float pr=length(planetP),radius=uPlanet.z;
@@ -9612,11 +9589,10 @@ void main(){
      against space, while the opaque globe correctly hides stars and far rings. */
   vec2 edgeN=planetP/max(pr,0.0001);
   float day=pow(max(0.0,dot(edgeN,sun.xy)*0.5+0.5),2.6);
-  float breath=1.0+uLive.x*0.07+fire*0.55;
-  float atmo=exp(-abs(pr-radius)/(radius*0.038*breath))*day;
-  float corona=exp(-abs(pr-radius)/(radius*0.13*breath))*day;
-  vec3 air=mix(uRim,uEventTint,fire*0.50);
-  col+=air*(atmo*0.72+corona*0.16)*(1.0+fire*2.6);
+  float atmo=exp(-abs(pr-radius)/(radius*0.038))*day;
+  float corona=exp(-abs(pr-radius)/(radius*0.13))*day;
+  vec3 air=materialHue(uRim,uEventTint,fire*0.25);
+  col+=air*(atmo*0.72+corona*0.16);
 
   if(pr<radius+1.5/uRes.y){
     vec2 xy=planetP/radius;
@@ -9624,7 +9600,7 @@ void main(){
     vec3 normal=vec3(xy,z);
     vec2 map=vec2(atan(normal.x,max(0.0001,normal.z)),asin(clamp(normal.y,-1.0,1.0)));
     map.x*=cos(map.y);
-    map.x+=uTime*0.034;
+    map.x+=uTime*0.034+uLive.z*0.18+uLive.x*0.024;
     vec2 surfWarp=vec2(cloud(map*3.0+1.7+flow*0.22),cloud(map*3.0+9.1-flow*0.31));
     float terrain=cloud(map*9.0+surfWarp*2.4);
     float detail=cloud(map*31.0+surfWarp*4.0);
@@ -9642,27 +9618,24 @@ void main(){
        flat black circle. Surface detail remains quiet on the unlit face. */
     globe+=uTint*(0.017+0.052*pow(1.0-z,2.0))*(0.65+terrain*0.35);
     if(uArt.y>0.5){
-      vec2 paintP=turn(xy,-uTime*0.018);
+      vec2 paintP=turn(xy,-uLive.y*0.018);
       paintP.x+=sin(paintP.y*6.0+uTime*0.23)*0.015*z;
-      vec4 paint=texture2D(uPlanetMap,vec2(paintP.x,-paintP.y)*0.435+0.5);
+      vec4 paint=texture2D(uPlanetMap,paintP*0.435+0.5);
       float luminosity=dot(paint.rgb,vec3(0.22,0.56,0.22));
       vec3 mineral=mix(uTint*0.19,uRim,smoothstep(0.02,0.86,luminosity));
       vec3 textureBody=mineral*(0.26+daylight*0.90)*(0.82+detail*0.34);
-      globe=mix(globe,textureBody,paint.a*(0.58+0.24*(1.0-uSurface.y)));
+      globe=mix(globe,textureBody,paint.a*(0.30+0.12*(1.0-uSurface.y)));
     }
     float limb=pow(1.0-z,3.5)*pow(max(0.0,lambert+0.28),1.4);
-    globe+=air*limb*(1.20+fire*2.7);
+    globe+=air*limb*1.36;
     float aurora=pow(1.0-z,2.4)*smoothstep(0.18,0.8,normal.y*normal.y)*
       (0.45+0.55*sin(map.x*18.0+surfWarp.y*6.0+uTime*0.65));
-    globe+=air*aurora*(0.08+fire*0.76);
-    globe+=surface*daylight*fire*0.46;
+    globe=materialHue(globe,air,aurora*0.10);
     col=mix(col,globe,planetMask);
   }
   /* The near half of the dust ring crosses the globe. A fine dark shadow
      beneath it and its illuminated strands make the scale unmistakable. */
   col=mix(col,col*(1.0-ringOpacity*0.70)+ringLight,front);
-  float sunrise=exp(-length(planetP-edgeN*radius)/(radius*0.06))*day;
-  col+=air*sunrise*fire*0.35;
 
   /* Three sparse depths with native-pixel cores. Stars are absent behind the
      opaque world, with rare diffraction glints belonging to the brightest. */
@@ -9676,20 +9649,21 @@ void main(){
       vec2 off=vec2(hash21(cell+1.3),hash21(cell+8.7))-0.5;
       vec2 sd=(sf-off*0.70)/scale;
       vec2 radial=normalize(raw-uCtr+vec2(0.0001));
-      sd-=radial*dot(sd,radial)*(hyper*0.82);
+      float stretch=1.0+hyper*2.0;
+      sd-=radial*dot(sd,radial)*(1.0-1.0/stretch);
       float size=(0.48+(h-0.91)*8.0)/(uRes.y*0.5);
       float core=exp(-dot(sd,sd)/(size*size));
       float rays=exp(-abs(sd.x)/(size*0.22)-abs(sd.y)/(size*5.0))+
                  exp(-abs(sd.y)/(size*0.22)-abs(sd.x)/(size*5.0));
       vec3 starColor=mix(vec3(0.58,0.76,1.0),vec3(1.0,0.81,0.61),hash21(cell+4.6));
-      float twinkle=0.77+0.23*sin(uTime*(0.52+h)+h*61.0);
-      col+=starColor*(core*(0.30+l*0.12)+rays*0.10*step(0.985,h))*uAccent.z*(1.0-planetMask)*twinkle;
+      col+=starColor*(core*(0.30+l*0.12)+rays*0.10*step(0.985,h))*uAccent.z*(1.0-planetMask)*0.88/stretch;
     }
   }
   float inside=1.0-smoothstep(uArena.x+0.008,uArena.x+0.065,rr);
   float outside=smoothstep(max(0.0,uArena.y-0.055),uArena.y,rr);
   col*=1.0-uCalm*inside*outside*0.38;
-  col*=1.0-blackhole*amp*0.62*exp(-rr*rr/0.20);
+  float eclipse=amp*amp*(3.0-2.0*amp);
+  col*=1.0-blackhole*eclipse*0.62*exp(-rr*rr/0.20);
   /* Soft photographic shoulder protects highlights without clipping a sun
      into a white patch. Positive space colour survives every morph. */
   col=vec3(1.0)-exp(-max(col,0.0)*1.35);
@@ -9720,7 +9694,7 @@ function glInit(){
     const loc=g.getAttribLocation(pr,'p');
     g.enableVertexAttribArray(loc);g.vertexAttribPointer(loc,2,g.FLOAT,false,0,0);
     GL.u={};
-    for(const n of ['uRes','uCtr','uTime','uCalm','uArc','uShape','uAccent','uPlanet','uSurface','uTint','uRim','uDust','uEventTint','uArena'])
+    for(const n of ['uRes','uCtr','uTime','uCalm','uArc','uShape','uAccent','uPlanet','uSurface','uTint','uRim','uDust','uEventTint','uArena','uArt','uLive','uCurrent','uPowerFlow','uFlight','uRelease','uNebulaMap','uPlanetMap','uRingMap'])
       GL.u[n]=g.getUniformLocation(pr,n);
     const blank=g.createTexture(),pixel=document.createElement('canvas');pixel.width=pixel.height=1;
     g.bindTexture(g.TEXTURE_2D,blank);
@@ -9747,6 +9721,11 @@ function glRipple(){}
 function glShear(dir){}
 const SKY={w:0,wake:-1,wakeAt:-1,wakeAmt:0,vt:null,motion:1,mix:null};
 function lerp3(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];}
+function skyMaterialHue(base,hue,amount){
+  const lum=a=>a[0]*0.299+a[1]*0.587+a[2]*0.114;
+  const ratio=lum(base)/Math.max(0.001,lum(hue));
+  return lerp3(base,hue.map(v=>v*ratio),Math.max(0,Math.min(1,amount)));
+}
 function skyMix(){
   const n=WORLDS.length,wf=Math.max(0,SKY.w),i=Math.floor(wf),fr=wf-i;
   const A=WORLDS[i%n],B=WORLDS[(i+1)%n];
@@ -9760,9 +9739,9 @@ function skyMix(){
           dust:lerp3(A.dust,B.dust,t),
           star:L('star'),motion:L('motion')};
 }
-/* One authored event at a time. This is shared by the sky and arena passes.
-   Events contain their source time, so a prior run can never light a new one.
-   No scheduler invents spectacles without a player action behind them. */
+/* One material transition at a time. This envelope directs geometry and hue,
+   not light gain. Slow edges and duplicate suppression avoid repeated onset
+   pulses when audio and gameplay report the same earned event. */
 const SCENE_RANK={orbit:1,shield:2,spot:2,warp:2,mirror:2,scorch:2,slip:2,trail:2,nova:3,hyper:3,hypernova:3,drop:3};
 const SCENE_TINT={
   shield:[0.35,1.00,0.70],orbit:[1.00,0.76,0.35],drop:[0.74,0.67,1.00],nova:[0.70,0.90,1.00],
@@ -9771,11 +9750,11 @@ const SCENE_TINT={
   slip:[0.38,0.88,0.86],trail:[1.00,0.80,0.42]};
 function scenePulse(kind,duration){
   if(G.state!=='playing'||!SCENE_RANK[kind])return;
-  impactRecord(kind);
   const prev=G.sceneEvent;
   if(prev&&prev.at>=G.started&&G.t-prev.at<prev.span&&
-     (SCENE_RANK[prev.kind]||0)>SCENE_RANK[kind])return;
-  G.sceneEvent={kind:kind,at:G.t,span:Math.max(0.35,duration||1.8)};
+     (prev.kind===kind||(SCENE_RANK[prev.kind]||0)>SCENE_RANK[kind]))return;
+  impactRecord(kind);
+  G.sceneEvent={kind:kind,at:G.t,span:Math.max(2.4,duration||2.4)};
 }
 function sceneAccent(){
   if(BH.phase>0)return {kind:'blackhole',id:4,strength:Math.max(0,Math.min(1,BH.warp)),tint:[0.38,0.30,0.60]};
@@ -9784,8 +9763,8 @@ function sceneAccent(){
   if(RM||G.state!=='playing'||!e||e.at<G.started)return quiet;
   const age=G.t-e.at;
   if(age<0||age>=e.span)return quiet;
-  const attack=Math.min(1,age/0.18),r=Math.max(0,Math.min(1,(age-0.18)/(e.span-0.18)));
-  const env=attack*attack*(3-2*attack)*(1-r*r*(3-2*r));
+  const attack=Math.min(1,age/0.9),release=Math.min(1,(e.span-age)/1.2);
+  const env=Math.min(attack*attack*(3-2*attack),release*release*(3-2*release));
   const strength=env*(e.kind==='orbit'?Math.min(0.60,0.28+0.065*(G.lapStreak||0)):1);
   const id=e.kind==='orbit'?1:e.kind==='drop'?2:
     (e.kind==='hyper'||e.kind==='hypernova')?3:5;
@@ -9806,75 +9785,6 @@ function skyStep(dt){
    Materials use a small cached image; depth stars stay at native resolution.
    Both paths remain self-contained when no external artwork is available. */
 const SKY_2D={cv:null,g:null,key:''};
-/* Supplied paintings are complete worlds, not an overlay on the procedural
-   globe. Keep their materials and colour intact; only the camera crop and
-   earned atmospheric light move. The host owns image loading and lifetime. */
-const SKY_ART_WORLDS=[
-  {key:'drift-ringed-world',focus:0.25},
-  {key:'tide-world',focus:0.30},
-  {key:'dustlane-world',focus:0.33},
-  {key:'glass-world',focus:0.26},
-  {key:'emberfall-world',focus:0.30},
-  {key:'veil-world',focus:0.30},
-  {key:'grid-world',focus:0.30},
-  {key:'deepfield-world',focus:0.36}
-];
-function skyArtImage(world){
-  if(typeof runtimeHost.getTexture!=='function')return null;
-  const im=runtimeHost.getTexture(world.key)||runtimeHost.getTexture('nebula-arena');
-  return im&&(im.naturalWidth||im.width)>0&&(im.naturalHeight||im.height)>0?im:null;
-}
-function skyArtPlate(im,world,alpha){
-  const iw=im.naturalWidth||im.width,ih=im.naturalHeight||im.height;
-  // Cover uses the painting's original aspect ratio in both orientations.
-  // A small overscan keeps the illustrated edge outside the moving camera.
-  const travel=RM?0:G.vt,scale=Math.max(W/iw,H/ih)*1.045;
-  const sw=W/scale,sh=H/scale;
-  const wide=W>H,focus=wide?world.focus:0.5;
-  const px=0.5+(RM?0:Math.sin(travel*0.018)*0.012);
-  const py=Math.max(0,Math.min(1,focus+(RM?0:Math.sin(travel*0.014)*0.009)));
-  ctx.globalAlpha=alpha;
-  ctx.drawImage(im,(iw-sw)*px,(ih-sh)*py,sw,sh,0,0,W,H);
-}
-function drawGeminiSky(){
-  const wf=Math.max(0,G.skyW||0),whole=Math.floor(wf),n=SKY_ART_WORLDS.length;
-  const a=SKY_ART_WORLDS[whole%n],b=SKY_ART_WORLDS[(whole+1)%n];
-  let first=skyArtImage(a),second=skyArtImage(b);
-  if(!first&&!second)return false;
-  first=first||second;second=second||first;
-  const x=Math.max(0,Math.min(1,((wf-whole)-0.8)/0.2)),mix=x*x*(3-2*x);
-  skyStep(0);
-  ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
-  ctx.globalCompositeOperation='source-over';
-  skyArtPlate(first,a,1);
-  if(mix>0&&second!==first)skyArtPlate(second,b,mix);
-  // Light enters at the nebular boundary. The reward affects the supplied
-  // scene without replacing its planet or flooding the player's orbit.
-  const accent=sceneAccent(),power=accent.strength;
-  if(power>0.001){
-    if(accent.id===4){
-      const r=Math.max(W,H)*0.62;
-      const eclipse=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
-      eclipse.addColorStop(0,'rgba(5,2,17,'+(power*0.48)+')');
-      eclipse.addColorStop(0.48,'rgba(10,4,23,'+(power*0.23)+')');
-      eclipse.addColorStop(1,'rgba(10,4,23,0)');
-      ctx.globalAlpha=1;ctx.fillStyle=eclipse;ctx.fillRect(0,0,W,H);
-    }else{
-      const tint=accent.id===2?[1,0.78,0.38]:(accent.tint||SKY.mix.rim);
-      const rgb=tint.map(v=>Math.round(v*255)).join(',');
-      const lightX=accent.id===3?W*0.92:W*0.30;
-      const lightY=accent.id===3?H*0.16:H*1.04;
-      const radius=Math.max(W,H)*(accent.id===2?0.77:0.60);
-      const light=ctx.createRadialGradient(lightX,lightY,0,lightX,lightY,radius);
-      light.addColorStop(0,'rgba('+rgb+','+(power*(accent.id===1?0.22:0.52))+')');
-      light.addColorStop(0.36,'rgba('+rgb+','+(power*0.13)+')');
-      light.addColorStop(1,'rgba('+rgb+',0)');
-      ctx.globalAlpha=1;ctx.globalCompositeOperation='screen';
-      ctx.fillStyle=light;ctx.fillRect(0,0,W,H);
-    }
-  }
-  ctx.restore();return true;
-}
 function skyHash(x,y){
   x=x*123.34-Math.floor(x*123.34);y=y*345.45-Math.floor(y*345.45);
   const d=x*(x+34.345)+y*(y+34.345);x+=d;y+=d;
@@ -9902,17 +9812,16 @@ function skyCalm(x,y){
 }
 function drawCalmSky(){
   skyStep(0);
-  const M=SKY.mix,A=sceneAccent(),fvt=RM?0:G.vt;
-  const d=Math.max(0,fvt-(GL.flowVt===null?fvt:GL.flowVt));
-  GL.flowVt=fvt;GL.tw+=d*GL_MOTION*M.motion;
+  const M=SKY.mix,A=sceneAccent();skyAdvanceClock(M);
   const fire=A.id===4?0:A.strength,hole=A.id===4?A.strength:0;
+  const charge=skyCharge(),phrase=RM?0:Math.sin(musPos()/STEPS*TAU);
   const key=[W,H,G.nRings,Math.round((G.skyW||0)*80),Math.floor(GL.tw),
-    Math.round(A.strength*10),A.id,Math.round(radiusOf(0)),Math.round(radiusOf(G.nRings-1))].join('/');
+    Math.round(A.strength*10),Math.round(charge*10),A.id,Math.round(radiusOf(0)),Math.round(radiusOf(G.nRings-1))].join('/');
   if(!SKY_2D.cv){
     SKY_2D.cv=document.createElement('canvas');SKY_2D.g=SKY_2D.cv.getContext('2d');
   }
   const cv=SKY_2D.cv,g=SKY_2D.g;
-  const dx=Math.sin(GL.tw*0.014)*0.006,dy=Math.cos(GL.tw*0.014)*0.004;
+  const dx=Math.sin(GL.tw*0.14)*0.014,dy=Math.cos(GL.tw*0.11)*0.009;
   const pcx=M.planet[0]+dx*0.55,pcy=M.planet[1]+dy*0.55,rad=M.planet[2];
   if(SKY_2D.key!==key&&g){
     /* Low resolution material cache, native resolution stars. Rebuilding
@@ -9921,20 +9830,22 @@ function drawCalmSky(){
     const im=g.createImageData(cv.width,cv.height);
     if(im&&im.data){
       const data=im.data,cs=Math.cos(M.arc[2]),sn=Math.sin(M.arc[2]);
-      const rc=Math.cos(-M.planet[3]),rs=Math.sin(-M.planet[3]);
+      const ringTilt=-M.planet[3]-phrase*0.024-fire*0.10;
+      const rc=Math.cos(ringTilt),rs=Math.sin(ringTilt);
       const sl=Math.sqrt(1+0.34*0.34),sx=Math.cos(M.surface[3])/sl,sy=Math.sin(M.surface[3])/sl,sz=0.34/sl;
-      const air=lerp3(M.rim,A.tint||M.rim,fire*0.50);
+      const air=skyMaterialHue(M.rim,A.tint||M.rim,fire*0.25);
       const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
       const smooth=(a,b,v)=>{const t=clamp((v-a)/(b-a));return t*t*(3-2*t);};
       const ax=(cx-W*0.5)/H,ay=((H-cy)-H*0.5)/H;
       for(let y=0;y<cv.height;y++)for(let x=0;x<cv.width;x++){
         const rawx=((x+0.5)/cv.width-0.5)*W/H,rawy=0.5-(y+0.5)/cv.height;
         const rr=Math.hypot(rawx-ax,(rawy-ay)/Math.max(0.2,AY));
-        const lens=1+hole*0.13*Math.exp(-rr*3)/(rr+0.17);
+        const lens=1+hole*0.13*Math.exp(-rr*3)/(rr+0.17)+fire*Math.exp(-rr*2.3)*0.022;
         const ux=ax+(rawx-ax)*lens,uy=ay+(rawy-ay)*lens;
         const nx=ux-M.arc[0]-dx,ny=uy-M.arc[1]-dy,qx=nx*cs-ny*sn,qy=nx*sn+ny*cs;
-        const wx=skyCloud(qx*3.1+2.7,qy*3.1+2.7),wy=skyCloud(qx*3.1+8.3,qy*3.1+8.3);
-        const grain=skyCloud(qx*9.2+wx*3,qy*9.2+wy*3),vein=skyCloud(qx*22+wx*5,qy*22+wy*5);
+        const flowX=GL.stream*0.043,flowY=-GL.tw*0.028;
+        const wx=skyCloud(qx*3.1+2.7+flowX,qy*3.1+2.7+flowY),wy=skyCloud(qx*3.1+8.3-flowX*0.73,qy*3.1+8.3-flowY*0.73);
+        const grain=skyCloud(qx*9.2+wx*3+flowX*1.6,qy*9.2+wy*3+flowY*1.6),vein=skyCloud(qx*22+wx*5-flowX*2.3,qy*22+wy*5-flowY*2.3);
         const across=qx-M.shape[0]*(qy*qy-0.12)+(wx-0.5)*0.25;
         const structure=Math.exp(-Math.pow(across/M.arc[3],2)*0.62-qy*qy/(M.shape[1]*M.shape[1]));
         const cloudLight=Math.pow(Math.max(0,grain-0.24)*1.6,2)*structure*M.shape[3];
@@ -9945,18 +9856,18 @@ function drawCalmSky(){
         const day=Math.pow(Math.max(0,(ex*sx+ey*sy)*0.5+0.5),2.6);
         const atmo=Math.exp(-Math.abs(pr-rad)/(rad*0.038))*day;
         const corona=Math.exp(-Math.abs(pr-rad)/(rad*0.13))*day;
-        const rx=px*rc-py*rs,ry=px*rs+py*rc,r=Math.hypot(rx,ry/M.surface[0])/rad;
+        const rx=px*rc-py*rs,ry=px*rs+py*rc,r=Math.hypot(rx,ry/M.surface[0])/(rad*(1+charge*0.035+fire*0.075));
         const ring=smooth(1.16,1.25,r)*(1-smooth(1.88,2.13,r));
         const lanes=0.50+0.19*Math.sin(r*108)+0.11*Math.sin(r*249)+0.10*Math.sin(r*47);
         const gap=1-0.80*Math.exp(-Math.pow((r-1.62)/0.033,2));
         const haze=Math.exp(-Math.pow((r-1.63)/0.38,2));
         const lit=0.54+0.46*Math.cos(Math.atan2(ry/M.surface[0],rx)-M.surface[3]);
         const ro=ring*(0.38+0.53*lanes)*gap,front=ry<=0;
-        const ringGain=(ring*(0.34+lanes*0.56)*gap+haze*0.06)*(0.42+lit*0.72)*(1+fire*2.4);
-        let terrain=0,detail=0,material=0,z=0,daylight=0,limb=0,aurora=0;
+        const ringGain=(ring*(0.34+lanes*0.56)*gap+haze*0.06)*(0.42+lit*0.72);
+        let terrain=0,detail=0,material=0,z=0,daylight=0,limb=0;
         if(pr<rad){
           const zx=px/rad,zy=py/rad;z=Math.sqrt(Math.max(0,1-zx*zx-zy*zy));
-          const my=Math.asin(clamp(zy,-1,1)),mx=Math.atan2(zx,Math.max(0.0001,z))*Math.cos(my)+Math.sin(GL.tw*0.012)*0.075;
+          const my=Math.asin(clamp(zy,-1,1)),mx=Math.atan2(zx,Math.max(0.0001,z))*Math.cos(my)+GL.tw*0.034+charge*0.18+phrase*0.024;
           const swx=skyCloud(mx*3+1.7,my*3+1.7),swy=skyCloud(mx*3+9.1,my*3+9.1);
           terrain=skyCloud(mx*9+swx*2.4,my*9+swy*2.4);
           detail=skyCloud(mx*31+swx*4,my*31+swy*4);
@@ -9966,26 +9877,25 @@ function drawCalmSky(){
           const lambert=zx*sx+zy*sy+z*sz;
           daylight=smooth(-0.11,0.56,lambert);
           limb=Math.pow(1-z,3.5)*Math.pow(Math.max(0,lambert+0.28),1.4);
-          aurora=Math.pow(1-z,2.4)*smooth(0.18,0.8,zy*zy)*(0.45+0.55*Math.sin(mx*18+swy*6+GL.tw*0.08));
         }
-        const moderation=skyCalm(rawx,rawy)*(1-hole*0.62*Math.exp(-rr*rr/0.20));
+        const eclipse=hole*hole*(3-2*hole);
+        const moderation=skyCalm(rawx,rawy)*(1-eclipse*0.62*Math.exp(-rr*rr/0.20));
         for(let k=0;k<3;k++){
           const mist=M.dust[k]*(1-color)+M.tint[k]*color;
-          let col=([0.008,0.012,0.027][k]+M.tint[k]*0.009+
-            mist*cloudLight*(0.36+crevice*0.83)+M.rim[k]*bright+M.dust[k]*farGlow)*(1+fire*0.60);
+          let col=[0.008,0.012,0.027][k]+M.tint[k]*0.009+
+            mist*cloudLight*(0.36+crevice*0.83)+M.rim[k]*bright+M.dust[k]*farGlow;
           const mineral=M.dust[k]*(1-(0.58+lanes*0.30))+M.rim[k]*(0.58+lanes*0.30);
           if(!front)col=col*(1-ro*0.45)+mineral*ringGain;
-          col+=air[k]*(atmo*0.72+corona*0.16)*(1+fire*2.6);
+          col+=air[k]*(atmo*0.72+corona*0.16);
           if(pr<rad){
             const m=smooth(0.18,0.84,material),cover=smooth(0.55,0.76,detail)*M.surface[2]*0.62;
             let surface=M.tint[k]*0.18*(1-m)+(M.tint[k]*0.92+M.rim[k]*0.16)*m;
             surface=surface*(1-cover)+M.rim[k]*0.78*cover;
             col=surface*(0.035+daylight*1.25)*(0.77+detail*0.42)+
               M.tint[k]*(0.017+0.052*Math.pow(1-z,2))*(0.65+terrain*0.35)+
-              air[k]*limb*(1.20+fire*2.7)+air[k]*aurora*fire*0.64+surface*daylight*fire*0.46;
+              air[k]*limb*1.20;
           }
           if(front)col=col*(1-ro*0.70)+mineral*ringGain;
-          col+=air[k]*Math.exp(-Math.abs(pr-rad)/(rad*0.06))*day*fire*0.35;
           data[(y*cv.width+x)*4+k]=Math.round(255*Math.max([0.004,0.006,0.012][k],1-Math.exp(-Math.max(0,col*moderation)*1.35)));
         }
         data[(y*cv.width+x)*4+3]=255;
@@ -10003,11 +9913,11 @@ function drawCalmSky(){
     const xMax=Math.ceil((W/H*0.5+0.73+layer*2.1)*scale);
     for(let iy=-2;iy<scale;iy++)for(let ix=xMin;ix<=xMax;ix++){
       const h=skyHash(ix+19.7+layer*5,iy+19.7+layer*5);if(h<0.91)continue;
-      const ux=(ix+0.5+(skyHash(ix+1.3,iy+1.3)-0.5)*0.70)/scale-0.73-layer*2.1;
-      const uy=(iy+0.5+(skyHash(ix+8.7,iy+8.7)-0.5)*0.70)/scale-0.47;
+      const ux=(ix+0.5+(skyHash(ix+1.3,iy+1.3)-0.5)*0.70)/scale-0.73-layer*2.1-dx*(layer+1)*0.7-GL.tw*0.0018*(layer+1);
+      const uy=(iy+0.5+(skyHash(ix+8.7,iy+8.7)-0.5)*0.70)/scale-0.47-dy*(layer+1)*0.7-GL.tw*0.00075*(layer+1);
       if(Math.hypot(ux-pcx,uy-pcy)<rad)continue;
       const x=W*0.5+ux*H,y=H*0.5-uy*H;if(x<0||x>W||y<0||y>H)continue;
-      ctx.globalAlpha=(0.30+layer*0.12)*M.star*skyCalm(ux,uy);
+      ctx.globalAlpha=(0.30+layer*0.12)*M.star*skyCalm(ux,uy)*0.88;
       ctx.fillStyle=skyHash(ix+4.6,iy+4.6)>.5?'#ffcf9c':'#94c2ff';
       const sz=0.48+(h-0.91)*8;
       ctx.beginPath();ctx.arc(x,y,sz*0.65,0,TAU);ctx.fill();
@@ -10016,15 +9926,67 @@ function drawCalmSky(){
   }
   ctx.globalAlpha=1;
 }
+function skyAdvanceClock(M){
+  const now=RM?0:G.vt,d=Math.max(0,now-(GL.flowVt===null?now:GL.flowVt));
+  GL.flowVt=now;GL.tw+=d*GL_MOTION*M.motion;
+  const target=G.state==='playing'?(G.dir||1):1;
+  GL.currentDir+=(target-GL.currentDir)*(1-Math.exp(-d*4.5));
+  GL.stream+=d*GL_MOTION*M.motion*GL.currentDir;
+}
+function skyCharge(){
+  if(RM||G.state!=='playing'||bhActive()||starfallActive())return 0;
+  const partial=G.lapEmbers>0?Math.max(0,Math.min(1,G.lapAcc/TAU)):0;
+  return Math.min(1,MU&&MU.armed?1:((G.build||0)+partial*0.85)/dropNeed());
+}
+const SKY_MATERIALS=[['fx-plasma-wisp','uNebulaMap'],['drift-planet','uPlanetMap'],['drift-ring','uRingMap']];
+function skyTexture(key){
+  if(typeof runtimeHost.getTexture!=='function')return null;
+  const im=runtimeHost.getTexture(key);
+  return im&&(im.naturalWidth||im.width)>0&&(im.naturalHeight||im.height)>0?im:null;
+}
+function glBindSkyMaterials(g){
+  const ready=[0,0,0];
+  for(let i=0;i<SKY_MATERIALS.length;i++){
+    const pair=SKY_MATERIALS[i],im=skyTexture(pair[0]);
+    let entry=GL.art[i];
+    g.activeTexture(g.TEXTURE0+i);
+    if(im&&(!entry||entry.image!==im)){
+      if(entry)g.deleteTexture(entry.texture);
+      const texture=g.createTexture();g.bindTexture(g.TEXTURE_2D,texture);
+      g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,true);
+      g.texImage2D(g.TEXTURE_2D,0,g.RGBA,g.RGBA,g.UNSIGNED_BYTE,im);
+      g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);
+      g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);
+      g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.CLAMP_TO_EDGE);
+      g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.CLAMP_TO_EDGE);
+      entry=GL.art[i]={image:im,texture:texture};
+    }
+    g.bindTexture(g.TEXTURE_2D,entry?entry.texture:GL.blank);
+    g.uniform1i(GL.u[pair[1]],i);ready[i]=entry?1:0;
+  }
+  g.uniform3f(GL.u.uArt,ready[0],ready[1],ready[2]);
+}
 function glRender(dt){
   if(!GL.on)return;
   try{
     const g=GL.g;glResize();skyStep(dt);
     const SM=SKY.mix,accent=sceneAccent();
-    const fvt=RM?0:G.vt,d=Math.max(0,fvt-(GL.flowVt===null?fvt:GL.flowVt));
-    GL.flowVt=fvt;GL.tw+=d*GL_MOTION*SM.motion;
+    skyAdvanceClock(SM);
     const tint=accent.tint||SM.rim;
     g.useProgram(GL.pr);
+    glBindSkyMaterials(g);
+    const current=G.currentFlow||{},live=G.state==='playing'&&!RM;
+    const phrase=RM?0:Math.sin(musPos()/STEPS*TAU);
+    const point=posPlayer(),pressure=skyCharge();
+    const travel=live&&Number.isFinite(current.travel)?current.travel:GL.stream;
+    g.uniform3f(GL.u.uLive,phrase,travel,pressure);
+    g.uniform4f(GL.u.uCurrent,live?(current.turn||0):0,live?(current.hop||0):0,
+      current.radial||0,current.dir||G.dir||1);
+    g.uniform4f(GL.u.uPowerFlow,live?(current.magnet||0):0,live?(current.scorch||0):0,
+      live?(current.release||0):0,current.bh||0);
+    g.uniform2f(GL.u.uFlight,(point[0]-W*0.5)/H,((H-point[1])-H*0.5)/H);
+    const reward=live&&starfallActive()?G.starfall:null;
+    g.uniform2f(GL.u.uRelease,reward?reward.total-reward.left:-1,reward?reward.total/3:1);
     g.uniform2f(GL.u.uRes,GL.vw,GL.vh);
     g.uniform2f(GL.u.uCtr,(cx-W*0.5)/H,((H-cy)-H*0.5)/H);
     g.uniform1f(GL.u.uTime,GL.tw);
@@ -10423,10 +10385,14 @@ function impactColor(kind){
 }
 function impactHalo(x,y,r,col,alpha){
   if(!(r>0)||!(alpha>0))return;
-  ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=Math.min(1,alpha);
-  const g=ctx.createRadialGradient(x,y,0,x,y,r);
-  g.addColorStop(0,col);g.addColorStop(0.12,col);g.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2);ctx.restore();
+  /* A spatial field boundary with an open center, never a center-filled disk. */
+  ctx.save();ctx.globalCompositeOperation='source-over';
+  ctx.globalAlpha=Math.min(0.38,alpha);ctx.strokeStyle=col;ctx.lineWidth=1.1*u;
+  for(let j=0;j<2;j++){
+    const a=-0.35+j*Math.PI;
+    ctx.beginPath();ctx.arc(x,y,r*0.62,a,a+1.7);ctx.stroke();
+  }
+  ctx.restore();
 }
 function impactRecord(kind){
   if(G.state!=='playing')return;
@@ -10437,7 +10403,7 @@ function impactRecord(kind){
   G.impacts.push({kind,x:p[0],y:p[1],angle:G.angle,ring:effRing(),at:G.t,span});
 }
 function drawOrbitalRails(){
-  const scene=sceneAccent(),playing=G.state==='playing',menu=G.state==='menu';
+  const playing=G.state==='playing',menu=G.state==='menu';
   for(let i=0;i<G.nRings;i++){
     const r=radiusOf(i),x=ecx(r),y=ecy(r),on=effRing()===i;
     const escape=BH.phase===2&&BH.escape&&i===0;
@@ -10453,11 +10419,6 @@ function drawOrbitalRails(){
     metal.addColorStop(1,on?'#44667d':'#374e66');
     ctx.strokeStyle=metal;ctx.lineWidth=(on?1.65:1.05)*u;
     ctx.beginPath();ctx.ellipse(x,y,r,r*AY,0,0,TAU);ctx.stroke();
-    if(scene.strength>0.015&&!bhActive()){
-      ctx.globalCompositeOperation='lighter';ctx.strokeStyle=impactColor(scene.kind);
-      ctx.globalAlpha=al*scene.strength*(on?0.60:0.22);ctx.lineWidth=(on?4:2.2)*u;
-      ctx.beginPath();ctx.ellipse(x,y,r,r*AY,0,0,TAU);ctx.stroke();
-    }
     if(on&&G.state!=='dead'){
       const a=G.angle-G.dir*0.68,b=G.angle+G.dir*0.24;
       ctx.globalCompositeOperation='lighter';ctx.strokeStyle=escape?COL.shield:COL.comet;
@@ -10497,45 +10458,149 @@ function drawPowerAtmosphere(){
     ctx.restore();
   }
 }
+/* Dust keeps the direction of committed gestures. These 36 persistent strands
+   are a world-space wake, not random particles or a second animation clock. */
+function currentWakeReset(){
+  if(!G.currentFlow)G.currentFlow={turn:0,hop:0,radial:0,dir:1,
+    magnet:0,scorch:0,release:0,bh:0,travel:0};
+  const f=G.currentFlow;
+  f.turn=0;f.hop=0;f.radial=0;f.dir=G.dir;f.magnet=0;f.scorch=0;
+  f.release=0;f.bh=0;f.travel=0;
+  if(!G.currentWake){
+    G.currentWake={pool:[],next:0,x:0,y:0,ready:false,distance:0,serial:0};
+    for(let i=0;i<36;i++)G.currentWake.pool.push({life:0});
+  }
+  const w=G.currentWake;w.next=0;w.ready=false;w.distance=0;w.serial=0;
+  for(const p of w.pool)p.life=0;
+}
+function currentWakeTurn(){
+  if(G.state!=='playing'||frozen())return;
+  if(!G.currentFlow)currentWakeReset();
+  const f=G.currentFlow;f.dir=G.dir;f.turn=1;
+  const cp=posPlayer(),x=(cp[0]-cx)/u,y=(cp[1]-cy)/u;
+  for(const p of G.currentWake.pool){
+    if(p.life<=0||Math.hypot(p.x-x,p.y-y)>180)continue;
+    const r=Math.max(1,Math.hypot(p.x,p.y/AY));
+    p.vx=-p.y/AY/r*f.dir*48+p.x/r*12;
+    p.vy=p.x/r*f.dir*48*AY+p.y/r*12;
+    p.bend=f.dir*(24+p.layer*9);p.kick=1;
+  }
+}
+function currentWakeHop(step){
+  if(G.state!=='playing'||frozen())return;
+  if(!G.currentFlow)currentWakeReset();
+  G.currentFlow.hop=1;G.currentFlow.radial=-step;
+}
+function currentWakeUpdate(dt){
+  if(G.state!=='playing'||frozen()||!(dt>0))return;
+  if(!G.currentFlow)currentWakeReset();
+  const f=G.currentFlow,w=G.currentWake,cp=posPlayer();
+  const x=(cp[0]-cx)/u,y=(cp[1]-cy)/u;
+  const bh=Math.min(1,Math.max(0,BH.warp||0)),ordinary=!bhActive();
+  f.turn=Math.max(0,f.turn-dt/0.8);f.hop=Math.max(0,f.hop-dt/0.6);
+  const ease=Math.min(1,dt*5);
+  f.magnet+=((ordinary&&G.spot>0?1:0)-f.magnet)*ease;
+  f.scorch+=((ordinary&&G.scorch>0?1:0)-f.scorch)*ease;
+  f.release+=((ordinary&&starfallActive()?1:0)-f.release)*ease;
+  f.bh=bh;
+  if(!w.ready){w.x=x;w.y=y;w.ready=true;}
+  const dx=x-w.x,dy=y-w.y,dist=Math.hypot(dx,dy);
+  /* A held pointer may still roll a speculative turn back into a swipe. */
+  const committed=G.revPend<=0;
+  if(committed)f.travel+=dist*f.dir/Math.max(1,R/u);
+  if(!RM){
+    for(const p of w.pool){
+      if(p.life<=0)continue;
+      p.life=Math.max(0,p.life-dt);p.kick=Math.max(0,p.kick-dt*1.7);
+      const r=Math.max(1,Math.hypot(p.x,p.y/AY));
+      const nx=p.x/r,ny=p.y/r,tx=-p.y/AY/r,ty=p.x/r*AY;
+      let vx=tx*f.dir*(14+f.turn*24)+nx*(7+f.release*92);
+      let vy=ty*f.dir*(14+f.turn*24)+ny*(7+f.release*92);
+      const mx=x-p.x,my=y-p.y,md=Math.max(1,Math.hypot(mx,my));
+      const pull=f.magnet*Math.max(0,1-md/230)*220;
+      vx+=mx/md*pull;vy+=my/md*pull;
+      if(bh>0){vx=vx*(1-bh)-nx*bh*190+tx*bh*45;
+        vy=vy*(1-bh)-ny*bh*190+ty*bh*45;}
+      const drag=Math.min(1,dt*(bh>0?5:2.6));
+      p.vx+=(vx-p.vx)*drag;p.vy+=(vy-p.vy)*drag;
+      p.x+=p.vx*dt;p.y+=p.vy*dt;
+      /* The far dust follows later, so force changes bend a long filament. */
+      p.tx+=p.vx*dt*0.30;p.ty+=p.vy*dt*0.30;
+      p.heat+=(f.scorch-p.heat)*Math.min(1,dt*(f.scorch>p.heat?4:0.45));
+      if(bh>0&&r<18)p.life=0;
+    }
+    if(committed&&dist>0.01&&dist<100){
+      const spacing=f.hop>0?13:22;
+      w.distance+=dist;
+      const n=Math.min(4,Math.floor(w.distance/spacing));
+      if(n)w.distance%=spacing;
+      const tx=dx/dist,ty=dy/dist;
+      for(let i=0;i<n;i++){
+        const q=(i+1)/(n+1),px=w.x+dx*q,py=w.y+dy*q;
+        const r=Math.max(1,Math.hypot(px,py/AY)),nx=px/r,ny=py/r;
+        const layer=w.serial++%3,offset=9+layer*14;
+        const reach=62+layer*34+f.hop*34;
+        const p=w.pool[w.next];w.next=(w.next+1)%w.pool.length;
+        p.x=px+nx*offset;p.y=py+ny*offset;
+        p.tx=p.x-tx*reach+nx*(18+layer*18);
+        p.ty=p.y-ty*reach+ny*(18+layer*18);
+        p.vx=tx*26+nx*8;p.vy=ty*26+ny*8;
+        p.span=2.3+layer*0.3;p.life=p.span;p.layer=layer;
+        p.bend=f.dir*(12+layer*8)+f.radial*f.hop*35;
+        p.kick=Math.max(f.turn,f.hop);p.heat=f.scorch;
+      }
+    }else if(!committed||dist>=100)w.distance=0;
+  }
+  w.x=x;w.y=y;
+}
+function drawCurrentWake(){
+  if(RM||G.state!=='playing'||!G.currentWake)return;
+  const f=G.currentFlow,outer=Math.max(1,R/u);
+  ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+  /* Keep long curves outside the quiet core and the singularity's shadow. */
+  ctx.beginPath();ctx.rect(-W,-H,W*3,H*3);
+  const quiet=(f.bh>0?0.34:0.24)*R;
+  ctx.ellipse(cx,cy,quiet,quiet*AY,0,0,TAU);ctx.clip('evenodd');
+  for(const p of G.currentWake.pool){
+    if(p.life<=0)continue;
+    const age=p.span-p.life,fade=Math.min(1,age/0.16)*Math.pow(p.life/p.span,1.3);
+    const r=Math.hypot(p.x,p.y/AY)/outer;
+    const edge=Math.max(0,Math.min(1,(r-0.46)/0.68));
+    const alpha=fade*(0.065+edge*0.16+p.kick*0.13+f.release*0.13+f.bh*0.14);
+    const dx=p.x-p.tx,dy=p.y-p.ty,len=Math.max(1,Math.hypot(dx,dy));
+    const bend=p.bend*(0.6+p.life/p.span*0.4);
+    const qx=(p.x+p.tx)/2-dy/len*bend,qy=(p.y+p.ty)/2+dx/len*bend;
+    ctx.strokeStyle=p.heat>0.45?'#ffb571':f.release>0.3?'#ebd2ff':
+      f.magnet>0.25?'#91e8ed':p.layer===1?'#82a8e8':'#91cfde';
+    ctx.beginPath();ctx.moveTo(cx+p.tx*u,cy+p.ty*u);
+    ctx.quadraticCurveTo(cx+qx*u,cy+qy*u,cx+p.x*u,cy+p.y*u);
+    ctx.globalAlpha=alpha*0.22;ctx.lineWidth=(7+p.layer*2)*u;ctx.stroke();
+    ctx.globalAlpha=alpha;ctx.lineWidth=(1.1+p.layer*0.4)*u;ctx.stroke();
+  }
+  ctx.restore();
+}
 function drawImpactEvents(){
   if(!G.impacts||G.state!=='playing'||bhActive())return;
   for(const e of G.impacts){
     const age=G.t-e.at;if(age<0||age>e.span||e.at<G.started)continue;
-    const t=age/e.span,fade=Math.pow(1-t,2),col=impactColor(e.kind);
-    if(RM){impactHalo(e.x,e.y,35*u,col,0.18*fade);continue;}
-    const major=['nova','hyper','hypernova','drop'].includes(e.kind);
-    const rr=(1-Math.pow(1-t,3))*(major?130:60)*u;
-    ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
-    if(e.kind==='orbit'){
-      const r=radiusOf(Math.min(e.ring,G.nRings-1)),spread=t*TAU;
-      for(let j=0;j<2;j++){
-        ctx.globalAlpha=fade*(j?0.16:0.48);ctx.strokeStyle=j?'#fff3c9':col;
-        ctx.lineWidth=(j?1.2:3.2)*u;
-        const r2=r+(8+t*17+j*4)*u;
-        ctx.beginPath();ctx.ellipse(ecx(r2),ecy(r2),r2,r2*AY,0,e.angle-spread/2,e.angle+spread/2);ctx.stroke();
-      }
-    }else{
-      impactHalo(e.x,e.y,(major?96:48)*u,col,fade*(major?0.48:0.26));
-      ctx.globalAlpha=fade*0.6;ctx.strokeStyle=col;ctx.lineWidth=(1.1+2.5*(1-t))*u;
-      ctx.beginPath();ctx.arc(e.x,e.y,Math.max(1,rr),0,TAU);ctx.stroke();
-      /* Curved, tapered ejecta and a short horizontal flare, anchored at pickup. */
-      const count=major?18:9;
-      for(let i=0;i<count;i++){
-        const a=i*TAU/count+e.angle,l=rr*(0.50+0.4*(i%3)/2);
-        ctx.globalAlpha=fade*(i%3===0?0.75:0.36);ctx.strokeStyle=i%3===0?'#fff6e6':col;
-        ctx.lineWidth=(i%3===0?1.7:0.75)*u;
-        const x=e.x+Math.cos(a)*l,y=e.y+Math.sin(a)*l;
-        ctx.beginPath();ctx.moveTo(x,y);
-        ctx.quadraticCurveTo(x+Math.cos(a-0.22)*rr*0.13,y+Math.sin(a-0.22)*rr*0.13,
-          e.x+Math.cos(a+0.035)*rr,e.y+Math.sin(a+0.035)*rr);ctx.stroke();
-      }
-      if(major){
-        const f=Math.max(0,1-age/0.38),w=(60+150*t)*u;
-        const beam=ctx.createLinearGradient(e.x-w,0,e.x+w,0);
-        beam.addColorStop(0,'rgba(0,0,0,0)');beam.addColorStop(0.48,col);
-        beam.addColorStop(0.5,'#ffffff');beam.addColorStop(0.52,col);beam.addColorStop(1,'rgba(0,0,0,0)');
-        ctx.globalAlpha=f*0.85;ctx.fillStyle=beam;ctx.fillRect(e.x-w,e.y-1.5*u,w*2,3*u);
-      }
+    /* Orbit has its travelling gold marker; Nova has its real conversion
+       front; Starfall comes from the planet. Do not stamp a second explosion. */
+    if(e.kind==='orbit'||e.kind==='nova'||e.kind==='drop')continue;
+    const t=age/e.span,fade=Math.min(1,age/0.16)*Math.pow(1-t,1.3);
+    const col=impactColor(e.kind),major=e.kind==='hyper'||e.kind==='hypernova';
+    if(RM){impactHalo(e.x,e.y,26*u,col,0.28*fade);continue;}
+    const reach=(18+t*(major?92:44))*u;
+    ctx.save();ctx.globalCompositeOperation='source-over';ctx.lineCap='round';
+    ctx.strokeStyle=col;ctx.globalAlpha=0.58*fade;ctx.lineWidth=1.35*u;
+    /* The casing separates into directed curved fragments. Its center stays
+       clear, so the acquired power and the comet remain the things to read. */
+    const count=major?7:4;
+    for(let i=0;i<count;i++){
+      const a=e.angle+i*TAU/count,b=a+0.12;
+      const start=reach*(0.38+(i%3)*0.08),end=reach*(0.72+(i%2)*0.16);
+      ctx.beginPath();ctx.moveTo(e.x+Math.cos(a)*start,e.y+Math.sin(a)*start);
+      ctx.quadraticCurveTo(e.x+Math.cos(a+0.24)*reach*0.62,e.y+Math.sin(a+0.24)*reach*0.62,
+        e.x+Math.cos(b)*end,e.y+Math.sin(b)*end);ctx.stroke();
     }
     ctx.restore();
   }
@@ -10576,8 +10641,15 @@ function drawSingularity(){
   ctx.restore();
   if(BH.phase===2&&!BH.escape&&BH.pullT>BH_PULL-1){
     const q=BH.pullT-(BH_PULL-1),r2=radiusOf(G.nRings-1);
-    ctx.save();ctx.strokeStyle='#f9c499';ctx.globalAlpha=0.2+0.5*q;ctx.lineWidth=(1+q*2)*u;
-    ctx.beginPath();ctx.ellipse(cx,cy,r2,r2*AY,0,0,TAU);ctx.stroke();ctx.restore();
+    // The impending pull moves two small inward chevrons beside the comet;
+    // it never brightens the circumference on every gravity cycle.
+    ctx.save();ctx.strokeStyle='#c5a58e';ctx.globalAlpha=0.5;ctx.lineWidth=1.4*u;
+    const rr=r2+(1-q)*18*u;
+    for(const side of [-1,1]){
+      const a=G.angle+side*.17,l=posAt(a-.028,rr+5*u),tip=posAt(a,rr-2*u),r=posAt(a+.028,rr+5*u);
+      ctx.beginPath();ctx.moveTo(l[0],l[1]);ctx.lineTo(tip[0],tip[1]);ctx.lineTo(r[0],r[1]);ctx.stroke();
+    }
+    ctx.restore();
   }
 }
 function drawCometFins(p,pal){
@@ -10630,6 +10702,7 @@ function draw(){
 
   ctx.save();
   ctx.translate(camX,camY);   /* the world rides the dolly; HUD stays pinned */
+  drawCurrentWake();
   if(G.shake>0)ctx.translate(rand(-G.shake,G.shake)*0.5,rand(-G.shake,G.shake)*0.5);
 
   /* Magnet connections follow the stars actually captured by its field. */
@@ -10644,7 +10717,6 @@ function draw(){
     }
     ctx.restore();
   }
-  const scene=sceneAccent();
   drawPowerAtmosphere();
   drawOrbitalRails();
   /* THE METER IS INVISIBLE NOW (owner: "get rid of the purple build-up
@@ -10655,9 +10727,7 @@ function draw(){
      armed state, and the payoff drain sweep at the same radius) is gone.
      The drop announces itself the musical way: the shaker leaning in,
      BEAT DROP COMING…, the rise, and the countdown. */
-  /* THE ARENA CORE LAMP — the light source the whole scene answers to. It
-     breathes on the landed beat and flares when the drop hits; clamped so
-     its glow never reaches the innermost lane even at the small-R floor. */
+  /* A steady reference point for the orbital geometry. */
   ctx.globalCompositeOperation='lighter';
   if(SPR.core){
     const S=Math.min(1,radiusOf(G.nRings-1)/(50*u));
@@ -10669,8 +10739,7 @@ function draw(){
        lit from inside. It fades with BH.warp, so it leaves and returns with
        the orbits. */
     const lamp=1-Math.min(1,BH.warp);
-    if(lamp>0.004)blit(SPR.core,cx,cy,RM?S:S*(0.75+0.3*G.dropFx),0,
-      lamp*(0.22+0.25*scene.strength));
+    if(lamp>0.004)blit(SPR.core,cx,cy,S*0.75,0,lamp*0.18);
   }
   ctx.globalCompositeOperation='source-over';
   /* Ring light is supplied by the single path pass above. */
@@ -10756,7 +10825,7 @@ function draw(){
        drawn to line up with */
     const gIn=[ecx(rIn),ecy(rIn)],gOut=[ecx(rOut),ecy(rOut)];
     ctx.save();
-    ctx.globalAlpha=teachGuide?(RM?0.4:0.30+0.16*(0.5+0.5*Math.sin(G.t*3.2))):0.3;
+    ctx.globalAlpha=teachGuide?0.4:0.3;
     ctx.strokeStyle=COL.comet;ctx.lineWidth=1.5;
     ctx.setLineDash([5*u,5*u]);
     ctx.beginPath();
@@ -10786,9 +10855,10 @@ function draw(){
 
   if(G.slipFx&&!bhActive()){
     const f=G.slipFx,rr=radiusOf(f.ring);
-    ctx.save();ctx.globalAlpha=Math.max(0,1-f.t/0.45)*0.65;
-    ctx.strokeStyle=COL.comet;ctx.lineWidth=3*u;
-    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,f.a-0.48,f.a+0.48);ctx.stroke();ctx.restore();
+    const progress=Math.min(1,f.t/0.45);
+    ctx.save();ctx.globalAlpha=(1-progress)*0.35;
+    ctx.strokeStyle=COL.comet;ctx.lineWidth=1.5*u;
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,f.a-0.48*progress,f.a+0.48*progress);ctx.stroke();ctx.restore();
   }
   if(!bhActive()){
     const route=G.stars.filter(st=>st.trail).sort((a,b)=>a.trailI-b.trailI);
@@ -10802,18 +10872,28 @@ function draw(){
       ctx.stroke();ctx.restore();
     }
   }
-  /* Gold crystals stay contact-sized while newborn light condenses. */
+  /* All stars materialize gradually, including those converted by Nova. */
   ctx.globalCompositeOperation='source-over';
   for(const s of G.stars){
+    if(s.flight&&s.t<s.flight.delay)continue;
     const p=starVisualPos(s);
     let al=1;
-    if(!s.born&&s.t<0.3)al=s.t/0.3;
+    if(s.t<0.45)al=s.t/0.45;
     else if(s.life-s.t<0.8)al=Math.max(0,(s.life-s.t)/0.8);
-    artifactStar(p[0],p[1],s,al);
-    if(s.born&&s.t<0.25&&!RM){
-      const bq=s.t/0.25;
-      artifactGlint(p[0],p[1],Math.PI/4,9*(1-bq)+2,(1-bq)*0.9);
+    if(s.flight&&!s.mag&&s.t<s.flight.delay+s.flight.duration&&!RM){
+      ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+      for(const [width,alpha] of [[6,.12],[2,.58]]){
+        ctx.strokeStyle=width>2?COL.ember:'#fff0b5';ctx.lineWidth=width*u;ctx.globalAlpha=alpha*al;
+        ctx.beginPath();
+        for(let j=0;j<=8;j++){
+          const q=starfallFlightPos(s,Math.max(s.flight.delay,s.t-.16*(1-j/8)));
+          if(j===0)ctx.moveTo(q[0],q[1]);else ctx.lineTo(q[0],q[1]);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
     }
+    artifactStar(p[0],p[1],s,al);
   }
   /* power-ups */
   for(const s of G.pows){
@@ -10847,7 +10927,7 @@ function draw(){
     }
     if(run.length)runs.push(run);
     const live=s.phase===1&&armed(s);
-    const base=live?0.52:0.16+0.14*Math.sin(s.t*12);
+    const base=live?0.44:0.26;
     ctx.save();
     ctx.globalCompositeOperation='lighter';
     ctx.strokeStyle=COL.shard;ctx.lineCap='round';
@@ -10879,7 +10959,7 @@ function draw(){
            — STEPPING once per eighth, so even the wall marches in time */
         ctx.globalAlpha=0.45;ctx.lineWidth=2.6*u;
         ctx.setLineDash([5*u,9*u]);
-        ctx.lineDashOffset=-(Math.floor(G.t/(SPB/2))*7*u)%(14*u);
+        ctx.lineDashOffset=-(G.vt*9*u)%(14*u);
         ctx.beginPath();ctx.moveTo(i0[0],i0[1]);ctx.lineTo(i1[0],i1[1]);ctx.stroke();
         ctx.setLineDash([]);
       }
@@ -10891,7 +10971,7 @@ function draw(){
     if(s.funnel&&live&&!RM){
       const gr=radiusOf(s.gap);
       ctx.strokeStyle=COL.comet;ctx.lineWidth=2.4*u;
-      ctx.globalAlpha=0.30+0.35*G.beat;
+      ctx.globalAlpha=0.45;
       for(const d of [-1,1]){
         const e0=posAt(s.a,gr+d*9*u),e1=posAt(s.a,gr+d*3.5*u);
         ctx.beginPath();ctx.moveTo(e0[0],e0[1]);ctx.lineTo(e1[0],e1[1]);ctx.stroke();
@@ -10906,15 +10986,10 @@ function draw(){
     if(s.saucer){
       const rr=radiusOf(s.ring),chg=s.chg>0?1-s.chg/SAUCER_CHG:0;
       if(s.fire>0){
-        const k=s.fire/SAUCER_BEAM;
         ctx.save();
-        ctx.globalAlpha=0.25+0.5*k;
-        ctx.strokeStyle=COL.shard;ctx.lineWidth=(RM?3:5.5)*u;
+        ctx.globalAlpha=0.62;
+        ctx.strokeStyle=COL.shard;ctx.lineWidth=2.4*u;
         ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,0,TAU);ctx.stroke();
-        if(!RM){
-          ctx.globalAlpha=0.16*k;ctx.lineWidth=14*u;
-          ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,0,TAU);ctx.stroke();
-        }
         ctx.restore();
       }
       const arr=s.phase===0?Math.min(1,s.t/(s.warn||WARN)):(s.phase===2?Math.max(0,1-s.t/FADE):1);
@@ -10957,7 +11032,7 @@ function draw(){
                    :Math.max(0,1-(s.t-(s.warn||WARN)*0.55)/Math.max(0.001,(s.warn||WARN)*0.45));
       ctx.save();
       ctx.strokeStyle=COL.shard;ctx.lineCap='round';
-      ctx.globalAlpha=0.22+0.30*q*(going?(0.5+0.5*Math.sin(s.t*14)):1);
+      ctx.globalAlpha=0.42;
       ctx.lineWidth=2.2*u;
       const r0=posAt(s.a,from),r1=posAt(s.a,to);
       ctx.beginPath();ctx.moveTo(r0[0],r0[1]);ctx.lineTo(r1[0],r1[1]);ctx.stroke();
@@ -10972,88 +11047,48 @@ function draw(){
     }
     artifactShard(p[0],p[1],s);
   }
-  /* NOVA FRONT: a wide soft leading edge with a hard bright rim inside it,
-     plus a second rim trailing slightly so it reads as a shell with
-     thickness rather than an expanding hoop. */
-  ctx.globalCompositeOperation='lighter';
-  /* ---- THE NOVA FRONT IS A SHOCK, NOT A DRAWN CIRCLE ----
-     This was three concentric STROKES — a 26u soft one, a hard white 1.5-5.5u
-     one at 0.85 alpha, and a thin inner echo — and screenshotted mid-cascade
-     on a 390x844 phone the middle one dominates completely: a flat white
-     wireframe circle sweeping across the arena. It is the same defect the
-     black hole's accretion disc had, in the game's single most spectacular
-     moment. A stroke of constant colour has hard edges on BOTH sides no
-     matter how wide it is, so widening it made a thicker band rather than a
-     softer one.
-     A radial gradient used AS the stroke style fixes it in one pass: the
-     gradient is evaluated in user space, so a wide stroke centred on the
-     front reads dark-to-hot-to-dark across its own width. One expanding band
-     of light with a bright leading edge and no boundary anywhere. */
+  /* Nova's open contour follows the exact conversion radius. Moving broken
+     edges explain which threats it has reached without a white blast sheet. */
+  ctx.globalCompositeOperation='source-over';ctx.lineCap='round';
   for(const n of G.novas){
-    const lf=Math.max(n.life,0);
-    const inner=Math.max(0.001,n.r-30*u),outer=n.r+12*u;
-    const g=ctx.createRadialGradient(n.x,n.y,inner,n.x,n.y,outer);
-    g.addColorStop(0,'rgba(120,200,255,0)');
-    g.addColorStop(0.45,'rgba(170,225,255,'+(0.30*lf).toFixed(3)+')');
-    g.addColorStop(0.80,'rgba(235,247,255,'+(0.72*lf).toFixed(3)+')');
-    g.addColorStop(0.92,'rgba(255,255,255,'+(0.95*lf).toFixed(3)+')');
-    g.addColorStop(1,'rgba(190,235,255,0)');
-    ctx.globalAlpha=1;
-    ctx.strokeStyle=g;
-    ctx.lineWidth=(outer-inner);
-    ctx.beginPath();ctx.arc(n.x,n.y,(inner+outer)/2,0,TAU);ctx.stroke();
+    const lf=Math.max(n.life,0),rr=Math.max(0.1,n.r);
+    ctx.globalAlpha=Math.min(0.6,lf*0.6);ctx.strokeStyle='#91cdda';ctx.lineWidth=1.7*u;
+    for(let j=0;j<10;j++){
+      const a=j*TAU/10;
+      ctx.beginPath();ctx.arc(n.x,n.y,rr,a,a+TAU/10*0.64);ctx.stroke();
+      const b=a+TAU/10*0.64,tail=Math.max(0,rr-18*u);
+      ctx.beginPath();ctx.moveTo(n.x+Math.cos(b)*tail,n.y+Math.sin(b)*tail);
+      ctx.lineTo(n.x+Math.cos(b+0.035)*rr,n.y+Math.sin(b+0.035)*rr);ctx.stroke();
+    }
   }
-  /* ORBIT IGNITION: a head runs the full circumference in the direction you
-     were travelling, with the wake burning behind it. Drawn as a body arc
-     plus a short bright leading segment, so the eye tracks the head rather
-     than a ring that merely brightens. */
-  ctx.globalCompositeOperation='lighter';
+  /* A short gold marker travels the completed orbit and leaves the rest of
+     the ring clear. The score payout, rather than a bright ring, banks value. */
   for(const L of G.laps){
-    const t=1-Math.max(L.life,0);
-    /* the ignition head runs the circumference in exactly ONE BEAT */
-    const sweep=RM?TAU:Math.min(1,t/SPB)*TAU;
-    /* Offset outside the ring. On the ring it lands under the comet's own
-       tail and reads as more trail; sitting just proud of it, gold against
-       the tail's cyan, it reads as the orbit itself catching light. */
-    const rr=radiusOf(L.ring)+9*u,lf=Math.max(L.life,0);
-    const a0=L.dir>0?L.a:L.a-sweep, a1=L.dir>0?L.a+sweep:L.a;
-    ctx.strokeStyle=COL.ember;
-    ctx.globalAlpha=lf*0.30*L.mag;
-    ctx.lineWidth=(3+9*lf)*u*L.mag;
-    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,a0,a1);ctx.stroke();
-    ctx.globalAlpha=lf*0.62*L.mag;
-    ctx.lineWidth=(1.4+3*lf)*u*L.mag;
-    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,a0,a1);ctx.stroke();
-    if(sweep<TAU){
-      const head=L.dir>0?a1:a0,w=0.22;
-      ctx.strokeStyle='#fffdf2';
-      /* The clamp goes round the WHOLE product. It used to sit on lf*1.3 and
-         then get multiplied by L.mag, so the result reached 1.14 — and an
-         out-of-range globalAlpha is ignored by a real canvas, not clamped, so
-         the lap head kept the previous alpha instead of being brightest. */
-      ctx.globalAlpha=Math.min(1,lf*1.3*L.mag);
-      ctx.lineWidth=(3.5+5*lf)*u*L.mag;
-      ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,head-w*(L.dir>0?1:0),head+w*(L.dir>0?0:1));ctx.stroke();
-    }
+    const lf=Math.max(L.life,0),age=(1-lf)/1.35;
+    const sweep=RM?0:Math.min(1,age/0.65)*TAU;
+    const rr=radiusOf(L.ring)+8*u,head=L.a+L.dir*sweep;
+    const tail=head-L.dir*(RM?0.28:Math.min(0.46,sweep+0.04));
+    ctx.strokeStyle='#d5aa69';ctx.globalAlpha=Math.min(0.62,lf*0.62*(L.mag||1));
+    ctx.lineWidth=1.8*u;
+    ctx.beginPath();ctx.ellipse(ecx(rr),ecy(rr),rr,rr*AY,0,Math.min(tail,head),Math.max(tail,head));ctx.stroke();
   }
+  /* Contact marks move apart along the affected lane, then dissolve. */
   for(const a of G.arcs){
-    const lf=Math.max(a.life,0),half=0.09+0.5*(1-lf);
-    ctx.globalAlpha=lf*lf*0.75;
-    ctx.strokeStyle=a.col;ctx.lineWidth=(1+4*lf)*u;
-    const ar=radiusOf(a.ring);
-    ctx.beginPath();ctx.ellipse(ecx(ar),ecy(ar),ar,ar*AY,0,a.a-half,a.a+half);ctx.stroke();
-  }
-  /* ripples — the big earned moments carry a fat baked annulus instead of a
-     hairline stroke */
-  for(const r of G.rings){
-    const lf=Math.max(r.life,0);
-    if(r.fat&&SPR.shock){
-      blit(SPR.shock,r.x,r.y,r.r/48,0,lf*0.8);
-      continue;
+    const lf=Math.max(a.life,0),offset=0.06+0.32*(1-lf),ar=radiusOf(a.ring);
+    ctx.globalAlpha=lf*0.44;ctx.strokeStyle=a.col;ctx.lineWidth=1.35*u;
+    for(const side of [-1,1]){
+      const at=a.a+side*offset;
+      ctx.beginPath();ctx.ellipse(ecx(ar),ecy(ar),ar,ar*AY,0,at-0.055,at+0.055);ctx.stroke();
     }
-    ctx.globalAlpha=lf*0.55;
-    ctx.strokeStyle=r.col;ctx.lineWidth=1+2*lf;
-    ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,TAU);ctx.stroke();
+  }
+  /* Impact contours retain position and travel; no full-ring or baked flash. */
+  for(const r of G.rings){
+    const lf=Math.max(r.life,0),base=Math.atan2(r.y-cy,r.x-cx);
+    ctx.globalAlpha=lf*(r.fat?0.28:0.22);ctx.strokeStyle=r.col;ctx.lineWidth=(r.fat?1.6:1.0)*u;
+    for(let j=0;j<3;j++){
+      const a=base+j*TAU/3;
+      ctx.beginPath();ctx.arc(r.x,r.y,Math.max(0.1,r.r),a,a+0.5);ctx.stroke();
+    }
   }
   ctx.globalCompositeOperation='source-over';
   ctx.globalAlpha=1;
@@ -11063,8 +11098,7 @@ function draw(){
   drawTail();
   if(G.state!=='dead'){
     const p=posPlayer();
-    let pal=1;
-    if(G.t<G.invuln)pal=0.45+0.35*Math.sin(G.t*30);
+    const pal=1; // Protection uses an outline; the player never flickers.
     ctx.globalCompositeOperation='lighter';
     blit(SPR.cometGlow,p[0],p[1],1,0,pal);
     ctx.globalCompositeOperation='source-over';
@@ -11095,13 +11129,11 @@ function draw(){
     const cd=cometArt?72*u:SPR.comet.s;
     if(cometArt)ctx.drawImage(cometArt,-cd*.624,-cd*.482,cd,cd);
     else ctx.drawImage(SPR.comet.c,-cd/2,-cd/2,cd,cd);
-    /* the furnace: a white-hot core flickering at 24Hz over the teardrop —
-       the comet reads as a genuinely hot object, not a lit shape */
+    /* A steady hot core. Heat is expressed by the moving wake, never flicker. */
     if(SPR.cometHot&&!cometArt){
       ctx.globalCompositeOperation='lighter';
-      const f=RM?0.6:FLK[(G.t*24|0)&15];
-      const hs=SPR.cometHot.s*(RM?1:1+0.07*f);
-      ctx.globalAlpha=pal*0.7;
+      const hs=SPR.cometHot.s;
+      ctx.globalAlpha=pal*0.5;
       ctx.drawImage(SPR.cometHot.c,-hs/2,-hs/2,hs,hs);
       ctx.globalCompositeOperation='source-over';
     }
@@ -11153,43 +11185,34 @@ function draw(){
     drawBeat(p);
     if(!cometArt)drawCometFins(p,pal);
     if(G.hyperGlow>0.01&&!bhActive()){
-      /* the comet burns white in a magenta corona while the star lasts */
-      ctx.save();ctx.globalCompositeOperation='lighter';
-      ctx.globalAlpha=0.65*G.hyperGlow;
-      ctx.strokeStyle=COL.hyper;ctx.lineWidth=2.4*u;
-      ctx.beginPath();ctx.arc(p[0],p[1],(15+(RM?0:4*G.beat))*u,0,TAU);ctx.stroke();
-      ctx.globalAlpha=(RM?0.5:0.35+0.4*FLK[(G.t*24|0)&15])*G.hyperGlow;
-      ctx.fillStyle='#ffffff';
-      ctx.beginPath();ctx.arc(p[0],p[1],4.5*u,0,TAU);ctx.fill();
+      /* Two stable fins identify Hypernova while the wake carries its speed. */
+      ctx.save();ctx.globalCompositeOperation='source-over';
+      ctx.globalAlpha=0.6*G.hyperGlow;
+      ctx.strokeStyle=COL.hyper;ctx.lineWidth=1.8*u;
+      const a=G.angle+G.dir*Math.PI/2;
+      for(const side of [-1,1]){
+        ctx.beginPath();ctx.arc(p[0],p[1],16*u,a+side*1.1-0.38,a+side*1.1+0.38);ctx.stroke();
+      }
       ctx.restore();ctx.globalAlpha=1;
     }
     /* Remaining orb time lives together in the HUD; the comet stays legible. */
     if(G.t<G.invuln){
       ctx.globalAlpha=Math.min(1,(G.invuln-G.t)*1.6)*0.55;
       ctx.strokeStyle=COL.shield;ctx.lineWidth=2;
-      ctx.beginPath();ctx.arc(p[0],p[1],(19+5*Math.sin(G.t*16))*u,0,TAU);ctx.stroke();
+      ctx.beginPath();ctx.arc(p[0],p[1],19*u,0,TAU);ctx.stroke();
       ctx.globalAlpha=1;
     }
   }
-  /* particles */
-  ctx.globalCompositeOperation='lighter';
-  /* Stretched along travel, so a burst reads as energy thrown outward rather
-     than confetti. Velocity damps hard (0.15^dt), so the streak collapses to
-     a round spark within a few frames on its own — the shape is the motion. */
+  /* Debris has a stable faceted body aligned to velocity. Overlapping pieces
+     use normal compositing, so a collision cannot sum into a white disk. */
+  ctx.globalCompositeOperation='source-over';
   for(const p of G.parts){
     const lf=Math.max(p.life,0),r=p.size*lf+0.5;
-    ctx.globalAlpha=lf;ctx.fillStyle=p.col;
-    const st=1+Math.min(Math.sqrt(p.vx*p.vx+p.vy*p.vy)/150,2.2);
-    if(st>1.15){
-      ctx.save();
-      ctx.translate(p.x,p.y);
-      ctx.rotate(Math.atan2(p.vy,p.vx));
-      ctx.scale(st,1/Math.sqrt(st)); /* thin as it lengthens, area roughly held */
-      ctx.beginPath();ctx.arc(0,0,r,0,TAU);ctx.fill();
-      ctx.restore();
-    }else{
-      ctx.beginPath();ctx.arc(p.x,p.y,r,0,TAU);ctx.fill();
-    }
+    const speed=Math.hypot(p.vx,p.vy),reach=r+Math.min(12*u,speed*0.045);
+    ctx.globalAlpha=Math.min(0.62,lf*0.62);ctx.fillStyle=p.col;
+    ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(p.vy,p.vx));
+    ctx.beginPath();ctx.moveTo(reach,0);ctx.lineTo(-r,r*0.55);
+    ctx.lineTo(-reach*0.55,0);ctx.lineTo(-r,-r*0.55);ctx.closePath();ctx.fill();ctx.restore();
   }
   ctx.globalCompositeOperation='source-over';
   ctx.globalAlpha=1;
@@ -11247,26 +11270,14 @@ function draw(){
   /* over the HUD, not under it: the score and the shard count are worth
      studying too, so the blackout has to cover them as well as the arena */
   drawPausePanel();
-  if(G.flash>0){
-    ctx.fillStyle='rgba(255,255,255,'+(G.flash*0.5)+')';
-    ctx.fillRect(0,0,W,H);
-  }
-  /* THE IMPACT FRAME. Two or three frames of flat white with the collision
-     silhouetted dark inside it, before anything else about dying is shown. */
-  if(G.impactT>0&&G.killer){
-    ctx.fillStyle='rgba(240,247,255,'+(0.92*Math.min(1,G.impactT/0.10)).toFixed(3)+')';
-    ctx.fillRect(0,0,W,H);
-    ctx.fillStyle='#0a1226';
-    ctx.beginPath();ctx.arc(G.killer.x,G.killer.y,9*u,0,TAU);ctx.fill();
-    ctx.save();ctx.translate(G.killer.x,G.killer.y);ctx.rotate(Math.PI/4);
-    ctx.fillRect(-8*u,-8*u,16*u,16*u);ctx.restore();
-  }
+  // Death is the comet breaking apart and the result arriving. No inverted
+  // white impact frame is drawn above the world or its controls.
 }
 
 function drawShieldBtn(){
   if(G.state!=='playing'||G.intro)return;
   const r=shieldRect(),midY=r.y+r.h/2,has=G.shields>0;
-  const pulse=has?0.55+0.2*Math.sin(G.t*3.2):0.22;
+  const pulse=has?0.6:0.22;
   ctx.save();
   /* No frame any more. It read as a button because it WAS one, and it is now
      a readout — a pill outline invites a press it no longer answers. */
@@ -11348,7 +11359,7 @@ function drawPausePanel(){
     const pw=Math.min(170*u,W-60*u),ph=44*u,px=cx-pw/2,py=cy+34*u;
     G.pauseBtn={x:px,y:py,w:pw,h:ph};
     ctx.strokeStyle=COL.comet;ctx.lineWidth=1.8;
-    ctx.globalAlpha=RM?1:0.78+0.22*Math.sin(G.t*3);
+    ctx.globalAlpha=0.9;
     ctx.beginPath();ctx.roundRect(px,py,pw,ph,ph/2);ctx.stroke();
     ctx.globalAlpha=1;
     ctx.textBaseline='middle';
@@ -11569,8 +11580,8 @@ function runMessage(){
       {tag:'BLACK HOLE',title:'Ride the inner ring',detail:'Escape signal in '+Math.max(0,Math.ceil(BH_ESCAPE-BH.t))+'s',color:COL.warp};
   }
   if(FIN.on)return {tag:'FINISH THE LEVEL',title:FIN.bloomed?'Collect the sun':'Follow the bright star',detail:FIN.bloomed?'Collect it to finish this level':'Swipe between rings to collect stars',color:COL.ember};
-  if(starfallActive())return {tag:'STARFALL · '+Math.ceil(G.starfall.left)+'s',title:'Catch the stars',
-    detail:'Red is cleared. Stars score double.',color:COL.ember,progress:G.starfall.left/G.starfall.total};
+  if(starfallActive())return G.starfall.total-G.starfall.left<1.6?
+    {tag:'STARFALL',title:'Catch the stars',detail:"You're safe. Stars score double.",color:COL.ember}:null;
   if(G.starfallResult&&G.t-G.starfallResult.at<2)return {tag:'STARFALL COMPLETE',title:'+'+G.starfallResult.score,
     detail:G.starfallResult.got+' stars collected',color:COL.ember};
   if(G.teachHint&&G.teach>0)return {tag:'TRY THIS',title:G.teachHint.t,glyph:G.teachHint.g,color:COL.comet};
@@ -11678,7 +11689,12 @@ function drawRunHUD(top){
     if(G.combo>=2&&G.comboT>0)stats.push('Stars ×'+G.combo);
     if(G.lapStreak>=2)stats.push(G.lapStreak+' clean orbits');
     if(stats.length)text(stats.join('  ·  '),cx,top+92*u,10.5*u,'500',COL.ember,0);
-    if(!LAB.on&&!bhActive()&&!starfallActive()&&(G.didLap||G.seen.orbit)){
+    if(!bhActive()&&starfallActive()){
+      text('STARFALL  ·  STARS ×2  ·  '+Math.ceil(G.starfall.left)+'s',cx,top+108*u,8.5*u,'700',COL.ember,0.8*u);
+      const span=130*u,remaining=G.starfall.left/G.starfall.total;
+      ctx.fillStyle='rgba(255,208,103,0.18)';ctx.fillRect(cx-span/2,top+115*u,span,2*u);
+      ctx.fillStyle=COL.ember;ctx.fillRect(cx-span/2,top+115*u,span*remaining,2*u);
+    }else if(!LAB.on&&!bhActive()&&(G.didLap||G.seen.orbit)){
       const n=dropNeed(),earned=Math.min(n,Math.round(G.build||0));
       text('STARFALL  '+earned+' / '+n+' ORBITS',cx,top+108*u,8*u,'700','#b8b6da',1*u);
     }
@@ -11726,7 +11742,7 @@ function drawFinalePath(){
       ctx.stroke();
       if(nxt){
         const pp=posPlayer(),pn=posAt(nxt.a,radiusOf(nxt.ring));
-        ctx.globalAlpha=0.30+(RM?0:0.16*G.beat);
+        ctx.globalAlpha=0.35;
         ctx.beginPath();ctx.moveTo(pp[0],pp[1]);ctx.lineTo(pn[0],pn[1]);ctx.stroke();
         if(nxt2){
           const p4=posAt(nxt2.a,radiusOf(nxt2.ring));
@@ -11738,11 +11754,11 @@ function drawFinalePath(){
       for(const st3 of FIN.trail){
         if(st3.got)continue;
         const p3=posAt(st3.a,radiusOf(st3.ring));
-        const big=st3===nxt?1.6+(RM?0:0.28*G.beat):0.85;
+        const big=st3===nxt?1.6:0.85;
         blit(SPR.ember,p3[0],p3[1],big,st3===nxt?G.t*1.2:0,st3===nxt?1:0.30);
         if(st3===nxt){
           ctx.save();ctx.strokeStyle=COL.ember;
-          ctx.globalAlpha=0.55+(RM?0:0.3*G.beat);
+          ctx.globalAlpha=0.55;
           ctx.lineWidth=1.6*u;
           ctx.beginPath();ctx.arc(p3[0],p3[1],10*u,0,TAU);ctx.stroke();
           ctx.restore();ctx.globalAlpha=1;
@@ -11750,7 +11766,7 @@ function drawFinalePath(){
       }
       /* the core answers */
       ctx.save();ctx.globalCompositeOperation='lighter';
-      ctx.globalAlpha=0.10+0.25*(FIN.got/11)+(RM?0:0.08*G.beat);
+      ctx.globalAlpha=0.10+0.20*(FIN.got/11);
       ctx.fillStyle=COL.ember;
       ctx.beginPath();ctx.arc(cx,cy,(6+9*(FIN.got/11))*u,0,TAU);ctx.fill();
       ctx.restore();ctx.globalAlpha=1;
@@ -11764,14 +11780,14 @@ function drawFinalePath(){
           ctx.beginPath();ctx.arc(ps[0],ps[1],2.6*u,0,TAU);ctx.fill();
           ctx.restore();ctx.globalAlpha=1;
         }else{
-          const sp3=1.9+(RM?0.1:0.35*G.beat);
+          const sp3=1.9;
           blit(SPR.ember,ps[0],ps[1],sp3,G.t*0.8,1);
           ctx.save();ctx.globalCompositeOperation='lighter';
           ctx.globalAlpha=0.75;ctx.fillStyle='#ffffff';
           ctx.beginPath();ctx.arc(ps[0],ps[1],4.2*u,0,TAU);ctx.fill();
           ctx.strokeStyle=COL.ember;ctx.lineWidth=2*u;
-          ctx.globalAlpha=0.5+(RM?0:0.3*G.beat);
-          ctx.beginPath();ctx.arc(ps[0],ps[1],(13+(RM?0:3*G.beat))*u,0,TAU);ctx.stroke();
+          ctx.globalAlpha=0.5;
+          ctx.beginPath();ctx.arc(ps[0],ps[1],13*u,0,TAU);ctx.stroke();
           ctx.restore();ctx.globalAlpha=1;
         }
       }
@@ -11870,20 +11886,15 @@ function frontHeading(label,title,x,y,w){
   ctx.fillStyle='#8fecff';ctx.fillRect(x,y+51*u,45*u,3*u);ctx.restore();
 }
 function drawHUD(){
-  /* THE LESSON VEIL. While a hard first-encounter lesson holds the world
-     near-frozen, the whole board dims and the specimen being explained
-     wears a breathing white ring — one thing lit, one sentence, nothing
-     else asking for the eye. Drawn under the HUD so the lesson text and
-     glyph sit on top of the veil at full brightness. */
+  /* First encounters identify the object with a steady local bracket.
+     Teaching never dims and relights the whole playfield. */
   if(G.state==='playing'&&G.teach>0&&!G.teachSoft&&G.teachKind==='see'){
     const ease=Math.min(1,(2.8-G.teach)*4,G.teach*1.6);
-    ctx.fillStyle='rgba(4,8,20,'+(0.48*Math.max(0,ease)).toFixed(3)+')';
-    ctx.fillRect(0,0,W,H);
     for(const sp of G.spikes){
       if(!sp.spot||sp.phase>=2)continue;   /* never ring a fading corpse */
       const pp=posAt(sp.a,radiusOf(sp.ring));
-      const pr2=(16+(RM?0:3.5*Math.sin(G.t*5)))*u;
-      ctx.globalAlpha=0.85*ease;
+      const pr2=17*u;
+      ctx.globalAlpha=0.6*ease;
       /* NOT GOLD. Gold is the collectible's colour — "what the game already
          uses for everything earned" — and this ring circles a LETHAL specimen
          for a player who is mid-lesson on what kills them. A cool white ring
@@ -12262,12 +12273,16 @@ function runtimeSnapshot(){
     viewport:{width:W,height:H,dpr:DPR},paused:frozen(),frames:runtimeFrames,steps:runtimeSteps,
     menuRects:(G.menuRects||[]).map(function(r){return Object.assign({},r);}),
     introSkipRect:G.introSkipRect?Object.assign({},G.introSkipRect):null,
-    score:G.score,level:G.level,build:BUILD,destroyed:runtimeDestroyed
+    score:G.score,level:G.level,build:BUILD,destroyed:runtimeDestroyed,
+    background:{gpu:GL.on,materialCount:GL.art.filter(Boolean).length},
+    reward:{orbits:G.build||0,starfall:starfallActive(),wave:G.starfall?G.starfall.wave:0}
   };
 }
 function runtimeDisposeGpu(target){
   const g=target.g;if(!g)return;
   try{
+    for(const item of target.art||[])if(item)g.deleteTexture(item.texture);
+    if(target.blank)g.deleteTexture(target.blank);
     for(const rt of target.rt||[]){g.deleteTexture(rt.t);g.deleteFramebuffer(rt.f);}
     if(target.src)g.deleteTexture(target.src);
     if(target.buffer)g.deleteBuffer(target.buffer);
@@ -12283,6 +12298,7 @@ function runtimeDisposeGpu(target){
     }
   }catch(e){}
   target.on=false;target.g=null;target.cv=null;target.pr=null;
+  if(target.art)target.art=[];
   if(target.rt)target.rt=[];
 }
 function runtimeDestroy(){

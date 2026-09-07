@@ -17,6 +17,8 @@ export interface GameSnapshot {
   loopOwner?: 'Phaser';
   sceneCount?: number;
   engineUpdates?: number;
+  background: { gpu: boolean; materialCount: number };
+  reward: { orbits: number; starfall: boolean; wave: number };
 }
 export interface GamePointer {
   pointerId: number;

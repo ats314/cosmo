@@ -88,14 +88,17 @@ contracts; historical implementations are not permanent design restrictions.
 
 ## Graphics, shaders and the sky
 
-- One composed world owns the background: textured planet, atmosphere/rings,
-  deep nebula and stable stars. Art assets may replace procedural layers through
-  the Phaser cache; preserve a coherent fallback.
-- Current controls are SKY_ARENA_CALM = 0.62 and GL_MOTION = 0.25. Threats must
+- One composed procedural world owns the background: textured planet,
+  atmosphere/rings, deep nebula and stable stars. Unmarked alpha art may add
+  material detail through the Phaser cache; opaque plates must not replace the
+  living scene. Preserve a coherent fallback.
+- Current controls are SKY_ARENA_CALM = 0.62 and GL_MOTION = 1.0. Threats must
   remain readable in the arena. Hue is free; obscuring hazards is not.
 - Coordinate scene responses through bounded event envelopes. Black hole and
-  major releases outrank pickups and ordinary orbits. Reset across runs;
-  routine beats must not continuously flash the entire scene.
+  major releases outrank pickups and ordinary orbits. Reset across runs. Use
+  motion and material response, not full-field flashes or beat-driven light
+  gain; the default must not depend on a reduced-motion toggle. See
+  [the effects audit](design/effects-audit.md).
 - Match radiusOf, AY and camera transforms across backgrounds and gameplay.
   An accent cannot change collision geometry.
 - Keep glow targets correctly sized, blur distances in physical pixels,

@@ -6,12 +6,13 @@ installed, pinned dependency packages; they do not relicense Cosmo.
 
 Supplied artwork provenance
 ========================================================================
-Original Gemini artwork supplied and approved by the project owner on
-2026-09-07, from cosmoassetssprites.zip and
-Gemini_Generated_Image_f98jj5f98jj5f98j.zip. No separate third-party license
-notice was included in either supplied archive. Delivery changes are resizing,
-WebP conversion, and rectangular panel crops; no checkerboard removal.
-This records the supplied provenance without inferring another artwork license.
+The 24 distributed transparent sprites are original Gemini artwork supplied
+and approved by the project owner on 2026-09-07 in cosmoassetssprites.zip.
+No separate third-party license notice was included in that archive. Delivery
+changes are resizing and WebP conversion, preserving the original alpha.
+Opaque world plates and later images with baked checkerboards are retained
+outside the game as references and are not distributed in this release.
+This records supplied provenance without inferring another artwork license.
 
 phaser 4.2.1
 ========================================================================

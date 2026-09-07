@@ -8,6 +8,7 @@ import { mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(import.meta.url);
@@ -52,7 +53,10 @@ try {
   let ready = false;
   for (let i = 0; i < 100; i++) {
     if (serverError || server.exitCode !== null) throw serverError || new Error('Vite preview exited: ' + serverLog);
-    try { ready = /Local:/.test(serverLog) && (await fetch(origin)).ok; } catch {}
+    // Vite may color the label and URL separately in CI. Require the actual
+    // HTTP response as well; printed readiness alone is not a usable server.
+    try { ready = /Local:/.test(stripVTControlCharacters(serverLog)) &&
+      (await fetch(origin, { signal: AbortSignal.timeout(1500) })).ok; } catch {}
     if (ready) break;
     await delay(100);
   }
@@ -82,6 +86,8 @@ try {
   assert.equal(state.loopOwner, 'Phaser');
   assert.equal(state.sceneCount, 1, 'the host must run one active scene');
   assert.equal(state.state, 'menu');
+  assert.equal(state.background.gpu, true, 'the built host did not initialize the GPU background');
+  assert.equal(state.background.materialCount, 3, 'the GPU background did not receive its three Phaser materials');
   const launch = state.menuRects.find(r => r.id === 'start');
   assert(launch && [launch.x, launch.y, launch.w, launch.h].every(Number.isFinite), 'LAUNCH has no finite hit area');
   await page.touchscreen.tap(launch.x + launch.w / 2, launch.y + launch.h / 2);
@@ -126,7 +132,7 @@ try {
   await page.waitForFunction(() => window.COSMO_APP.snapshot().viewport.width === 390);
   assert.equal(await page.evaluate(() => window.__drawErr?.message || null), null, 'runtime rendering threw');
   assert.deepEqual(errors, [], 'the built app raised a browser exception');
-  console.log('ENGINECHECK OK  Phaser boot, LAUNCH, pointer tap, touch swipe, portrait/landscape resize and one loop');
+  console.log('ENGINECHECK OK  Phaser boot, three GPU materials, LAUNCH, pointer tap, touch swipe, portrait/landscape resize and one loop');
 } finally {
   try { if (browser) await browser.close(); }
   finally {

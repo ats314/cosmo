@@ -114,7 +114,7 @@ Every instruction must name a real action and its observable result.
 The scene has a textured planet, luminous atmosphere/rings and a deep nebula.
 Keep the comet, stars and red threats readable against it. Use coordinated,
 bounded impact envelopes for large rewards; preserve a calmer ordinary state.
-Current renderer controls are SKY_ARENA_CALM = 0.62 and GL_MOTION = 0.25.
+Current renderer controls are SKY_ARENA_CALM = 0.62 and GL_MOTION = 1.0.
 
 A muted, offline or interrupted game still works. Keep input, audio, scoring,
 shield, upgrade and timer behavior aligned with what the player can see.
