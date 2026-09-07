@@ -44,12 +44,67 @@
   #c{z-index:1;background:transparent}
   #safe{position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;
     padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+
+  /* THE ACCOUNT PANEL IS THE ONE PIECE OF DOM IN A CANVAS GAME, and it is DOM
+     for a reason that is not laziness. Everything else here is drawn, down to
+     the type, because the look is the product. But this screen asks for an
+     email address and a password, and a canvas cannot raise a phone keyboard,
+     cannot be filled by a password manager, has no caret, no selection, no
+     paste and no autofill. Hand-rolling those badly on a <canvas> would make
+     the one screen in the game with a keyboard the worst screen in the game.
+     So it is real markup, styled in the game's own palette, and it appears
+     only on the title screen. It never draws over a run. */
+  #acct{position:fixed;inset:0;z-index:5;display:none;align-items:center;
+    justify-content:center;padding:20px;box-sizing:border-box;
+    background:rgba(6,9,19,0.86);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+    font:500 15px/1.45 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    color:#dfe8ff;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #acct.on{display:flex}
+  #acct .pnl{width:100%;max-width:360px;background:linear-gradient(180deg,#101a33,#0a1020);
+    border:1px solid rgba(93,240,255,0.28);border-radius:16px;padding:22px 20px 20px;
+    box-shadow:0 18px 60px rgba(0,0,0,0.6),0 0 40px rgba(93,240,255,0.06);position:relative}
+  #acct h2{margin:0 0 4px;font-size:19px;letter-spacing:.16em;font-weight:800;color:#5df0ff}
+  #acct .sub{margin:0 0 16px;font-size:12.5px;color:rgba(190,205,235,0.62);letter-spacing:.02em}
+  #acct label{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:rgba(190,205,235,0.55);margin:12px 0 5px}
+  #acct input{width:100%;box-sizing:border-box;padding:11px 12px;border-radius:9px;
+    background:rgba(6,9,19,0.75);border:1px solid rgba(120,150,200,0.3);
+    color:#eaf2ff;font-size:16px;font-family:inherit}
+  #acct input:focus{outline:none;border-color:rgba(93,240,255,0.7);
+    box-shadow:0 0 0 3px rgba(93,240,255,0.12)}
+  #acct button{font-family:inherit;cursor:pointer}
+  #acct .go{width:100%;margin-top:18px;padding:12px;border-radius:999px;
+    background:rgba(93,240,255,0.1);border:1.5px solid rgba(93,240,255,0.75);
+    color:#5df0ff;font-size:15px;font-weight:800;letter-spacing:.18em}
+  #acct .go:disabled{opacity:.5;cursor:default}
+  #acct .alt{display:block;width:100%;margin-top:12px;background:none;border:none;
+    color:rgba(180,139,255,0.95);font-size:13px;letter-spacing:.04em;text-decoration:underline;
+    padding:6px}
+  #acct .x{position:absolute;top:10px;right:12px;background:none;border:none;
+    color:rgba(190,205,235,0.5);font-size:26px;line-height:1;padding:4px 8px}
+  #acct .msg{margin-top:14px;font-size:13px;line-height:1.4}
+  #acct .err{color:#ff5d73}
+  #acct .ok{color:#7bffc8}
+  #acct .rec{display:flex;gap:10px;margin:14px 0 4px}
+  #acct .rec div{flex:1;background:rgba(6,9,19,0.6);border:1px solid rgba(120,150,200,0.18);
+    border-radius:10px;padding:10px 8px;text-align:center}
+  #acct .rec b{display:block;font-size:20px;color:#ffc857;font-weight:800}
+  #acct .rec span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    color:rgba(190,205,235,0.5)}
+  #acct table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+  #acct td{padding:7px 4px;border-bottom:1px solid rgba(120,150,200,0.12)}
+  #acct td.r{color:rgba(190,205,235,0.5);width:2.2em}
+  #acct td.s{text-align:right;color:#ffc857;font-weight:700;font-variant-numeric:tabular-nums}
+  #acct tr.you td{color:#5df0ff}
+  #acct tr.you td.s{color:#5df0ff}
+  #acct .foot{margin-top:16px;font-size:11.5px;color:rgba(190,205,235,0.45);line-height:1.5}
 </style>
 </head>
 <body>
 <canvas id="bg"></canvas>
 <canvas id="c"></canvas>
 <div id="safe"></div>
+<div id="acct"><div class="pnl"><button class="x" id="ac-x">×</button><h2 id="ac-h">SIGN IN</h2><p class="sub" id="ac-sub"></p><div id="ac-body"></div></div></div>
 <script>
 'use strict';
 /* ============ COSMO ============
@@ -4609,6 +4664,513 @@ function savePref(k,v){
   }catch(e){}
 }
 
+/* ---------- the cloud: an account, records that follow it, a leaderboard ----
+   OPTIONAL, EVERYWHERE, IN THE SAME SENSE THE SOUND IS. The menu says "best
+   with sound on — never required" and means it: muted play keeps every
+   mechanic whole. This holds itself to the identical rule. Signed out, offline,
+   blocked by an extension, or served from a host with no functions behind it —
+   the game is exactly the game, localStorage is still the real store, and every
+   record still works. Nothing here is ever on the path between a tap and a
+   comet moving.
+
+   WHERE IT PLUGS IN, AND WHY NOTHING HAD TO BE REBUILT. loadPrefs() has always
+   read an optional async `window.storage` beside localStorage and folded the
+   two together with Math.max, because the file was first written against a host
+   that supplied one. That seam is exactly a cloud save: this installs a
+   window.storage backed by /api/progress, and the records, the preferences and
+   the taught-mechanics set sync on a path that already existed and is already
+   merge-safe. savePref() writes through it for free.
+
+   THE MERGE IS DONE ON THE SERVER, NOT HERE. Two devices on one account means
+   two writers, and "whoever closed the tab last wins" would let a phone that
+   has not synced since Tuesday erase Thursday's best score. netlify/lib/
+   records.mjs takes the max of each record instead, so the two devices commute
+   and an offline device is safe to sync days later. It is also why this can
+   post cheerfully without reading first: it cannot lower anything. */
+const CLOUD_ORIGIN='https://cosmo-arcade.netlify.app';
+const CLOUD={
+  user:null,          /* {email} once signed in */
+  doc:null,           /* the synced document, or null */
+  board:null,         /* the last leaderboard read */
+  busy:false,err:'',note:'',
+  open:false,view:'in' /* 'in' | 'up' | 'me' | 'board' */
+};
+let cloudTok=null;    /* {id,key,name} — the whole credential */
+/* Declared here rather than beside track() below, because cloudSaveTok writes
+   it during load and a `let` declared further down the file would still be in
+   its temporal dead zone at that moment. */
+let TELE_ACCT=null;
+let cloudReady=null;  /* resolves with the doc, so storage.get can await it */
+let cloudTimer=0;
+
+function cloudSaveTok(t){
+  cloudTok=t;
+  try{
+    if(!window.localStorage)return;
+    if(t)localStorage.setItem('cometloop:auth',JSON.stringify(t));
+    else localStorage.removeItem('cometloop:auth');
+  }catch(e){}
+  /* THE JOIN BETWEEN THE TWO DATA SETS IS THIS ONE PROPERTY. Netlify holds the
+     records and the board keyed by account id; PostHog holds the play funnel
+     keyed by an anonymous per-device id. Stamping the account id onto events
+     is what lets one be read against the other — "how does THIS player's
+     retention look" — without turning the funnel into personal data: it stays
+     an opaque id, the events stay $process_person_profile:false, and a device
+     that never signs in is exactly as anonymous as it was before. */
+  try{TELE_ACCT=t?t.id:null;}catch(e){}
+}
+function cloudLoadTok(){
+  try{
+    const raw=readLocal('cometloop:auth');
+    if(!raw)return null;
+    const t=JSON.parse(raw);
+    return (t&&t.id&&t.key)?t:null;
+  }catch(e){return null;}
+}
+
+function cloudApi(path,opts){
+  const o=opts||{};
+  return fetch(CLOUD_ORIGIN+path,{
+    method:o.method||'GET',
+    headers:o.headers||{'content-type':'application/json'},
+    body:o.body
+  }).then(function(r){
+    return r.json().catch(function(){return {};}).then(function(j){
+      if(!r.ok)throw new Error((j&&j.error)||('request failed ('+r.status+')'));
+      return j;
+    });
+  });
+}
+
+/* NOTHING EXPIRES, SO NOTHING REFRESHES. The key is the credential and it does
+   not age — which is the whole benefit of dropping passwords, and the whole
+   cost: there are no sessions to end, so signing out is a local erase and a
+   lost device stays signed in until the account is abandoned. Sized to a group
+   of friends testing a game; see netlify/lib/accounts.mjs. */
+function cloudAuthed(path,opts){
+  if(!cloudTok)return Promise.reject(new Error('signed out'));
+  const o=opts||{};
+  return cloudApi(path,{method:o.method,body:o.body,
+    headers:{'content-type':'application/json',
+      'authorization':'Bearer '+cloudTok.id+'.'+cloudTok.key}});
+}
+
+/* ---- the synced document ---- */
+function cloudPull(){
+  return cloudAuthed('/api/progress').then(function(j){
+    CLOUD.doc=j.doc||{};
+    return CLOUD.doc;
+  }).catch(function(){
+    /* offline or signed out: the game carries on with localStorage alone */
+    CLOUD.doc=CLOUD.doc||{};
+    return CLOUD.doc;
+  });
+}
+function cloudPushNow(){
+  if(!cloudTok||!CLOUD.doc)return Promise.resolve();
+  return cloudAuthed('/api/progress',{method:'PUT',
+    body:JSON.stringify({doc:CLOUD.doc})})
+    .then(function(j){
+      /* the server hands back the MERGED document, which is how a device that
+         posted a stale record learns the better one it just lost to */
+      if(j&&j.doc){CLOUD.doc=j.doc;cloudAdopt(j.doc);}
+    }).catch(function(){});
+}
+function cloudPush(){
+  /* Debounced: a run's end writes several keys in the same breath and each one
+     is not worth a request. */
+  if(cloudTimer)clearTimeout(cloudTimer);
+  cloudTimer=setTimeout(function(){cloudTimer=0;cloudPushNow();},1200);
+}
+
+/* Fold a freshly-arrived document into the live game, using the same rules
+   loadPrefs uses for a local read. Called after a pull and after a push, so a
+   record set on another device shows up on the title screen without a reload. */
+function cloudAdopt(d){
+  if(!d)return;
+  const b=parseInt(d.best,10);
+  if(!isNaN(b)&&b>REC[MODE].best){REC[MODE].best=b;G.best=b;savePrefLocal(recKey('best'),b);}
+  const gl=parseInt(d.gl,10);
+  if(!isNaN(gl)){
+    const v=Math.max(1,Math.min(LEVEL_MAX,gl));
+    if(v>REC[MODE].lvlMax){REC[MODE].lvlMax=v;G.lvlMax=v;savePrefLocal(recKey('gl'),v);}
+  }
+  const r=parseInt(d.runs,10);
+  if(!isNaN(r)&&r>G.runs){G.runs=r;savePrefLocal('cometloop:runs',r);}
+  if(d.groove==='1'&&!G.didGroove){G.didGroove=true;savePrefLocal('cometloop:groove','1');}
+  if(d.hopped==='1'&&!G.everHopped){G.everHopped=true;savePrefLocal('cometloop:hopped','1');}
+  if(d.landed==='1'&&!G.everLanded){G.everLanded=true;savePrefLocal('cometloop:landed','1');}
+  if(d.seen)for(const k of String(d.seen).split(','))if(k)G.seen[k]=1;
+  if(d.seen2)for(const k of String(d.seen2).split(','))if(k)G.seen2[k]=1;
+  if(d.name)CLOUD.name=d.name;
+}
+
+/* A local-only write. cloudAdopt must not call savePref, because savePref
+   writes back through window.storage and a document that writes itself back
+   into itself is a loop that ends in a request per frame. */
+function savePrefLocal(k,v){
+  try{if(window.localStorage)localStorage.setItem(k,String(v));}catch(e){}
+}
+
+/* THE SEAM. Installed only while signed in, and removed on sign-out, so the
+   signed-out game is byte-for-byte the game that shipped before any of this. */
+function cloudInstallStorage(){
+  cloudReady=cloudPull();
+  window.storage={
+    get:function(k){
+      const kk=String(k).replace(/^cometloop:/,'');
+      return cloudReady.then(function(d){
+        return (d&&d[kk]!=null)?{value:String(d[kk])}:null;
+      });
+    },
+    set:function(k,v){
+      const kk=String(k).replace(/^cometloop:/,'');
+      if(!CLOUD.doc)CLOUD.doc={};
+      CLOUD.doc[kk]=String(v);
+      cloudPush();
+      return Promise.resolve();
+    }
+  };
+}
+function cloudRemoveStorage(){
+  try{delete window.storage;}catch(e){window.storage=undefined;}
+}
+
+/* ---- sessions ---- */
+function cloudAdoptSession(j){
+  cloudSaveTok({id:j.id,key:j.key,name:j.name||''});
+  CLOUD.user={name:j.name||''};CLOUD.name=j.name||'';
+  cloudInstallStorage();
+  /* Push what this device already knows the moment the account is attached.
+     A player who has been playing signed out for a week has records worth
+     keeping, and the server-side max merge is what makes sending them safe. */
+  return cloudReady.then(function(){
+    if(!CLOUD.doc)CLOUD.doc={};
+    const local={best:String(REC[MODE].best||0),gl:String(REC[MODE].lvlMax||1),
+      runs:String(G.runs||0)};
+    if(G.didGroove)local.groove='1';
+    if(G.everHopped)local.hopped='1';
+    if(G.everLanded)local.landed='1';
+    const seen=Object.keys(G.seen||{}).join(',');if(seen)local.seen=seen;
+    const seen2=Object.keys(G.seen2||{}).join(',');if(seen2)local.seen2=seen2;
+    for(const k in local)if(CLOUD.doc[k]==null)CLOUD.doc[k]=local[k];
+    else CLOUD.doc[k]=local[k];
+    return cloudPushNow();
+  });
+}
+/* A name goes in, an account comes out. One field, one tap, no email. */
+function cloudCreate(name){
+  return cloudApi('/api/auth',{method:'POST',
+    body:JSON.stringify({action:'create',name:name})})
+    .then(function(j){return cloudAdoptSession(j);});
+}
+/* The other half of "personal": the same person on a second device. */
+function cloudLink(code){
+  return cloudApi('/api/auth',{method:'POST',
+    body:JSON.stringify({action:'link',code:code})})
+    .then(function(j){return cloudAdoptSession(j);});
+}
+function cloudCode(){
+  return cloudAuthed('/api/auth',{method:'POST',
+    body:JSON.stringify({action:'code'})});
+}
+function cloudRename(name){
+  return cloudAuthed('/api/auth',{method:'POST',
+    body:JSON.stringify({action:'rename',name:name})})
+    .then(function(j){
+      CLOUD.name=j.name;
+      if(cloudTok)cloudSaveTok({id:cloudTok.id,key:cloudTok.key,name:j.name});
+      CLOUD.user={name:j.name};
+      return j;
+    });
+}
+function cloudSignOut(silent){
+  cloudSaveTok(null);
+  CLOUD.user=null;CLOUD.doc=null;CLOUD.board=null;
+  cloudRemoveStorage();
+  if(!silent)CLOUD.note='signed out — this device keeps its own records';
+}
+
+/* ---- the board ---- */
+function cloudBoard(){
+  const p=cloudTok
+    ? cloudAuthed('/api/scores')
+    : cloudApi('/api/scores');
+  return p.then(function(j){CLOUD.board=j;return j;});
+}
+
+/* Offered at the end of a run, never on the path of one. A failure here is
+   silent by design: a player who just died does not need a network error, and
+   the next run offers the score again. */
+function cloudSubmit(score,level,secs){
+  if(!cloudTok||LAB.on||!score||score<=0)return;
+  if(secs<5)return;
+  cloudAuthed('/api/scores',{method:'POST',
+    body:JSON.stringify({score:Math.round(score),level:level,
+      runTime:Math.round(secs),name:CLOUD.name||''})})
+    .then(function(j){
+      if(j&&j.improved&&j.rank)CLOUD.note='leaderboard: #'+j.rank;
+      if(j&&j.name)CLOUD.name=j.name;
+    }).catch(function(){});
+}
+
+/* Restore a session on load, BEFORE loadPrefs runs, so the first read of
+   window.storage is a real one rather than a miss. */
+(function(){
+  const t=cloudLoadTok();
+  if(!t)return;
+  cloudSaveTok(t);                 /* also restamps the telemetry join */
+  CLOUD.user={name:t.name||''};CLOUD.name=t.name||'';
+  cloudInstallStorage();
+})();
+
+/* ---------- the account panel ----------
+   Four views behind one door: sign in, create an account, your own standing,
+   and the board. It exists only on the title screen and is torn down before a
+   run can start, so nothing here is ever between a tap and a comet. */
+const acEl=document.getElementById('acct'),acH=document.getElementById('ac-h'),
+      acSub=document.getElementById('ac-sub'),acBody=document.getElementById('ac-body');
+
+/* EVERY HARNESS BUT ONE RUNS THIS FILE AGAINST A STUBBED DOM, and a stub's
+   getElementById returns an object that is not an element. This is the only
+   part of the game that reaches for real DOM nodes, so it is the only part
+   that has to survive not finding any — and it found out the honest way, by
+   failing musiccheck on the first run after it was written.
+   Guarding rather than feature-detecting once at the top, because the panel is
+   inert without a real document either way: what matters is that LOADING the
+   game never throws, and the screen this drives cannot be opened in a
+   harness. */
+function acOn(el,ev,fn){
+  try{if(el&&typeof el.addEventListener==='function')el.addEventListener(ev,fn);}catch(e){}
+}
+const AC_DOM=!!(acEl&&typeof acEl.addEventListener==='function'&&acEl.classList);
+
+/* EVERY NAME ON THE BOARD IS A STRING A STRANGER CHOSE. The server bounds it
+   to twelve printable characters, and `<` is a printable character — so the
+   only thing standing between a display name and script execution on every
+   other player's device is this function. Text goes in through here or it does
+   not go in. */
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
+}
+const num=n=>String(n==null?0:n).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+
+function openAccount(){
+  if(!AC_DOM)return;
+  CLOUD.open=true;CLOUD.err='';CLOUD.note='';
+  CLOUD.view=cloudTok?'me':'in';
+  acEl.classList.add('on');
+  acRender();
+}
+function closeAccount(){
+  CLOUD.open=false;CLOUD.err='';
+  if(!AC_DOM)return;
+  acEl.classList.remove('on');
+  acBody.innerHTML='';          /* drop the inputs rather than leave a password in the DOM */
+}
+acOn(document.getElementById('ac-x'),'click',closeAccount);
+/* A tap on the veil behind the panel closes it, the way every other door in
+   this game has a way back that costs nothing. */
+acOn(acEl,'click',function(e){if(e.target===acEl)closeAccount();});
+
+function acMsg(){
+  if(CLOUD.err)return '<p class="msg err">'+esc(CLOUD.err)+'</p>';
+  if(CLOUD.note)return '<p class="msg ok">'+esc(CLOUD.note)+'</p>';
+  return '';
+}
+
+function acRender(){
+  const v=CLOUD.view;
+
+  /* ONE FIELD. The whole argument for dropping passwords is that a friend
+     should be playing within a few seconds of deciding to, so this screen asks
+     for a name and nothing else — no email, no confirmation, no second field
+     to tab to on a phone. */
+  if(v==='in'){
+    acH.textContent='PICK A NAME';
+    acSub.textContent='this is the name on the leaderboard';
+    acBody.innerHTML=
+      '<label for="ac-nm">name</label>'+
+      '<input id="ac-nm" type="text" maxlength="12" autocomplete="nickname" '+
+        'autocapitalize="characters" autocorrect="off" spellcheck="false" '+
+        'placeholder="up to 12 characters">'+
+      '<button class="go" id="ac-go">START PLAYING</button>'+
+      '<button class="alt" id="ac-alt">I have a code from another device</button>'+
+      acMsg()+
+      '<p class="foot">No email and no password. This device remembers you; a '+
+      'code moves you to another one. The game keeps every record here either '+
+      'way, so signing in is optional.</p>';
+    document.getElementById('ac-go').addEventListener('click',acCreate);
+    document.getElementById('ac-alt').addEventListener('click',function(){
+      CLOUD.view='code';CLOUD.err='';CLOUD.note='';acRender();});
+    acEnter(acCreate);
+    const nm=document.getElementById('ac-nm');
+    if(nm&&CLOUD.name)nm.value=CLOUD.name;
+    return;
+  }
+
+  if(v==='code'){
+    acH.textContent='ENTER A CODE';
+    acSub.textContent='from the device you already play on';
+    acBody.innerHTML=
+      '<label for="ac-cd">code</label>'+
+      '<input id="ac-cd" type="text" maxlength="7" autocapitalize="characters" '+
+        'autocorrect="off" spellcheck="false" placeholder="6 characters" '+
+        'style="letter-spacing:.3em;text-align:center;font-size:22px">'+
+      '<button class="go" id="ac-go">SIGN IN</button>'+
+      '<button class="alt" id="ac-alt">back</button>'+
+      acMsg()+
+      '<p class="foot">Open your account on the other device and choose '+
+      '&ldquo;play on another device&rdquo; to get a code. It lasts ten minutes '+
+      'and works once.</p>';
+    document.getElementById('ac-go').addEventListener('click',acLink);
+    document.getElementById('ac-alt').addEventListener('click',function(){
+      CLOUD.view='in';CLOUD.err='';CLOUD.note='';acRender();});
+    acEnter(acLink);
+    return;
+  }
+
+  if(v==='me'){
+    acH.textContent=CLOUD.name?esc(CLOUD.name).toUpperCase():'YOUR ACCOUNT';
+    acSub.textContent='records follow you to any device';
+    acBody.innerHTML=
+      '<div class="rec">'+
+        '<div><b>'+num(G.best)+'</b><span>best score</span></div>'+
+        '<div><b>'+esc(LV[Math.max(0,Math.min(LV.length-1,(G.lvlMax||1)-1))].name)+
+          '</b><span>furthest</span></div>'+
+      '</div>'+
+      '<button class="go" id="ac-board">LEADERBOARD</button>'+
+      '<button class="alt" id="ac-dev">play on another device</button>'+
+      '<button class="alt" id="ac-ren">change my name</button>'+
+      '<button class="alt" id="ac-out">sign out</button>'+
+      acMsg()+
+      '<p class="foot">Records sync whenever they change, and this device keeps '+
+      'its own copy, so the game works with no connection at all.</p>';
+    document.getElementById('ac-board').addEventListener('click',function(){
+      CLOUD.view='board';CLOUD.err='';CLOUD.note='';acRender();acLoadBoard();});
+    document.getElementById('ac-dev').addEventListener('click',acGetCode);
+    document.getElementById('ac-ren').addEventListener('click',function(){
+      CLOUD.view='ren';CLOUD.err='';CLOUD.note='';acRender();});
+    document.getElementById('ac-out').addEventListener('click',function(){
+      cloudSignOut();CLOUD.view='in';acRender();});
+    return;
+  }
+
+  if(v==='ren'){
+    acH.textContent='CHANGE NAME';
+    acSub.textContent='the name on the leaderboard';
+    acBody.innerHTML=
+      '<label for="ac-nm">name</label>'+
+      '<input id="ac-nm" type="text" maxlength="12" autocapitalize="characters" '+
+        'autocorrect="off" spellcheck="false">'+
+      '<button class="go" id="ac-go">SAVE</button>'+
+      '<button class="alt" id="ac-alt">back</button>'+acMsg();
+    const nm=document.getElementById('ac-nm');
+    if(nm)nm.value=CLOUD.name||'';
+    document.getElementById('ac-go').addEventListener('click',acDoRename);
+    document.getElementById('ac-alt').addEventListener('click',function(){
+      CLOUD.view='me';CLOUD.err='';CLOUD.note='';acRender();});
+    acEnter(acDoRename);
+    return;
+  }
+
+  if(v==='board'){
+    acH.textContent='LEADERBOARD';
+    acSub.textContent='best run per player';
+    const b=CLOUD.board;
+    let rows;
+    if(!b)rows='<p class="msg">reading the board&hellip;</p>';
+    else if(!b.rows||!b.rows.length)rows='<p class="msg">no scores yet — be the first</p>';
+    else{
+      const mine=b.you?b.you.rank:-1;
+      rows='<table>'+b.rows.map(function(r){
+        return '<tr class="'+(r.rank===mine?'you':'')+'">'+
+          '<td class="r">'+r.rank+'</td>'+
+          '<td>'+esc(r.name)+'</td>'+
+          '<td class="s">'+num(r.score)+'</td></tr>';
+      }).join('')+'</table>';
+      /* Your own row, printed again underneath when it is not in view. The
+         number a player actually came to see is their own. */
+      if(b.you&&mine>b.rows.length)
+        rows+='<table><tr class="you"><td class="r">'+b.you.rank+'</td>'+
+          '<td>'+esc(b.you.name)+'</td><td class="s">'+num(b.you.score)+'</td></tr></table>';
+    }
+    acBody.innerHTML=rows+acMsg()+'<button class="alt" id="ac-back">back</button>';
+    document.getElementById('ac-back').addEventListener('click',function(){
+      CLOUD.view=cloudTok?'me':'in';CLOUD.err='';acRender();});
+    return;
+  }
+}
+
+/* Enter submits. A one-field form that still needs a button tap on a phone
+   keyboard is a form people abandon. */
+function acEnter(fn){
+  acOn(acBody,'keydown',function(e){
+    if(e.key==='Enter'){e.preventDefault();fn();}});
+}
+
+function acLoadBoard(){
+  cloudBoard().then(function(){acRender();})
+    .catch(function(e){CLOUD.err=e.message||'could not read the board';acRender();});
+}
+
+function acBusy(on,label){
+  const go=document.getElementById('ac-go');
+  if(go){go.disabled=on;if(label)go.textContent=label;}
+}
+
+function acRun(p,onOk){
+  if(CLOUD.busy)return;
+  CLOUD.busy=true;CLOUD.err='';CLOUD.note='';acBusy(true,'\u2026');
+  p.then(function(r){CLOUD.busy=false;onOk(r);})
+   .catch(function(e){CLOUD.busy=false;
+     CLOUD.err=e.message||'something went wrong';acRender();});
+}
+
+function acCreate(){
+  const nm=((document.getElementById('ac-nm')||{}).value||'').trim();
+  if(!nm){CLOUD.err='type a name first';acRender();return;}
+  acRun(cloudCreate(nm),function(){
+    CLOUD.view='me';CLOUD.note='records synced';acRender();
+    track('account_created',{});
+  });
+}
+
+function acLink(){
+  const cd=((document.getElementById('ac-cd')||{}).value||'').trim();
+  if(!cd){CLOUD.err='type the code first';acRender();return;}
+  acRun(cloudLink(cd),function(){
+    CLOUD.view='me';CLOUD.note='signed in — records synced';acRender();
+    track('account_linked',{});
+  });
+}
+
+function acDoRename(){
+  const nm=((document.getElementById('ac-nm')||{}).value||'').trim();
+  if(!nm){CLOUD.err='type a name first';acRender();return;}
+  acRun(cloudRename(nm),function(){
+    CLOUD.view='me';CLOUD.note='name changed';acRender();});
+}
+
+function acGetCode(){
+  cloudCode().then(function(j){
+    CLOUD.err='';
+    /* Shown rather than sent: there is no email in this system to send it to,
+       and reading six characters across to the other device is the whole
+       transfer. */
+    acBody.innerHTML=
+      '<p class="sub" style="margin-top:4px">type this on the other device, '+
+      'within '+(j.minutes||10)+' minutes</p>'+
+      '<div style="font-size:34px;font-weight:800;letter-spacing:.28em;'+
+      'text-align:center;color:#5df0ff;padding:16px 0 6px">'+esc(j.code)+'</div>'+
+      '<button class="alt" id="ac-back">back</button>';
+    document.getElementById('ac-back').addEventListener('click',function(){
+      CLOUD.view='me';acRender();});
+  }).catch(function(e){
+    CLOUD.err=e.message||'could not make a code';acRender();});
+}
+
 /* ---------- telemetry ----------
    Anonymous gameplay counters, POSTed straight to PostHog's capture API.
    Deliberately NO SDK and no third-party <script>: there is nothing to
@@ -4663,6 +5225,14 @@ function track(name,props){
        redefining a shipped property silently changes what every historical row
        says. One name per thing; retire, never reuse. */
     pr.play_mode=MODE;
+    /* THE JOIN KEY, and only when there is one. An account id on the event is
+       what lets the Netlify side (records, board) be read against the PostHog
+       side (the play funnel) for the same person. It is an opaque uuid and it
+       arrives with nothing else attached: no name, no device id beyond the one
+       already here, and $process_person_profile stays false above, so a signed
+       -in player's events are still anonymous events that happen to carry a
+       stable key. A device that never signs in is unchanged. */
+    if(TELE_ACCT)pr.account_id=TELE_ACCT;
     pr.$current_url=location.href;
     const body=JSON.stringify({api_key:POSTHOG_KEY,event:name,
       distinct_id:TELE_ID,properties:pr});
@@ -6589,6 +7159,13 @@ function die(){
      already measured. One line, phrased as an invitation — a struggling
      player does not need another demand. */
   const secs=G.deadT-G.started;
+  /* THE RUN IS OFFERED TO THE BOARD HERE, and offered is the word: it is a
+     fire-and-forget call that swallows its own failures. A player who has just
+     died is owed the death screen, not a network error, and the board is not
+     part of the game's own record-keeping — G.best was already written above,
+     on this device, before this line runs. Signed out, offline or in the lab,
+     this does nothing at all. */
+  cloudSubmit(G.score,G.level,secs);
   if(!G.didHop&&G.nRings>1)G.coach={t:'you never changed rings — '+(SWIPE_MODE==='screen'?'swipe up or down':'swipe out or in'),g:'swipe'};
   /* EVERY NAMED KILLER COACHES WITH ITS OWN LESSON, WORD FOR WORD. Four of
      these were hand-written paraphrases sitting above the fallback that
@@ -7299,6 +7876,9 @@ cv.addEventListener('pointerdown',function(e){
     const mh=G.menuRects.find(function(r){
       return e.clientX>=r.x&&e.clientX<=r.x+r.w&&e.clientY>=r.y&&e.clientY<=r.y+r.h;});
     if(mh&&mh.id==='lab'){openLab();beep(523,0.12,'triangle',0.05,784);return;}
+    /* Another door, handled the same way and for the same reason: it opens a
+       screen with a way back, so reaching it costs a look rather than a run. */
+    if(mh&&mh.id==='account'){openAccount();beep(587,0.11,'triangle',0.045,880);return;}
     leaveMenu();
     return;
   }
@@ -7491,6 +8071,12 @@ cv.addEventListener('pointerup',pdEnd);
 cv.addEventListener('pointercancel',pdEnd);
 cv.addEventListener('contextmenu',function(e){e.preventDefault();});
 window.addEventListener('keydown',function(e){
+  /* THE ACCOUNT PANEL OWNS THE KEYBOARD WHILE IT IS OPEN. Every listener in
+     this game is on the canvas except this one, which is on window — so
+     without this line, typing a password reverses the comet on every space
+     and mutes the game on every m. The panel is the only screen in the game
+     with a text field, and it is the only screen that needs this. */
+  if(CLOUD.open){if(e.key==='Escape')closeAccount();return;}
   /* AUTO-REPEAT IS NOT AN INPUT. Hold a key and the OS fires keydown 15-30
      times a second, and every branch below is a discrete action — so a held
      Space called reverse() about twenty times a second, flipping direction
@@ -13368,6 +13954,48 @@ function drawHUD(){
     text('›',labX+labW-labH*0.5,labY+labH*0.68,labH*0.5,'700',COL.warp,0);
     ctx.globalAlpha=1;
     ctx.restore();
+    /* THE ACCOUNT DOOR, and it is deliberately the quietest thing here.
+       Signing in is optional in the same sense the sound is optional, and a
+       front door that shouts about it would be making a claim the game does
+       not make: every record works on this device whether or not anyone ever
+       opens this. So it is a slim line under the lab bar rather than a second
+       bar competing with it — the ranking the front door already follows is
+       the name, what you do, START, then the side doors, and this is a side
+       door that arrived after the other one.
+       CYAN, NOT VIOLET. COL.warp means "this bends the rules" everywhere in
+       this game and the lab bar is violet because it does. An account bends
+       nothing, so it speaks in the comet's own colour instead. */
+    const acH2=labH*0.70,acY=labY+labH+7*u;
+    /* WHAT THE DISCLOSURE LINE HAS TO CLEAR. That line used to be measured
+       from the lab bar's bottom edge because the lab bar was the last thing on
+       this screen; adding a second door below it silently put the two on top of
+       each other. It reads from here now, so the next control added below is
+       one variable rather than one overlap nobody sees until a screenshot. */
+    let menuBot=labY+labH;
+    if(acY+acH2<H-safeBot-4*u){
+      menuBot=acY+acH2;
+      G.menuRects.push({x:labX,y:acY,w:labW,h:acH2,id:'account'});
+      ctx.save();
+      ctx.fillStyle='rgba(12,20,36,0.66)';
+      ctx.beginPath();ctx.roundRect(labX,acY,labW,acH2,acH2*0.42);ctx.fill();
+      ctx.strokeStyle='rgba(93,240,255,0.30)';ctx.lineWidth=1.1;
+      ctx.beginPath();ctx.roundRect(labX+1,acY+1,labW-2,acH2-2,acH2*0.42);ctx.stroke();
+      const az=Math.min(10.5*u,acH2*0.44);
+      const at=cloudTok?'LEADERBOARD':'SIGN IN';
+      const as=cloudTok
+        ?((CLOUD.user&&CLOUD.user.email)?CLOUD.user.email:'signed in')
+        :'save your records';
+      ctx.textAlign='left';
+      text(at,labX+acH2*0.62,acY+acH2*0.66,
+        fitSz(at,az,'800',labW*0.44),'800','rgba(200,240,255,0.92)',2);
+      ctx.globalAlpha=0.62;
+      ctx.textAlign='right';
+      text(as,labX+labW-acH2*0.92,acY+acH2*0.66,
+        fitSz(as,az*0.84,'600',labW*0.46),'600','rgba(170,200,230,0.85)',0);
+      text('›',labX+labW-acH2*0.34,acY+acH2*0.70,acH2*0.46,'700',COL.comet,0);
+      ctx.globalAlpha=1;
+      ctx.restore();
+    }
     /* which build this is, provable from a screenshot — bottom-RIGHT, out of
        the centre column where landscape clamps the stats-disclosure line onto
        the same baseline and the two printed through each other */
@@ -13495,7 +14123,7 @@ function drawHUD(){
         /* the deeper clamp is safe again now the build stamp sits bottom-
            right: at H-18u the landscape fallback printed this line through
            the START pill's own lower edge */
-        Math.min(H-6*u-safeBot,(labRoom?labY+labH:sbY+sbH)+15*u),
+        Math.min(H-6*u-safeBot,(labRoom?menuBot:sbY+sbH)+15*u),
         10*u,'600','rgba(200,215,255,0.32)',0);
     }
   }else if(G.state==='levelsel'){

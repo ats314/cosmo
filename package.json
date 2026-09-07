@@ -1,0 +1,9 @@
+{
+  "name": "cosmo-site",
+  "private": true,
+  "type": "module",
+  "description": "Not the game. The game is index.html and has no dependencies, no build step and nothing to install. This file exists only so Netlify can resolve the one import the serverless functions make; nothing under tools/ reads it and nothing it declares ever reaches the browser.",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

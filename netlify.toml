@@ -1,0 +1,33 @@
+# Cosmo on Netlify.
+#
+# WHY THIS EXISTS AT ALL. GitHub Pages serves the game and still does; this
+# adds the half Pages cannot host — Identity for sign-in and Functions for the
+# cloud save and the leaderboard. Identity's endpoints live at the SITE's own
+# origin (/.netlify/identity/...), so the game has to be served from the same
+# origin as the functions or every call is cross-origin against an auth
+# provider that does not offer CORS for it. Hence: the same artifact, published
+# twice, from one allowlist.
+#
+# THE PUBLISH IS THE SAME ALLOWLIST PAGES USES, and tools/site.mjs reads it out
+# of .github/workflows/pages.yml rather than restating it. A second copy of that
+# list is a second thing to forget: the failure mode is an internal document
+# quietly becoming a public URL on one host and not the other, which is exactly
+# the bug the allowlist was introduced to fix. One list, two deploys.
+[build]
+  command = "node netlify/build.mjs"
+  publish = "_site"
+  functions = "netlify/functions"
+
+# The game is one file and the browser should be told so. index.html carries
+# the whole product, so it must never be served stale — the play URL's
+# freshness contract (docs/engine/delivery.md) is a promise on Pages and has to
+# be the same promise here.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate"

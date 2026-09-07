@@ -546,7 +546,18 @@ if (!cp) {
      PUBLISHED side instead — the terms of an all-rights-reserved work should be
      reachable from the artifact that carries them. */
   const internal = ['.git', '.github', '.gitignore', 'node_modules', '_site',
-                    'AGENTS.md', 'CLAUDE.md', 'MECHANICS.md', 'README.md', 'docs', 'tools'];
+                    'AGENTS.md', 'CLAUDE.md', 'MECHANICS.md', 'README.md', 'docs', 'tools',
+                    /* THE CLOUD HALF, AND IT IS INTERNAL ON PURPOSE. `netlify/`
+                       is server code that runs on Netlify, never in a browser;
+                       `netlify.toml` is deploy configuration; `package.json`
+                       exists only so Netlify can resolve the one import those
+                       functions make. None of the three is part of the game,
+                       and publishing any of them would put the deploy's own
+                       configuration at a public URL. The game itself is still
+                       one file with no build step and nothing to install —
+                       that property is unchanged, and this list is where it is
+                       kept honest. */
+                    'netlify', 'netlify.toml', 'package.json', 'package-lock.json'];
   const known = new Set([...published, ...internal]);
   /* WHAT GIT IGNORES, THIS IGNORES. The classifier reads the working directory
      rather than the index, so without this it fails on files that are not part

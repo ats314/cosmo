@@ -30,6 +30,7 @@ keep that file correct.
 | `LICENSE` | All-rights-reserved proprietary grant. Published with the game. |
 | `docs/` | Everything below. |
 | `tools/` | The CI harnesses. No dependencies; Node's `vm` and a stubbed DOM. |
+| `netlify/` | The optional cloud half: passwordless accounts, synced records and the leaderboard, as serverless functions. Not part of the game — `index.html` still plays with no network at all. |
 | `.github/workflows/pages.yml` | Runs every check on every push and PR; only `main` deploys, only on green, and only an allowlist. |
 
 ### The design record — why the game is the way it is
@@ -53,6 +54,7 @@ tried and abandoned. Read the one you are about to change.
 | [`docs/engine/implementation.md`](docs/engine/implementation.md) | Baked sprites, the render path, the GPU glow chain, the sky shader, collision, storage. |
 | [`docs/engine/telemetry.md`](docs/engine/telemetry.md) | What is collected, what each property is named, and what never leaves the device. |
 | [`docs/engine/delivery.md`](docs/engine/delivery.md) | The allowlist deploy, the build stamp, and the freshness contract on the play link. |
+| [`docs/engine/cloud.md`](docs/engine/cloud.md) | Optional accounts, cloud-synced records, the leaderboard, and the seam they plug into. |
 
 ### Working on it
 
@@ -61,6 +63,14 @@ tried and abandoned. Read the one you are about to change.
 | [`docs/invariants.md`](docs/invariants.md) | The rules that are load-bearing, grouped by what you would have to be touching. Every entry was paid for by a bug that shipped. |
 | [`docs/harnesses.md`](docs/harnesses.md) | What each check covers, where a new test belongs, and what each assertion was bought with. |
 | [`docs/review.md`](docs/review.md) | The two halves of a review here, including the hygiene half people skip. |
+
+## Signing in (optional)
+
+Pick a name on the title screen and your best score and furthest level follow
+you to any device; a six-character code moves the account to a second one.
+There is no email and no password. It is **entirely optional** — the game keeps
+every record on the device either way, and plays with no network at all. See
+[`docs/engine/cloud.md`](docs/engine/cloud.md).
 
 ## Running the checks
 

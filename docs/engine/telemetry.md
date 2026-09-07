@@ -20,7 +20,17 @@ level's own name. `run_ended` used to send `level`
 holding `tier + 1` while `level_cleared` sent `level` holding 1–3 — one
 property name, two scales, two events. The ambiguous name is retired rather
 than redefined, so no historical row silently changes meaning; `tier` carried
-the same number all along. `play_mode` rides on every event — one mode ships
+the same number all along. `account_id` rides on every event **from a signed-in device only**, and it is
+the join between the two halves of the data: Netlify holds the records and the
+leaderboard keyed by account, PostHog holds the funnel keyed by an anonymous
+per-device id, and this is what lets one be read against the other for the same
+person. It is an opaque uuid and it arrives with nothing else attached — no
+name, no email (there is no email in the system at all), no second device id —
+and `$process_person_profile` stays false, so a signed-in player's events are
+still anonymous events that happen to carry a stable key. A device that never
+signs in sends exactly what it always sent. `account_created` and
+`account_linked` fire when the two account screens are answered. See
+[`cloud.md`](cloud.md). `play_mode` rides on every event — one mode ships
 today, CHILL being retired, but the property stays: without it a second mode's
 deaths would average into one unreadable
 completion rate, exactly as the two swipe rules would — and it is deliberately

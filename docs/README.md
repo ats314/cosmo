@@ -48,6 +48,7 @@ otherwise re-propose.
 | [`engine/implementation.md`](engine/implementation.md) | Baked sprites, the arena lighting, the render path, the GPU glow chain, the sky shader, collision, storage. |
 | [`engine/telemetry.md`](engine/telemetry.md) | What is collected, what each property is named, and what never leaves the device. |
 | [`engine/delivery.md`](engine/delivery.md) | The allowlist deploy, the build stamp, and the freshness contract on the play link. |
+| [`engine/cloud.md`](engine/cloud.md) | Accounts without passwords, the records that follow them, the leaderboard, and why none of it is ever required to play. |
 
 ## Two things that live outside this folder
 

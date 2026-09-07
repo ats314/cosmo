@@ -69,6 +69,8 @@ Deployed to GitHub Pages from `main`. The published page is the product.
 | `tools/all.mjs` | Runs every check in CI's order, or `--fast` for the quick four. Holds no list — it reads the workflow. |
 | `tools/*.mjs` | The CI harnesses. No dependencies; Node's `vm` + a stubbed DOM. |
 | `tools/lib/rng.mjs` | The seeded `Math.random` every harness runs on. Determinism lives here, not in the game. |
+| `netlify/` | The optional cloud half — passwordless accounts, synced records, the leaderboard — as serverless functions, plus the build step that stages the site for the second host. Not part of the distributed artifact and not reachable from the game unless a player signs in. |
+| `netlify.toml`, `package.json` | Netlify's deploy config, and the one dependency its functions import. Neither reaches the browser; the game is still one file with nothing to install. |
 | `AGENTS.md` | Pointer here, for agent tools that look for that name instead. |
 | `.github/workflows/pages.yml` | Runs every check on every push to `main` and on any PR; only `main` deploys, only if the checks pass, and only an allowlist. |
 | `*.png`, `manifest.webmanifest` | Icons, share image, PWA manifest. |
@@ -123,6 +125,7 @@ repository or documentation work and `docs/review.md` is the relevant file.
 | `PROG`, `PROGB`, a voice, a kit, the pad, or any pitch | **Audio and the arrangement** | [`design/audio.md`](docs/design/audio.md) | Every pitch is an interval over the level's tonic — a bare frequency is wrong on five levels out of six. Silencing the scheduler does not silence the band. A moment that must be immediate cannot be a section. |
 | a draw pass, a shader, a uniform, the glow chain, the render scale | **Graphics, shaders and the sky** | [`engine/implementation.md`](docs/engine/implementation.md) | A screen-space warp's sign is the opposite of what it reads like; a halo's bound must be in pixels, not fractions; the sky can never go black and the set of skies is closed. Nothing here is caught by reading — measure it, and `drawcheck.mjs` is where a 2D draw belongs. |
 | the deploy, the build stamp, the freshness check | **Delivery** | [`engine/delivery.md`](docs/engine/delivery.md) | The plain play URL is a contract: it must serve the newest build. |
+| an account, a synced record, the leaderboard, `window.storage`, anything under `netlify/` | — (no invariant group yet) | [`engine/cloud.md`](docs/engine/cloud.md) | The whole feature is optional in the same sense the sound is optional: signed out, offline or blocked, the game is exactly the game and localStorage is still the real store. Records merge SERVER-side and only ever climb, or a stale device erases a record somebody set. The account panel is the only DOM in a canvas game, which makes it the only code here that has to survive the stubbed DOM seven harnesses run on — it failed `musiccheck` the first time for exactly that. |
 
 Two rules sit above all of them and are not negotiable:
 
