@@ -4,6 +4,21 @@
   "boundsConvention": "Pixel bounds are [left, top, rightExclusive, bottomExclusive] in delivered WebP dimensions. Alpha centroid includes glow; comet recommendedOrigin targets its bright core.",
   "assets": [
     {
+      "key": "voyage-earth-surface",
+      "file": "voyage/earth-surface.jpg",
+      "width": 1280,
+      "height": 632,
+      "bytes": 154723,
+      "sourceFile": "1-Photo-1.jpg",
+      "sourceCrop": null,
+      "sourceSha256": "7725018127377aa598b0a90c8e16aa3a28f70f5f9fb1fe5c1571c23f05c123cd",
+      "alphaExtrema": [255, 255],
+      "provenance": "Earth map supplied by the project owner in the Gemini asset workflow. No separate license notice accompanied the image.",
+      "processing": "Copied unchanged from the supplied JPEG.",
+      "notes": "Opaque equirectangular surface material wrapped onto the live Earth sphere; not a background plate. Procedural clouds, atmosphere and lighting remain dynamic.",
+      "published": true
+    },
+    {
       "key": "comet-core",
       "file": "sprites/comet-core.webp",
       "width": 512,

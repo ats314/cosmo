@@ -13,25 +13,25 @@ may be taught on any level. See [current direction](direction.md).
 
 | Level | Existing level name | Web destination | Introduces | Key | Verse · Chorus | Groove |
 |---|---|---|---|---|---|---|
-| 1 | LIFT OFF | EARTH & MOON | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor | i–♭VI–♭III–♭VII · ♭VI–♭VII–v–i | the original groove |
-| 2 | INTO THE RINGS | SATURN | gates, drifters, blinkers, hypernova | G minor | i–♭VII–♭VI–iv · ♭VI–♭VII–i–i | swung sixteenths, bass off the beat |
-| 3 | THE STORM | NEPTUNE | the two compounds — sliding gates, flicker pairs — plus THE SAUCER and the spotlight, then a finish line | F minor | i–♭III–v–♭VI · i–i–♭III–♭VII | rolling four-on-the-floor |
-| 4 | EVENT HORIZON | STELLAR NURSERY | DIVERS and THE MIRROR, with the black hole's one guaranteed offer — and a finish line, which it did not have when it was last | E♭ minor | i–♭VI–♭VII–i · iv–i–♭III–v, both over a tonic pedal | octave bass, open offbeat hat |
-| 5 | REDSHIFT | GALACTIC CENTRE | THE NARROWS and scorch, everything running away and stretching as it goes | D♭ minor | i–iv–♭VII–♭III · ♭VI–♭III–♭VII–i | the 3+3+2 push, in the bass and the hats |
-| 6 | HEAT DEATH | PELAGIC | the current content frontier, combining the available mechanics as speed rises | B minor | i–iv–v–♭VI · ♭III–♭VII–iv–i | continuous sixteenths, the floor on 2 and 6 |
+| 1 | LIFT OFF | THE SOLAR SYSTEM | the verbs, twins, the orbit economy, shield/slow-mo/nova, the beat drop | A minor | i–♭VI–♭III–♭VII · ♭VI–♭VII–v–i | the original groove |
+| 2 | INTO THE RINGS | STELLAR NURSERY | gates, drifters, blinkers, hypernova | G minor | i–♭VII–♭VI–iv · ♭VI–♭VII–i–i | swung sixteenths, bass off the beat |
+| 3 | THE STORM | GALACTIC CENTRE | the two compounds — sliding gates, flicker pairs — plus THE SAUCER and the spotlight, then a finish line | F minor | i–♭III–v–♭VI · i–i–♭III–♭VII | rolling four-on-the-floor |
+| 4 | EVENT HORIZON | PELAGIC | DIVERS and THE MIRROR, with the black hole's one guaranteed offer — and a finish line, which it did not have when it was last | E♭ minor | i–♭VI–♭VII–i · iv–i–♭III–v, both over a tonic pedal | octave bass, open offbeat hat |
+| 5 | REDSHIFT | CRYSTAL REACH | THE NARROWS and scorch, everything running away and stretching as it goes | D♭ minor | i–iv–♭VII–♭III · ♭VI–♭III–♭VII–i | the 3+3+2 push, in the bass and the hats |
+| 6 | HEAT DEATH | EMBER SEA | the current content frontier, combining the available mechanics as speed rises | B minor | i–iv–v–♭VI · ♭III–♭VII–iv–i | continuous sixteenths, the floor on 2 and 6 |
 
-The destination column is the current flight presentation of these same six
-levels. Their historical names, mechanics, songs and finish lines remain in
-place. This compressed itinerary visits selected solar landmarks before the
-stellar nursery, galactic centre and alien ocean world; it does not implement
-every planet or the intended larger campaign.
+The destination column presents these same six levels. Historical names,
+mechanics, songs and finish lines remain in place. Level 1 visits Mercury,
+Venus, Earth and Moon, Mars, Jupiter, Saturn, Uranus and Neptune in order.
+Each encounter lasts 9.5 seconds, with overlapping flybys; Neptune remains
+visible while the player finishes the level. The introduction holds the close
+Mercury opening so teaching time cannot skip the tour.
 
-`journeyView()` reads the existing `dl()` finish-line progress for the first
-five encounters. Introductory play begins at Earth with zero progress; the
-level picker previews its selected destination. The lab keeps its original
-scene. Pelagic retains level 6's infinite finish line: its decorative camera
-approaches its endpoint asymptotically, without completing progress, adding
-an unlock, or claiming a next level. Route display creates no new records.
+This solar itinerary reads the existing presentation clock. Levels 2–5 read
+the existing difficulty finish-line progress. Ember Sea retains level 6's
+infinite finish line: its decorative camera approaches its endpoint without
+completing the level or adding an unlock. The picker previews its selection,
+and the lab keeps its original scene. Route display creates no new records.
 
 Only a completed-level resting card opens a wormhole. Upgrade choice remains
 untimed, and the wormhole disappears on the first live frame of the next

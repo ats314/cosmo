@@ -1,5 +1,5 @@
 /** Authored space vistas for the copied flight frame. Original procedural
- * material only: no downloaded imagery, simulation objects, or game clocks.
+ * materials with an optional user-supplied Earth map; no simulation objects or clocks.
  * Rays, spheres and ring planes share one world coordinate system, so nearby
  * material passes the camera while distant moons retain their slower parallax.
  */
@@ -78,6 +78,20 @@ vec3 voyageStars(vec2 uv,float scale,float gain){
   float light=exp(-d*850.0)*step(0.67,h)+exp(-d*80.0)*step(0.974,h)*0.22;
   return mix(vec3(0.49,0.67,0.95),vec3(0.98,0.88,0.72),h)*light*gain;
 }
+float voyageCraters(vec3 n){
+  vec2 uv=vec2(atan(n.z,n.x),asin(clamp(n.y,-1.0,1.0)))*5.5;
+  vec2 cell=floor(uv);float rock=0.94;
+  for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
+    vec2 id=cell+vec2(float(x),float(y));
+    vec2 center=id+vec2(voyageHash(vec3(id,2.7)),voyageHash(vec3(id,8.4)));
+    vec2 delta=uv-center;float size=0.16+voyageHash(vec3(id,4.1))*0.25;
+    float r=length(delta)/size;
+    float bowl=1.0-smoothstep(0.24,1.0,r),rim=exp(-pow((r-1.0)*6.0,2.0));
+    float edge=dot(delta/max(length(delta),0.001),vec2(-0.65,0.76));
+    rock+=rim*(0.08+edge*0.16)-bowl*0.18;
+  }
+  return rock;
+}
 float voyageRingDensity(float r){
   float orbit=voyageFront(r,uVoyagePower.y,1.60,1.65,0.12);
   float release=voyageFront(r,uVoyagePower.z,1.60,1.65,0.26);
@@ -92,6 +106,45 @@ vec3 voyageSurface(vec3 n,float chapter,float time){
   n.xz=mat2(cos(turn),-sin(turn),sin(turn),cos(turn))*n.xz;
   float orbit=voyageFront(n.y,uVoyagePower.y,-0.94,1.88,0.085);
   n=normalize(n+vec3(0.0,orbit*0.023*uVoyageCue.z,0.0));
+  if(chapter>5.5&&chapter<6.5){
+    float terrain=voyageFbm(n*6.0);
+    vec3 stone=mix(vec3(0.30,0.25,0.23),vec3(0.75,0.63,0.50),terrain);
+    return voyageSurfaceResponse(stone*voyageCraters(n),n);
+  }
+  if(chapter>6.5&&chapter<7.5){
+    float cloud=voyageFbm(n*5.0+vec3(n.y*2.4,0.0,0.0));
+    float folds=0.5+0.5*sin(n.y*18.0+cloud*10.0);
+    return voyageSurfaceResponse(mix(vec3(0.63,0.42,0.17),vec3(0.98,0.87,0.61),cloud*0.66+folds*0.34),n);
+  }
+  if(chapter>7.5&&chapter<8.5){
+    float terrain=voyageFbm(n*4.7+vec3(8.1,2.4,0.0));
+    vec3 rust=mix(vec3(0.27,0.10,0.055),vec3(0.84,0.40,0.18),smoothstep(0.23,0.70,terrain));
+    rust=mix(rust,vec3(0.85,0.78,0.64),smoothstep(0.89,0.98,abs(n.y)));
+    return voyageSurfaceResponse(rust,n);
+  }
+  if(chapter>8.5&&chapter<9.5){
+    float bands=0.52+0.21*sin(n.y*26.0+voyageFbm(n*10.0)*1.3)+0.075*sin(n.y*73.0);
+    vec3 clouds=mix(vec3(0.52,0.27,0.13),vec3(0.98,0.90,0.72),bands);
+    vec2 storm=(n.xy-vec2(-0.40,-0.26))*vec2(6.0,13.0);
+    clouds=mix(clouds,vec3(0.66,0.23,0.095),(1.0-smoothstep(0.45,1.0,length(storm)))*0.80);
+    return voyageSurfaceResponse(clouds,n);
+  }
+  if(chapter>10.5&&chapter<11.5){
+    float mineral=voyageFbm(n*5.0);
+    float veins=pow(1.0-abs(sin(mineral*28.0+n.z*3.0)),14.0);
+    return voyageSurfaceResponse(mix(vec3(0.15,0.07,0.29),vec3(0.39,0.32,0.64),smoothstep(0.25,0.73,mineral))
+      +vec3(0.07,0.49,0.54)*veins*0.46,n);
+  }
+  if(chapter>11.5){
+    float stone=voyageFbm(n*7.0);
+    float channels=pow(1.0-abs(sin(stone*28.0)),7.0);
+    return voyageSurfaceResponse(mix(vec3(0.13,0.045,0.17),vec3(0.44,0.15,0.18),stone)
+      +vec3(0.83,0.34,0.11)*channels*0.46,n);
+  }
+  if(chapter>9.5){
+    float mist=0.58+0.13*sin(n.y*12.0)+0.12*voyageFbm(n*7.0);
+    return voyageSurfaceResponse(mix(vec3(0.19,0.51,0.55),vec3(0.59,0.89,0.86),mist),n);
+  }
   if(chapter<0.5){
     float latitude=n.y+0.018*voyageFbm(n*19.0);
     float bands=0.55+0.17*sin(latitude*28.0)+0.09*sin(latitude*71.0)+0.035*sin(latitude*151.0);
@@ -105,6 +158,13 @@ vec3 voyageSurface(vec3 n,float chapter,float time){
     vec3 earth=mix(vec3(0.018,0.15,0.47),mix(vec3(0.13,0.35,0.15),vec3(0.58,0.48,0.29),
       smoothstep(0.55,0.76,land)),coast);
     float ice=smoothstep(0.78,0.96,abs(n.y));earth=mix(earth,vec3(0.75,0.86,0.91),ice);
+    if(uVoyageEarthReady>0.5){
+      // The unflipped upload keeps the image's north/top row at v=0. Longitude
+      // wraps in the shader so the user's non-power-of-two map needs no repeat.
+      vec2 mapUv=vec2(fract(atan(n.x,n.z)/6.28318530718+0.5),
+        0.5-asin(clamp(n.y,-1.0,1.0))/3.14159265359);
+      earth=texture2D(uVoyageEarth,mapUv).rgb;
+    }
     float clouds=smoothstep(0.58,0.76,voyageFbm(n*7.0+vec3(time*0.0007,0.0,0.0)));
     return voyageSurfaceResponse(mix(earth,vec3(0.84,0.90,0.96),clouds*0.88),n);
   }
@@ -147,19 +207,24 @@ vec3 voyageNebula(vec2 uv,vec3 rd,float progress,float time,float chapter){
   color+=voyageStars(rd.xy/abs(rd.z)*0.5+0.27,52.0,0.60);
   return color;
 }
-vec3 paintVoyage(vec2 pixel,vec2 size,vec3 voyage){
+vec4 paintVoyage(vec2 pixel,vec2 size,vec3 voyage){
   float progress=clamp(voyage.x,0.0,1.0),chapter=voyage.y,time=voyage.z;
   vec2 uv=(pixel-vec2(size.x*0.5,size.y*0.52))/size.y;uv.y=-uv.y;
   float side=chapter<0.5?-1.65:(chapter<2.5?1.32:-1.46);
   // Most of the chapter belongs to the encounter. The later bend passes the
   // ring plane, then a closer moon takes over the departure rather than void.
-  float route=pow(progress,1.40);
+  float route=pow(progress,1.18);
   float height=-2.35+1.51*smoothstep(0.0,0.60,progress);
-  vec3 ro=vec3(side+sin(progress*3.14159)*0.27,height,10.6-route*15.2);
+  if(chapter>5.5&&chapter<6.5){side=-1.30;height=-0.70;}
+  if(chapter>6.5&&chapter<7.5){side=1.42;height=-1.05;}
+  if(chapter>7.5&&chapter<8.5){side=0.30+progress*0.55;height=-1.42;}
+  if(chapter>8.5&&chapter<9.5){side=-1.88;height=-0.36-progress*0.46;}
+  if(chapter>9.5&&chapter<10.5){side=1.57;height=-0.48-progress*0.80;}
+  vec3 ro=vec3(side+sin(progress*3.14159)*0.27,height,10.6-route*14.2);
   vec3 forward=normalize(vec3(-side*0.040,0.025,-1.0));
   vec3 right=normalize(cross(forward,vec3(0,1,0))),up=cross(right,forward);
   vec3 rd=normalize(forward+right*uv.x*1.38+up*uv.y*1.38);
-  if(chapter>0.5&&chapter<1.5)return voyageNebula(uv,rd,progress,time,chapter);
+  if(chapter>0.5&&chapter<1.5)return vec4(voyageNebula(uv,rd,progress,time,chapter),0.40);
   if(chapter>3.5&&chapter<4.5){
     vec3 color=voyageNebula(uv,rd,progress,time,chapter)*0.75;
     vec2 center=vec2(0.10-progress*0.21,0.19);
@@ -170,24 +235,29 @@ vec3 paintVoyage(vec2 pixel,vec2 size,vec3 voyage){
     float accretion=exp(-abs(dr-radius*2.1)*28.0)*(0.68+0.20*sin(dr*220.0+a*2.0));
     color+=vec3(0.64,0.32,0.10)*accretion*0.60+vec3(0.55,0.38,0.21)*lens*0.38;
     color*=smoothstep(radius*0.90,radius*1.04,r);
-    return color;
+    return vec4(color,0.76);
   }
-  vec3 color=vec3(0.005,0.009,0.024);
-  float faint=voyageFbm(vec3(rd.xy*2.4+vec2(progress*0.04,0.0),4.7));
-  color+=mix(vec3(0.12,0.038,0.20),vec3(0.035,0.12,0.17),faint)*pow(faint,2.0)*1.35;
-  color+=voyageStars(rd.xy/abs(rd.z)*0.5,142.0,0.82);
-  color+=voyageStars(rd.xy/abs(rd.z)*0.5+0.31,55.0,0.53);
+  // Space between the bodies is transparent: the original living nebula,
+  // orbit-earned palettes, musical movement and powers remain visible.
+  vec3 color=vec3(0.0);float coverage=0.0;
   // Light the hemisphere actually seen along each route. This is authored
   // composition: the flyby must reveal a world, not spend it on its night side.
-  vec3 sun=normalize(vec3(chapter>1.5&&chapter<2.5?0.65:-0.43,0.61,1.12));
+  vec3 sun=normalize(vec3(chapter>1.5&&chapter<2.5?0.65:-0.43,0.12,1.35));
   float radius=chapter<0.5?1.31:(chapter<2.5?1.22:(chapter<3.5?1.28:1.23));
+  if(chapter>5.5&&chapter<6.5)radius=1.20;
+  if(chapter>6.5&&chapter<7.5)radius=1.21;
+  if(chapter>7.5&&chapter<8.5)radius=1.10;
+  if(chapter>8.5&&chapter<9.5)radius=1.52;
+  if(chapter>9.5)radius=1.26;
   float sphere=voyageSphere(ro,rd,vec3(0),radius);
   vec3 ringNormal=normalize(vec3(0.20,0.72,0.66));
+  if(chapter>9.5)ringNormal=normalize(vec3(0.84,0.17,0.53));
   float ringDen=dot(rd,ringNormal);
   float ringT=abs(ringDen)>0.0001?-dot(ro,ringNormal)/ringDen:-1.0;
   vec3 ringPoint=ro+rd*ringT;float ringRadius=length(ringPoint);
-  bool rings=chapter<0.5||chapter>4.5;
+  bool rings=chapter<0.5||(chapter>4.5&&chapter<5.5)||chapter>9.5;
   float ringAlpha=rings&&ringT>0.0?voyageRingDensity(ringRadius):0.0;
+  if(chapter>9.5)ringAlpha*=0.30;
   if(sphere>0.0){
     vec3 p=ro+rd*sphere,n=normalize(p);float diffuse=max(0.0,dot(n,sun));
     if(rings){
@@ -195,9 +265,14 @@ vec3 paintVoyage(vec2 pixel,vec2 size,vec3 voyage){
       float shadowR=length(p+sun*shadowT);
       if(shadowT>0.0)diffuse*=1.0-voyageRingDensity(shadowR)*0.68;
     }
-    color=voyageSurface(n,chapter,time)*(0.13+diffuse*0.96);
+    color=voyageSurface(n,chapter,time)*(0.19+diffuse*1.03);coverage=1.0;
     vec3 atmosphere=chapter<0.5?vec3(0.52,0.39,0.19):(chapter<2.5?vec3(0.07,0.35,0.88):
       (chapter<3.5?vec3(0.05,0.31,0.66):vec3(0.27,0.11,0.54)));
+    if(chapter>5.5&&chapter<6.5)atmosphere=vec3(0.008,0.007,0.006);
+    if(chapter>6.5&&chapter<7.5)atmosphere=vec3(0.52,0.34,0.11);
+    if(chapter>7.5&&chapter<8.5)atmosphere=vec3(0.39,0.14,0.035);
+    if(chapter>8.5&&chapter<9.5)atmosphere=vec3(0.44,0.31,0.14);
+    if(chapter>9.5)atmosphere=vec3(0.10,0.45,0.50);
     float limb=pow(1.0-max(0.0,dot(n,-rd)),3.2);
     color+=atmosphere*limb*(0.17+diffuse*0.57);
   }else{
@@ -205,7 +280,9 @@ vec3 paintVoyage(vec2 pixel,vec2 size,vec3 voyage){
     if(dot(-ro,rd)>0.0){
       float halo=exp(-max(0.0,closest-radius)*24.0);
       vec3 haloColor=chapter>1.5&&chapter<2.5?vec3(0.035,0.30,0.95):vec3(0.18,0.30,0.43);
-      color+=haloColor*halo*0.52;
+      if(chapter>5.5&&chapter<6.5)haloColor=vec3(0.006);
+      coverage=halo*0.32;
+      color=haloColor*1.15;
     }
   }
   float nearest=sphere;
@@ -213,8 +290,12 @@ vec3 paintVoyage(vec2 pixel,vec2 size,vec3 voyage){
   vec3 moonTint=chapter<0.5?vec3(0.88,0.65,0.37):vec3(0.79,0.82,0.86);
   // Resolve opaque surfaces with their actual hit distances. A ring's alpha
   // must never act as an opaque depth test against a moon seen through it.
-  vec4 body=voyageMoon(ro,rd,moonCenter,chapter<0.5?0.38:0.33,moonTint,sun,nearest,color);
-  color=body.rgb;nearest=body.a;
+  vec4 body=vec4(color,nearest);
+  bool hasMoon=chapter<0.5||(chapter>1.5&&chapter<3.5)||(chapter>4.5&&chapter<5.5)||chapter>7.5;
+  if(hasMoon){
+    body=voyageMoon(ro,rd,moonCenter,chapter<0.5?0.38:0.33,moonTint,sun,nearest,color);
+    color=body.rgb;nearest=body.a;
+  }
   if(chapter<0.5){
     body=voyageMoon(ro,rd,vec3(3.75,-0.20,-1.4),0.16,vec3(0.57,0.63,0.66),sun,nearest,color);
     color=body.rgb;nearest=body.a;
@@ -229,6 +310,7 @@ vec3 paintVoyage(vec2 pixel,vec2 size,vec3 voyage){
       color=body.rgb;nearest=body.a;
     }
   }
+  if(nearest>0.0)coverage=1.0;
   if(ringAlpha>0.001&&(nearest<0.0||ringT<nearest)){
     float shadow=voyageSphere(ringPoint+sun*0.02,sun,vec3(0),radius)>0.0?0.17:1.0;
     vec3 ringColor=mix(vec3(0.58,0.43,0.26),vec3(0.96,0.84,0.61),smoothstep(1.7,3.1,ringRadius));
@@ -238,8 +320,11 @@ vec3 paintVoyage(vec2 pixel,vec2 size,vec3 voyage){
     ringColor=mix(ringColor,vec3(0.32,0.82,0.94),ripple*0.37);
     ringColor=mix(ringColor,vec3(1.0,0.76,0.34),sweep*0.70);
     float grain=0.91+0.09*voyageNoise(ringPoint*90.0);
-    color=mix(color,ringColor*shadow*grain*(0.86+0.16*abs(dot(sun,ringNormal))),ringAlpha*0.98);
+    float alpha=ringAlpha*0.98;
+    float composed=alpha+coverage*(1.0-alpha);
+    color=(color*coverage*(1.0-alpha)+ringColor*shadow*grain*(0.86+0.16*abs(dot(sun,ringNormal)))*alpha)/max(composed,0.0001);
+    coverage=composed;
   }
-  return color;
+  return vec4(color,coverage);
 }
 `;

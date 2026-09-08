@@ -97,7 +97,11 @@ export class CosmoScene extends Phaser.Scene {
       if (!this.flight) {
         const gl = this.background?.getContext('webgl');
         if (!gl || gl.isContextLost()) return;
-        this.flight = createFlightWorld(gl);
+        const earth = this.textures.exists('voyage-earth-surface')
+          ? this.textures.get('voyage-earth-surface').getSourceImage() : null;
+        this.flight = createFlightWorld(gl, {
+          earthTexture: earth instanceof HTMLImageElement || earth instanceof HTMLCanvasElement ? earth : undefined,
+        });
       }
       this.voyageReady = this.flight.render(frame) && !!frame.voyage && !frame.transition?.completed;
     } catch (error) {

@@ -79,10 +79,12 @@ try {
   await page.goto(origin);
   await page.waitForFunction(() => window.COSMO_APP && typeof window.COSMO_APP.snapshot === 'function');
   const snapshot = () => page.evaluate(() => ({ engine: window.COSMO_APP.engine,
-    version: window.COSMO_APP.version, ...window.COSMO_APP.snapshot() }));
-  const earthJourney = (state, label) => {
-    assert.equal(state.journey?.chapter, 2, `${label}: Earth chapter is missing`);
-    assert.equal(state.journey?.destination, 'EARTH & MOON', `${label}: destination label is missing`);
+    version: window.COSMO_APP.version, voyageDraws: window.__cosmoVoyageDraws || 0,
+    ...window.COSMO_APP.snapshot() }));
+  const solarOrder = [6, 7, 2, 8, 9, 0, 10, 3];
+  const solarJourney = (state, label) => {
+    assert(solarOrder.includes(state.journey?.chapter), `${label}: solar encounter is missing`);
+    assert.equal(typeof state.journey?.destination, 'string', `${label}: destination label is missing`);
     assert(Number.isFinite(state.journey.progress) && state.journey.progress >= 0 && state.journey.progress <= 1,
       `${label}: voyage progress is not bounded`);
   };
@@ -95,6 +97,22 @@ try {
   assert.equal(state.background.gpu, true, 'the built host did not initialize the GPU background');
   assert.equal(state.background.materialCount, 3, 'the GPU background did not receive its three Phaser materials');
   assert.equal(state.background.flight, true, 'the forward-flight geometry failed to initialize');
+  // Record the actual shared context: the living sky and transparent flyby
+  // should each draw once per frame, then restore the fixed planet on failure.
+  await page.evaluate(() => {
+    const gl = document.querySelector('#bg').getContext('webgl'), original = gl.drawArrays;
+    window.__cosmoVoyageDraws = 0;
+    gl.drawArrays = function(mode, first, count) {
+      if (count > 3) {
+        if (window.__cosmoFailVoyage) {
+          window.__cosmoFailVoyage = false;
+          throw new Error('enginecheck: deliberate decorative draw failure');
+        }
+        window.__cosmoVoyageDraws++;
+      }
+      return original.call(this, mode, first, count);
+    };
+  });
   const launch = state.menuRects.find(r => r.id === 'start');
   assert(launch && [launch.x, launch.y, launch.w, launch.h].every(Number.isFinite), 'LAUNCH has no finite hit area');
   await page.touchscreen.tap(launch.x + launch.w / 2, launch.y + launch.h / 2);
@@ -102,8 +120,9 @@ try {
   await page.waitForTimeout(250);
   state = await snapshot();
   assert.equal(state.introStage, 0, 'first LAUNCH did not enter the playable introduction');
-  earthJourney(state, 'playable introduction');
-  assert.equal(state.journey.progress, 0, 'the playable introduction advances the route before launch');
+  solarJourney(state, 'playable introduction');
+  assert.equal(state.journey.chapter, 6, 'the first launch does not open near Mercury');
+  assert(state.journey.progress > 0, 'the playable introduction waits at an empty approach');
   const direction = state.direction;
   await page.mouse.click(195, 430);
   await page.waitForFunction(before => window.COSMO_APP.snapshot().direction !== before, direction);
@@ -121,15 +140,21 @@ try {
   state = await snapshot();
   assert.equal(state.state, 'playing');
   assert.equal(state.ringIndex, ring + 1, 'a real downward swipe did not move to the inner ring');
-  earthJourney(state, 'after intro skip');
+  solarJourney(state, 'after intro skip');
   const before = state;
   await page.waitForTimeout(400);
   const after = await snapshot(), updates = after.engineUpdates - before.engineUpdates;
   assert(updates > 0, 'the Phaser loop stopped');
   assert(Math.abs((after.steps - before.steps) - updates) <= 1, 'simulation is not stepping once per Phaser update');
   assert(Math.abs((after.frames - before.frames) - updates) <= 1, 'a second render loop is active');
-  earthJourney(after, 'live voyage');
-  assert(after.journey.progress > before.journey.progress, 'live play does not advance its voyage');
+  assert(Math.abs((after.background.classicDraws-before.background.classicDraws)-(after.frames-before.frames))<=1,
+    'healthy voyage must retain one living-sky pass per frame');
+  assert(Math.abs((after.voyageDraws - before.voyageDraws) - (after.frames - before.frames)) <= 1,
+    'the live background does not issue one voyage pass per frame');
+  solarJourney(after, 'live voyage');
+  assert(after.journey.chapter === before.journey.chapter ? after.journey.progress > before.journey.progress :
+    solarOrder.indexOf(after.journey.chapter) > solarOrder.indexOf(before.journey.chapter),
+    'live play does not advance its solar voyage');
   // The pause glyph at the upper left is the actual ordinary-play control;
   // Escape only leaves the lab. Resume uses the existing Enter/count-in path.
   await page.touchscreen.tap(26, 24);
@@ -154,6 +179,22 @@ try {
   await page.waitForFunction(() => window.COSMO_APP.snapshot().viewport.width === 390);
   assert.equal(await page.evaluate(() => window.__drawErr?.message || null), null, 'runtime rendering threw');
   assert.equal((await snapshot()).background.flight, true, 'flight geometry failed after resize');
+  await page.evaluate(() => { window.__cosmoFailVoyage = true; });
+  await page.waitForFunction(() => !window.COSMO_APP.snapshot().background.flight);
+  const failed = await snapshot();
+  // Shader variants may compile on the first fallback frame in SwiftShader.
+  // Observe completed frames instead of assuming 200ms contains a GPU draw.
+  await page.waitForFunction(frames => window.COSMO_APP.snapshot().frames >= frames + 3, failed.frames);
+  const fallback = await snapshot();
+  assert.equal(fallback.background.gpu, true, 'a decorative failure disabled the playable classic sky');
+  assert(fallback.background.classicDraws > failed.background.classicDraws, 'classic drawing did not resume after decorative failure');
+  assert.equal(fallback.background.classicDraws-failed.background.classicDraws, fallback.frames-failed.frames,
+    'fallback skips a completed living-sky frame');
+  assert.equal(await page.evaluate(() => {
+    const gl=document.querySelector('#bg').getContext('webgl'),program=gl.getParameter(gl.CURRENT_PROGRAM);
+    return gl.getUniform(program,gl.getUniformLocation(program,'uVoyageLayer'));
+  }),0,'fallback draws the clouds but does not restore the original planet');
+  assert.equal(fallback.voyageDraws, failed.voyageDraws, 'a failed voyage continues rendering');
   // Exercise the shared sky's actual GPU lifecycle. Input and the Canvas game
   // must survive the fallback, then the new renderer must be recreated.
   await page.evaluate(() => {
@@ -164,17 +205,23 @@ try {
     setTimeout(() => extension.restoreContext(), 250);
   });
   await page.waitForFunction(() => !window.COSMO_APP.snapshot().background.gpu);
-  await page.waitForFunction(() => window.COSMO_APP.snapshot().background.flight);
+  await page.waitForFunction(() => window.COSMO_APP.snapshot().background.voyage);
   state = await snapshot();
   assert.equal(state.background.gpu, true, 'the original sky did not recover with flight geometry');
-  earthJourney(state, 'context recovery');
+  solarJourney(state, 'context recovery');
+  await page.waitForFunction(frames => window.COSMO_APP.snapshot().frames >= frames + 3, state.frames);
+  const recovered = await snapshot();
+  assert(Math.abs((recovered.background.classicDraws-state.background.classicDraws)-(recovered.frames-state.frames))<=1,
+    'context recovery did not restore the living sky');
+  assert(Math.abs((recovered.voyageDraws - state.voyageDraws) - (recovered.frames - state.frames)) <= 1,
+    'context recovery did not restore a single voyage pass');
   await page.goto(origin + '/?flight=0');
   await page.waitForFunction(() => window.COSMO_APP?.snapshot().menuRects.length > 0);
   state = await snapshot();
   assert.equal(state.background.gpu, true, 'classic comparison lost the original sky');
   assert.equal(state.background.flight, false, 'classic comparison still renders flight geometry');
   assert.deepEqual(errors, [], 'the built app raised a browser exception');
-  console.log('ENGINECHECK OK  Phaser boot, sky/flight geometry, Earth intro and live voyage, pointer/touch controls, pause/resume, resize, one loop, context recovery and classic comparison');
+  console.log('ENGINECHECK OK  Phaser boot, sky/flight geometry, intro and live voyage, pointer/touch controls, pause/resume, resize, one loop, composed living sky and flyby, decorative failure fallback, context recovery and classic comparison');
 } finally {
   try { if (browser) await browser.close(); }
   finally {

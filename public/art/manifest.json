@@ -23,6 +23,7 @@
     "power-trail": "sprites/power-trail.webp",
     "star-gold": "sprites/star-gold.webp",
     "ui-panel-frame": "sprites/ui-panel-frame.webp",
-    "ui-primary-frame": "sprites/ui-primary-frame.webp"
+    "ui-primary-frame": "sprites/ui-primary-frame.webp",
+    "voyage-earth-surface": "voyage/earth-surface.jpg"
   }
 }

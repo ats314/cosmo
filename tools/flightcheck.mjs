@@ -10,6 +10,8 @@ import { flightScenarios } from './lib/flight-scenarios.mjs';
 import { flightGL } from './lib/flight-gl.mjs';
 import { verifyFlightTransitions } from './lib/flight-transitions.mjs';
 import { verifyVoyageRendering } from './lib/voyage-checks.mjs';
+import { verifyVoyageBackground } from './lib/voyage-background.mjs';
+import { verifySolarVoyage } from './lib/voyage-solar.mjs';
 import { createFlightWorld } from '../src/game/flight-world.ts';
 
 const root = new URL('../', import.meta.url);
@@ -119,6 +121,10 @@ if (record) {
 } else {
   const voyage = verifyVoyageRendering(source);
   console.log(`VOYAGE OK  ${voyage.routeSamples} destination/viewport samples, ${voyage.exits} real upgrade exits with no live-play wormhole; copied route, held clocks, reduced motion, reset; max ${voyage.maxVertices}/12500 vertices`);
+  const background = verifyVoyageBackground(source);
+  console.log(`VOYAGE RESPONSE OK  ${voyage.payoffSamples} bounded/priority envelope samples; ${background.fallbackCases} sky ownership cases and ${background.pairedFrames} paired frames preserve fallback materials, clocks and gameplay`);
+  const solar = verifySolarVoyage(source);
+  console.log(`SOLAR VOYAGE OK  ${solar.planets} planets in level 1, ${solar.handoffs} continuous handoffs in normal/reduced motion; intro skip, pause, death, retry and copied-state purity`);
   const transitions = verifyFlightTransitions(source);
   console.log(`FLIGHT TRANSITIONS OK  ${transitions.scenarios} completion-card scenarios, ${transitions.frames} glide frames; both directions, mid-hop, mixed frame rates, reduced motion; original next-level start reset remains outside this continuity claim`);
   console.log(`FLIGHTCHECK OK  ${Object.keys(fixture.functions).length} nonvisual functions and ${constantNames.length} tuning tables unchanged; ${frames} original trajectory frames, ${purityChecks} pure reads, ${callbacks} adapter calls, ${geometryDraws} actual renderer draws; tap/swipe/pause/powers/audio/RNG/save equivalent`);

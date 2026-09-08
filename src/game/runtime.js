@@ -9462,7 +9462,7 @@ const GL_MOTION=1.0;               /* seconds of visible, differential sky flow 
 const GL={on:false,g:null,pr:null,u:{},cv:null,vw:0,vh:0,tw:0,flowVt:null,stream:0,currentDir:1,art:[]};
 const GL_FS=`precision highp float;
 uniform vec2 uRes,uCtr;
-uniform float uTime,uCalm,uFlightMode;
+uniform float uTime,uCalm,uFlightMode,uVoyageLayer;
 uniform vec4 uArc,uShape,uAccent,uPlanet,uSurface;
 uniform vec3 uTint,uRim,uDust,uEventTint,uArena,uArt,uLive;
 uniform vec4 uCurrent,uPowerFlow;
@@ -9604,10 +9604,14 @@ void main(){
   col+=uDust*exp(-length(uv-vec2(-uPlanet.x,-0.35))*3.8)*0.095;
   col=materialHue(col,vec3(1.0,0.76,0.32),releaseWave*0.18);
 
+  float planetMask=0.0;
+  vec3 sun=normalize(vec3(cos(uSurface.w),sin(uSurface.w),0.34));
+  // The original cloud field remains alive beneath the travelling bodies.
+  // Only its fixed planet is replaced after the flyby renderer is ready.
+  if(uVoyageLayer<0.5){
   vec2 planetP=uv-uPlanet.xy-drift*0.35;
   float pr=length(planetP),radius=uPlanet.z;
-  float planetMask=1.0-smoothstep(radius-1.2/uRes.y,radius+1.2/uRes.y,pr);
-  vec3 sun=normalize(vec3(cos(uSurface.w),sin(uSurface.w),0.34));
+  planetMask=1.0-smoothstep(radius-1.2/uRes.y,radius+1.2/uRes.y,pr);
   float ringOpacity,front;
   vec3 ringLight=belt(planetP,sun,fire,ringOpacity,front);
   col=mix(col,col*(1.0-ringOpacity*0.45)+ringLight,1.0-front);
@@ -9662,6 +9666,7 @@ void main(){
   /* The near half of the dust ring crosses the globe. A fine dark shadow
      beneath it and its illuminated strands make the scale unmistakable. */
   col=mix(col,col*(1.0-ringOpacity*0.70)+ringLight,front);
+  }
 
   /* Three distant star planes approach the same flight axis. Their staggered
      far/near fades hide depth recycling; native-pixel cores stay quiet behind
@@ -9747,7 +9752,7 @@ function glInit(){
     const loc=g.getAttribLocation(pr,'p');
     g.enableVertexAttribArray(loc);g.vertexAttribPointer(loc,2,g.FLOAT,false,0,0);
     GL.u={};
-    for(const n of ['uRes','uCtr','uTime','uCalm','uFlightMode','uArc','uShape','uAccent','uPlanet','uSurface','uTint','uRim','uDust','uEventTint','uArena','uArt','uLive','uCurrent','uPowerFlow','uFlight','uRelease','uNebulaMap','uPlanetMap','uRingMap'])
+    for(const n of ['uRes','uCtr','uTime','uCalm','uFlightMode','uVoyageLayer','uArc','uShape','uAccent','uPlanet','uSurface','uTint','uRim','uDust','uEventTint','uArena','uArt','uLive','uCurrent','uPowerFlow','uFlight','uRelease','uNebulaMap','uPlanetMap','uRingMap'])
       GL.u[n]=g.getUniformLocation(pr,n);
     const blank=g.createTexture(),pixel=document.createElement('canvas');pixel.width=pixel.height=1;
     g.bindTexture(g.TEXTURE_2D,blank);
@@ -10045,6 +10050,7 @@ function glRender(dt){
     g.uniform1f(GL.u.uTime,GL.tw);
     g.uniform1f(GL.u.uCalm,SKY_ARENA_CALM);
     g.uniform1f(GL.u.uFlightMode,runtimeHost.flightEnabled?1:0);
+    g.uniform1f(GL.u.uVoyageLayer,voyageOwnsSky()?1:0);
     g.uniform4f(GL.u.uArc,SM.arc[0],SM.arc[1],SM.arc[2],SM.arc[3]);
     g.uniform4f(GL.u.uShape,SM.shape[0],SM.shape[1],SM.shape[2],SM.shape[3]);
     g.uniform4f(GL.u.uPlanet,SM.planet[0],SM.planet[1],SM.planet[2],SM.planet[3]);
@@ -10055,9 +10061,8 @@ function glRender(dt){
     g.uniform3f(GL.u.uDust,SM.dust[0],SM.dust[1],SM.dust[2]);
     g.uniform3f(GL.u.uEventTint,tint[0],tint[1],tint[2]);
     g.uniform3f(GL.u.uArena,radiusOf(0)/H,radiusOf(G.nRings-1)/H,AY);
-    // Keep sky clocks, materials and GPU state ready for an immediate fallback,
-    // but do not shade an entire hidden sky beneath a healthy destination.
-    if(!voyageOwnsSky()){g.drawArrays(g.TRIANGLES,0,3);runtimeClassicSkyDraws++;}
+    // One living sky, with translucent flyby bodies composited over it.
+    g.drawArrays(g.TRIANGLES,0,3);runtimeClassicSkyDraws++;
   }catch(e){GL.on=false;}
 }
 /* Boot the GPU path here, not at the first resize(): GL is a const declared
@@ -11957,20 +11962,54 @@ function frontHeading(label,title,x,y,w){
 }
 /* A route is a view of existing progress, never another record or unlock. */
 const VOYAGE_ROUTE=[
-  {chapter:2,name:'EARTH & MOON',phases:['EARTHRISE','LUNAR PASSAGE','LEAVING HOME'],description:'Leave Earth behind. Pass the Moon and head outward.'},
-  {chapter:0,name:'SATURN',phases:['APPROACH','ALONG THE RINGS','OUTWARD BOUND'],description:'Approach Saturn, sweep along its rings, then travel onward.'},
-  {chapter:3,name:'NEPTUNE',phases:['BLUE HORIZON','ICE GIANT FLYBY','SOLAR SYSTEM EDGE'],description:'Pass the blue giant at the edge of the planetary system.'},
+  {chapter:2,name:'THE SOLAR SYSTEM',phases:['INNER PLANETS','GIANT WORLDS','OUTER REACHES'],description:'Fly past all eight planets, from Mercury to Neptune.'},
   {chapter:1,name:'STELLAR NURSERY',phases:['NEBULA APPROACH','THROUGH THE CLOUDS','DISTANT STARLIGHT'],description:'Follow luminous clouds into a vast stellar nursery.'},
   {chapter:4,name:'GALACTIC CENTRE',phases:['INNER GALAXY','THE DARK HEART','BEYOND THE FAMILIAR'],description:'Travel beside the luminous heart of a distant galaxy.'},
-  {chapter:5,name:'PELAGIC',phases:['UNCHARTED WORLD','LUMINOUS SHORES','DEEP EXPLORATION'],description:'Discover an alien ocean world beneath unfamiliar skies.'}
+  {chapter:5,name:'PELAGIC',phases:['UNCHARTED WORLD','LUMINOUS SHORES','DEEP EXPLORATION'],description:'Discover an alien ocean world beneath unfamiliar skies.'},
+  {chapter:11,name:'CRYSTAL REACH',phases:['SHATTERED MOONS','CRYSTAL HORIZON','BEYOND THE RINGS'],description:'Glide beside a crystalline world and its tilted ice rings.'},
+  {chapter:12,name:'EMBER SEA',phases:['AMBER DAWN','MOLTEN SHORES','DEEP EXPLORATION'],description:'Explore glowing rivers beneath the rings of an alien world.'}
 ];
+const SOLAR_STOPS=[
+  {chapter:6,name:'MERCURY'},{chapter:7,name:'VENUS'},
+  {chapter:2,name:'EARTH & MOON'},{chapter:8,name:'MARS'},
+  {chapter:9,name:'JUPITER'},{chapter:0,name:'SATURN'},
+  {chapter:10,name:'URANUS'},{chapter:3,name:'NEPTUNE'}
+];
+// A presentation timestamp, separate from gameplay and the intro's resettable
+// start time. Reading a snapshot never advances it. Pause holds G.vt already.
+const SOLAR_FLIGHT={run:-1,origin:0,last:0};
+function sampleSolarFlight(){
+  if(G.state!=='playing'||G.level!==1||LAB.on)return;
+  if(SOLAR_FLIGHT.run!==G.runs||G.vt<SOLAR_FLIGHT.last){
+    SOLAR_FLIGHT.run=G.runs;SOLAR_FLIGHT.origin=G.vt;
+  }
+  // Teaching holds a close Mercury view; the solar itinerary starts when
+  // ordinary play begins, so learning the controls cannot skip the planets.
+  if(G.intro)SOLAR_FLIGHT.origin=G.vt;
+  SOLAR_FLIGHT.last=G.vt;
+}
+function solarJourney(){
+  const elapsed=SOLAR_FLIGHT.run===G.runs?Math.max(0,SOLAR_FLIGHT.last-SOLAR_FLIGHT.origin):0;
+  const position=elapsed/9.5,index=Math.min(SOLAR_STOPS.length-1,Math.floor(position));
+  const local=position-index,stop=SOLAR_STOPS[index],next=SOLAR_STOPS[index+1];
+  // The arriving world has the identical pose on both sides of a handoff.
+  // Overlap lasts 2.66 seconds over one continuous living cloud field.
+  const mix=Math.max(0,Math.min(1,(local-.72)/.28)),blend=mix*mix*(3-2*mix);
+  const progress=next?Math.min(1,.50+local*.50):.50+.18*(1-Math.exp(-local*1.6));
+  return {chapter:stop.chapter,destination:stop.name,
+    phase:next&&mix>0?next.name+' AHEAD':index===7?'OUTER REACHES':local<.32?'APPROACH':'FLYBY',
+    progress:progress,open:false,solarIndex:index,
+    nextVoyage:next&&mix>0?{chapter:next.chapter,progress:.36+(local-.72)*.50}:undefined,
+    voyageBlend:next?blend:0};
+}
 function journeyDestination(n){return VOYAGE_ROUTE[Math.max(0,Math.min(VOYAGE_ROUTE.length-1,n-1))];}
-/* The itinerary reads the same finish line as the HUD. It has no clock, save
-   key, unlock or interaction of its own. The final world remains exploration. */
+/* Later destinations read the HUD's finish line; the solar tour uses the
+   presentation memo above. Neither owns an unlock or gameplay interaction. */
 function journeyView(){
   if(!runtimeHost.flightEnabled||LAB.on||G.state==='powersel'||G.state==='swipesel')return null;
   const selected=G.state==='levelsel',card=G.state==='lvend';
   const n=selected?G.lvSel:card&&!G.lvCard?.done?(G.lvCard?.next||G.level):G.state==='menu'?1:G.level;
+  if(n===1&&G.state!=='menu'&&!selected&&!(card&&!G.lvCard?.done))return solarJourney();
   const route=journeyDestination(n),level=LV[Math.max(0,Math.min(LV.length-1,n-1))];
   const open=!Number.isFinite(level.end);
   const distance=Math.max(0,G.state==='dead'?
@@ -12359,6 +12398,7 @@ function runtimeStep(deltaMs){
 function runtimeRender(){
   if(runtimeDestroyed)return;
   runtimeFrames++;
+  sampleSolarFlight();
   /* Phaser owns the canvas. Restore its incoming transform and common state
      even if a frame fails, while keeping the first error inspectable. */
   const transform=typeof ctx.getTransform==='function'?ctx.getTransform():null;
@@ -12427,7 +12467,7 @@ function runtimeFlightFrame(){
   const camX=(RM?0:Math.sin(amb*0.065)*1.4*u)+flightShakeX;
   const camY=(RM?0:Math.cos(amb*0.051)*1.4*u)+flightShakeY;
   const sm=SKY.mix||{tint:[0.1,0.3,0.5],rim:[0.3,0.7,0.9],dust:[0.3,0.5,0.6]},f=G.currentFlow||{};
-  const planet=sm.planet,accent=sceneAccent();
+  const planet=sm.planet,accent=sceneAccent(),vista=journeyView();
   return {
     enabled:!!runtimeHost.flightEnabled&&GL.on&&!runtimeDestroyed,
     width:W,height:H,dpr:DPR,center:[cx,cy],
@@ -12435,6 +12475,14 @@ function runtimeFlightFrame(){
     comet:[point[0]+camX,point[1]+camY],angle:G.angle,direction:G.dir,
     visualTime:amb,travel:amb*100,active:G.state==='playing',reducedMotion:RM,
     voyage:voyageFrame(),
+    nextVoyage:vista?.nextVoyage?{chapter:vista.nextVoyage.chapter,progress:vista.nextVoyage.progress}:undefined,
+    voyageBlend:vista?.voyageBlend||0,
+    rewardPaths:G.state==='playing'&&!RM&&!bhActive()?G.stars.filter(s=>s.starfall&&s.flight&&!s.mag&&
+      s.t>s.flight.delay&&s.t<s.flight.delay+s.flight.duration).slice(0,5).map(s=>({
+        origin:[cx+s.flight.x*u+camX,cy+s.flight.y*u+camY],
+        control:[cx+s.flight.cx*u+camX,cy+s.flight.cy*u+camY],
+        target:posAt(s.a,radiusOf(s.ring)).map((p,i)=>p+(i?camY:camX)),
+        progress:Math.max(0,Math.min(1,(s.t-s.flight.delay)/s.flight.duration))})):[],
     transition:G.state==='lvend'?{elapsed:Math.max(0,G.t-G.lvT),
       completed:!!G.lvCard?.done,nextLevel:G.lvCard?.next||G.level}:undefined,
     palette:{tint:sm.tint.slice(),rim:sm.rim.slice(),dust:sm.dust.slice()},

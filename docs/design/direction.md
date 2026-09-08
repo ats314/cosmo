@@ -7,12 +7,13 @@ Keep room to breathe between skillful decisions and musical releases. The
 owner's references emphasize violet/blue nebulae, monumental planets, and
 flowing tunnel walls with light travelling past a distant aperture.
 
-The current web route gives the six existing levels a continuous sequence of
-celestial encounters: Earth and Moon, Saturn, Neptune, a stellar nursery, a
-galactic centre, and Pelagic, an alien ocean world. These are selected solar
-landmarks followed by more distant destinations, not a complete tour of every
-planet or a finished larger campaign. Approach, passage and recession make
-travel visible during the original game. See [the level mapping](levels.md).
+Level 1 is a compressed tour of all eight planets, starting close beside
+Mercury and reaching a new encounter about every nine and a half seconds.
+Mars presents a low horizon, Jupiter sweeps past in bands, Saturn fills the
+view with rings, and Uranus has a tilted approach. The next levels visit a
+stellar nursery, the galactic centre, Pelagic, Crystal Reach and Ember Sea.
+These encounters fit the existing game's pace; their distances and sizes are
+authored for play. See [the level mapping](levels.md).
 
 Completed-level cards are resting places within that journey: the arena
 recedes, the wormhole continues gently, and the next destination is named.
@@ -37,17 +38,19 @@ atmosphere and sweeping rings, with deep colored nebula and stable stars
 beyond. Give that celestial art room to breathe, particularly in portrait.
 Worlds need distinctive composition, scale, materials and light.
 
-The destination renderer uses original procedural shader scenes: shaded
+The destination renderer uses procedural shader scenes: shaded
 spheres, a ring plane and moons at different depths. Their flybys share the
 game's supplied camera progress; the orbital game and HUD remain on their
 existing canvas. This is depth within the scenery, not a conversion of
-hazards or collision rules into a shared 3D world. No new external imagery is
-introduced by these celestial scenes.
+hazards or collision rules into a shared 3D world. Earth uses the owner's
+supplied surface map, with procedural clouds, atmosphere and lighting.
 
 Procedural worlds are the foundation: their planet, atmosphere, rings and
 nebula respond to play while keeping routes and red hazards readable. The
-24 images remaining in the art manifest have real transparency. Wisp, planet
-and ring textures supply material detail within that living scene. Opaque
+24 original sprites have real transparency; the separate Earth map is an
+opaque surface texture wrapped onto its sphere. Wisp, planet and ring
+textures supply material detail within the living sky. The flyby overlay is
+transparent around celestial bodies so this sky stays visible. Opaque
 Gemini world plates have been removed from the manifest and public world
 assets; their originals are archived outside the game as references. A baked
 checkerboard is not alpha, and a marked background is not release artwork.
@@ -78,10 +81,11 @@ A small gain trim alone is not a meaningful musical transformation.
 
 Let completed orbits build visible pressure in the planet's atmosphere and
 rings together with the musical arrangement. The accepted Starfall direction
-is gold stars originating near the planet's corona and travelling into the
-arena, with currents opening outward and material contours travelling through
-the world as the stars arrive. Give the reward a visible source and a clear
-return to ordinary play.
+is currents opening outward as gold stars travel into the arena. The current
+presentation traces the existing reward flights with gold wisps; it preserves
+their emission coordinates, timing and contact positions. The visible flyby
+sphere is independent of that gameplay anchor. Let the currents settle back
+into ordinary play after the reward.
 
 Powers reshape the same field: Magnet bends nearby streams toward the comet,
 Scorch leaves a warm burning wake, and the black hole pulls surrounding

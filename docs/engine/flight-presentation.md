@@ -1,10 +1,9 @@
 # Forward flight in the original game
 
 The original web voyage is the active priority; Godot work continues
-separately. The root Phaser game now presents its six existing levels as
-Earth and Moon, Saturn, Neptune, a stellar nursery, a galactic centre and
-Pelagic, an alien ocean world. This compressed itinerary includes selected
-solar landmarks, not every planet or a complete larger campaign. The
+separately. Level 1 of the root Phaser game tours all eight planets, then the
+remaining five levels visit a stellar nursery, the galactic centre, Pelagic,
+Crystal Reach and Ember Sea. The
 original music, tap/swipe handlers, simulation, rewards and teaching remain
 in use. See [the level mapping](../design/levels.md).
 
@@ -19,12 +18,17 @@ callbacks into gameplay or audio handles. Reading it
 does not consume random numbers. Capturing the existing hit shake preserves
 the original order and number of random draws.
 
-`journeyView()` derives the destination, phase and camera progress from the
-existing level and `dl()` finish line. `voyageFrame()` copies only the chapter
-and progress needed by the scenery. Chapter selects an authored visual preset;
-it is not another level ordinal or unlock. The view owns no clock, permanent
-atlas, save record or gameplay rule. Introductory play starts at Earth with
-zero progress; the level picker previews its selection. The lab emits no
+`journeyView()` selects scenery from the existing level. Level 1 samples the
+existing presentation clock into a resettable `SOLAR_FLIGHT` memo outside game
+state: each encounter lasts 9.5 seconds, with a 2.66-second overlapping handoff.
+The introduction holds the close Mercury opening; finishing or skipping it
+starts the tour without a camera jump. Neptune stays visible until the real
+level ends. Levels 2–5 follow the existing `dl()` finish line.
+`voyageFrame()` copies the chapter and progress needed by the scenery; the
+incoming encounter is copied separately during a handoff. Chapter selects an
+authored visual preset, not another level ordinal or unlock. This introduces
+no simulation clock, permanent atlas, save record or gameplay rule.
+The level picker previews its selection. The lab emits no
 destination voyage and keeps its original scene. Level 6 remains infinite:
 its decorative camera approaches the end of its flyby asymptotically without
 completing the level, unlocking anything or announcing a nonexistent level 7.
@@ -32,23 +36,31 @@ completing the level, unlocking anything or announcing a nonexistent level 7.
 `src/game/flight-world.ts` draws original procedural celestial scenes,
 perspective dust and the comet's departing wake using the runtime's WebGL
 sky context. Shaded spheres, a ring plane and moons at different depths make
-approach, passage and recession visible. They introduce no external imagery.
+approach, passage and recession visible. Earth optionally uses the owner's
+1280×632 map, cached through Phaser and uploaded with NPOT-safe clamp/linear
+sampling. Missing or failed imagery leaves its procedural surface available.
 Positive depth recedes beyond the arena; the original arena lies at depth zero. Old
 wake positions approach the viewer as the comet and orbital center travel
 onward. Dust and wake distance use the presentation clock, so turning never
 reverses the entire journey. Pause and slow motion follow the existing clock. Reduced
 motion removes the forward flow and departing wake.
 
-The original sky director still supplies the underlying palette, power
-envelopes and classic scene. Destination scenery is selected by the copied
-voyage and remains distinct from the orbit-earned `G.skyW` material journey.
-The destination pass is opaque: it covers the classic sky's orbit-pressure,
-material-flow and power responses. Those surface envelopes are not yet wired
-into the voyage shader. Starfall also retains the original sky's planet
-emission anchor, which is independent of the visible destination sphere.
-This bounded route pass leaves actual star flights and contact positions,
-gameplay, scoring and audio unchanged; it does not yet connect those sky
-responses and emission anchors to the new scenery.
+The original living sky draws once per frame. A ready flyby suppresses only
+its fixed planet, rings and halo; nebulae, texture detail, stars, orbit-earned
+`G.skyW` palettes and committed-motion responses stay visible. The second
+pass is transparent around its planets, moons and rings. Incoming and outgoing
+scenes blend with premultiplied coverage to avoid black handoff fringes.
+The stellar nursery and galactic centre add translucent landmark layers.
+
+Copied orbit, charge, release and power envelopes deform the flyby surfaces
+and rings as well as the original sky. Magnet draws nearby dust toward the
+comet, Scorch warms the departing wake, and black-hole gravity suppresses
+ordinary power responses while bending the surrounding field inward.
+Starfall copies up to five real in-flight Bezier paths into gold wisps. Their
+heads share the actual stars' easing and camera translation. The existing
+emission anchor remains independent of the flyby sphere; neither collectibles
+nor their collision positions move to suit the scenery. Reduced motion omits
+these wisps and dust flow, and freezes the planet camera and material time.
 
 The geometry pass restores the sky's GPU state, releases resources when the
 scene stops and recreates them after context restoration. A failed decorative
@@ -89,8 +101,11 @@ change. The existing Starfall and power behavior remain authoritative.
 
 ## Verification and delivery
 
-`flightcheck.mjs` provides protected-function and seeded-runtime comparisons,
-including audio events, random consumption, pointer controls and storage.
+`flightcheck.mjs` provides protected-function and seeded-runtime comparisons
+against the `dd9bbaa` fixture: 191 functions and 11 tuning tables, including
+audio events, random consumption, pointer controls and storage. This protects
+the presentation pass from changing that baseline; it does not establish
+equivalence to the game before earlier gameplay changes.
 `enginecheck.mjs` exercises the built root application through Phaser. The
 integrated destination pass must be checked through that real main-game host,
 including approach/pass/recede, held-clock stability, selected starts, lab

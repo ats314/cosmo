@@ -27,10 +27,11 @@ Magnet, Mirror, Scorch, Slipstream, Star Trail and Black Hole. Magnet attracts
 nearby stars. The rare black hole opens a fourth ring: charge a reward inside,
 then reach the outer ring during its five-second escape window.
 
-The current web presentation travels through Earth and Moon, Saturn, Neptune,
-a stellar nursery, a galactic centre and Pelagic, an alien ocean world, across
-the six existing levels. This is a compressed route through selected
-destinations, with room for more worlds and levels. Completed-level resting
+Level 1 flies past all eight planets, from Mercury to Neptune, with a new
+encounter about every nine and a half seconds. The next five levels visit a
+stellar nursery, the galactic centre, Pelagic, Crystal Reach and Ember Sea.
+The original flowing nebula remains behind the close planet passes, with
+currents that respond to orbits and powers. Completed-level resting
 cards open a wormhole; take your time choosing an upgrade. The passage clears
 as play resumes, and has no separate controls or collectibles. Reduced motion
 keeps these passages static. The final world remains open for exploration.
@@ -94,8 +95,9 @@ atmosphere, rings and nebula form the world; 24 transparent sprites add object
 art and material detail. Opaque world plates are archived outside the game and
 are absent from the release manifest. See the [current art and motion direction](docs/design/direction.md).
 
-The celestial flybys use original procedural shader scenes with spheres,
-rings and moons at different depths. They add no external imagery. The
+The celestial flybys use procedural shader scenes with spheres,
+rings and moons at different depths, plus the owner's supplied Earth surface
+map. Its provenance is recorded alongside the existing artwork. The
 original canvas gameplay, music and pressure curves remain in use; scenery
 depth is not shared 3D collision geometry. See [flight presentation](docs/engine/flight-presentation.md).
 

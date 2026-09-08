@@ -33,12 +33,19 @@ export interface FlightFrame {
   transition?: { elapsed: number; completed: boolean; nextLevel: number };
   /** A camera route through an authored destination; never a difficulty clock. */
   voyage?: { progress: number; chapter: number };
+  nextVoyage?: { progress: number; chapter: number };
+  voyageBlend?: number;
+  /** Existing reward trajectories, copied in screen pixels for background currents. */
+  rewardPaths?: readonly { origin: FlightVec2; control: FlightVec2; target: FlightVec2; progress: number }[];
 }
 export interface FlightWorld {
   render(frame: FlightFrame): boolean;
   resize(width: number, height: number, dpr: number): void;
   reset(): void;
   dispose(): void;
+}
+export interface FlightWorldOptions {
+  earthTexture?: HTMLImageElement | HTMLCanvasElement;
 }
 
 const TAU = Math.PI * 2;
@@ -47,6 +54,7 @@ const MAX_VERTICES = 12500;
 const TRAIL_COUNT = 112;
 const DUST_COUNT = 106;
 const clamp = (x: number, a = 0, b = 1): number => Math.max(a, Math.min(b, x));
+const effectStrength = (x: number | undefined): number => Number.isFinite(x) ? clamp(x!) : 0;
 const smooth = (a: number, b: number, x: number): number => {
   const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t);
 };
@@ -86,17 +94,27 @@ uniform vec2 uOuterCenter,uRadii,uBufferSize;
 uniform highp vec2 uSize;
 uniform vec3 uPlanet;
 uniform vec3 uVoyage;
+uniform vec3 uVoyageNext;
 uniform vec3 uVoyagePower,uVoyageForce,uVoyageCue;
+uniform sampler2D uVoyageEarth;
+uniform float uVoyageEarthReady;
 ${VOYAGE_SHADER}
 void main(){
   vec2 pixel=vec2(gl_FragCoord.x/uBufferSize.x,1.0-gl_FragCoord.y/uBufferSize.y)*uSize;
   float radius=length((pixel-uOuterCenter)/uRadii);
   if(vStyle.x>4.5){
-    vec3 color=paintVoyage(voyageResponsePosition(pixel,uSize),uSize,uVoyage);
+    vec2 materialPixel=voyageResponsePosition(pixel,uSize);
+    vec4 scene=paintVoyage(materialPixel,uSize,uVoyage);
+    if(uVoyageNext.z>0.0){
+      vec4 next=paintVoyage(materialPixel,uSize,vec3(uVoyageNext.xy,uVoyage.z));
+      float alpha=mix(scene.a,next.a,uVoyageNext.z);
+      scene=vec4(mix(scene.rgb*scene.a,next.rgb*next.a,uVoyageNext.z)/max(alpha,0.0001),alpha);
+    }
+    vec3 color=scene.rgb;
     color=voyageResponseColor(color,pixel,uSize);
     float arena=smoothstep(0.28,0.48,radius)*(1.0-smoothstep(1.0,1.22,radius));
     color=pow(max(color,vec3(0.0)),vec3(0.86))*(1.0-arena*0.20);
-    gl_FragColor=vec4(color,1.0);return;
+    gl_FragColor=vec4(color,scene.a);return;
   }
   if(vStyle.x>3.5){
     // A passage has depth in front of the departing world. Its indigo interior
@@ -122,7 +140,7 @@ void main(){
   float calm=1.0-arena*vStyle.y;
   float core=smoothstep(0.115,0.205,radius);
   float planet=1.0;
-  if(uPlanet.z>0.0&&vStyle.x<1.5){
+  if(uPlanet.z>0.0&&uVoyage.y<0.0&&vStyle.x<1.5){
     planet=smoothstep(uPlanet.z*0.985,uPlanet.z*1.025,distance(pixel,uPlanet.xy));
   }
   float alpha=vColor.a*profile*calm*core*planet;
@@ -138,10 +156,11 @@ interface AttributeState {
 
 /** Create after the host's sky program and triangle buffer are initialized.
  * The sky and this pass are the only owners of this context. Capture their fixed
- * baseline once, then restore it without synchronous GPU state queries per frame.
+ * program/attribute baseline once; restore the shared texture-unit bindings
+ * from each draw's entry state when using the optional Earth map.
  * Recreate the module after context restoration or a replacement sky program.
  */
-export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
+export function createFlightWorld(gl: WebGLRenderingContext, options: FlightWorldOptions = {}): FlightWorld {
   const shaders: WebGLShader[] = [];
   let program: WebGLProgram | null = null;
   let buffer: WebGLBuffer | null = null;
@@ -173,8 +192,49 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
     throw error;
   }
   const uniforms = Object.fromEntries(['uSize', 'uBufferSize', 'uCenter', 'uFocal', 'uOuterCenter', 'uRadii', 'uPlanet', 'uVoyage',
-    'uVoyagePower', 'uVoyageForce', 'uVoyageCue']
+    'uVoyagePower', 'uVoyageForce', 'uVoyageCue', 'uVoyageNext', 'uVoyageEarth', 'uVoyageEarthReady']
     .map(name => [name, gl.getUniformLocation(program!, name)]));
+  let earthTexture: WebGLTexture | null = null, earthReady = false;
+  // The optional user-supplied map belongs to this renderer, not Phaser's GPU
+  // cache. One complete tiny texture keeps the sampler valid without the map.
+  const uploadUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
+  gl.activeTexture(gl.TEXTURE3);
+  const uploadBinding = gl.getParameter(gl.TEXTURE_BINDING_2D);
+  const uploadFlip = gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL);
+  const uploadPremultiply = gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL);
+  try {
+    earthTexture = gl.createTexture();
+    if (earthTexture) {
+      gl.bindTexture(gl.TEXTURE_2D, earthTexture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([24, 48, 88, 255]));
+      const source = options.earthTexture;
+      const imageWidth = source && ('naturalWidth' in source ? source.naturalWidth : source.width);
+      const imageHeight = source && ('naturalHeight' in source ? source.naturalHeight : source.height);
+      if (source && imageWidth && imageHeight) {
+        try {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+          earthReady = true;
+        } catch {
+          // A failed image decode/upload cannot remove the procedural world.
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([24, 48, 88, 255]));
+        }
+      }
+    }
+  } catch {
+    if (earthTexture) gl.deleteTexture(earthTexture);
+    earthTexture = null; earthReady = false;
+  } finally {
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, uploadFlip);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, uploadPremultiply);
+    gl.bindTexture(gl.TEXTURE_2D, uploadBinding);
+    gl.activeTexture(uploadUnit);
+  }
   const data = new Float32Array(MAX_VERTICES * STRIDE);
   const trail: TrailPoint[] = [];
   let cursor = 0, lastTime = -1, lastTravel = 0, sampleTime = -1;
@@ -229,19 +289,20 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
     const offsetX = frame.outerCenter[0] - frame.center[0];
     const offsetY = frame.outerCenter[1] - frame.center[1];
     const distance = decorativeTravel * scale;
-    const release = clamp(frame.effects?.release ?? 0);
-    const hole = clamp(frame.effects?.blackHole ?? 0);
+    const effect = (value: number | undefined): number => frame.active ? effectStrength(value) : 0;
+    const release = effect(frame.effects?.release);
+    const hole = effect(frame.effects?.blackHole);
     const ordinaryPower = hole > 0.001 ? 0 : 1;
-    const charge = clamp(frame.effects?.charge ?? 0) * ordinaryPower;
-    const scorch = clamp(frame.effects?.scorch ?? 0) * ordinaryPower;
-    const magnet = clamp(frame.effects?.magnet ?? 0) * ordinaryPower;
-    const turn = clamp(frame.effects?.turn ?? 0);
-    const hop = clamp(frame.effects?.hop ?? 0);
+    const charge = effect(frame.effects?.charge) * ordinaryPower;
+    const scorch = effect(frame.effects?.scorch) * ordinaryPower;
+    const magnet = effect(frame.effects?.magnet) * ordinaryPower;
+    const turn = effect(frame.effects?.turn);
+    const hop = effect(frame.effects?.hop);
     const time = frame.reducedMotion ? 0 : frame.visualTime;
     const portal = smooth(0, 1, passage);
     const ordinary = 1 - portal * 0.88;
-    const voyage = frame.voyage && frame.voyage.chapter >= 0 && frame.voyage.chapter <= 5
-      && Number.isFinite(frame.voyage.progress) && !frame.transition?.completed;
+    const voyage = frame.voyage && frame.voyage.chapter >= 0 && frame.voyage.chapter <= 12
+      && Number.isFinite(frame.voyage.progress) && (frame.active || !frame.transition?.completed);
     if (voyage) {
       const corner = { x: -frame.center[0], y: -frame.center[1], z: 0 };
       const white = [1, 1, 1] as const;
@@ -271,13 +332,13 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
       * (1 - smooth(2500 * scale, 3400 * scale, depth));
     // Broad translucent material and fine nested strands share one curved volume.
     // Far-to-near construction is deliberate: this shared sky has no depth buffer.
-    const ordinarySegments = voyage ? 0 : portal > 0.0001 ? 32 : 64;
+    const ordinarySegments = voyage ? 20 : portal > 0.0001 ? 32 : 64;
     const ordinaryDepthStep = 3264 / Math.max(1, ordinarySegments);
     for (let segment = ordinarySegments - 1; segment >= 0; segment--) {
       const depthA = (100 + segment * ordinaryDepthStep) * scale;
       const depthB = depthA + ordinaryDepthStep * scale;
-      for (let strand = 0; strand < 7; strand++) {
-        const base = strand * TAU / 7 + 0.24;
+      for (let strand = 0; strand < (voyage ? 3 : 7); strand++) {
+        const base = strand * TAU / (voyage ? 3 : 7) + 0.24;
         const aa = angleAt(depthA, base, strand), ba = angleAt(depthB, base, strand);
         const radial = 1.11 + Math.sin(strand * 2.1) * 0.10;
         const a = route(aa, depthA, radial), b = route(ba, depthB, radial);
@@ -286,11 +347,12 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
         const densityA = 0.66 + 0.34 * Math.sin(flowA * 1.1) ** 2;
         const densityB = 0.66 + 0.34 * Math.sin(flowB * 1.1) ** 2;
         const color = strandColors[strand % strandColors.length];
-        const wide = (12 + Math.sin(strand * 1.7) * 4) * scale;
-        ribbon(a, b, wide, wide, color, ordinary * 0.12 * fadeAt(depthA) * densityA,
-          ordinary * 0.12 * fadeAt(depthB) * densityB, flowA, flowB);
-        ribbon(a, b, 2.9 * scale, 2.9 * scale, color, ordinary * 0.21 * fadeAt(depthA) * densityA,
-          ordinary * 0.21 * fadeAt(depthB) * densityB, flowA, flowB);
+        const wide = (voyage ? 6 : 12 + Math.sin(strand * 1.7) * 4) * scale;
+        const density = voyage ? 0.55 : 1;
+        ribbon(a, b, wide, wide, color, ordinary * 0.12 * density * fadeAt(depthA) * densityA,
+          ordinary * 0.12 * density * fadeAt(depthB) * densityB, flowA, flowB);
+        ribbon(a, b, 2.9 * scale, 2.9 * scale, color, ordinary * 0.21 * density * fadeAt(depthA) * densityA,
+          ordinary * 0.21 * density * fadeAt(depthB) * densityB, flowA, flowB);
       }
     }
 
@@ -377,7 +439,7 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
     // A grain and its tail follow the same path at successive travel positions.
     // Near grains continue past the arena toward the viewer; the central masks
     // still protect gameplay. Nothing changes direction when the comet turns.
-    if (!frame.reducedMotion && !voyage) {
+    if (!frame.reducedMotion) {
       const dustHue = mix(frame.palette.rim, [0.64, 0.84, 0.93], 0.40);
       const near = -0.55 * focal, span = 3550 * scale - near;
       for (const item of dustOrder) {
@@ -385,7 +447,7 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
       }
       // Source-over transparency needs a stable far-to-near order on this sky.
       dustOrder.sort((a, b) => b.depth - a.depth || a.index - b.index);
-      for (const { grain, depth } of dustOrder) {
+      for (const { grain, depth, index } of dustOrder) {
         const a = route(grain.angle, depth, grain.radial);
         const exposureTravel = 100 * grain.exposure;
         const tailDepth = depth + exposureTravel * grain.rate * span;
@@ -394,6 +456,21 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
         const tailD = tailDepth / focal;
         b.x = offsetX + Math.cos(grain.angle) * rx * grain.radial
           + Math.sin(tailD * 1.15 + (distance - exposureTravel * scale) / focal * 0.12) * 29 * scale * tailD;
+        const pull = (p: Point): void => {
+          const w = Math.max(0.20, 1 + p.z / focal);
+          const px = p.x/w, py = p.y/w;
+          if (hole > 0.001) {
+            const strength = hole * 0.38 * Math.exp(-Math.hypot(px-offsetX,py-offsetY)/(rx*1.8));
+            const angle = strength*0.65, dx = px-offsetX, dy = py-offsetY;
+            p.x = (offsetX+(dx*Math.cos(angle)-dy*Math.sin(angle))*(1-strength))*w;
+            p.y = (offsetY+(dx*Math.sin(angle)+dy*Math.cos(angle))*(1-strength))*w;
+          } else if (magnet > 0.001) {
+            const dx = frame.comet[0]-frame.center[0]-px, dy = frame.comet[1]-frame.center[1]-py;
+            const strength = magnet*0.30*Math.exp(-(dx*dx+dy*dy)/(160*160*scale*scale));
+            p.x += dx*strength*w; p.y += dy*strength*w;
+          }
+        };
+        pull(a); pull(b);
         const aw = Math.max(0.20, 1 + a.z / focal), bw = Math.max(0.20, 1 + b.z / focal);
         let dx = b.x / bw - a.x / aw, dy = b.y / bw - a.y / aw;
         const projectedLength = Math.hypot(dx, dy);
@@ -406,9 +483,32 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
         }
         const fade = smooth(near, near + 180 * scale, depth)
           * (1 - smooth(2650 * scale, 3450 * scale, depth));
-        const width = Math.min(grain.width * scale, 1.65 * scale * aw);
+        const fragment = voyage && index % 19 === 0;
+        const width = Math.min((fragment ? 3.6 : grain.width) * scale, (fragment ? 3.8 : 1.65) * scale * aw);
         const alpha = (1 - portal * 0.70) * fade * grain.bright / Math.sqrt(Math.max(1, projectedLength / (5 * scale)));
-        ribbon(a, b, width, width * 0.45, dustHue, alpha, alpha * 0.18, -1, 1, 1, 0.87);
+        ribbon(a, b, width, width * (fragment ? 0.68 : 0.45), fragment ? [0.32, 0.39, 0.46] : dustHue,
+          alpha, alpha * (fragment ? 0.72 : 0.18), -1, 1, 1, 0.87);
+      }
+    }
+
+    // These currents trace the actual reward flights rather than inventing
+    // another star position or moving a collectible away from its contact test.
+    if (frame.active && !frame.reducedMotion && hole < 0.001) {
+      for (const path of (frame.rewardPaths ?? []).slice(0, 5)) {
+        const progress = effectStrength(path.progress);
+        const point = (q: number): Point => {
+          const k = 1 - q;
+          return { x: k*k*path.origin[0]+2*k*q*path.control[0]+q*q*path.target[0]-frame.center[0],
+            y: k*k*path.origin[1]+2*k*q*path.control[1]+q*q*path.target[1]-frame.center[1], z: 0 };
+        };
+        const head = 1 - (1-progress)*(1-progress);
+        for (let i = 0; i < 12; i++) {
+          const from = Math.max(0, head-0.38)+(Math.min(head,0.38)*i/12);
+          const to = Math.max(0, head-0.38)+(Math.min(head,0.38)*(i+1)/12);
+          const alpha = Math.sin(progress*Math.PI)*0.19*(i+1)/12;
+          ribbon(point(from), point(to), 5.4*scale, 4.0*scale, [0.90,0.61,0.18],
+            alpha, alpha, from, to, 2, 0.45);
+        }
       }
     }
 
@@ -502,8 +602,12 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
     while (trail.length > TRAIL_COUNT || (trail.length && frame.visualTime - trail[trail.length - 1].birth > 3.3)) trail.pop();
     build(frame);
     if (!cursor) return true;
+    const priorTextureUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
+    gl.activeTexture(gl.TEXTURE3);
+    const priorTextureBinding = gl.getParameter(gl.TEXTURE_BINDING_2D);
     // A second renderer on this context must not strand the sky's triangle pointer.
     try {
+      gl.bindTexture(gl.TEXTURE_2D, earthTexture);
       gl.useProgram(program); gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
       gl.bufferData(gl.ARRAY_BUFFER, data.subarray(0, cursor), gl.DYNAMIC_DRAW);
       const sizes = [3, 4, 2, 2], offsets = [0, 3, 7, 9];
@@ -519,7 +623,11 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
       gl.uniform3f(uniforms.uPlanet, frame.planet?.center[0] ?? 0, frame.planet?.center[1] ?? 0, frame.planet?.radius ?? 0);
       gl.uniform3f(uniforms.uVoyage, frame.reducedMotion ? 0.24 : clamp(frame.voyage?.progress ?? 0),
         frame.voyage?.chapter ?? -1, frame.reducedMotion ? 0 : frame.visualTime);
-      const strength = (value: number | undefined): number => frame.active && Number.isFinite(value) ? clamp(value!) : 0;
+      const next = frame.nextVoyage;
+      const validNext = next && Number.isFinite(next.progress) && next.chapter >= 0 && next.chapter <= 12;
+      gl.uniform3f(uniforms.uVoyageNext, validNext ? (frame.reducedMotion ? 0.24 : clamp(next.progress)) : 0,
+        validNext ? next.chapter : -1, validNext ? effectStrength(frame.voyageBlend) : 0);
+      const strength = (value: number | undefined): number => frame.active ? effectStrength(value) : 0;
       const blackHole = strength(frame.effects?.blackHole);
       const ordinary = blackHole > 0.001 ? 0 : 1;
       gl.uniform3f(uniforms.uVoyagePower, strength(frame.effects?.charge) * ordinary,
@@ -527,11 +635,16 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
       gl.uniform3f(uniforms.uVoyageForce, strength(frame.effects?.magnet) * ordinary,
         strength(frame.effects?.scorch) * ordinary, blackHole);
       gl.uniform3f(uniforms.uVoyageCue, frame.comet[0], frame.comet[1], frame.reducedMotion ? 0 : 1);
+      gl.uniform1i(uniforms.uVoyageEarth, 3);
+      gl.uniform1f(uniforms.uVoyageEarthReady, earthReady ? 1 : 0);
       gl.enable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
       gl.blendEquation(gl.FUNC_ADD);
       gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
       gl.drawArrays(gl.TRIANGLES, 0, cursor / STRIDE);
     } finally {
+      gl.activeTexture(gl.TEXTURE3);
+      gl.bindTexture(gl.TEXTURE_2D, priorTextureBinding);
+      gl.activeTexture(priorTextureUnit);
       attributes.forEach((attribute, index) => {
         if (attribute.buffer) {
           gl.bindBuffer(gl.ARRAY_BUFFER, attribute.buffer);
@@ -554,6 +667,8 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
       disposed = true; trail.length = 0;
       shaders.forEach(shader => gl.deleteShader(shader));
       gl.deleteProgram(program); gl.deleteBuffer(buffer);
+      if (earthTexture) gl.deleteTexture(earthTexture);
+      earthTexture = null;
     },
   };
 }
