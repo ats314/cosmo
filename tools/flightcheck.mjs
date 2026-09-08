@@ -8,6 +8,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { flightSandbox } from './lib/flight-sandbox.mjs';
 import { flightScenarios } from './lib/flight-scenarios.mjs';
 import { flightGL } from './lib/flight-gl.mjs';
+import { verifyFlightTransitions } from './lib/flight-transitions.mjs';
 import { createFlightWorld } from '../src/game/flight-world.ts';
 
 const root = new URL('../', import.meta.url);
@@ -115,5 +116,7 @@ if (record) {
   await writeFile(new URL('work/web-flight-baseline/nonvisual-hashes.json', root), JSON.stringify({ sourceSHA256: fixture.sourceSHA256, functions: fixture.functions, constants: fixture.constants }, null, 2) + '\n');
   console.log(`FLIGHT BASELINE RECORDED: ${Object.keys(fixture.functions).length} functions, ${constantNames.length} tuning tables, ${frames} original frames`);
 } else {
+  const transitions = verifyFlightTransitions(source);
+  console.log(`FLIGHT TRANSITIONS OK  ${transitions.scenarios} completion-card scenarios, ${transitions.frames} glide frames; both directions, mid-hop, mixed frame rates, reduced motion; original next-level start reset remains outside this continuity claim`);
   console.log(`FLIGHTCHECK OK  ${Object.keys(fixture.functions).length} nonvisual functions and ${constantNames.length} tuning tables unchanged; ${frames} original trajectory frames, ${purityChecks} pure reads, ${callbacks} adapter calls, ${geometryDraws} actual renderer draws; tap/swipe/pause/powers/audio/RNG/save equivalent`);
 }
