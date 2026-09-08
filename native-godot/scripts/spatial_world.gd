@@ -7,10 +7,24 @@ const ENTITY_SHADER := preload("res://shaders/entity.gdshader")
 const POOL_SIZE := 160
 const TRAIL_SAMPLES := 136
 const DUST_COUNT := 80
-const CYAN := Color(0.23, 0.90, 1.0)
-const GOLD := Color(1.0, 0.78, 0.34)
-const RED := Color(1.0, 0.12, 0.24)
-const VIOLET := Color(0.64, 0.41, 1.0)
+# THE COLOUR VOCABULARY IS TAUGHT, SO IT IS COPIED FROM COL IN
+# src/game/runtime.js RATHER THAN CHOSEN HERE.
+#
+# That block of the original is a constraint with its reasoning attached: every
+# hue on the board is spoken for — gold collects, pink-red kills, cyan is the
+# comet, mint is a shield, violet is slow-mo — and a colour landing in an
+# occupied family "inherits a meaning it does not have".
+#
+# RED is the one that mattered. This read #ff1f3d, a pure saturated red, where
+# canon is #ff5d73, a PINK-red. The original states outright that scorch was
+# made warm-orange rather than warm-red because "the invariant that red belongs
+# to death alone is not negotiable and #ff5d73 is a pink, so the two do not sit
+# in the same family at a glance." A pure red walks death toward scorch and
+# spends the separation that decision bought.
+const CYAN := Color(0.365, 0.941, 1.0)   # COL.comet  #5df0ff
+const GOLD := Color(1.0, 0.784, 0.341)   # COL.ember  #ffc857
+const RED := Color(1.0, 0.365, 0.451)    # COL.shard  #ff5d73 — pink-red, deliberately
+const VIOLET := Color(0.706, 0.545, 1.0) # COL.warp   #b48bff
 const POWER_COLORS := {
 	"shield": Color(0.48, 1.0, 0.78), "warp": Color(0.71, 0.55, 1.0),
 	"spot": Color(0.88, 0.84, 1.0), "nova": Color(0.91, 0.97, 1.0),
@@ -19,11 +33,23 @@ const POWER_COLORS := {
 	"trail": Color(1.0, 0.77, 0.29), "bh": Color(0.66, 0.36, 0.96),
 	"starfall": Color(1.0, 0.84, 0.39),
 }
+# PARTLY MIGRATED, AND THE SPLIT IS DELIBERATE.
+#
+# assets/sprites/ currently holds four standardised power PNGs — shield, nova,
+# slow and magnet. The other six exist only as the legacy root .webp carried
+# over from the web build. preload() resolves at parse time, so repointing all
+# ten at res://assets/sprites/ would not degrade gracefully: it would fail to
+# compile this script and take the whole game with it. The four that exist are
+# migrated; the rest stay on .webp until their PNGs land.
+#
+# "spot" is Magnet. The historic id is deliberately preserved (PORT_STATUS), and
+# it previously loaded power-spotlight.webp, whose name reads like a different
+# power entirely — power-magnet.png now says what it is.
 const POWER_TEXTURES := {
-	"shield": preload("res://assets/power-shield.webp"),
-	"warp": preload("res://assets/power-slow.webp"),
-	"spot": preload("res://assets/power-spotlight.webp"),
-	"nova": preload("res://assets/power-nova.webp"),
+	"shield": preload("res://assets/sprites/power-shield.png"),
+	"warp": preload("res://assets/sprites/power-slow.png"),
+	"spot": preload("res://assets/sprites/power-magnet.png"),
+	"nova": preload("res://assets/sprites/power-nova.png"),
 	"hyper": preload("res://assets/power-hyper.webp"),
 	"mirror": preload("res://assets/power-mirror.webp"),
 	"scorch": preload("res://assets/power-scorch.webp"),

@@ -19,7 +19,12 @@
 # RUN THIS SERIALLY. Concurrent Godot processes on one project corrupt the
 # shared .godot import cache, so do not background several of these at once.
 param(
-    [int[]]$Levels = @(1, 2, 3, 4, 5, 6),
+    # Taken as a string and split here on purpose. Invoked through
+    # `powershell -File`, arguments arrive as plain strings and never bind to
+    # [int[]] — `-Levels 1,3,5` arrives as the single token "1,3,5" and silently
+    # became one capture named "level135". Splitting makes both `-Levels 1,3,5`
+    # and `-Levels 4` behave the same way from -File and from a dot-source.
+    [string]$Levels = '1,2,3,4,5,6',
     [int]$Seconds = 25,
     [string]$Tag = 'current',
     [switch]$SkipMenu,
@@ -50,7 +55,14 @@ function Invoke-Capture {
     $png = Join-Path $outDir "$Name.png"
     if (Test-Path -LiteralPath $png) { Remove-Item -LiteralPath $png -Force }
 
-    $all = @('--path', $nativeProject, '--resolution', '540x960', '--') + $GameArgs + @("--capture=$png")
+    # ORDER MATTERS AND IT IS NOT OBVIOUS. main.gd parses these left to right:
+    # `--capture=` sets capture_time to its own 2s default, while `--seconds=`
+    # sets capture_time to the run length only when a capture path is already
+    # known. Appending --capture last therefore silently clamps every shot to
+    # two seconds, which photographs the level card instead of the game — the
+    # first run of this script captured seven frames of the opening title at
+    # score 0003 and they looked plausible enough to nearly pass review.
+    $all = @('--path', $nativeProject, '--resolution', '540x960', '--', "--capture=$png") + $GameArgs
     Write-Host "  $Name ... " -NoNewline
 
     $stdout = Join-Path $outDir "$Name.log"
@@ -95,7 +107,9 @@ Write-Host "Capturing '$Tag' into $outDir"
 if (-not $SkipMenu) {
     $results += Invoke-Capture -Name 'menu' -GameArgs @() -TimeoutSeconds 60
 }
-foreach ($level in $Levels) {
+$levelList = @($Levels -split '[,\s]+' | Where-Object { $_ -ne '' } | ForEach-Object { [int]$_ })
+if ($levelList.Count -eq 0) { throw "No levels parsed from -Levels '$Levels'." }
+foreach ($level in $levelList) {
     $results += Invoke-Capture -Name "level$level" `
         -GameArgs @("--play=$level", '--autoplay', "--seconds=$Seconds") `
         -TimeoutSeconds ($Seconds + 45)

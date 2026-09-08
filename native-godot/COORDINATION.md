@@ -179,3 +179,81 @@ The project owner has designated **Antigravity** as Lead Agent. Antigravity dire
   3. Verify clean web builds: `node tools/all.mjs`.
   4. Commit with explicit paths only (`git add src/game/flight-world.ts`).
 
+
+---
+
+## [MISSION-CLAUDE-01] — COMPLETE (Claude, 2026-09-07)
+
+**Commit:** see below. Staged explicitly: `scripts/spatial_world.gd`,
+`tools/capture.ps1`, `COORDINATION.md`. Nothing outside `native-godot/`.
+
+### 1. Asset re-import — done
+`godot --path native-godot --headless --import`. All three rebuilt OBJs and the
+new PNGs imported cleanly; project parses afterwards with no errors.
+
+### 2. POWER_TEXTURES — PARTIALLY migrated, and deliberately so
+
+**Only four of the ten power sprites exist as PNG:** `power-shield`,
+`power-nova`, `power-slow`, `power-magnet`. Missing: `hyper`, `mirror`,
+`scorch`, `slip`, `trail`, `blackhole`.
+
+`preload()` resolves at parse time, so repointing all ten at
+`res://assets/sprites/` would not degrade — it would fail to compile
+`spatial_world.gd` and take the whole game down. The four that exist are
+migrated; the other six stay on their root `.webp` until PNGs land. **Ping me
+when they do and I will finish the migration.**
+
+One rename worth noting: `"spot"` is Magnet (historic id, preserved per
+PORT_STATUS) and was loading `power-spotlight.webp`, a filename that reads like
+a different power. It now loads `power-magnet.png`.
+
+Particle sprites are imported and available at `res://assets/particles/` but are
+**not yet wired** — nothing in `spatial_world.gd` currently instances them, and
+inventing emitters was outside this mission's scope. Assign it and I will.
+
+### 3. Canon colours — done
+`CYAN` → `#5df0ff`, `RED` → `#ff5d73`, `VIOLET` → `#b48bff`. `GOLD` was already
+correct at `#ffc857`. The reasoning is now recorded in the file so the pink-red
+is not "corrected" back to a pure red by someone who reads it as a mistake.
+
+Two smaller drifts observed and **left alone** as outside scope — `POWER_COLORS`
+has `mirror` at `#579eff` (canon `#4d8cff`) and `scorch` at `#ff8526` (canon
+`#ff8a2b`). Say the word if you want them aligned.
+
+### 4. Verification
+
+`check_native.ps1`: **all five native checks passed.** `verify_audio.gd`
+passes. Frames captured across all six levels plus the menu, no shader errors,
+no flat frames.
+
+**Confirmed on rendered frames:** the new `power-shield.png` renders at canon
+mint on the ring; the rebuilt meshes and lensed singularity draw correctly on
+every world; per-world skies are distinct.
+
+**NOT confirmed on a rendered frame — the red.** I could not get a red hazard
+into any capture. The autoplay driver earns Starfall within seconds on every
+level, and Starfall clears red by contract, so frames are either pre-first-spawn
+or mid-Starfall. The change is sound by inspection — `RED` is bound to the
+hazard draw at `spatial_world.gd:433` and the value converts exactly to
+`#ff5d73` — but **the "verified on a rendered frame" standard the original sets
+for palette decisions has not actually been met.** Whoever judges pink-red
+against the nebula should do it on a human-played frame, or the driver needs a
+no-Starfall mode. I am not claiming a visual verification I do not have.
+
+### Two bugs found and fixed in `tools/capture.ps1`
+
+1. **Every frame was captured at 2 seconds, not the requested duration.**
+   `main.gd` parses its arguments left to right: `--capture=` sets `capture_time`
+   to its own 2s default, while `--seconds=` sets it to the run length only if a
+   capture path is already known. The script appended `--capture=` last, so all
+   seven "25-second" frames photographed the opening level card at score 0003 —
+   and looked plausible enough to nearly pass review.
+2. **`-Levels 1,3,5` produced one capture named `level135`.** Invoked through
+   `powershell -File`, arguments arrive as strings and never bind to `[int[]]`.
+   Now taken as a string and split.
+
+`main.gd` also no longer honours the focus-loss pause while the automated driver
+is running. Pausing when a player switches away is correct on a phone and stays;
+the driver runs unattended while other windows take focus, and honouring it made
+a capture photograph FLIGHT PAUSED, which read as a gameplay regression until
+the frame was actually looked at.
