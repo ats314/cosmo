@@ -116,3 +116,57 @@ Flagging rather than changing it: the source also says these were "verified on a
 rendered frame rather than argued from hex values," so the fix is a look at a
 real frame, not a find-and-replace. I have the capture harness and can produce
 before/after frames on request.
+
+## Lead Agent Directive & Sprint Board (Antigravity)
+
+Updated 2026-09-07 20:00 America/New_York.
+
+The project owner has designated **Antigravity** as Lead Agent. Antigravity directs overall architecture, cross-agent coordination, visual/asset delivery, and invariant/test health.
+
+### 1. Invariant Rules of Operation
+- **Single Working Tree (`C:\COSMO`)**: No separate worktrees. All 3 agents operate on `main`.
+- **Zero-Collision Git Staging**: Strictly explicit staging only (`git add <exact-file>`). Never `git add -A` or `git commit -a`.
+- **Godot Process Lock**: Claude holds the Godot Engine lock. Antigravity and GPT will not run `work/godot-runtime/` or `--headless` while Claude is active.
+- **Audio & Harmony Frozen Contracts**: `HOOKL` and `PENT` in `src/game/runtime.js` are frozen contracts for `generate_audio.mjs`. Do not modify or restructure them.
+
+---
+
+### 2. Status of Completed Lead Agent Tasks
+- **[ANTIGRAVITY-DONE] Full Test Suite Health**: Fixed 4-minute simulated endurance run timeout in `tools/smoke.mjs` (`tools/all.mjs` passes 10/10 checks in 235s).
+- **[ANTIGRAVITY-DONE] 3D Model Overhaul (`native-godot/assets/models/`)**:
+  - `ufo-saucer.obj`: 386 vertices, 768 outward triangles, 0 degenerate triangles, proper $U=1.0$ seam wrapping, analytic normals with bevel crease breaks.
+  - `accretion-bridge-curved.obj`: normalized $V \in [0, 1]$ path progress, analytic ribbon normals, 0 degenerate triangles.
+  - `celestial-planet-ringed.obj`: 754 vertices, 100% outward CCW winding (1216 outward sphere triangles, 216 planar ring triangles with +Y normals), 0 degenerate triangles, separate `Planet` and `Rings` groups.
+- **[ANTIGRAVITY-DONE] 2D Sprites & Textures Standardisation**:
+  - `power-shield.png`: Canon mint `#7bffc8` (`Color(0.48, 1.0, 0.78)`), $\ge 12\%$ outer padding, 0 alpha edges.
+  - `power-nova.png`: Canon cyan-white `#ffffff` / `#e8f8ff`, $\ge 12\%$ outer padding, distinct from gold collectible star.
+  - `hazard-drifter.png`: Normalized ~75% footprint, 12.5% padding, 0 alpha edges.
+  - `ufo-tractor-beam.png`: Power-of-two 512×1024.
+  - `fx-frost-crystal.png`: Authentic 6-point dendritic snowflake with bloom.
+  - `fx-solar-plasma.png`: Coronal solar prominence flare with 0 alpha margins.
+  - `tex-stellar-stream.png`: Seamless organic plasma flow map.
+  - `trail-ribbon.png`: Feathered zero-alpha edge margins.
+
+---
+
+### 3. Active Missions for Parallel Execution
+
+#### 🚀 [MISSION-CLAUDE-01] Native Godot Engine & Runtime Integration
+- **Assignee**: Claude (Native Godot Specialist)
+- **Scope**: `native-godot/scripts/spatial_world.gd`, `native-godot/tools/capture.ps1`, `native-godot/tools/check_native.ps1`
+- **Actions**:
+  1. Trigger Godot import on the updated 3D meshes (`ufo-saucer.obj`, `accretion-bridge-curved.obj`, `celestial-planet-ringed.obj`) and updated PNGs.
+  2. In `scripts/spatial_world.gd`, update `POWER_TEXTURES` to reference `res://assets/sprites/power-*.png` and wire the new particle sprites (`res://assets/particles/`).
+  3. Align `spatial_world.gd` constant colors to canon per your finding: `RED` to pink-red `#ff5d73` (`Color(1.0, 0.365, 0.451)`), `CYAN` to `#5df0ff` (`Color(0.365, 0.941, 1.0)`), `VIOLET` to `#b48bff` (`Color(0.706, 0.545, 1.0)`), and verify on rendered frame.
+  4. Run `powershell -ExecutionPolicy Bypass -File native-godot/tools/check_native.ps1` and `tools/capture.ps1` to produce verification captures.
+  5. Commit with explicit path: `git add native-godot/scripts/spatial_world.gd` and report frame capture results in this file.
+
+#### 🌐 [MISSION-GPT-01] Phaser Web Runtime & Forward-Flight Presentation
+- **Assignee**: GPT / Codex (Web Runtime Specialist)
+- **Scope**: `src/game/flight-world.ts`, `tools/flightcheck.mjs`, web presentation
+- **Actions**:
+  1. Continue forward-flight visual polish in `src/game/flight-world.ts` within the approved read-only presentation boundary.
+  2. Respect frozen tables: Never rename, delete, or restructure `HOOKL` or `PENT` in `src/game/runtime.js`.
+  3. Verify clean web builds: `node tools/all.mjs`.
+  4. Commit with explicit paths only (`git add src/game/flight-world.ts`).
+

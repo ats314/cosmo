@@ -26,45 +26,47 @@ All assets follow strict semantic prefixes:
 * **star-<name>.png** — Collectible stars (star-gold.png).
 * **x-<name>.png** — Particle bursts, embers, and shockwaves (x-spark.png, x-soft-glow.png, x-frost-crystal.png, x-solar-plasma.png, x-alien-shockwave.png).
 * **	rail-<name>.png** — Ribbon trail gradient ramps (	rail-ribbon.png).
-* **	ex-<name>.png** — Scrolling UV flow maps and cylindrical textures (	ex-stellar-stream.png, ufo-tractor-beam.png).
+* **fx-<name>.png** — Particle bursts, embers, and shockwaves (fx-spark.png, fx-soft-glow.png, fx-frost-crystal.png, fx-solar-plasma.png, fx-alien-shockwave.png).
+* **trail-<name>.png** — Ribbon trail gradient ramps (trail-ribbon.png).
+* **tex-<name>.png** — Scrolling UV flow maps and cylindrical textures (tex-stellar-stream.png, ufo-tractor-beam.png).
 
 ---
 
 ## 3. Asset Registry
 
-### Models (ssets/models/)
+### Models (`assets/models/`)
 | File | Geometry | Description |
 | :--- | :--- | :--- |
-| ccretion-bridge-curved.obj | 325 verts / 256 quads | 64-step logarithmic spiral ribbon linking background to singularity |
-| celestial-planet-ringed.obj | 841 verts / 748 quads | 3D Gas Giant sphere with concentric equatorial ring disc |
-| ufo-saucer.obj | 448 verts / 416 quads | 32-segment rotational lathe flying saucer with cockpit dome & bevels |
+| `accretion-bridge-curved.obj` | 325 verts / 256 quads | 64-step curved spiral ribbon linking background to singularity. Normalized $V \in [0, 1]$ path progress, analytic ribbon normals, 0 degenerate triangles. |
+| `celestial-planet-ringed.obj` | 754 verts / 748 quads | 3D Gas Giant sphere with concentric equatorial ring disc. 100% outward CCW normals, single poles (0 degenerate triangles), separate `Planet` and `Rings` groups. |
+| `ufo-saucer.obj` | 386 verts / 416 quads | 32-segment rotational lathe flying saucer. Single poles (0 degenerate triangles), analytic normals with bevel crease breaks, explicit $U=1.0$ seam wrapping. |
 
-### Sprites (ssets/sprites/) — All 512×512, 32-bit RGBA, unmultiplied alpha
-* comet-core.png — Player comet nucleus with aerodynamic energy wings.
-* hazard-shard.png — Jagged dark ruby crystal with crimson-orange cutting bevels.
-* hazard-drifter.png — Arrowhead directional red gemstone.
-* hazard-blinker.png — Symmetrical hollow mechanical shutter iris.
-* power-magnet.png — Translucent cyan horseshoe core with magnetic flux lines.
-* power-shield.png — Spherical electrostatic kinetic aegis bubble.
-* power-slow.png — Chrono-dilating hourglass with celestial event horizon rings.
-* power-nova.png — Starburst nova core with expanding coronal ring.
-* star-gold.png — Beveled four-point star gem with golden flare motes.
-* ufo-saucer.png — High-tech titanium extraterrestrial harvester ship with cyan conduits.
+### Sprites (`assets/sprites/`) — All 512×512, 32-bit RGBA, unmultiplied alpha, $\ge 12\%$ outer margin
+* `comet-core.png` — Player comet nucleus with aerodynamic energy wings.
+* `hazard-shard.png` — Jagged dark ruby crystal with crimson-orange cutting bevels.
+* `hazard-drifter.png` — Arrowhead directional red gemstone, normalized ~75% footprint.
+* `hazard-blinker.png` — Symmetrical hollow mechanical shutter iris.
+* `power-magnet.png` — Translucent cyan horseshoe core with magnetic flux lines.
+* `power-shield.png` — Canon mint kinetic aegis bubble (`#7bffc8` / `Color(0.48, 1.0, 0.78)`).
+* `power-slow.png` — Chrono-dilating hourglass with celestial event horizon rings.
+* `power-nova.png` — Canon cyan-white starburst nova core (`#ffffff` / `#e8f8ff`).
+* `star-gold.png` — Beveled four-point star gem with golden flare motes.
+* `ufo-saucer.png` — High-tech titanium extraterrestrial harvester ship with cyan conduits.
 
-### Textures & Flow Maps (ssets/textures/)
-* 	ex-stellar-stream.png (512×1024) — Seamless vertical plasma flow texture for 	idal_bridge.gdshader.
-* ufo-tractor-beam.png (576×1024) — Volumetric cyan abduction ray with harmonic wave rings.
+### Textures & Flow Maps (`assets/textures/`)
+* `tex-stellar-stream.png` (512×1024) — Seamless vertical plasma flow texture for `tidal_bridge.gdshader`.
+* `ufo-tractor-beam.png` (512×1024) — Power-of-two volumetric cyan abduction ray with harmonic wave rings.
 
-### Particles (ssets/particles/)
-* x-soft-glow.png (256×256) — Gaussian radial glow core for comet halo.
-* x-spark.png (256×256) — Four-point chromatic spark for star collections and collisions.
-* x-frost-crystal.png (256×256) — 6-point ice snowflake for Cryo Moon tidal siphon wake.
-* x-solar-plasma.png (256×256) — Incandescent solar prominence flare for Molten Star siphon wake.
-* x-alien-shockwave.png (512×512) — Concentric EMP plasma shockwave for UFO tether overload.
-* 	rail-ribbon.png (512×128) — Horizontal gradient ramp for ribbon trails.
+### Particles (`assets/particles/`)
+* `fx-soft-glow.png` (256×256) — Gaussian radial glow core for comet halo.
+* `fx-spark.png` (256×256) — Four-point chromatic spark for star collections and collisions.
+* `fx-frost-crystal.png` (256×256) — 6-point dendritic ice snowflake for Cryo Moon tidal siphon wake.
+* `fx-solar-plasma.png` (256×256) — Coronal solar prominence flare with zero-alpha margins.
+* `fx-alien-shockwave.png` (512×512) — Concentric EMP plasma shockwave for UFO tether overload.
+* `trail-ribbon.png` (512×128) — Horizontal gradient ramp for ribbon trails with feathered zero-alpha edge margins.
 
 ---
 
 ## 4. Note on Root .webp Files (Legacy Fallback)
-The loose .webp files in ssets/ (power-*.webp, cosmo-wordmark.webp) are legacy 2D sprites copied from the web build (public/art/). They are currently preloaded by spatial_world.gd as fallbacks. 
-New features should use the high-resolution 32-bit RGBA PNGs in ssets/sprites/ and ssets/particles/.
+The loose `.webp` files in `assets/` (`power-*.webp`, `cosmo-wordmark.webp`) are legacy 2D sprites copied from the web build (`public/art/`). They are currently preloaded by `spatial_world.gd` as fallbacks. 
+New features should use the high-resolution 32-bit RGBA PNGs in `assets/sprites/` and `assets/particles/`.
