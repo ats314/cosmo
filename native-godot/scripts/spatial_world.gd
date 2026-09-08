@@ -28,19 +28,17 @@ const VIOLET := Color(0.706, 0.545, 1.0) # COL.warp   #b48bff
 const POWER_COLORS := {
 	"shield": Color(0.48, 1.0, 0.78), "warp": Color(0.71, 0.55, 1.0),
 	"spot": Color(0.88, 0.84, 1.0), "nova": Color(0.91, 0.97, 1.0),
-	"hyper": Color(1.0, 0.31, 0.85), "mirror": Color(0.34, 0.62, 1.0),
-	"scorch": Color(1.0, 0.52, 0.15), "slip": Color(0.24, 0.86, 0.88),
-	"trail": Color(1.0, 0.77, 0.29), "bh": Color(0.66, 0.36, 0.96),
+	# Aligned to COL in src/game/runtime.js. Blue for the mirror and orange for
+	# scorch are the two the original argues hardest for: blue was free and reads
+	# as "another one of you", and scorch is warm-ORANGE rather than warm-red
+	# precisely so it cannot be mistaken for the pink-red that means death.
+	"hyper": Color(1.0, 0.310, 0.847), "mirror": Color(0.302, 0.549, 1.0),
+	"scorch": Color(1.0, 0.541, 0.169), "slip": Color(0.24, 0.86, 0.88),
+	"trail": Color(1.0, 0.77, 0.29), "bh": Color(0.561, 0.361, 1.0),
 	"starfall": Color(1.0, 0.84, 0.39),
 }
-# PARTLY MIGRATED, AND THE SPLIT IS DELIBERATE.
-#
-# assets/sprites/ currently holds four standardised power PNGs — shield, nova,
-# slow and magnet. The other six exist only as the legacy root .webp carried
-# over from the web build. preload() resolves at parse time, so repointing all
-# ten at res://assets/sprites/ would not degrade gracefully: it would fail to
-# compile this script and take the whole game with it. The four that exist are
-# migrated; the rest stay on .webp until their PNGs land.
+# All ten standardised sprites now live in assets/sprites/. The legacy root
+# .webp files this used to read are superseded and can be retired.
 #
 # "spot" is Magnet. The historic id is deliberately preserved (PORT_STATUS), and
 # it previously loaded power-spotlight.webp, whose name reads like a different
@@ -50,12 +48,12 @@ const POWER_TEXTURES := {
 	"warp": preload("res://assets/sprites/power-slow.png"),
 	"spot": preload("res://assets/sprites/power-magnet.png"),
 	"nova": preload("res://assets/sprites/power-nova.png"),
-	"hyper": preload("res://assets/power-hyper.webp"),
-	"mirror": preload("res://assets/power-mirror.webp"),
-	"scorch": preload("res://assets/power-scorch.webp"),
-	"slip": preload("res://assets/power-slip.webp"),
-	"trail": preload("res://assets/power-trail.webp"),
-	"bh": preload("res://assets/power-blackhole.webp"),
+	"hyper": preload("res://assets/sprites/power-hyper.png"),
+	"mirror": preload("res://assets/sprites/power-mirror.png"),
+	"scorch": preload("res://assets/sprites/power-scorch.png"),
+	"slip": preload("res://assets/sprites/power-slip.png"),
+	"trail": preload("res://assets/sprites/power-trail.png"),
+	"bh": preload("res://assets/sprites/power-blackhole.png"),
 }
 
 var camera: Camera3D
@@ -386,6 +384,20 @@ func _update_encounters(sim, clock: float) -> void:
 	var hoops := 0
 	for icon in _power_icons:
 		icon.visible = false
+	# THE FINALE IS A CHAIN, AND THE PLAYER HAS TO SEE WHICH LINK IS NEXT.
+	#
+	# begin_finale() lays a numbered run of stars ahead of the comet, meant to be
+	# taken in order. Drawn identically they read as a scattered handful, and the
+	# player picks whichever is nearest rather than the one the run is asking for
+	# — the shape of the sequence is invisible precisely when it matters most.
+	# The lowest surviving index is the next one owed; it leads, and the rest of
+	# the chain stands back so the order reads at a glance.
+	var next_finale := -1
+	for obj in sim.objects:
+		if obj.active and not obj.hit and not obj.suspended and obj.kind == "star" and obj.finale_index >= 0:
+			if next_finale < 0 or int(obj.finale_index) < next_finale:
+				next_finale = int(obj.finale_index)
+
 	for obj in sim.objects:
 		if not obj.active or obj.hit or obj.suspended:
 			continue
@@ -398,7 +410,17 @@ func _update_encounters(sim, clock: float) -> void:
 			var star_size := 11.0 if obj.bonus or obj.starfall else 9.0
 			var star_color := GOLD if not obj.bonus and not obj.starfall else Color(1.0, 0.80, 0.32)
 			if obj.finale_index >= 0:
-				star_size = 12.0
+				if int(obj.finale_index) == next_finale:
+					# The one owed next: larger and at full gold, with a slow
+					# breath so it separates from a static field without adding
+					# a new effect vocabulary the player has to learn.
+					star_size = 15.0 + 1.1 * sin(clock * 4.2)
+					star_color = Color(1.0, 0.86, 0.46)
+				else:
+					# Still coming, and deliberately quieter. Dimmed rather than
+					# hidden — the chain's shape is the information.
+					star_size = 10.0
+					star_color = star_color.darkened(0.42)
 			if obj.exit_sun:
 				star_size = 26.0 if sim.finish_bloomed else 19.0
 				star_color = Color(1.0, 0.82, 0.41) if sim.finish_bloomed else Color(0.36, 0.32, 0.23)

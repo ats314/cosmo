@@ -264,10 +264,29 @@ func _update_hud() -> void:
 		state_text += "   ·   Starfall %ds" % ceili(sim.starfall_left)
 	else:
 		state_text += "   ·   Starfall %d/%d" % [sim.charge, Content.starfall_need(sim.upgrades)]
-		for power in Content.powers():
-			if sim.has_power(str(power.id)):
-				state_text += "\n%s %ds" % [str(power.name).capitalize(), ceili(float(sim.powers[power.id]))]
-				break
+
+	# EVERY ACTIVE POWER REPORTS ITSELF, AND NOT ONLY WHEN NOTHING ELSE IS HAPPENING.
+	#
+	# Two faults sat here. The loop `break`ed on the first match, so a player
+	# holding Magnet and Scorch together was told about exactly one of them —
+	# and which one depended on table order, not on what they had just earned.
+	# And the whole block lived inside the `else` above, so Starfall or a black
+	# hole erased the readout entirely: the powers were still running, still
+	# spending their timers, and the HUD said nothing about them.
+	#
+	# The invariant is that what the player can see stays aligned with what the
+	# game is doing, and status appears only when it has a useful reading. An
+	# expiring timer the player is relying on is a useful reading whatever else
+	# is on screen. Ordered by time remaining so the one about to lapse is
+	# nearest the eye.
+	var live: Array = []
+	for power in Content.powers():
+		var id := str(power.id)
+		if sim.has_power(id):
+			live.append({"name": str(power.name).capitalize(), "left": float(sim.powers[id])})
+	live.sort_custom(func(a, b): return a["left"] < b["left"])
+	for entry in live:
+		state_text += "\n%s %ds" % [entry["name"], ceili(entry["left"])]
 	status.text = state_text
 	progress.value = clampf((sim.difficulty - float(level.dl_start)) / float(level.duration), 0.0, 1.0)
 
