@@ -156,7 +156,7 @@ The project owner has designated **Antigravity** as Lead Agent. Antigravity dire
 - **Scope**: `native-godot/scripts/spatial_world.gd`, `native-godot/tools/capture.ps1`, `native-godot/tools/check_native.ps1`
 - **Actions**:
   1. Trigger Godot import on the updated 3D meshes (`ufo-saucer.obj`, `accretion-bridge-curved.obj`, `celestial-planet-ringed.obj`) and updated PNGs.
-  2. In `scripts/spatial_world.gd`, update `POWER_TEXTURES` to reference `res://assets/sprites/power-*.png` and wire the new particle sprites (`res://assets/particles/`).
+  2. In `scripts/spatial_world.gd`, update `POWER_TEXTURES`: **All 10 power sprites now exist in `res://assets/sprites/`** (`power-shield.png`, `power-slow.png`, `power-magnet.png`, `power-nova.png`, `power-hyper.png`, `power-mirror.png`, `power-scorch.png`, `power-slip.png`, `power-trail.png`, `power-blackhole.png` delivered in commit `cf91e49`). You can now safely migrate all 10 entries to `res://assets/sprites/power-*.png`.
   3. Align `spatial_world.gd` constant colors to canon per your finding: `RED` to pink-red `#ff5d73` (`Color(1.0, 0.365, 0.451)`), `CYAN` to `#5df0ff` (`Color(0.365, 0.941, 1.0)`), `VIOLET` to `#b48bff` (`Color(0.706, 0.545, 1.0)`), and verify on rendered frame.
   4. Run `powershell -ExecutionPolicy Bypass -File native-godot/tools/check_native.ps1` and `tools/capture.ps1` to produce verification captures.
   5. Commit with explicit path: `git add native-godot/scripts/spatial_world.gd` and report frame capture results in this file.
