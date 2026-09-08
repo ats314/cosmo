@@ -9,6 +9,7 @@ import { flightSandbox } from './lib/flight-sandbox.mjs';
 import { flightScenarios } from './lib/flight-scenarios.mjs';
 import { flightGL } from './lib/flight-gl.mjs';
 import { verifyFlightTransitions } from './lib/flight-transitions.mjs';
+import { verifyVoyageRendering } from './lib/voyage-checks.mjs';
 import { createFlightWorld } from '../src/game/flight-world.ts';
 
 const root = new URL('../', import.meta.url);
@@ -116,49 +117,8 @@ if (record) {
   await writeFile(new URL('work/web-flight-baseline/nonvisual-hashes.json', root), JSON.stringify({ sourceSHA256: fixture.sourceSHA256, functions: fixture.functions, constants: fixture.constants }, null, 2) + '\n');
   console.log(`FLIGHT BASELINE RECORDED: ${Object.keys(fixture.functions).length} functions, ${constantNames.length} tuning tables, ${frames} original frames`);
 } else {
-  // Presentation-only completed-world passages must never become a second
-  // transition clock. Hold the copied frame to prove pause/static behavior,
-  // then leave through play and menu paths and check the passage is released.
-  const passageGpu = flightGL();
-  let geometry = [];
-  const upload = passageGpu.gl.bufferData;
-  passageGpu.gl.bufferData = (kind, values, usage) => {
-    geometry = Array.from(values); upload(kind, values, usage);
-  };
-  const passageWorld = createFlightWorld(passageGpu.gl);
-  const baseFrame = {
-    enabled: true, width: 390, height: 844, dpr: 1,
-    center: [195, 422], outerCenter: [195, 422], radii: [147, 230],
-    comet: [310, 422], angle: 0, direction: 1, visualTime: 3, travel: 300,
-    active: false, reducedMotion: false,
-    palette: { tint: [0.16, 0.30, 0.56], rim: [0.30, 0.79, 0.95], dust: [0.30, 0.37, 0.67] },
-    transition: { elapsed: 2, completed: true, nextLevel: 2 },
-  };
-  const passageDepths = () => geometry.filter((_, i) => i % 11 === 2 && geometry[i + 7] === 2);
-  passageWorld.render(freezeDeep(baseFrame));
-  const depths = passageDepths();
-  assert(depths.some(z => z < 0) && depths.some(z => z > 2000), 'wormhole lacks travel through a real depth volume');
-  const heldPassage = geometry.slice();
-  passageWorld.render(freezeDeep(baseFrame));
-  assert.deepEqual(geometry, heldPassage, 'wormhole moves while its presentation clock is paused');
-  for (let i = 1; i <= 110; i++) {
-    passageWorld.render({ ...baseFrame, active: true, transition: undefined,
-      visualTime: 3 + i / 60, travel: 300 + i * 100 / 60 });
-  }
-  assert(!passageDepths().some(z => z > 0), 'wormhole remains over the next live world after its exit');
-  passageWorld.render({ ...baseFrame, visualTime: 6, travel: 600 });
-  passageWorld.render({ ...baseFrame, visualTime: 6, travel: 600, transition: undefined });
-  assert.equal(passageDepths().length, 0, 'returning to a menu retains the completed-world passage');
-  passageWorld.render({ ...baseFrame, transition: { ...baseFrame.transition, completed: false } });
-  assert.equal(passageDepths().length, 0, 'a selected starting-world card falsely celebrates a completion');
-  passageWorld.reset();
-  passageWorld.render({ ...baseFrame, reducedMotion: true, visualTime: 0, travel: 0 });
-  const staticPassage = geometry.slice();
-  passageWorld.render({ ...baseFrame, reducedMotion: true, visualTime: 0, travel: 0,
-    transition: { ...baseFrame.transition, elapsed: 20 } });
-  assert.deepEqual(geometry, staticPassage, 'reduced-motion wormhole animates with card duration');
-  passageGpu.verify(); passageWorld.dispose();
-  console.log('FLIGHT PASSAGE OK  depth volume, frozen clock, live exit, menu reset, selected-level exclusion and static reduced motion');
+  const voyage = verifyVoyageRendering(source);
+  console.log(`VOYAGE OK  ${voyage.routeSamples} destination/viewport samples, ${voyage.exits} real upgrade exits with no live-play wormhole; copied route, held clocks, reduced motion, reset; max ${voyage.maxVertices}/12500 vertices`);
   const transitions = verifyFlightTransitions(source);
   console.log(`FLIGHT TRANSITIONS OK  ${transitions.scenarios} completion-card scenarios, ${transitions.frames} glide frames; both directions, mid-hop, mixed frame rates, reduced motion; original next-level start reset remains outside this continuity claim`);
   console.log(`FLIGHTCHECK OK  ${Object.keys(fixture.functions).length} nonvisual functions and ${constantNames.length} tuning tables unchanged; ${frames} original trajectory frames, ${purityChecks} pure reads, ${callbacks} adapter calls, ${geometryDraws} actual renderer draws; tap/swipe/pause/powers/audio/RNG/save equivalent`);

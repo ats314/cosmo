@@ -1,3 +1,5 @@
+import { VOYAGE_SHADER } from './voyage-world.ts';
+
 /** Cosmo's visual flight volume. All clocks and positions come from the game.
  * This module owns no input, audio, gameplay state, canvas, or animation loop.
  * Positive depth is away from the viewer; depth zero is the original arena.
@@ -26,9 +28,11 @@ export interface FlightFrame {
   /** Optional projected planet disc. Deep fibers pass behind its visible body. */
   planet?: { center: FlightVec2; radius: number };
   effects?: { turn?: number; hop?: number; radial?: number; magnet?: number;
-    scorch?: number; release?: number; blackHole?: number };
+    scorch?: number; release?: number; blackHole?: number; charge?: number; orbit?: number };
   /** A copied level card, never a timer or command owned by this renderer. */
   transition?: { elapsed: number; completed: boolean; nextLevel: number };
+  /** A camera route through an authored destination; never a difficulty clock. */
+  voyage?: { progress: number; chapter: number };
 }
 export interface FlightWorld {
   render(frame: FlightFrame): boolean;
@@ -75,15 +79,25 @@ void main(){
   vColor=aColor;vUv=aUv;vStyle=aStyle;
 }`;
 const FRAGMENT = `
-precision mediump float;
+precision highp float;
 varying vec4 vColor;
 varying vec2 vUv,vStyle;
 uniform vec2 uOuterCenter,uRadii,uBufferSize;
 uniform highp vec2 uSize;
 uniform vec3 uPlanet;
+uniform vec3 uVoyage;
+uniform vec3 uVoyagePower,uVoyageForce,uVoyageCue;
+${VOYAGE_SHADER}
 void main(){
   vec2 pixel=vec2(gl_FragCoord.x/uBufferSize.x,1.0-gl_FragCoord.y/uBufferSize.y)*uSize;
   float radius=length((pixel-uOuterCenter)/uRadii);
+  if(vStyle.x>4.5){
+    vec3 color=paintVoyage(voyageResponsePosition(pixel,uSize),uSize,uVoyage);
+    color=voyageResponseColor(color,pixel,uSize);
+    float arena=smoothstep(0.28,0.48,radius)*(1.0-smoothstep(1.0,1.22,radius));
+    color=pow(max(color,vec3(0.0)),vec3(0.86))*(1.0-arena*0.20);
+    gl_FragColor=vec4(color,1.0);return;
+  }
   if(vStyle.x>3.5){
     // A passage has depth in front of the departing world. Its indigo interior
     // gently occludes that world; the center remains a dark distant aperture.
@@ -158,7 +172,8 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
     if (buffer) gl.deleteBuffer(buffer);
     throw error;
   }
-  const uniforms = Object.fromEntries(['uSize', 'uBufferSize', 'uCenter', 'uFocal', 'uOuterCenter', 'uRadii', 'uPlanet']
+  const uniforms = Object.fromEntries(['uSize', 'uBufferSize', 'uCenter', 'uFocal', 'uOuterCenter', 'uRadii', 'uPlanet', 'uVoyage',
+    'uVoyagePower', 'uVoyageForce', 'uVoyageCue']
     .map(name => [name, gl.getUniformLocation(program!, name)]));
   const data = new Float32Array(MAX_VERTICES * STRIDE);
   const trail: TrailPoint[] = [];
@@ -216,11 +231,27 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
     const distance = decorativeTravel * scale;
     const release = clamp(frame.effects?.release ?? 0);
     const hole = clamp(frame.effects?.blackHole ?? 0);
+    const ordinaryPower = hole > 0.001 ? 0 : 1;
+    const charge = clamp(frame.effects?.charge ?? 0) * ordinaryPower;
+    const scorch = clamp(frame.effects?.scorch ?? 0) * ordinaryPower;
+    const magnet = clamp(frame.effects?.magnet ?? 0) * ordinaryPower;
     const turn = clamp(frame.effects?.turn ?? 0);
     const hop = clamp(frame.effects?.hop ?? 0);
     const time = frame.reducedMotion ? 0 : frame.visualTime;
     const portal = smooth(0, 1, passage);
     const ordinary = 1 - portal * 0.88;
+    const voyage = frame.voyage && frame.voyage.chapter >= 0 && frame.voyage.chapter <= 5
+      && Number.isFinite(frame.voyage.progress) && !frame.transition?.completed;
+    if (voyage) {
+      const corner = { x: -frame.center[0], y: -frame.center[1], z: 0 };
+      const white = [1, 1, 1] as const;
+      vertex(corner, 0, 0, white, 1, 0, 0, 5, 0);
+      vertex(corner, frame.width, 0, white, 1, 0, 0, 5, 0);
+      vertex(corner, frame.width, frame.height, white, 1, 0, 0, 5, 0);
+      vertex(corner, 0, 0, white, 1, 0, 0, 5, 0);
+      vertex(corner, frame.width, frame.height, white, 1, 0, 0, 5, 0);
+      vertex(corner, 0, frame.height, white, 1, 0, 0, 5, 0);
+    }
 
     // The distant route bends, but the bend is exactly zero at the reference plane.
     const route = (angle: number, depth: number, radius: number): Point => {
@@ -240,8 +271,8 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
       * (1 - smooth(2500 * scale, 3400 * scale, depth));
     // Broad translucent material and fine nested strands share one curved volume.
     // Far-to-near construction is deliberate: this shared sky has no depth buffer.
-    const ordinarySegments = portal > 0.0001 ? 32 : 64;
-    const ordinaryDepthStep = 3264 / ordinarySegments;
+    const ordinarySegments = voyage ? 0 : portal > 0.0001 ? 32 : 64;
+    const ordinaryDepthStep = 3264 / Math.max(1, ordinarySegments);
     for (let segment = ordinarySegments - 1; segment >= 0; segment--) {
       const depthA = (100 + segment * ordinaryDepthStep) * scale;
       const depthB = depthA + ordinaryDepthStep * scale;
@@ -346,7 +377,7 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
     // A grain and its tail follow the same path at successive travel positions.
     // Near grains continue past the arena toward the viewer; the central masks
     // still protect gameplay. Nothing changes direction when the comet turns.
-    if (!frame.reducedMotion) {
+    if (!frame.reducedMotion && !voyage) {
       const dustHue = mix(frame.palette.rim, [0.64, 0.84, 0.93], 0.40);
       const near = -0.55 * focal, span = 3550 * scale - near;
       for (const item of dustOrder) {
@@ -383,13 +414,19 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
 
     if (frame.reducedMotion || !frame.active || trail.length < 2) return;
     const cyan = frame.cometColor ?? [0.20, 0.86, 1.0];
-    const hue = mix(cyan, frame.palette.rim, 0.16);
+    let hue = mix(cyan, frame.palette.rim, 0.16);
+    hue = mix(hue, [0.34, 0.95, 0.82], charge * 0.24);
+    hue = mix(hue, [1.0, 0.40, 0.12], scorch * 0.78);
+    hue = mix(hue, [1.0, 0.80, 0.33], release * ordinaryPower * 0.65);
     const toPoint = (p: TrailPoint): Point => {
       const age = frame.visualTime - p.birth;
       const wake = Math.min(focal * 0.55, Math.max(0, decorativeTravel - p.distance) * scale);
       // Existing material follows an eased gesture disturbance, never a light pulse.
       const ripple = Math.sin(age * 2.1 + p.birth * 0.65) * scale * (turn * 2.0 + hop * 1.7);
-      return { x: p.x + ripple, y: p.y + ripple * 0.35, z: -wake };
+      const toCometX = frame.comet[0] - frame.center[0] - p.x;
+      const toCometY = frame.comet[1] - frame.center[1] - p.y;
+      const gathering = magnet * Math.min(0.16, age * 0.05);
+      return { x: p.x + ripple + toCometX * gathering, y: p.y + ripple * 0.35 + toCometY * gathering, z: -wake };
     };
     for (let i = trail.length - 2; i >= 0; i--) {
       const newer = trail[i], older = trail[i + 1];
@@ -399,7 +436,11 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
       const lifeB = clamp(1 - (frame.visualTime - older.birth) / 3.3);
       const phaseA = newer.birth * 0.43 - time * 0.31;
       const phaseB = older.birth * 0.43 - time * 0.31;
-      const widening = 1 + release * 0.24;
+      const widening = 1 + charge * 0.24 + scorch * 0.28 + release * ordinaryPower * 0.38;
+      if (scorch > 0.001) {
+        ribbon(a, b, 12.5 * scale * lifeA, 12.5 * scale * lifeB, [0.76, 0.20, 0.045],
+          0.13 * lifeA ** 2 * scorch, 0.13 * lifeB ** 2 * scorch, phaseA, phaseB, 2, 0.40);
+      }
       ribbon(a, b, 6.8 * scale * lifeA * widening, 6.8 * scale * lifeB * widening, hue,
         0.16 * lifeA ** 2, 0.16 * lifeB ** 2, phaseA, phaseB, 2, 0.30);
       ribbon(a, b, 1.4 * scale * lifeA, 1.4 * scale * lifeB, mix(hue, [0.84, 0.98, 1], 0.36),
@@ -438,20 +479,16 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
     if (frame.reducedMotion !== previousReduced) { trail.length = 0; sampleTime = -1; }
     previousReduced = frame.reducedMotion;
     if (!frame.reducedMotion && dt > 0) decorativeTravel += Math.max(0, frame.travel - lastTravel);
-    if (frame.transition?.completed) {
+    if (!frame.active && frame.transition?.completed) {
       const elapsed = Math.max(0, Number.isFinite(frame.transition.elapsed) ? frame.transition.elapsed : 0);
       if (passageElapsed < 0 || elapsed < passageElapsed) passageTravel = 0;
       passageElapsed = elapsed;
       destination = frame.transition.nextLevel;
       passage = frame.reducedMotion ? 0.84 : smooth(0, 1.7, elapsed);
       if (!frame.reducedMotion) passageTravel += dt * 215;
-    } else if (frame.active && passage > 0 && !frame.reducedMotion) {
-      // The existing next-level action owns the departure. The passage only
-      // dissolves around it, never delaying a control or consuming a reward.
-      passage = Math.max(0, passage - dt / 1.65);
-      passageTravel += dt * 215;
-      passageElapsed = -1;
     } else {
+      // A wormhole is exclusively a between-worlds passage. The first playable
+      // frame has no tunnel, transition debris, or lingering passage overlay.
       passage = 0; passageTravel = 0; passageElapsed = -1;
     }
     lastTime = frame.visualTime; lastTravel = frame.travel;
@@ -480,6 +517,16 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
       gl.uniform2f(uniforms.uRadii, frame.radii[0], frame.radii[1]);
       gl.uniform1f(uniforms.uFocal, 900 * frame.width / 540);
       gl.uniform3f(uniforms.uPlanet, frame.planet?.center[0] ?? 0, frame.planet?.center[1] ?? 0, frame.planet?.radius ?? 0);
+      gl.uniform3f(uniforms.uVoyage, frame.reducedMotion ? 0.24 : clamp(frame.voyage?.progress ?? 0),
+        frame.voyage?.chapter ?? -1, frame.reducedMotion ? 0 : frame.visualTime);
+      const strength = (value: number | undefined): number => frame.active && Number.isFinite(value) ? clamp(value!) : 0;
+      const blackHole = strength(frame.effects?.blackHole);
+      const ordinary = blackHole > 0.001 ? 0 : 1;
+      gl.uniform3f(uniforms.uVoyagePower, strength(frame.effects?.charge) * ordinary,
+        strength(frame.effects?.orbit) * ordinary, strength(frame.effects?.release) * ordinary);
+      gl.uniform3f(uniforms.uVoyageForce, strength(frame.effects?.magnet) * ordinary,
+        strength(frame.effects?.scorch) * ordinary, blackHole);
+      gl.uniform3f(uniforms.uVoyageCue, frame.comet[0], frame.comet[1], frame.reducedMotion ? 0 : 1);
       gl.enable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
       gl.blendEquation(gl.FUNC_ADD);
       gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);

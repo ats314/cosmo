@@ -7,13 +7,23 @@ Keep room to breathe between skillful decisions and musical releases. The
 owner's references emphasize violet/blue nebulae, monumental planets, and
 flowing tunnel walls with light travelling past a distant aperture.
 
+The current web route gives the six existing levels a continuous sequence of
+celestial encounters: Earth and Moon, Saturn, Neptune, a stellar nursery, a
+galactic centre, and Pelagic, an alien ocean world. These are selected solar
+landmarks followed by more distant destinations, not a complete tour of every
+planet or a finished larger campaign. Approach, passage and recession make
+travel visible during the original game. See [the level mapping](levels.md).
+
 Completed-level cards are resting places within that journey: the arena
 recedes, the wormhole continues gently, and the next destination is named.
 Upgrade selection has no timer. The player continues when ready. A small
-route shows the existing level progression without creating new save records.
-Reduced motion keeps a static passage. This first presentation pass preserves
-the tuned pressure curves; further balance work should evaluate stress during
-actual play, particularly the later levels.
+route shows the existing level progression without creating new save records
+or a permanent atlas. Wormholes appear only on completed-level resting cards
+and disappear on the first frame of resumed play. They have no steering,
+collectibles, challenge or independent progression. Reduced motion keeps a
+static passage. This presentation pass preserves the tuned pressure curves
+and existing music; further balance and musical work should evaluate stress
+during actual play, particularly the later levels.
 
 The owner wants a striking premium
 space arcade with clear movement and powerful earned releases. Earlier
@@ -26,6 +36,13 @@ A brilliant comet flies across an immense textured planet, luminous
 atmosphere and sweeping rings, with deep colored nebula and stable stars
 beyond. Give that celestial art room to breathe, particularly in portrait.
 Worlds need distinctive composition, scale, materials and light.
+
+The destination renderer uses original procedural shader scenes: shaded
+spheres, a ring plane and moons at different depths. Their flybys share the
+game's supplied camera progress; the orbital game and HUD remain on their
+existing canvas. This is depth within the scenery, not a conversion of
+hazards or collision rules into a shared 3D world. No new external imagery is
+introduced by these celestial scenes.
 
 Procedural worlds are the foundation: their planet, atmosphere, rings and
 nebula respond to play while keeping routes and red hazards readable. The

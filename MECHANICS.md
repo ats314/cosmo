@@ -499,20 +499,27 @@ whether the lab must be kept out of it.
 
 ## The sky
 
-The eight procedural worlds remain alive on the title screen and during play.
-Their geometry and materials change along the journey; unmarked alpha artwork
-adds detail without replacing the scene with an opaque picture. See
+The default web flight view maps the six existing levels to Earth and Moon,
+Saturn, Neptune, a stellar nursery, a galactic centre and Pelagic, an alien
+ocean world. These are selected destinations, not every planet or a complete
+larger campaign. Original procedural shader spheres, rings and moons supply
+depth in the scenery; gameplay remains on its existing orbital canvas. The
+eight procedural worlds remain the underlying palette, classic view and lab
+scene. Their geometry and materials change along the original world journey;
+unmarked alpha artwork adds detail. See
 [the current direction](docs/design/direction.md) and
 [the effects audit](docs/design/effects-audit.md).
 
 | System | How it works | Explained by |
 |---|---|---|
-| Worlds | DRIFT, TIDE, DUSTLANE, GLASS, EMBERFALL, VEIL, GRID and DEEP FIELD have distinct planet placement, ring geometry, cloud structure and palette. CPU interpolation carries the composition between worlds. `LEVEL_HOME = [0,1,2,3,4,7]` sets each level's opening floor. | The changing scene shows the journey. |
-| The journey | Each completed orbit advances one seventh of a world; a slow underlying advance of one world per 150 seconds of play keeps a struggling player moving. Each run opens at its level's home floor. | The orbit lesson introduces the connection. |
-| Flight currents | Long strands retain the committed traveled path. A turn redirects flow; a completed hop bends it into the new lane. Signed accumulated travel also advects the nebula and atmosphere without rotating the entire screen. Pause freezes the current history; retry clears it. | The comet visibly disturbs the surrounding space. |
-| Orbit pressure | Star-fed orbit charge and current fed-lap progress deform the planet's rings and surface material. A short local gold marker traces a completed orbit; there is no lit full-field wedge or global beat gain. | Progress sigils, the orbit marker and changing ring geometry. |
-| Starfall | Three real gold-star waves leave the planet's vicinity and curve toward playable rings. Material contours travel outward with the release, then settle. The stars' visible flight and actual contact positions agree. | The arriving stars are the reward, with compact status and sound. |
-| Power forces | Magnet bends streams and nearby stars toward the comet; Scorch leaves a warm traveled wake; the black hole pulls surrounding layers inward. Shared gameplay envelopes coordinate the response. | Visible displacement explains the power without a brightness flash. |
+| Destination flybys | A copied `voyage` view drives approach, passage and recession through the six destinations. It reads the existing level finish-line progress and owns no clock, score, unlock or save. Intro starts at Earth with zero progress; the picker previews a destination; the lab keeps its original scene. Pelagic's camera approaches its endpoint without completing the infinite final level. | Destination and phase labels in the run header; route and destination cards. |
+| Wormhole passage | Only the completed-level resting card shows a wormhole. It has no steering, collectibles, challenge or reward. Upgrade choice is untimed; the first live frame of the next level clears the passage. Selected-start and retry introduction cards do not open it. Reduced motion keeps the resting passage static. | Completed-level card and the existing continue/upgrade actions. |
+| Worlds | In the classic view and lab, DRIFT, TIDE, DUSTLANE, GLASS, EMBERFALL, VEIL, GRID and DEEP FIELD have distinct planet placement, ring geometry, cloud structure and palette. CPU interpolation carries that composition between worlds. `LEVEL_HOME = [0,1,2,3,4,7]` sets each level's opening floor. The default voyage covers this classic scenery with its separate destination scene. | Classic scenery shows the underlying world journey; voyage labels and flybys show destination progress. |
+| Underlying world journey | Each completed orbit advances one seventh of a world; a slow underlying advance of one world per 150 seconds of play keeps a struggling player moving. Each run opens at its level's home floor. This existing world/material travel is distinct from the destination camera's level progress. | The orbit lesson introduces the connection. |
+| Flight currents | Existing committed-path and comet-wake responses remain. In the classic sky, accumulated travel also advects the nebula and atmosphere, with turn and hop disturbances. The opaque destination scenery does not yet use those sky envelopes; its camera follows level progress. Pause freezes current history; retry clears it. | The comet's path and wake remain visible; surrounding material responses belong to the classic sky. |
+| Orbit pressure | Star-fed orbit charge and current fed-lap progress deform the classic planet's rings and surface material. Those deformations are covered by the default destination scene. The short local gold orbit marker and progress sigils remain visible; scoring and audio are unchanged. | Progress sigils and the orbit marker in both views; changing ring geometry in the classic sky. |
+| Starfall | Three real gold-star waves curve toward playable rings from the original sky's planet anchor. That emission anchor is not yet connected to the visible voyage sphere. Outward material contours belong to the covered classic sky. The stars' visible flight and actual contact positions still agree; reward timing, scoring and audio are unchanged. | The arriving stars remain the reward, with compact status and sound; a visible planet-origin connection is currently specific to the classic sky. |
+| Power forces | Magnet's attraction of nearby stars and the existing Scorch and black-hole gameplay and canvas effects remain. Their shared sky envelopes bend classic streams, warm the traveled material and pull surrounding layers inward. The opaque voyage scenery does not yet display those classic surface responses. | Existing gameplay and canvas feedback remain; surrounding material displacement belongs to the classic sky. |
 | Readability and fallback | `SKY_ARENA_CALM = 0.62` preserves readable hazards against rich scenery. `GL_MOTION = 1.0` retains the authored motion baseline. Steady stars and material lighting preserve depth; the canvas path retains the composed world when WebGL is unavailable. | Scene contrast supports the actual route and threats. |
 
 `skyI` remains the ladder band used by the drum-kit flavor and level floor.

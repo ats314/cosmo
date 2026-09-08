@@ -9,6 +9,7 @@ export interface GameSnapshot {
   direction: number;
   score: number;
   level: number;
+  journey: { chapter: number; destination: string; phase: string; progress: number; open: boolean } | null;
   paused: boolean;
   viewport: { width: number; height: number; dpr: number };
   menuRects: HitRect[];
@@ -18,7 +19,7 @@ export interface GameSnapshot {
   loopOwner?: 'Phaser';
   sceneCount?: number;
   engineUpdates?: number;
-  background: { gpu: boolean; materialCount: number; flight?: boolean };
+  background: { gpu: boolean; materialCount: number; classicDraws: number; flight?: boolean; voyage?: boolean };
   reward: { orbits: number; starfall: boolean; wave: number };
 }
 export interface GamePointer {
@@ -41,6 +42,8 @@ export interface RuntimeHost {
   haptic?: (kind: HapticKind) => void;
   getTexture?: (key: string) => HTMLImageElement | HTMLCanvasElement | null;
   flightEnabled?: boolean;
+  /** True only after the host has successfully drawn the destination surface. */
+  hasVoyageScene?: () => boolean;
   renderFlight?: (frame: FlightFrame) => void;
 }
 export interface GameRuntime {

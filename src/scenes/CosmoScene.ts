@@ -25,10 +25,12 @@ export class CosmoScene extends Phaser.Scene {
   private flight?: FlightWorld;
   private background?: HTMLCanvasElement;
   private flightFailed = false;
+  private voyageReady = false;
   private resetFlight = (): void => {
     this.flight?.dispose();
     this.flight = undefined;
     this.flightFailed = false;
+    this.voyageReady = false;
   };
   private resizeWindow = (): void => { this.resizeToWindow(); };
 
@@ -49,6 +51,7 @@ export class CosmoScene extends Phaser.Scene {
       width: window.innerWidth, height: window.innerHeight, dpr,
       externalLoop: true, externalLifecycle: true, native: isNative, haptic,
       flightEnabled: new URLSearchParams(window.location.search).get('flight') !== '0',
+      hasVoyageScene: () => this.voyageReady && !this.flightFailed && !this.disposed,
       renderFlight: (frame) => this.renderFlight(frame),
       getTexture: (key) => {
         if (!this.textures.exists(key)) return null;
@@ -73,7 +76,8 @@ export class CosmoScene extends Phaser.Scene {
     window.COSMO_APP = { engine: 'Phaser', version: Phaser.VERSION, snapshot: () => ({
       ...runtime.snapshot(), loopOwner: 'Phaser', engineUpdates: this.engineUpdates,
       sceneCount: this.game.scene.getScenes(true).length,
-      background: { ...runtime.snapshot().background, flight: !!this.flight && !this.flightFailed },
+      background: { ...runtime.snapshot().background, flight: !!this.flight && !this.flightFailed,
+        voyage: this.voyageReady },
     }) };
     void installNativeBridge({
       pause: () => runtime.pause(),
@@ -86,6 +90,7 @@ export class CosmoScene extends Phaser.Scene {
   update(_time: number, delta: number): void { this.engineUpdates++; this.runtime?.step(delta); }
 
   private renderFlight(frame: FlightFrame): void {
+    this.voyageReady = false;
     if (!frame.enabled || this.disposed || this.flightFailed) return;
     try {
       // Reuse the runtime's already-created context, never acquire another sky.
@@ -94,7 +99,7 @@ export class CosmoScene extends Phaser.Scene {
         if (!gl || gl.isContextLost()) return;
         this.flight = createFlightWorld(gl);
       }
-      this.flight.render(frame);
+      this.voyageReady = this.flight.render(frame) && !!frame.voyage && !frame.transition?.completed;
     } catch (error) {
       // A decorative pass cannot interrupt the original playable game.
       this.flight?.dispose();

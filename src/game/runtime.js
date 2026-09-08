@@ -16,6 +16,7 @@ function gameHaptic(kind,webPattern){
 }
 const runtimeUnsubscribers=[];
 let runtimeDestroyed=false,runtimeFrameId=0,runtimeFrames=0,runtimeSteps=0;
+let runtimeClassicSkyDraws=0;
 let runtimeCloudStorage=null;
 function runtimeListen(target,type,listener,options){
   if(!target||typeof target.addEventListener!=='function')return;
@@ -10054,7 +10055,9 @@ function glRender(dt){
     g.uniform3f(GL.u.uDust,SM.dust[0],SM.dust[1],SM.dust[2]);
     g.uniform3f(GL.u.uEventTint,tint[0],tint[1],tint[2]);
     g.uniform3f(GL.u.uArena,radiusOf(0)/H,radiusOf(G.nRings-1)/H,AY);
-    g.drawArrays(g.TRIANGLES,0,3);
+    // Keep sky clocks, materials and GPU state ready for an immediate fallback,
+    // but do not shade an entire hidden sky beneath a healthy destination.
+    if(!voyageOwnsSky()){g.drawArrays(g.TRIANGLES,0,3);runtimeClassicSkyDraws++;}
   }catch(e){GL.on=false;}
 }
 /* Boot the GPU path here, not at the first resize(): GL is a const declared
@@ -11740,7 +11743,9 @@ function drawRunHUD(top){
   shade.addColorStop(0,'rgba(2,6,17,0.72)');shade.addColorStop(1,'rgba(2,6,17,0)');
   ctx.fillStyle=shade;ctx.fillRect(0,top,W,115*u);
   const pop=RM?1:1+Math.min(0.09,(G.scorePop||0)*0.09);
-  if(!intro)text('SCORE',cx,top+14*u,7.5*u,'700','#8eafc9',2.5*u);
+  const vista=journeyView();
+  const location=vista?vista.destination+'  /  '+vista.phase:'SCORE';
+  if(!intro)text(location,cx,top+14*u,fitSz(location,8.5*u,'700',W-118*u,1*u),'700','#b4d5e3',1*u);
   text(intro?'COSMO':G.score,cx,top+51*u,(intro?29:42)*u*pop,'800','#effbff',intro?6*u:0);
   const label=intro?'YOUR FIRST FLIGHT':'LEVEL '+G.level+'  /  '+levelName();
   text(label,cx,top+73*u,fitSz(label,9.5*u,'700',W-115*u,1.2*u),'700','#b1c9dc',1.2*u);
@@ -11951,6 +11956,41 @@ function frontHeading(label,title,x,y,w){
   ctx.fillStyle='#8fecff';ctx.fillRect(x,y+51*u,45*u,3*u);ctx.restore();
 }
 /* A route is a view of existing progress, never another record or unlock. */
+const VOYAGE_ROUTE=[
+  {chapter:2,name:'EARTH & MOON',phases:['EARTHRISE','LUNAR PASSAGE','LEAVING HOME'],description:'Leave Earth behind. Pass the Moon and head outward.'},
+  {chapter:0,name:'SATURN',phases:['APPROACH','ALONG THE RINGS','OUTWARD BOUND'],description:'Approach Saturn, sweep along its rings, then travel onward.'},
+  {chapter:3,name:'NEPTUNE',phases:['BLUE HORIZON','ICE GIANT FLYBY','SOLAR SYSTEM EDGE'],description:'Pass the blue giant at the edge of the planetary system.'},
+  {chapter:1,name:'STELLAR NURSERY',phases:['NEBULA APPROACH','THROUGH THE CLOUDS','DISTANT STARLIGHT'],description:'Follow luminous clouds into a vast stellar nursery.'},
+  {chapter:4,name:'GALACTIC CENTRE',phases:['INNER GALAXY','THE DARK HEART','BEYOND THE FAMILIAR'],description:'Travel beside the luminous heart of a distant galaxy.'},
+  {chapter:5,name:'PELAGIC',phases:['UNCHARTED WORLD','LUMINOUS SHORES','DEEP EXPLORATION'],description:'Discover an alien ocean world beneath unfamiliar skies.'}
+];
+function journeyDestination(n){return VOYAGE_ROUTE[Math.max(0,Math.min(VOYAGE_ROUTE.length-1,n-1))];}
+/* The itinerary reads the same finish line as the HUD. It has no clock, save
+   key, unlock or interaction of its own. The final world remains exploration. */
+function journeyView(){
+  if(!runtimeHost.flightEnabled||LAB.on||G.state==='powersel'||G.state==='swipesel')return null;
+  const selected=G.state==='levelsel',card=G.state==='lvend';
+  const n=selected?G.lvSel:card&&!G.lvCard?.done?(G.lvCard?.next||G.level):G.state==='menu'?1:G.level;
+  const route=journeyDestination(n),level=LV[Math.max(0,Math.min(LV.length-1,n-1))];
+  const open=!Number.isFinite(level.end);
+  const distance=Math.max(0,G.state==='dead'?
+    dlOld((Math.max(0,G.deadT-G.started)+Math.min(G.diff*.22,40))*MD().clock):dl()-level.dl0);
+  let progress=open?1-Math.exp(-distance/130):Math.max(0,Math.min(1,distance/(level.end-level.dl0)));
+  if(G.intro)progress=0;
+  if(G.state==='menu'||selected)progress=.24;
+  if(card)progress=G.lvCard?.done?1:0;
+  const phase=route.phases[progress<.3?0:progress<.74?1:2];
+  return {chapter:route.chapter,destination:route.name,phase:phase,progress:progress,open:open};
+}
+function voyageFrame(){
+  const view=journeyView();
+  return view?{chapter:view.chapter,progress:view.progress}:undefined;
+}
+function voyageOwnsSky(){
+  if(!GL.on||!voyageFrame()||(G.state==='lvend'&&G.lvCard?.done))return false;
+  try{return typeof runtimeHost.hasVoyageScene==='function'&&runtimeHost.hasVoyageScene()===true;}
+  catch(e){return false;}
+}
 function drawJourneyRoute(x,y,w,selected,reached,from){
   const first=from||1,step=w/Math.max(1,LEVEL_MAX-1);
   ctx.save();ctx.lineWidth=1*u;
@@ -11968,9 +12008,10 @@ function drawJourneyRoute(x,y,w,selected,reached,from){
   ctx.restore();
 }
 function journeyDescription(n){
-  return ['Find your rhythm among the stars.','Drift beside luminous rings.',
-    'Trace a path through moving constellations.','Explore the edge of a gravity well.',
-    'Follow the warm light into deep space.','Wander the farthest sky.'][n-1]||'';
+  return runtimeHost.flightEnabled?journeyDestination(n).description:
+    ['Find your rhythm among the stars.','Drift beside luminous rings.',
+      'Trace a path through moving constellations.','Explore the edge of a gravity well.',
+      'Follow the warm light into deep space.','Wander the farthest sky.'][n-1]||'';
 }
 function drawHUD(){
   /* First encounters identify the object with a steady local bracket.
@@ -12031,7 +12072,7 @@ function drawHUD(){
     const L=LV[n-1],short=H-safeTop-safeBot<560*u;
     const a=Math.min(1,(G.t-G.lvT)/0.35),w=Math.min(W-40*u,short?660*u:390*u);
     const x=cx-w/2,offered=G.offer&&G.offer.length;
-    const name=L.name.toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase());
+    const name=(runtimeHost.flightEnabled?journeyDestination(n).name:L.name).toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase());
     ctx.save();ctx.globalAlpha=a;
     const veil=ctx.createLinearGradient(0,0,0,H);
     veil.addColorStop(0,'rgba(3,8,20,.68)');veil.addColorStop(.35,'rgba(3,8,20,.12)');
@@ -12046,7 +12087,8 @@ function drawHUD(){
     }
     ctx.save();ctx.globalAlpha*=.13;
     text(String(n).padStart(2,'0'),cx+w*.33,y+49*u,108*u,'900','#80d8f3',-5*u);ctx.restore();
-    text((card.done?'NEXT DESTINATION  /  ':'LEVEL ')+n,cx,y,12*u,'700','#b1dcf2',1.5*u);
+    const heading=runtimeHost.flightEnabled?(card.done?'NEXT  /  ':'')+'LEVEL '+n+'  /  '+L.name:(card.done?'NEXT DESTINATION  /  ':'LEVEL ')+n;
+    text(heading,cx,y,fitSz(heading,12*u,'700',w,1*u),'700','#b1dcf2',1*u);
     text(name,cx,y+37*u,fitSz(name,35*u,'800',w,0),'800','#edfaff',0);
     if(!short){
       text(journeyDescription(n),cx,y+64*u,fitSz(journeyDescription(n),13*u,'400',w),'400','#c4c6df',0);
@@ -12192,13 +12234,14 @@ function drawHUD(){
     G.lvSelRects=[];
     for(let i=0;i<LEVEL_MAX;i++){
       const n=i+1,on=G.lvSel===n,reached=n<=G.lvlMax,xx=x+(i%cols)*(cw+gap),yy=y0+Math.floor(i/cols)*(rh+gap);
-      const name=LV[i].name.toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase());
+      const name=(runtimeHost.flightEnabled?journeyDestination(n).name:LV[i].name).toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase());
       G.lvSelRects.push({x:xx,y:yy,w:cw,h:rh,id:'lv',lv:n});
       frontPanel(xx,yy,cw,rh,'#8deaff',on);
       ctx.textBaseline='middle';
       text(String(n).padStart(2,'0'),xx+27*u,yy+rh/2,25*u,'900',on?'#a2efff':'#507e9f',-1*u);
       ctx.textAlign='left';
-      text(name,xx+51*u,yy+rh/2,fitSz(name,18*u,'700',cw-104*u),'700',on?'#edfaff':'#afcddd',0);
+      text(name,xx+51*u,yy+rh/2-(runtimeHost.flightEnabled?7*u:0),fitSz(name,17*u,'700',cw-104*u),'700',on?'#edfaff':'#afcddd',0);
+      if(runtimeHost.flightEnabled)text(LV[i].name,xx+51*u,yy+rh/2+12*u,fitSz(LV[i].name,8*u,'500',cw-104*u),'500','#95b1c3',.3*u);
       ctx.textAlign='right';
       if(on)text('Selected',xx+cw-14*u,yy+rh/2,10*u,'500','#9ecece',0);
       else if(reached&&n>1)text('Reached',xx+cw-14*u,yy+rh/2,10*u,'400','#7a9d94',0);
@@ -12374,7 +12417,8 @@ function runtimeSnapshot(){
     menuRects:(G.menuRects||[]).map(function(r){return Object.assign({},r);}),
     introSkipRect:G.introSkipRect?Object.assign({},G.introSkipRect):null,
     score:G.score,level:G.level,build:BUILD,destroyed:runtimeDestroyed,
-    background:{gpu:GL.on,materialCount:GL.art.filter(Boolean).length},
+    journey:journeyView(),
+    background:{gpu:GL.on,materialCount:GL.art.filter(Boolean).length,classicDraws:runtimeClassicSkyDraws},
     reward:{orbits:G.build||0,starfall:starfallActive(),wave:G.starfall?G.starfall.wave:0}
   };
 }
@@ -12383,20 +12427,22 @@ function runtimeFlightFrame(){
   const camX=(RM?0:Math.sin(amb*0.065)*1.4*u)+flightShakeX;
   const camY=(RM?0:Math.cos(amb*0.051)*1.4*u)+flightShakeY;
   const sm=SKY.mix||{tint:[0.1,0.3,0.5],rim:[0.3,0.7,0.9],dust:[0.3,0.5,0.6]},f=G.currentFlow||{};
-  const planet=sm.planet;
+  const planet=sm.planet,accent=sceneAccent();
   return {
     enabled:!!runtimeHost.flightEnabled&&GL.on&&!runtimeDestroyed,
     width:W,height:H,dpr:DPR,center:[cx,cy],
     outerCenter:[ecx(outer)+camX,ecy(outer)+camY],radii:[outer,outer*AY],
     comet:[point[0]+camX,point[1]+camY],angle:G.angle,direction:G.dir,
     visualTime:amb,travel:amb*100,active:G.state==='playing',reducedMotion:RM,
+    voyage:voyageFrame(),
     transition:G.state==='lvend'?{elapsed:Math.max(0,G.t-G.lvT),
       completed:!!G.lvCard?.done,nextLevel:G.lvCard?.next||G.level}:undefined,
     palette:{tint:sm.tint.slice(),rim:sm.rim.slice(),dust:sm.dust.slice()},
     planet:planet?{center:[W*0.5+(planet[0]+Math.sin(GL.tw*0.14)*0.014*0.35)*H,
       H*0.5-(planet[1]+Math.cos(GL.tw*0.11)*0.009*0.35)*H],radius:planet[2]*H}:undefined,
     effects:{turn:f.turn||0,hop:f.hop||0,radial:f.radial||0,magnet:f.magnet||0,
-      scorch:f.scorch||0,release:f.release||0,blackHole:f.bh||0}
+      scorch:f.scorch||0,release:f.release||0,blackHole:f.bh||0,
+      charge:skyCharge(),orbit:accent.kind==='orbit'?accent.strength:0}
   };
 }
 function runtimeDisposeGpu(target){

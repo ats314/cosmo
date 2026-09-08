@@ -27,10 +27,13 @@ Magnet, Mirror, Scorch, Slipstream, Star Trail and Black Hole. Magnet attracts
 nearby stars. The rare black hole opens a fourth ring: charge a reward inside,
 then reach the outer ring during its five-second escape window.
 
-Six levels are authored today. More worlds and levels can extend the journey.
-Completed levels open a flowing wormhole passage toward the next destination.
-Take your time choosing an upgrade; the journey continues when you are ready.
-Reduced motion keeps these passages static.
+The current web presentation travels through Earth and Moon, Saturn, Neptune,
+a stellar nursery, a galactic centre and Pelagic, an alien ocean world, across
+the six existing levels. This is a compressed route through selected
+destinations, with room for more worlds and levels. Completed-level resting
+cards open a wormhole; take your time choosing an upgrade. The passage clears
+as play resumes, and has no separate controls or collectibles. Reduced motion
+keeps these passages static. The final world remains open for exploration.
 See [the current direction](docs/design/direction.md) and the
 [mechanics ledger](MECHANICS.md) for the design.
 
@@ -77,6 +80,7 @@ TypeScript.
 | `src/scenes/` | Asset boot, input forwarding, display and lifecycle ownership |
 | `src/game/contracts.ts` | Typed runtime/host boundary |
 | `src/game/runtime.js` | Existing gameplay, audio, canvas drawing and GPU effects |
+| `src/game/flight-world.ts` | Destination scenery, forward flight and completed-level passages from copied runtime views |
 | `src/platform/native.ts` | Pause/resume, Android Back and optional haptics |
 | `public/` | Files intentionally shipped: art, icons, manifest and licenses |
 | `dist/` | Generated web release; the only site directory to publish |
@@ -89,6 +93,11 @@ as individual PNG/WebP files with recorded provenance. Procedural planets,
 atmosphere, rings and nebula form the world; 24 transparent sprites add object
 art and material detail. Opaque world plates are archived outside the game and
 are absent from the release manifest. See the [current art and motion direction](docs/design/direction.md).
+
+The celestial flybys use original procedural shader scenes with spheres,
+rings and moons at different depths. They add no external imagery. The
+original canvas gameplay, music and pressure curves remain in use; scenery
+depth is not shared 3D collision geometry. See [flight presentation](docs/engine/flight-presentation.md).
 
 ## Native apps
 

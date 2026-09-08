@@ -80,6 +80,12 @@ try {
   await page.waitForFunction(() => window.COSMO_APP && typeof window.COSMO_APP.snapshot === 'function');
   const snapshot = () => page.evaluate(() => ({ engine: window.COSMO_APP.engine,
     version: window.COSMO_APP.version, ...window.COSMO_APP.snapshot() }));
+  const earthJourney = (state, label) => {
+    assert.equal(state.journey?.chapter, 2, `${label}: Earth chapter is missing`);
+    assert.equal(state.journey?.destination, 'EARTH & MOON', `${label}: destination label is missing`);
+    assert(Number.isFinite(state.journey.progress) && state.journey.progress >= 0 && state.journey.progress <= 1,
+      `${label}: voyage progress is not bounded`);
+  };
   await page.waitForFunction(() => window.COSMO_APP.snapshot().menuRects.some(r => r.id === 'start'));
   let state = await snapshot();
   assert.equal(state.engine, 'Phaser');
@@ -96,6 +102,8 @@ try {
   await page.waitForTimeout(250);
   state = await snapshot();
   assert.equal(state.introStage, 0, 'first LAUNCH did not enter the playable introduction');
+  earthJourney(state, 'playable introduction');
+  assert.equal(state.journey.progress, 0, 'the playable introduction advances the route before launch');
   const direction = state.direction;
   await page.mouse.click(195, 430);
   await page.waitForFunction(before => window.COSMO_APP.snapshot().direction !== before, direction);
@@ -113,12 +121,25 @@ try {
   state = await snapshot();
   assert.equal(state.state, 'playing');
   assert.equal(state.ringIndex, ring + 1, 'a real downward swipe did not move to the inner ring');
+  earthJourney(state, 'after intro skip');
   const before = state;
   await page.waitForTimeout(400);
   const after = await snapshot(), updates = after.engineUpdates - before.engineUpdates;
   assert(updates > 0, 'the Phaser loop stopped');
   assert(Math.abs((after.steps - before.steps) - updates) <= 1, 'simulation is not stepping once per Phaser update');
   assert(Math.abs((after.frames - before.frames) - updates) <= 1, 'a second render loop is active');
+  earthJourney(after, 'live voyage');
+  assert(after.journey.progress > before.journey.progress, 'live play does not advance its voyage');
+  // The pause glyph at the upper left is the actual ordinary-play control;
+  // Escape only leaves the lab. Resume uses the existing Enter/count-in path.
+  await page.touchscreen.tap(26, 24);
+  await page.waitForFunction(() => window.COSMO_APP.snapshot().paused);
+  const paused = await snapshot();
+  await page.waitForTimeout(350);
+  assert.deepEqual((await snapshot()).journey, paused.journey, 'the paused voyage keeps travelling');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !window.COSMO_APP.snapshot().paused);
+  assert.equal((await snapshot()).background.flight, true, 'flight geometry failed on resume');
   const shots = process.env.COSMO_ENGINE_SHOTS;
   if (shots) { await mkdir(resolve(shots), { recursive: true }); await page.screenshot({ path: resolve(shots, 'phaser-portrait.png') }); }
   await page.setViewportSize({ width: 844, height: 390 });
@@ -144,14 +165,16 @@ try {
   });
   await page.waitForFunction(() => !window.COSMO_APP.snapshot().background.gpu);
   await page.waitForFunction(() => window.COSMO_APP.snapshot().background.flight);
-  assert.equal((await snapshot()).background.gpu, true, 'the original sky did not recover with flight geometry');
+  state = await snapshot();
+  assert.equal(state.background.gpu, true, 'the original sky did not recover with flight geometry');
+  earthJourney(state, 'context recovery');
   await page.goto(origin + '/?flight=0');
   await page.waitForFunction(() => window.COSMO_APP?.snapshot().menuRects.length > 0);
   state = await snapshot();
   assert.equal(state.background.gpu, true, 'classic comparison lost the original sky');
   assert.equal(state.background.flight, false, 'classic comparison still renders flight geometry');
   assert.deepEqual(errors, [], 'the built app raised a browser exception');
-  console.log('ENGINECHECK OK  Phaser boot, sky/flight geometry, LAUNCH, pointer tap, touch swipe, resize, one loop, context recovery and classic comparison');
+  console.log('ENGINECHECK OK  Phaser boot, sky/flight geometry, Earth intro and live voyage, pointer/touch controls, pause/resume, resize, one loop, context recovery and classic comparison');
 } finally {
   try { if (browser) await browser.close(); }
   finally {
