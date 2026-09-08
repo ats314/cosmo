@@ -14,6 +14,14 @@ Opaque world plates and later images with baked checkerboards are retained
 outside the game as references and are not distributed in this release.
 This records supplied provenance without inferring another artwork license.
 
+The 6 high-resolution astronomical sky plates (sky-pillars-creation.png,
+sky-andromeda-spiral.png, sky-carina-cliffs.png, sky-sombrero-lensing.png,
+sky-orion-silhouette.png, sky-jwst-deepfield.png) are 100% original procedural
+synthetic textures generated for Cosmo via mathematical simulations (multi-octave
+FBM, Voronoi cells, gravitational accretion disk lensing, and relativistic plasma).
+They contain no third-party photography, external datasets, or telescope imagery.
+
+
 phaser 4.2.1
 ========================================================================
 The MIT License (MIT)

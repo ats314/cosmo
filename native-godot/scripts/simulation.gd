@@ -237,18 +237,19 @@ func begin(index: int = 0, practice: bool = false, teach: bool = false, carry: b
 	lab = practice
 	tutorial = 0 if teach and index == 0 else -1
 	time = 0.0
-	visual_time = 0.0
+	if not carry:
+		visual_time = 0.0
+		travel = 0.0
+		angle = -PI / 2.0
+		direction = 1.0
+		lane = 0.0
+		target_lane = 0
 	level_time = 0.0
-	travel = 0.0
 	difficulty_reward = 0.0
 	difficulty = 40.0 if practice else difficulty_floor
-	angle = -PI / 2.0
 	previous_angle = angle
-	previous_lane = 0.0
-	direction = 1.0
-	lane = 0.0
-	target_lane = 0
-	hop_from = 0.0
+	previous_lane = lane
+	hop_from = lane
 	hop_progress = 1.0
 	rings = 3 if practice or index > 0 else 1
 	lap = 0.0
@@ -445,7 +446,8 @@ func _tick(dt: float) -> void:
 	# Capture it before a teaching veil further dilates ordinary world movement.
 	var hop_dt = dt * slow if black_hole else dt
 	if teach_left > 0.0 and not black_hole and finish_age < 0.0:
-		slow *= 0.35
+		var teach_factor = smoothstep(0.0, 2.8, teach_left)
+		slow *= lerpf(1.0, 0.72, teach_factor)
 	teach_left = maxf(0.0, teach_left - dt)
 	if has_power("hyper"):
 		var hv = clampf(minf((hyper_duration - float(powers.hyper)) / 0.35, float(powers.hyper) / 1.4), 0.0, 1.0)
@@ -784,8 +786,7 @@ func activate_power(id: String) -> void:
 		"starfall":
 			starfall_wait = 0.0
 			return
-	var names = {"shield":"Shield", "warp":"Slow-mo", "spot":"Magnet", "hyper":"Hypernova", "mirror":"The Mirror", "scorch":"Scorch", "slip":"Slipstream", "nova":"Nova", "trail":"Star Trail"}
-	message.emit(str(names.get(id, id)), 1.7)
+	message.emit(Content.power_display_name(id), 1.7)
 
 func _update_black_hole(dt: float) -> void:
 	if bh_phase == 1:

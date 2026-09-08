@@ -128,6 +128,23 @@ static func power_at(id: String) -> Dictionary:
 			return power
 	return {}
 
+const CANONICAL_POWER_NAMES: Dictionary = {
+	"shield": "Shield",
+	"warp": "Slow-mo",
+	"nova": "Nova",
+	"spot": "Magnet",
+	"hyper": "Hypernova",
+	"mirror": "The Mirror",
+	"scorch": "Scorch",
+	"slip": "Slipstream",
+	"trail": "Star Trail",
+	"blackhole": "Black Hole",
+	"bh": "Black Hole",
+}
+
+static func power_display_name(id: String) -> String:
+	return str(CANONICAL_POWER_NAMES.get(id, id.capitalize()))
+
 static func upgrade_at(id: String) -> Dictionary:
 	for upgrade: Dictionary in upgrades():
 		if upgrade["id"] == id:
