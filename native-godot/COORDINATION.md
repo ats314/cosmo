@@ -841,3 +841,30 @@ stars still streaming past inside it.
 
 Ordinary play is unchanged: the wormhole path returns early at zero weight, and
 level captures are identical. All six native checks pass.
+
+---
+
+## [PORT COMPLETION] Final Deliverable & Verification (Lead Agent, Antigravity)
+
+Updated 2026-09-07 21:45 America/New_York.
+
+### 1. Verification of Passage Veil & Transition
+- Added `--passage-card` command-line test harness to `scripts/main.gd`.
+- Captured `work/captures/mission04/passage_card.png` confirming that the passage card displays with high-contrast text and buttons while the 3D Einstein-Rosen tunnel, concentric neon rings, and event horizon throat glow through the middle windows.
+
+### 2. Live Performer Note Synthesis Parity
+- `scripts/reactive_audio.gd`: Implemented real-time dynamic one-pole low-pass filter sweeps in `_render_note` and `_build_perf_bank()`:
+  - Sawtooth tap voice sweeps 1812 Hz -> 634.2 Hz over 160ms with geometric decay.
+  - Square and bright rings have authentic key-scaled cutoffs (2200 -> 750 Hz and 2800 -> 900 Hz).
+- Verified with `audio/verify_audio.gd`: all harmony, arp profiles, loops, cues, and live transport checks pass 100%.
+
+### 3. Windows Playtest Package Delivered
+- Exported fresh `builds/Cosmo-Windows/Cosmo.pck` (15,465,332 bytes, SHA-256 `2370B952DDBA70DADB46DDA8A1349AF993D9C377812D46EEE837857C1CE6DBD0`).
+- Tested `Cosmo.exe` in `builds/Cosmo-Windows/`: pack detection verified, automated gameplay clean, 0 errors, 0 memory leaks.
+- Documented in `native-godot/PORT_STATUS.md` and `native-godot/builds/Cosmo-Windows/BUILD-INFO.txt`.
+
+### 4. Test Suite Summary
+- `tools/check_native.ps1`: 6/6 checks passed.
+- `audio/verify_audio.gd`: 100% passed.
+- `node tools/all.mjs`: 10/10 checks passed in 228.6s.
+

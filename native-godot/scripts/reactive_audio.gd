@@ -251,7 +251,7 @@ func _harmonic_table(step: int, harmonics: int, rolloff: float) -> PackedFloat32
 	return table
 
 
-func _render_note(table: PackedFloat32Array, seconds: float, attack: float, decay_power: float) -> AudioStreamWAV:
+func _render_note(table: PackedFloat32Array, seconds: float, attack: float, decay_power: float, cutoff_start: float = 0.0, cutoff_end: float = 0.0) -> AudioStreamWAV:
 	var frames: int = int(round(maxf(0.02, seconds) * float(PERF_RATE)))
 	if frames < 64 or table.size() < PERF_TABLE:
 		return null
@@ -262,6 +262,8 @@ func _render_note(table: PackedFloat32Array, seconds: float, attack: float, deca
 	var phase: float = 0.0
 	var advance: float = PERF_REF_HZ * float(PERF_TABLE) / float(PERF_RATE)
 	var attack_frames: float = maxf(1.0, attack * float(PERF_RATE))
+	var filter_z: float = 0.0
+	var has_filter: bool = cutoff_start > 0.0 and cutoff_end > 0.0
 	for index: int in range(frames):
 		var travel: float = float(index) / float(frames)
 		var envelope: float = pow(maxf(0.0, 1.0 - travel), decay_power) * minf(1.0, float(index) / attack_frames)
@@ -270,6 +272,11 @@ func _render_note(table: PackedFloat32Array, seconds: float, attack: float, deca
 		var here: float = table[slot]
 		var next: float = table[(slot + 1) % PERF_TABLE]
 		var sample: float = (here + (next - here) * fraction) * envelope
+		if has_filter:
+			var cutoff: float = cutoff_start * pow(cutoff_end / cutoff_start, travel)
+			var a: float = 1.0 - exp(-TAU * maxf(20.0, cutoff) / float(PERF_RATE))
+			filter_z += (sample - filter_z) * a
+			sample = filter_z
 		bytes.encode_s16(index * 2, clampi(int(sample * 26000.0), -32000, 32000))
 		phase += advance
 		if phase >= float(PERF_TABLE):
@@ -284,18 +291,18 @@ func _render_note(table: PackedFloat32Array, seconds: float, attack: float, deca
 
 
 func _build_perf_bank() -> void:
-	# Every failure here is silent and total: the game keeps exactly the sample
-	# cues it has today and simply plays no performer notes.
+	# Live performer note voices matching original traced WebAudio parameters:
+	# saw @ 1812 -> 634.2 Hz filter sweep, square @ 2200 -> 750 Hz, bright @ 2800 -> 900 Hz.
 	var saw: PackedFloat32Array = _harmonic_table(1, 12, 0.16)
 	var square: PackedFloat32Array = _harmonic_table(2, 9, 0.13)
 	var bright: PackedFloat32Array = _harmonic_table(2, 15, 0.05)
 	var pure: PackedFloat32Array = _harmonic_table(1, 1, 0.0)
 	var bank: Array[AudioStreamWAV] = [
-		_render_note(saw, 0.30, 0.004, 2.2),    # ring 0, the outer sawtooth
-		_render_note(square, 0.28, 0.004, 2.4), # ring 1, squarer
-		_render_note(bright, 0.26, 0.003, 2.6), # rings 2-3, brightest and hardest
-		_render_note(pure, 0.62, 0.006, 2.0),   # chain rungs, sparkle, high notes
-		_render_note(saw, 0.66, 0.075, 1.4),    # the announcement swell
+		_render_note(saw, 0.16, 0.012, 2.2, 1812.0, 634.2),    # ring 0, outer sawtooth (traced player note)
+		_render_note(square, 0.18, 0.010, 2.4, 2200.0, 750.0), # ring 1, squarer
+		_render_note(bright, 0.20, 0.008, 2.6, 2800.0, 900.0), # rings 2-3, brightest and hardest
+		_render_note(pure, 0.62, 0.006, 2.0),                   # chain rungs, sparkle, high notes
+		_render_note(saw, 0.66, 0.075, 1.4),                    # the announcement swell
 	]
 	for stream: AudioStreamWAV in bank:
 		if stream == null or stream.get_length() < 0.02:

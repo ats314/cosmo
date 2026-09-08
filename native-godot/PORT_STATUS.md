@@ -152,8 +152,9 @@ unattended-death assertion after ten simulated minutes. The existing Phaser
 site was not redeployed as part of this Godot playtest.
 
 The optional Windows package is complete at `builds/Cosmo-Windows/` with
-`Cosmo.exe`, its 13,873,892-byte sibling `Cosmo.pck`, launcher and license notices.
+`Cosmo.exe`, its 15,465,332-byte sibling `Cosmo.pck`, launcher and license notices.
 An actual four-second executable smoke run from another directory found the
 pack, scored 47, completed an orbit and exited successfully without game errors
 or leaked-object warnings. This uses the official combined editor/playback
 runtime and is not a signed production Windows export.
+

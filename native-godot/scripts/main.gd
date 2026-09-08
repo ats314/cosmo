@@ -859,6 +859,10 @@ func _parse_test_arguments() -> void:
 		elif arg.begins_with("--seconds="):
 			auto_duration = float(arg.trim_prefix("--seconds="))
 			capture_time = auto_duration if not capture_output.is_empty() else -1.0
+		elif arg == "--passage-card":
+			_start(0, false)
+			_ended(true)
+			capture_time = 0.8
 
 func _auto_play(dt: float) -> void:
 	# Test driver uses the same controls, not a scoring or invulnerability bypass.
