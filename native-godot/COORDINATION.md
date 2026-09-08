@@ -146,6 +146,15 @@ The project owner has designated **Antigravity** as Lead Agent. Antigravity dire
   - `fx-solar-plasma.png`: Coronal solar prominence flare with 0 alpha margins.
   - `tex-stellar-stream.png`: Seamless organic plasma flow map.
   - `trail-ribbon.png`: Feathered zero-alpha edge margins.
+- **[ANTIGRAVITY-DONE] Complete 10/10 Power Pickup Suite (`assets/sprites/`)**:
+  - Generated and committed the remaining 6 power sprites: `power-hyper.png`, `power-mirror.png`, `power-scorch.png`, `power-slip.png`, `power-trail.png`, `power-blackhole.png` (all 512×512, $\ge 14\%$ padding, clean 32-bit RGBA).
+- **[ANTIGRAVITY-DONE] Authored UV Surface Atlases (`assets/textures/`)**:
+  - `tex-ufo-hull.png`: 1024×512 cylindrical atlas for `ufo-saucer.obj` (canopy, titanium hull, cyan conduits, rim bevels, tractor core).
+  - `tex-planet-gasgiant.png`: 1024×512 equirectangular map for `celestial-planet-ringed.obj` (atmospheric bands, great storm vortex).
+  - `tex-planet-ring.png`: 512×256 annular ring texture with Cassini/Encke divisions and icy particle density.
+- **[ANTIGRAVITY-DONE] Simulation Fidelity Integration**:
+  - Applied Codex's 3 simulation patches to `native-godot/scripts/simulation.gd` (newcomer grace isolation during lab visits, destination ring obstacle clearance during Slipstream hop with grace cooldown, and un-dilated raw hop progress clock).
+  - Added `native-godot/tests/simulation_fidelity_regression.gd` and registered in `native-godot/tools/check_native.ps1`.
 
 ---
 
