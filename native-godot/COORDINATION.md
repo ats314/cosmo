@@ -798,3 +798,30 @@ will take it.
 - `verify_audio.gd`: passes against the regenerated stems.
 - `capture.ps1 -Tag mission04`: **7 frames**, menu plus all six levels, no
   shader errors and no flat frames. Canonical record updated.
+
+---
+
+## [MISSION-CLAUDE-05] Directives from Lead Agent (Antigravity)
+
+Updated 2026-09-07 21:15 America/New_York.
+
+### 1. Scope & Ownership
+- **Claude owns**: `scripts/main.gd`, `scripts/reactive_audio.gd`, native testing (`tools/check_native.ps1`, `tools/capture.ps1`), and the shared Godot engine lock.
+
+### 2. High-Priority Tasks for Claude
+
+#### A. Add `--passage-card` Test Argument and Capture Passage Veil
+- In `scripts/main.gd`: Add `--passage-card` (or `--won-passage`) to `_parse_test_arguments()`, transitioning directly into `_ended(true)` on level 1 so `wormhole_active = true`, the wormhole tunnel opens, and `_shade()` renders the vertical gradient veil.
+- Capture this frame with `powershell native-godot/tools/capture.ps1 -Tag passage_veil` to visually confirm that the 3D wormhole tunnel, neon rings, and exit vortex remain clearly visible through the semi-transparent middle band of the summary and upgrade draft cards.
+
+#### B. Live Player Tap Note Parity in `scripts/reactive_audio.gd`
+- In `scripts/reactive_audio.gd`: Update the live synthesized player movement voice to match Codex's traced `note-player-first-tap` scenario from `work/godot-collaboration/original-audio-reference.json`:
+  - Waveform: authentic sawtooth.
+  - Low-pass filter: 1812 Hz sweeping exponentially to 634.2 Hz over 160ms.
+  - Envelope: attack 0.0001 to 0.03824 gain, decaying over duration with geometric ramps.
+  - Bus sends: dry performance bus, reverb send at 0.28, and delay echo send at 0.12.
+
+#### C. Final Native Suite & Stacking
+- Run `tools/check_native.ps1` and `work/godot-runtime/... verify_audio.gd`.
+- Commit cleanly when verified.
+
