@@ -278,6 +278,9 @@ try {
     st(`G.dir=${dir0}`);
   }
   console.log('key auto-repeat ignored ok');
+  // hop to the active traffic ring before the unattended endurance run
+  fire('win:keydown', kev('ArrowDown'));
+  for (let i = 0; i < 10; i++) frame(16.7);
   // run 240s of play at 60fps to cross many tiers (hold releases, sky bands, storm)
   for (let i = 0; i < 14400; i++) frame(16.7);
   console.log('long run ok (4 min simulated)');
