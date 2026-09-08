@@ -5,6 +5,7 @@ extends Node2D
 
 const NEBULA_SHADER := preload("res://shaders/living_nebula.gdshader")
 const PLANET_SHADER := preload("res://shaders/celestial_planet.gdshader")
+const SINGULARITY_SHADER := preload("res://shaders/singularity.gdshader")
 const LANE_RADII := [1.0, 0.76, 0.545, 0.45]
 const NORMAL_LANE_RADII := [1.0, 0.76, 0.545, 0.45]
 const BLACK_HOLE_LANE_RADII := [1.0, 0.80, 0.62, 0.45]
