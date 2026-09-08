@@ -407,13 +407,28 @@ func _shade(opacity: float = 0.75) -> void:
 	# It stays opaque enough at the extremes that white text still reads at a
 	# glance — legibility is not the thing being traded away here, screen area is.
 	if wormhole_active or wormhole_weight > 0.0:
+		# THE WINDOWS GO WHERE THE TEXT IS NOT.
+		#
+		# The first cut thinned the veil through the middle, which is exactly
+		# where this page puts the score and the buttons — a test play showed
+		# "41 orbits completed" dissolving into the tunnel behind it. The card's
+		# content sits at roughly 0.05-0.13 (heading) and 0.37-0.62 (score and
+		# buttons), so those bands keep a real scrim and the tunnel is shown
+		# through the two gaps that carry nothing: between the subtitle and the
+		# score, and below the buttons.
+		#
+		# Legibility is not what was being traded here. Screen area was.
 		var veil = TextureRect.new()
 		var gradient = Gradient.new()
-		gradient.offsets = PackedFloat32Array([0.0, 0.26, 0.5, 0.74, 1.0])
-		var edge = Color(0.005, 0.012, 0.025, opacity * 1.05)
-		var mid = Color(0.005, 0.012, 0.025, opacity * 0.16)
-		gradient.colors = PackedColorArray([edge, Color(0.005, 0.012, 0.025, opacity * 0.62), mid,
-			Color(0.005, 0.012, 0.025, opacity * 0.62), edge])
+		gradient.offsets = PackedFloat32Array([0.0, 0.13, 0.17, 0.33, 0.37, 0.62, 0.68, 1.0])
+		var band = func(scale: float) -> Color:
+			return Color(0.005, 0.012, 0.025, clampf(opacity * scale, 0.0, 1.0))
+		gradient.colors = PackedColorArray([
+			band.call(1.0), band.call(0.92),   # heading
+			band.call(0.30), band.call(0.26),  # window: subtitle to score
+			band.call(0.86), band.call(0.86),  # score, orbits, buttons
+			band.call(0.30), band.call(0.14),  # window: below the buttons
+		])
 		var texture = GradientTexture2D.new()
 		texture.gradient = gradient
 		texture.width = 4

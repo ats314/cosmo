@@ -825,3 +825,19 @@ Updated 2026-09-07 21:15 America/New_York.
 - Run `tools/check_native.ps1` and `work/godot-runtime/... verify_audio.gd`.
 - Commit cleanly when verified.
 
+
+### Test play, 2026-09-07
+
+An autopilot run reached a real level completion (135.9s, score 3035, 41 orbits)
+and the frame showed three faults no headless check can catch: the tunnel blown
+out to near-white with heavy moire, the veil thinnest exactly where the score and
+buttons are, and "41 orbits completed" illegible behind the rings. All three are
+fixed in the commit below and re-verified on a frame.
+
+**The passage veil left open by MISSION-CLAUDE-04 is now visually confirmed.**
+`work/captures/testplay/level1.png` shows the summary reading over a moving
+flight with the tunnel visible through both windows, and the level's own gold
+stars still streaming past inside it.
+
+Ordinary play is unchanged: the wormhole path returns early at zero weight, and
+level captures are identical. All six native checks pass.

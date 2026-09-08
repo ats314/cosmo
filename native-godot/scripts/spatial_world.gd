@@ -289,8 +289,19 @@ func set_wormhole_state(weight: float, clock: float, boost: float) -> void:
 	if not live:
 		_wormhole_rings.visible_instance_count = 0
 		return
-	_wormhole_material.set_shader_parameter("wormhole_amount", _wormhole_weight)
+	# HELD WELL BACK FROM FULL. At weight 1.0 the tunnel wall accumulates to
+	# near-white and the card sits on a glare; a test play showed the summary
+	# floating on what looked like a blown-out photograph. Cosmo is a deep-space
+	# game and its brightest object is supposed to be a reward, not a corridor.
+	_wormhole_material.set_shader_parameter("wormhole_amount", _wormhole_weight * 0.58)
 	_wormhole_material.set_shader_parameter("tunnel_clock", _wormhole_clock)
+	# The shader's default palette is a bright cyan/magenta that belongs to no
+	# world in this game. These pull it into the register the rest of the scene
+	# occupies, so the passage reads as somewhere Cosmo could actually be.
+	_wormhole_material.set_shader_parameter("grid_color", Vector3(0.16, 0.46, 0.66))
+	_wormhole_material.set_shader_parameter("plasma_color", Vector3(0.46, 0.17, 0.38))
+	_wormhole_material.set_shader_parameter("world_rim", Vector3(0.28, 0.52, 0.70))
+	_wormhole_material.set_shader_parameter("world_tint", Vector3(0.06, 0.13, 0.30))
 	# Reduced motion keeps the destination and drops the rush toward it.
 	var speed := 0.0 if _reduced_motion else 2.5 + _wormhole_boost * 5.0
 	_wormhole_material.set_shader_parameter("warp_speed", speed)
@@ -298,18 +309,32 @@ func set_wormhole_state(weight: float, clock: float, boost: float) -> void:
 	# Concentric rings streaming toward the viewer read as distance covered in a
 	# way the tunnel wall alone does not. They are placed on a repeating ramp so
 	# the throat never empties and never visibly pops a ring into existence.
+	# TWELVE RINGS, NOT TWENTY-FOUR, AND DIM.
+	#
+	# The first pass drew every ring in the pool at full weight on an additively
+	# emissive material. A test play showed what that actually looks like: the
+	# throat blew out to near-white and the closely spaced rings beat against
+	# each other into heavy moire, so the passage read as visual noise rather
+	# than depth — and the summary card's own text stopped being legible against
+	# it. Fewer rings, spaced further apart, at roughly a third of the alpha,
+	# reads as more distance and less interference. The tunnel wall carries the
+	# structure; these only need to mark the rate of travel.
 	var count := _wormhole_rings.instance_count
+	var stride := 2
 	var shown := 0
-	for index in range(count):
+	for index in range(0, count, stride):
 		var phase: float = fposmod(float(index) / float(count) + (0.0 if _reduced_motion else _wormhole_clock * 0.22), 1.0)
 		var depth := -3600.0 + phase * 4300.0
 		var reach: float = clampf((depth + 1200.0) / 2600.0, 0.0, 1.0)
 		var scale: float = (0.35 + 0.95 * (1.0 - reach)) * (0.55 + 0.45 * _wormhole_weight)
 		var basis := Basis().scaled(Vector3(scale, scale, scale))
 		_wormhole_rings.set_instance_transform(shown, Transform3D(basis, Vector3(0.0, 0.0, depth)))
-		# Fade at both ends so rings arrive and leave rather than blinking.
+		# Fade at both ends so rings arrive and leave rather than blinking, and
+		# hold the near ones back hardest — those are the ones that sit under the
+		# card and wash the text out.
 		var fade: float = sin(clampf(phase, 0.0, 1.0) * PI)
-		_wormhole_rings.set_instance_color(shown, Color(0.45, 0.88, 1.0, fade * _wormhole_weight))
+		var near_hold: float = 0.35 + 0.65 * reach
+		_wormhole_rings.set_instance_color(shown, Color(0.32, 0.72, 0.92, fade * _wormhole_weight * 0.34 * near_hold))
 		shown += 1
 	_wormhole_rings.visible_instance_count = shown
 
