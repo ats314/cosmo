@@ -318,3 +318,96 @@ Simply copy-paste these exact one-line triggers into each agent's chat window:
 
 Both agents will pull their instructions, scope boundaries, file ownership, and verification steps directly from this file, commit explicitly, and log their completed work here. Antigravity (as Lead Agent) reviews all commits, maintains test suite health, and prepares the next sprint directives.
 
+
+---
+
+## [MISSION-CLAUDE-02] — COMPLETE with one action reported blocked (Claude)
+
+Staged explicitly: `scripts/spatial_world.gd`, `scripts/main.gd`,
+`COORDINATION.md`. Nothing outside `native-godot/`.
+
+### 1. POWER_TEXTURES — complete
+All ten now read `res://assets/sprites/power-*.png`. The legacy root `.webp`
+files are superseded and can be retired whenever you like; nothing references
+them any more.
+
+### 2. POWER_COLORS — complete
+`mirror` `#4d8cff`, `scorch` `#ff8a2b`, `hyper` `#ff4fd8`, `bh` `#8f5cff`, all
+as specified.
+
+### 3. UV texture binding — NOT DONE, and it is not actionable as written
+
+**The three `.obj` meshes are not instanced by any code.** `grep` across every
+`.gd` and `.tscn` returns no reference to `ufo-saucer.obj`,
+`celestial-planet-ringed.obj` or `accretion-bridge-curved.obj`. There is no
+material to bind an albedo to.
+
+What actually draws today:
+- The **saucer** is a `_cages` MultiMesh instance with a scaled diamond basis
+  (`spatial_world.gd`), not the mesh.
+- The **planet and its rings** are a full-screen `canvas_item` shader
+  (`celestial_planet.gdshader`) that computes the sphere, terminator,
+  atmosphere and ring banding procedurally. There is no planet mesh in the
+  scene at all.
+
+So binding these textures means first replacing the procedural planet with a 3D
+mesh — a rendering architecture change, not an albedo assignment, and one that
+would discard the shader's terminator, limb scattering and per-world tinting
+across all eight worlds. **I have not done that on my own judgement.**
+
+Two routes, your call:
+- **(a)** Feed the authored textures into the existing shaders as surface
+  detail samplers — keeps the procedural lighting and per-world identity, gains
+  authored detail. Cheap, low risk, and I think the right answer.
+- **(b)** Genuinely move to mesh-based planet/saucer rendering. Much larger, and
+  it should be a mission of its own with the visual trade-off understood up
+  front.
+
+Say which and I will execute it.
+
+### 4a. Finale next-star highlight — complete
+The lowest surviving `finale_index` now leads: larger, full gold, with a slow
+breath. Later links dim to 0.42 rather than hide, because the chain's *shape* is
+the information the player needs. Drawn from the same liveness filter as the
+render loop, so a collected star stops being "next" the frame it is taken.
+
+### 4b. HUD simultaneous powers — complete, and there were TWO faults
+- The loop `break`ed on the first match, so a player holding Magnet and Scorch
+  was told about one of them, chosen by table order rather than by what they
+  earned.
+- The whole block sat inside the `else` of the Starfall branch, so **Starfall or
+  a black hole erased the power readout entirely** while those powers were still
+  running and still spending their timers.
+
+Both fixed; entries are ordered by time remaining so the one about to lapse sits
+nearest the eye. Verified on a rendered frame: `Slow Mo 5s` displays alongside
+`Starfall 1/3`, which the old code could not do.
+
+### A naming bug found while verifying
+The HUD rendered **"Slow Mo"** where the instruction card says **"Slow-mo"**.
+`String.capitalize()` title-cases the ledger's upper-case names correctly in
+every case except a hyphen, which it treats as a word separator. That breaks
+*one name per mechanic* — a HUD that renames a power the moment it activates is
+the exact failure that rule exists to prevent. Fixed locally in `main.gd`.
+
+**The root cause is duplication and is worth a follow-up:** canonical display
+names live in a local dictionary inside `simulation.gd` (~line 787) while the
+HUD derives its own from the content ledger. Two sources, so they can drift
+again. One shared table would settle it — I did not touch `simulation.gd`
+because it is outside this mission's scope and Codex's to claim.
+
+### 5. Verification
+`check_native.ps1`: **all six checks passed**, including
+`simulation_fidelity_regression`. Frames captured on all six levels plus menu.
+
+**The pink-red is now confirmed on a rendered frame** — the verification I could
+not complete in MISSION-CLAUDE-01. `work/captures/mission02/level4.png` shows
+hazard diamonds reading clearly pink against an orange world, distinct from
+scorch. The palette decision now meets the original's "verified on a rendered
+frame" standard rather than resting on hex arithmetic.
+
+**One operational note:** the first capture run after a fresh
+`--headless --import` timed out on its first three shots and then succeeded on
+levels 3-6. Cold shader compilation is the likely cause. Re-running cleared it.
+If you see timeouts straight after an import, retry before treating it as a
+regression.

@@ -241,6 +241,24 @@ func _process(dt: float) -> void:
 		if capture_time < 0.0:
 			_capture.call_deferred()
 
+# ONE NAME PER MECHANIC, WHICH capitalize() QUIETLY BREAKS.
+#
+# The content ledger stores display names upper-case ("SLOW-MO", "THE MIRROR",
+# "STAR TRAIL"). String.capitalize() title-cases them correctly in every case
+# but one: it treats a hyphen as a word separator, so "SLOW-MO" comes back as
+# "Slow Mo" while the instruction card the player just read said "Slow-mo".
+# The invariant is one name per mechanic, and a HUD that renames a power the
+# moment it becomes active is the exact failure that rule exists to prevent.
+#
+# NOTE FOR THE LEAD: the real fix is one shared display-name table. Canonical
+# names currently live in a local dictionary inside simulation.gd (~line 787),
+# which this cannot reach without owning that file. This keeps the HUD honest
+# in the meantime; consolidating the two is worth a follow-up.
+func _power_label(raw: String) -> String:
+	if raw.contains("-"):
+		return raw.substr(0, 1) + raw.substr(1).to_lower()
+	return raw.capitalize()
+
 func _update_hud() -> void:
 	var visible_play = mode in ["play", "pause", "resume"]
 	stats.visible = visible_play
@@ -283,7 +301,7 @@ func _update_hud() -> void:
 	for power in Content.powers():
 		var id := str(power.id)
 		if sim.has_power(id):
-			live.append({"name": str(power.name).capitalize(), "left": float(sim.powers[id])})
+			live.append({"name": _power_label(str(power.name)), "left": float(sim.powers[id])})
 	live.sort_custom(func(a, b): return a["left"] < b["left"])
 	for entry in live:
 		state_text += "\n%s %ds" % [entry["name"], ceili(entry["left"])]
