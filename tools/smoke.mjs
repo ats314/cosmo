@@ -293,18 +293,34 @@ try {
   doc.hidden = false; fire('doc:visibilitychange', {});
   for (let i = 0; i < 60; i++) frame(16.7);
   console.log('visibility ok');
-  // the unattended 4-min block already ended in a death; that death's coach:
-  console.log('first death; coach =', JSON.stringify(st('G.coach && G.coach.t')),
-    'didHop =', st('G.didHop'));
-  if (st('G.state') === 'dead') {
-    fire('pointerdown', pev(8, 200, 400, 'pointerdown'));  // retry (long past seq)
-    fire('pointerup', pev(8, 200, 400, 'pointerup'));
-    if (st('G.state') !== 'playing') throw new Error('stale-death retry failed');
-  }
-  // now drive to a FRESH death and catch it within one frame
-  let guard = 0;
-  while (st('G.state') !== 'dead' && guard++ < 36000) frame(16.7);
-  if (st('G.state') !== 'dead') throw new Error('never died in 10 simulated minutes');
+  console.log('endurance ended in', st('G.state'));
+  // An idle run can legitimately finish a level (CI SEED=313 did), so waiting
+  // for random traffic to kill it can wait forever on the level card. Isolate
+  // death choreography from progression with a fresh level-1 run and actual
+  // armed-shard contact. Calling die() here would bypass the collision path.
+  st('enterMenu()');
+  let deathPid = passMenu(st, frame, fire, pev, 9200);
+  deathPid = passLevelSelect(st, frame, fire, pev, deathPid, 1);
+  if (st('G.level') !== 1) throw new Error('death fixture did not select level 1');
+  const collideForDeath = () => {
+    if (!st("G.state==='playing'&&!G.intro&&!FIN.on&&!frozen()"))
+      throw new Error('death fixture did not start in ordinary live play');
+    st('G.shields=0;G.invuln=0;G.hopP=1;' +
+       'G.spikes=[mkSpike(G.angle,G.ringI,{phase:1,life:99})]');
+    frame(16.7);
+    if (!st("G.state==='dead'&&G.lastHit==='single'&&G.t-G.deadT<0.02"))
+      throw new Error('armed-shard contact did not create a fresh death: ' +
+        st('JSON.stringify({state:G.state,hit:G.lastHit,ring:G.ringI,shields:G.shields,invuln:G.invuln,t:G.t})'));
+  };
+  collideForDeath();
+  for (let i = 0; i < 600 && !st('deadSeqDone()'); i++) frame(16.7);
+  if (!st('deadSeqDone()')) throw new Error('death choreography did not finish');
+  fire('pointerdown', pev(8, 200, 400, 'pointerdown'));  // retry after the sequence
+  fire('pointerup', pev(8, 200, 400, 'pointerup'));
+  if (st('G.state') !== 'playing') throw new Error('stale-death retry failed');
+  // The second collision catches the first death frame, so the next tap must
+  // skip the choreography before a later tap can retry.
+  collideForDeath();
   for (let i = 0; i < 50; i++) frame(16.7);            // 0.83s: inside choreography
   fire('pointerdown', pev(9, 200, 400, 'pointerdown')); // fast-forward tap
   fire('pointerup', pev(9, 200, 400, 'pointerup'));

@@ -1,6 +1,6 @@
 # Cosmo
 
-A portrait space arcade for the web, Android and iOS. Turn a comet, change
+A musical voyage through space for the web, Android and iOS. Turn a comet, change
 orbits, collect stars and escape red hazards inside a luminous cosmic world.
 
 **[Play Cosmo](https://cosmo-arcade.netlify.app/)** ·
@@ -28,6 +28,9 @@ nearby stars. The rare black hole opens a fourth ring: charge a reward inside,
 then reach the outer ring during its five-second escape window.
 
 Six levels are authored today. More worlds and levels can extend the journey.
+Completed levels open a flowing wormhole passage toward the next destination.
+Take your time choosing an upgrade; the journey continues when you are ready.
+Reduced motion keeps these passages static.
 See [the current direction](docs/design/direction.md) and the
 [mechanics ledger](MECHANICS.md) for the design.
 

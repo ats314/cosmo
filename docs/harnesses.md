@@ -25,7 +25,7 @@ explicit local skip. COSMO_CHROME selects a local Chromium executable.
 | drawcheck.mjs | Valid Canvas calls, finite geometry, legal colors and alpha, and balanced drawing state across gameplay and layout states. |
 | rendercheck.mjs | Actual shader pixels: screen seams, glow alignment/energy, eight world compositions, event contrast, and the Canvas fallback. |
 | enginecheck.mjs | The actual built Phaser app: boot, LAUNCH, pointer reversal, touch ring change, resize, one active scene, and one host-owned loop. |
-| flightcheck.mjs | Original gameplay/input/audio function hashes and seeded behavior; the flight adapter reads copied presentation data without changing gameplay, random draws or scheduled music. |
+| flightcheck.mjs | Original gameplay/input/audio function hashes and seeded behavior; copied presentation data, completion-card glide, wormhole geometry, held-clock stability, departure/reset, and static reduced motion without gameplay, RNG or music changes. |
 
 Every tools/*.mjs harness must declare a fast or full lane, appear in the CI
 workflow, and be named here. check.mjs enforces all three. all.mjs reads that

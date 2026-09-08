@@ -1,6 +1,21 @@
 # Cosmo: awe, motion, release
 
-Current direction, September 7, 2026. The owner wants a striking premium
+Current direction, September 7–8, 2026. The original web game is the active
+priority: a relaxed musical voyage through immense space, with wormhole
+passages connecting distinct destinations. Progress should feel like discovery.
+Keep room to breathe between skillful decisions and musical releases. The
+owner's references emphasize violet/blue nebulae, monumental planets, and
+flowing tunnel walls with light travelling past a distant aperture.
+
+Completed-level cards are resting places within that journey: the arena
+recedes, the wormhole continues gently, and the next destination is named.
+Upgrade selection has no timer. The player continues when ready. A small
+route shows the existing level progression without creating new save records.
+Reduced motion keeps a static passage. This first presentation pass preserves
+the tuned pressure curves; further balance work should evaluate stress during
+actual play, particularly the later levels.
+
+The owner wants a striking premium
 space arcade with clear movement and powerful earned releases. Earlier
 playtest quotes remain evidence; an agent's chosen remedy is not a permanent
 constraint. Six authored levels are a starting point, not an endless exam.

@@ -11310,6 +11310,14 @@ function draw(){
   ctx.globalAlpha=1;
   ctx.restore();
 
+  /* A completed arena recedes behind the passage. Erase only the foreground
+     canvas before drawing the card; the living sky remains on its own surface.
+     Drawing first preserves the original random/audio order and state. */
+  if(runtimeHost.flightEnabled&&GL.on&&G.state==='lvend'&&G.lvCard?.done){
+    const t=RM?1:Math.max(0,Math.min(1,(G.t-G.lvT)/1.7));
+    ctx.save();ctx.globalCompositeOperation='destination-out';
+    ctx.globalAlpha=t*t*(3-2*t)*0.96;ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);ctx.restore();
+  }
   /* The world keeps rendering behind the game-over text — rings, embers and
      fading shards all competing with the score. Drop it back before the HUD
      goes on so the numbers you actually came for are legible. */
@@ -11942,6 +11950,28 @@ function frontHeading(label,title,x,y,w){
   ctx.beginPath();ctx.moveTo(x,y+53*u);ctx.lineTo(x+w,y+53*u);ctx.stroke();
   ctx.fillStyle='#8fecff';ctx.fillRect(x,y+51*u,45*u,3*u);ctx.restore();
 }
+/* A route is a view of existing progress, never another record or unlock. */
+function drawJourneyRoute(x,y,w,selected,reached,from){
+  const first=from||1,step=w/Math.max(1,LEVEL_MAX-1);
+  ctx.save();ctx.lineWidth=1*u;
+  ctx.strokeStyle='rgba(153,184,221,.28)';
+  ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+w,y);ctx.stroke();
+  for(let i=1;i<=LEVEL_MAX;i++){
+    const xx=x+(i-1)*step,on=i===selected,visited=i>=first&&i<=reached;
+    const world=WORLDS[LEVEL_HOME[i-1]],c=world.rim;
+    const color='rgb('+c.map(v=>Math.round(v*255)).join(',')+')';
+    ctx.fillStyle=visited?color:'#111b30';ctx.strokeStyle=on?'#e7edff':visited?color:'#567088';
+    ctx.beginPath();ctx.arc(xx,y,(on?5:3.5)*u,0,TAU);ctx.fill();ctx.stroke();
+    if(on){ctx.globalAlpha=.38;ctx.beginPath();ctx.arc(xx,y,9*u,0,TAU);ctx.stroke();ctx.globalAlpha=1;}
+    text(String(i).padStart(2,'0'),xx,y+23*u,9*u,on?'700':'400',on?'#ecf2ff':'#a0b1c8',0);
+  }
+  ctx.restore();
+}
+function journeyDescription(n){
+  return ['Find your rhythm among the stars.','Drift beside luminous rings.',
+    'Trace a path through moving constellations.','Explore the edge of a gravity well.',
+    'Follow the warm light into deep space.','Wander the farthest sky.'][n-1]||'';
+}
 function drawHUD(){
   /* First encounters identify the object with a steady local bracket.
      Teaching never dims and relights the whole playfield. */
@@ -12003,22 +12033,32 @@ function drawHUD(){
     const x=cx-w/2,offered=G.offer&&G.offer.length;
     const name=L.name.toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase());
     ctx.save();ctx.globalAlpha=a;
-    ctx.fillStyle='rgba(3,8,20,0.34)';ctx.fillRect(0,0,W,H);
+    const veil=ctx.createLinearGradient(0,0,0,H);
+    veil.addColorStop(0,'rgba(3,8,20,.68)');veil.addColorStop(.35,'rgba(3,8,20,.12)');
+    veil.addColorStop(.62,'rgba(3,8,20,.08)');veil.addColorStop(1,'rgba(3,8,20,.65)');
+    ctx.fillStyle=veil;ctx.fillRect(0,0,W,H);
     let y=top+(short?44:72)*u;
     if(card.done){
       const complete='Level '+(card.next-1)+' complete';
       text(complete.toUpperCase(),cx,y,20*u,'800','#ffdb8b',1*u);
-      if(!short){text('Score so far  '+G.carryScore,cx,y+25*u,14*u,'400','#aab8c5',0);y+=58*u;}
+      if(!short){text('Score so far  '+G.carryScore,cx,y+25*u,14*u,'400','#b7c4d5',0);y+=58*u;}
       else y+=34*u;
     }
     ctx.save();ctx.globalAlpha*=.13;
     text(String(n).padStart(2,'0'),cx+w*.33,y+49*u,108*u,'900','#80d8f3',-5*u);ctx.restore();
-    text('LEVEL '+n,cx,y,12*u,'800','#8beaff',2*u);
+    text((card.done?'NEXT DESTINATION  /  ':'LEVEL ')+n,cx,y,12*u,'700','#b1dcf2',1.5*u);
     text(name,cx,y+37*u,fitSz(name,35*u,'800',w,0),'800','#edfaff',0);
+    if(!short){
+      text(journeyDescription(n),cx,y+64*u,fitSz(journeyDescription(n),13*u,'400',w),'400','#c4c6df',0);
+      const routeW=Math.min(w-28*u,272*u);
+      drawJourneyRoute(cx-routeW/2,y+91*u,routeW,n,card.done?n-1:0,G.startLevel);
+    }
     G.offerRects=[];
     if(offered){
-      text('CHOOSE YOUR UPGRADE',cx,y+70*u,15*u,'800','#c6e9f5',1*u);
-      const start=y+91*u,gap=10*u;
+      const start=short?y+91*u:Math.max(y+175*u,H-safeBot-298*u),gap=10*u;
+      text('CHOOSE YOUR UPGRADE',cx,start-37*u,13*u,'700','#d2dcef',1*u);
+      if(!short)text('Take your time. Your next world is waiting.',cx,start-16*u,
+        fitSz('Take your time. Your next world is waiting.',12*u,'400',w),'400','#aebdd1',0);
       const wrap=(str,width,size)=>{
         ctx.font='400 '+Math.round(size)+'px '+F;
         const rows=[];let line='';
@@ -12052,11 +12092,11 @@ function drawHUD(){
       }
     }else{
       const tip=n===1?'Learn the controls as you play.':(L.mech[0]&&L.mech[0][1])||'Collect stars and avoid red obstacles.';
-      text(tip,cx,y+72*u,fitSz(tip,14*u,'400',w),'400','#b1c0cc',0);
+      text(tip,cx,y+(short?72:148)*u,fitSz(tip,14*u,'400',w),'400','#b1c0cc',0);
       const bh=58*u,bw=Math.min(310*u,w);
       const by=Math.min(H-safeBot-82*u,Math.max(y+110*u,cy+(short?44:76)*u));
-      frontLaunch(cx-bw/2,by,bw,bh,'LEVEL '+n);
-      text('Tap anywhere to continue',cx,by+bh+25*u,12*u,'400','#a0b2c0',0);
+      frontLaunch(cx-bw/2,by,bw,bh,card.done?'CONTINUE THE JOURNEY':'ENTER LEVEL '+n);
+      text('Tap when you are ready',cx,by+bh+25*u,12*u,'400','#b1bed1',0);
     }
     ctx.restore();
   }else if(G.state==='swipesel'){
@@ -12107,12 +12147,12 @@ function drawHUD(){
     veil.addColorStop(.57,'rgba(1,6,21,0)');veil.addColorStop(1,'rgba(1,6,21,.88)');
     ctx.fillStyle=veil;ctx.fillRect(0,0,W,H);
     const ex=heroX-lw/2;
-    ctx.textAlign='left';text('SOUND. SPACE. INSTINCT.',ex,ly-22*u,10*u,'700','#a2daeb',2*u);
+    ctx.textAlign='left';text('A MUSICAL VOYAGE',ex,ly-22*u,10*u,'700','#b2c5e8',2*u);
     frontLogo(heroX,ly,lw);
     ctx.textAlign='center';
-    text('Move with the music.',heroX,ly+lw*.24+24*u,16*u,'500','#d3e6f1',0);
+    text('Find your flow among the stars.',heroX,ly+lw*.24+24*u,15*u,'400','#d3d9ed',0);
     if(G.best>0){
-      const ry=wide?ly+lw*.24+62*u:ay-32*u;
+      const ry=ay-24*u;
       ctx.textAlign='left';text('BEST',ax,ry,10*u,'700','#86a9bf',1.4*u);
       text(String(G.best),ax+44*u,ry+1*u,18*u,'800','#e2f4ff',0);
       ctx.textAlign='right';text('LEVEL '+G.lvlMax,ax+aw,ry,12*u,'700','#a6cddd',1*u);
@@ -12148,7 +12188,7 @@ function drawHUD(){
     const gap=8*u,cw=(w-(cols-1)*gap)/cols,rh=Math.min(58*u,(listBot-listTop-(rows-1)*gap)/rows);
     const listH=rows*rh+(rows-1)*gap,y0=(listTop+listBot-listH)/2;
     ctx.save();ctx.globalAlpha=a;
-    frontHeading('CHOOSE YOUR WORLD','Select a level',x,titleY-32*u,w);
+    frontHeading('CHART YOUR COURSE','Choose a destination',x,titleY-32*u,w);
     G.lvSelRects=[];
     for(let i=0;i<LEVEL_MAX;i++){
       const n=i+1,on=G.lvSel===n,reached=n<=G.lvlMax,xx=x+(i%cols)*(cw+gap),yy=y0+Math.floor(i/cols)*(rh+gap);
@@ -12350,6 +12390,8 @@ function runtimeFlightFrame(){
     outerCenter:[ecx(outer)+camX,ecy(outer)+camY],radii:[outer,outer*AY],
     comet:[point[0]+camX,point[1]+camY],angle:G.angle,direction:G.dir,
     visualTime:amb,travel:amb*100,active:G.state==='playing',reducedMotion:RM,
+    transition:G.state==='lvend'?{elapsed:Math.max(0,G.t-G.lvT),
+      completed:!!G.lvCard?.done,nextLevel:G.lvCard?.next||G.level}:undefined,
     palette:{tint:sm.tint.slice(),rim:sm.rim.slice(),dust:sm.dust.slice()},
     planet:planet?{center:[W*0.5+(planet[0]+Math.sin(GL.tw*0.14)*0.014*0.35)*H,
       H*0.5-(planet[1]+Math.cos(GL.tw*0.11)*0.009*0.35)*H],radius:planet[2]*H}:undefined,

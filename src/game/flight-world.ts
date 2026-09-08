@@ -27,6 +27,8 @@ export interface FlightFrame {
   planet?: { center: FlightVec2; radius: number };
   effects?: { turn?: number; hop?: number; radial?: number; magnet?: number;
     scorch?: number; release?: number; blackHole?: number };
+  /** A copied level card, never a timer or command owned by this renderer. */
+  transition?: { elapsed: number; completed: boolean; nextLevel: number };
 }
 export interface FlightWorld {
   render(frame: FlightFrame): boolean;
@@ -81,16 +83,27 @@ uniform highp vec2 uSize;
 uniform vec3 uPlanet;
 void main(){
   vec2 pixel=vec2(gl_FragCoord.x/uBufferSize.x,1.0-gl_FragCoord.y/uBufferSize.y)*uSize;
+  float radius=length((pixel-uOuterCenter)/uRadii);
+  if(vStyle.x>3.5){
+    // A passage has depth in front of the departing world. Its indigo interior
+    // gently occludes that world; the center remains a dark distant aperture.
+    float depth=0.88+0.12*(1.0-smoothstep(0.15,1.7,radius));
+    gl_FragColor=vec4(vColor.rgb,vColor.a*depth);return;
+  }
   float edge=1.0-smoothstep(0.66,1.0,abs(vUv.x));
   float profile=exp(-vUv.x*vUv.x*4.6)*edge;
-  if(vStyle.x>0.5&&vStyle.x<1.5){
+  if(vStyle.x>2.5){
+    // Broad curved material, with longitudinal strata rather than flashing gain.
+    float strata=0.78+0.13*sin(vUv.y*8.0+vUv.x*3.0)
+      +0.09*sin(vUv.y*17.0-vUv.x*6.0);
+    profile=exp(-vUv.x*vUv.x*1.9)*edge*strata;
+  }else if(vStyle.x>0.5&&vStyle.x<1.5){
     profile*=1.0-smoothstep(0.38,1.0,abs(vUv.y));
   }else{
     // Fine material striation, carried down the ribbon rather than flashing.
     float grain=0.86+0.14*sin(vUv.y*17.0+vUv.x*6.0);
     profile*=grain;
   }
-  float radius=length((pixel-uOuterCenter)/uRadii);
   float arena=smoothstep(0.32,0.49,radius)*(1.0-smoothstep(0.98,1.16,radius));
   float calm=1.0-arena*vStyle.y;
   float core=smoothstep(0.115,0.205,radius);
@@ -152,12 +165,14 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
   let cursor = 0, lastTime = -1, lastTravel = 0, sampleTime = -1;
   let width = 0, height = 0, previousReduced = false;
   let decorativeTravel = 0;
+  let passage = 0, passageTravel = 0, passageElapsed = -1, destination = 1;
   let focal = 900;
   const dustOrder = DUST.map((grain, index) => ({ grain, index, depth: 0 }));
 
   function reset(): void {
     trail.length = 0; lastTime = -1; lastTravel = 0; sampleTime = -1;
     decorativeTravel = 0;
+    passage = 0; passageTravel = 0; passageElapsed = -1; destination = 1;
   }
   function resize(nextWidth: number, nextHeight: number, _dpr: number): void {
     if (width === nextWidth && height === nextHeight) return;
@@ -204,6 +219,8 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
     const turn = clamp(frame.effects?.turn ?? 0);
     const hop = clamp(frame.effects?.hop ?? 0);
     const time = frame.reducedMotion ? 0 : frame.visualTime;
+    const portal = smooth(0, 1, passage);
+    const ordinary = 1 - portal * 0.88;
 
     // The distant route bends, but the bend is exactly zero at the reference plane.
     const route = (angle: number, depth: number, radius: number): Point => {
@@ -223,9 +240,11 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
       * (1 - smooth(2500 * scale, 3400 * scale, depth));
     // Broad translucent material and fine nested strands share one curved volume.
     // Far-to-near construction is deliberate: this shared sky has no depth buffer.
-    for (let segment = 63; segment >= 0; segment--) {
-      const depthA = (100 + segment * 51) * scale;
-      const depthB = depthA + 51 * scale;
+    const ordinarySegments = portal > 0.0001 ? 32 : 64;
+    const ordinaryDepthStep = 3264 / ordinarySegments;
+    for (let segment = ordinarySegments - 1; segment >= 0; segment--) {
+      const depthA = (100 + segment * ordinaryDepthStep) * scale;
+      const depthB = depthA + ordinaryDepthStep * scale;
       for (let strand = 0; strand < 7; strand++) {
         const base = strand * TAU / 7 + 0.24;
         const aa = angleAt(depthA, base, strand), ba = angleAt(depthB, base, strand);
@@ -237,10 +256,90 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
         const densityB = 0.66 + 0.34 * Math.sin(flowB * 1.1) ** 2;
         const color = strandColors[strand % strandColors.length];
         const wide = (12 + Math.sin(strand * 1.7) * 4) * scale;
-        ribbon(a, b, wide, wide, color, 0.12 * fadeAt(depthA) * densityA,
-          0.12 * fadeAt(depthB) * densityB, flowA, flowB);
-        ribbon(a, b, 2.9 * scale, 2.9 * scale, color, 0.21 * fadeAt(depthA) * densityA,
-          0.21 * fadeAt(depthB) * densityB, flowA, flowB);
+        ribbon(a, b, wide, wide, color, ordinary * 0.12 * fadeAt(depthA) * densityA,
+          ordinary * 0.12 * fadeAt(depthB) * densityB, flowA, flowB);
+        ribbon(a, b, 2.9 * scale, 2.9 * scale, color, ordinary * 0.21 * fadeAt(depthA) * densityA,
+          ordinary * 0.21 * fadeAt(depthB) * densityB, flowA, flowB);
+      }
+    }
+
+    // A completed world opens one quiet passage through the surrounding space.
+    // The ribs approach at a constant speed; illumination never follows a beat.
+    // Their near/far fades make wrapping invisible, including on a held card.
+    if (portal > 0.0001) {
+      const veil = [0.006, 0.009, 0.037] as const;
+      const corner = { x: -frame.center[0], y: -frame.center[1], z: 0 };
+      // One bounded surface behind the flowing walls replaces a see-through
+      // wire cage over the old planet. It never touches the gameplay canvas.
+      vertex(corner, 0, 0, veil, portal * 0.95, 0, 0, 4, 0);
+      vertex(corner, frame.width, 0, veil, portal * 0.95, 0, 0, 4, 0);
+      vertex(corner, frame.width, frame.height, veil, portal * 0.95, 0, 0, 4, 0);
+      vertex(corner, 0, 0, veil, portal * 0.95, 0, 0, 4, 0);
+      vertex(corner, frame.width, frame.height, veil, portal * 0.95, 0, 0, 4, 0);
+      vertex(corner, 0, frame.height, veil, portal * 0.95, 0, 0, 4, 0);
+      const far = focal * 3.7, near = -focal * 0.32, span = far - near;
+      const drift = frame.reducedMotion ? 0 : passageTravel * scale;
+      const cool = mix(frame.palette.rim, [0.10, 0.76, 1.0], 0.74);
+      const deep = mix(frame.palette.tint, [0.35, 0.09, 0.63], 0.72);
+      const bend = destination * 0.41;
+      const point = (angle: number, depth: number): Point => {
+        const d = depth / focal;
+        const radius = 1.77 + Math.sin(angle * 3 + d * 0.8 + bend) * 0.065;
+        return {
+          x: offsetX + Math.cos(angle) * rx * radius + Math.sin(d * 0.58 + bend) * 22 * scale * d,
+          y: offsetY + Math.sin(angle) * ry * radius + Math.sin(d * 0.39) * 16 * scale * d,
+          z: depth,
+        };
+      };
+      const depthFade = (z: number): number => smooth(near, near + focal * 0.40, z)
+        * (1 - smooth(far - focal * 0.75, far, z));
+      // Far-to-near: translucent ribs share the sky's source-over surface.
+      const depths = Array.from({ length: 8 }, (_, i) =>
+        near + fract(i / 8 - drift / span) * span).sort((a, b) => b - a);
+      for (const depth of depths) {
+        const fade = depthFade(depth) * portal;
+        const tint = mix(cool, deep, clamp((depth - near) / span));
+        for (let segment = 0; segment < 32; segment++) {
+          const angle = segment * TAU / 32;
+          const a = point(angle, depth), b = point(angle + TAU / 32, depth);
+          const width = (5 + 3 * clamp(depth / focal)) * scale;
+          ribbon(a, b, width, width, tint, fade * 0.12, fade * 0.12,
+            angle, angle + TAU / 32, 2, frame.active ? 0.86 : 0.12);
+        }
+      }
+      // Long axial fibers converge into the distant aperture. Their hue and
+      // width stay fixed while soft material knots travel toward the viewer.
+      for (let segment = 23; segment >= 0; segment--) {
+        const z = near + segment / 24 * span, next = near + (segment + 1) / 24 * span;
+        for (let fiber = 0; fiber < 18; fiber++) {
+          const angle = fiber * TAU / 18 + 0.30;
+          const twistA = angle + z / focal * 0.34, twistB = angle + next / focal * 0.34;
+          const a = point(twistA, z);
+          const b = point(twistB, next);
+          const color = mix(cool, deep, (fiber % 6) / 5);
+          const flowA = 0.70 + 0.30 * Math.sin((z + drift) / focal * 2.1 + fiber) ** 2;
+          const flowB = 0.70 + 0.30 * Math.sin((next + drift) / focal * 2.1 + fiber) ** 2;
+          const wallAngle = fiber % 3 === 0 ? 0.36 : 0.29;
+          const al = point(twistA - wallAngle, z);
+          const ar = point(twistA + wallAngle, z);
+          const bl = point(twistB - wallAngle, next);
+          const br = point(twistB + wallAngle, next);
+          const aa = depthFade(z) * portal * 0.73, ab = depthFade(next) * portal * 0.73;
+          const va = (z + drift) / focal, vb = (next + drift) / focal;
+          const calm = frame.active ? 0.86 : 0.04;
+          // Shared tube edges join exactly between segments. Independent wide
+          // billboard normals left tiny black cracks across the curved walls.
+          vertex(al, 0, 0, color, aa, -1, va, 3, calm);
+          vertex(ar, 0, 0, color, aa, 1, va, 3, calm);
+          vertex(br, 0, 0, color, ab, 1, vb, 3, calm);
+          vertex(al, 0, 0, color, aa, -1, va, 3, calm);
+          vertex(br, 0, 0, color, ab, 1, vb, 3, calm);
+          vertex(bl, 0, 0, color, ab, -1, vb, 3, calm);
+          const width = (fiber % 3 === 0 ? 7.2 : 3.8) * scale;
+          ribbon(a, b, width, width, color,
+            depthFade(z) * portal * 0.90 * flowA, depthFade(next) * portal * 0.90 * flowB,
+            z / focal, next / focal, 2, frame.active ? 0.86 : 0.12);
+        }
       }
     }
 
@@ -277,7 +376,7 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
         const fade = smooth(near, near + 180 * scale, depth)
           * (1 - smooth(2650 * scale, 3450 * scale, depth));
         const width = Math.min(grain.width * scale, 1.65 * scale * aw);
-        const alpha = fade * grain.bright / Math.sqrt(Math.max(1, projectedLength / (5 * scale)));
+        const alpha = (1 - portal * 0.70) * fade * grain.bright / Math.sqrt(Math.max(1, projectedLength / (5 * scale)));
         ribbon(a, b, width, width * 0.45, dustHue, alpha, alpha * 0.18, -1, 1, 1, 0.87);
       }
     }
@@ -339,6 +438,22 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
     if (frame.reducedMotion !== previousReduced) { trail.length = 0; sampleTime = -1; }
     previousReduced = frame.reducedMotion;
     if (!frame.reducedMotion && dt > 0) decorativeTravel += Math.max(0, frame.travel - lastTravel);
+    if (frame.transition?.completed) {
+      const elapsed = Math.max(0, Number.isFinite(frame.transition.elapsed) ? frame.transition.elapsed : 0);
+      if (passageElapsed < 0 || elapsed < passageElapsed) passageTravel = 0;
+      passageElapsed = elapsed;
+      destination = frame.transition.nextLevel;
+      passage = frame.reducedMotion ? 0.84 : smooth(0, 1.7, elapsed);
+      if (!frame.reducedMotion) passageTravel += dt * 215;
+    } else if (frame.active && passage > 0 && !frame.reducedMotion) {
+      // The existing next-level action owns the departure. The passage only
+      // dissolves around it, never delaying a control or consuming a reward.
+      passage = Math.max(0, passage - dt / 1.65);
+      passageTravel += dt * 215;
+      passageElapsed = -1;
+    } else {
+      passage = 0; passageTravel = 0; passageElapsed = -1;
+    }
     lastTime = frame.visualTime; lastTravel = frame.travel;
     if (!frame.active) { trail.length = 0; sampleTime = -1; }
     if (frame.active && !frame.reducedMotion && (sampleTime < 0 || frame.visualTime - sampleTime >= 1 / 36)) {

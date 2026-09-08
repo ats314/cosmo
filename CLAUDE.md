@@ -21,10 +21,19 @@ The owner wants ambitious, coherent work with strong visual impact, clear
 actions and earned musical peaks. Six authored levels are a content frontier,
 not an endless exam or a prohibition on new mechanics.
 
-## Current task: finish the Godot port together
+## Current priority: the original web voyage
 
-The owner has ended the engine comparison and explicitly directed Codex and
-Claude to work together on the Godot version. Finish a faithful port of the
+The owner's latest direction is to advance the original web version: a chill,
+musical flight through space, wormhole transitions between levels, exploration
+and visible progress, with skill that does not create sustained stress. The web
+runtime remains the gameplay and music authority. Build this as a coherent
+journey; preserve responsive controls, earned rewards and readable threats.
+See docs/review/web-next-steps.md for the September 7–8 audit and follow-through.
+
+## Parallel work: the Godot port
+
+Earlier work directed Codex and Claude to work together on the Godot version.
+That work remains in progress separately. Its scope is a faithful port of the
 existing game, then improve its spatial presentation. The original web game's
 behavior is authoritative for controls, music, rules and progression. Preserve
 the Godot flyby work. Antigravity is Lead Agent; current missions and file

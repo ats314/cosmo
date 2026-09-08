@@ -1,8 +1,8 @@
 # Forward flight in the original game
 
 This agent is developing the original web game alongside Claude's Godot build,
-which established an appealing sense of flying through space. The owner will
-compare both routes toward a finished iPhone app.
+which established an appealing sense of flying through space. The owner's
+current priority is the original web voyage; Godot work continues separately.
 This is a presentation upgrade to the same mobile game. The original music,
 tap/swipe handlers, simulation, rewards, teaching and screens remain in use.
 
@@ -30,6 +30,22 @@ The geometry pass restores the sky's GPU state, releases resources when the
 scene stops and recreates them after context restoration. A failed decorative
 pass leaves the original playable renderer available.
 
+## Wormhole passages
+
+A copied `transition` field reports the elapsed completed-level card time and
+next level. The flight renderer opens a curved cyan/violet volume around a
+dark aperture, with longitudinal material flow and quieter transverse ribs.
+The existing arena recedes on its foreground canvas before the card is drawn.
+The player can rest and choose an upgrade without a countdown. The tunnel
+dissolves as the original next-level action starts play; it never owns that
+action, blocks controls, advances records or schedules sound. Selected-level
+introduction cards do not pretend that a previous level was completed.
+
+Reduced motion shows a static passage and removes traveling flow. Clock
+rollback, title return, and renderer teardown clear passage state. The original
+game's controls, music, scoring, pressure curves and level-start reset remain
+unchanged. The route display reads existing levels and run progress only.
+
 ## Scope and comparison
 
 The default view enables flight. Add `?flight=0` to the play URL to use the
@@ -51,6 +67,8 @@ change. The existing Starfall and power behavior remain authoritative.
 including audio events, random consumption, pointer controls and storage.
 `enginecheck.mjs` loads the real built app and checks gestures, flight startup,
 resize, context recovery, one frame loop and the classic comparison path.
+Additional flight checks cover passage geometry, held-clock stability,
+departure, menu reset, selected-level exclusion and static reduced motion.
 The shader's disabled mode was also compared against the original renderer in
 real WebGL across all eight world palettes with identical pixels.
 
