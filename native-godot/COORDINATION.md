@@ -195,7 +195,7 @@ The project owner has designated **Antigravity** as Lead Agent. Antigravity dire
      - Capture verification frames using `powershell -ExecutionPolicy Bypass -File native-godot/tools/capture.ps1`.
      - Stage explicitly (`git add native-godot/...`) and log your report below.
 
-#### 🌐 [MISSION-GPT-02] Clean Staging, iOS Cloud Workflow & Audio Modeling Parity
+#### ✅ [MISSION-GPT-02] Clean Staging, iOS Cloud Workflow & Audio Modeling Parity — COMPLETE
 - **Assignee**: GPT / Codex (Web Runtime & Source Parity Specialist)
 - **Scope**: `src/game/flight-world.ts`, `.github/workflows/godot-ios.yml`, `db/export-native-audio-reference.mjs`, `CLAUDE.md`
 - **Actions Required**:
@@ -411,3 +411,56 @@ frame" standard rather than resting on hex arithmetic.
 levels 3-6. Cold shader compilation is the likely cause. Re-running cleared it.
 If you see timeouts straight after an import, retry before treating it as a
 regression.
+
+---
+
+## [MISSION-GPT-02] — COMPLETE (Codex, 2026-09-07)
+
+### Commits and ownership
+
+The five explicitly assigned pending files landed in shared-checkout commit
+`5301091` while Codex was finishing the audit. Verified its file list and the
+current contents: `src/game/flight-world.ts`, `CLAUDE.md`,
+`.github/workflows/godot-ios.yml`, `db/export-native-audio-reference.mjs`, and
+`docs/engine/godot-collaboration.md`. The expanded audit and this completion
+record are a focused follow-up. No native implementation files were edited,
+no Godot process was launched, and `src/game/runtime.js` remains unchanged.
+
+### Verification completed
+
+- `cmd /c npm run typecheck`: passed.
+- `node tools/all.mjs --fast`: all five checks passed in 18.4 seconds.
+- Earlier full suite: completed in 249.9 seconds. Its skipped browser render
+  check was rerun with installed Chrome specified and passed all eight worlds.
+- `flightcheck` passed 3,482 original trajectory frames, 344 adapter calls and
+  30 renderer draws; all 191 nonvisual functions and 11 tuning tables match.
+  Real browser launch, pointer/touch controls, resize and context recovery
+  passed, with portrait and landscape frames inspected.
+- Reference exporter and Node syntax check passed: six worlds, 18 Starfall
+  scenarios and 432 movement scenarios. Independent full-runtime comparison
+  matched all 450 scenarios and 24 source values/tables. These are symbolic
+  events, not a native listening or timing test.
+- Manual iOS workflow received static review; export script passed `bash -n`.
+  No cloud run, signing, IPA, Apple upload or device test has been performed.
+
+### Audio work still needed
+
+The durable report in `docs/engine/godot-collaboration.md` records exact source
+lines, parameters and snapshot hashes. Native still differs in the fixed
+400-to-48 Hz kick sweep, keyed triangle snare, three-component bass voice,
+and the instruments unlocked by all four score rungs. Ordinary backing still
+uses payoff `HOOKL`; Starfall lacks `HOOKBL` alternates and `ANSWERL`'s final
+two bars. Chord registers, six bass rhythms, earned chorus form, high-note
+timing, performer envelopes and sample-offset scheduling also need parity work.
+This audit is complete; those native audio repairs are not claimed complete.
+
+For the next native audio mission, use the original-event reference rather
+than transcribing melodies again. Extend its ordinary-arrangement coverage
+before asserting full composition parity. Claude retains native audio ownership.
+
+One small documentation follow-up for the native guide's owner:
+`IOS_CLOUD.md` should say private signing keys/passwords are excluded from
+artifacts; a signed archive normally contains its provisioning profile and
+public signing metadata. The current broader wording is inaccurate.
+
+Antigravity remains Lead Agent. Future assignments belong on this board.

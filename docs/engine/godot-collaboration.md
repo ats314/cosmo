@@ -1,59 +1,71 @@
-# Shared Godot repair handoff
+# Godot source parity and delivery handoff
 
-Updated by Codex on 2026-09-07. The owner's latest direction is to finish the
-Godot port together, preserving the original game and improving its flight
-presentation. This supersedes the earlier engine competition and the initial
-ownership proposal in `native-godot/COORDINATION.md`.
+Updated by Codex on 2026-09-07 for `[MISSION-GPT-02]`. Preserve the original
+game and improve its flight presentation. **Antigravity is Lead Agent.** Current
+assignments and ownership are in
+[`native-godot/COORDINATION.md`](../../native-godot/COORDINATION.md); this
+document records findings and verification, not a competing mission board.
 
 ## Ownership acknowledged
 
-- Claude owns native implementation and **all Godot engine execution**, including
-  imports, tests, captures and exports. Codex will not launch another engine
-  process or edit Claude's native files while that ownership remains in place.
-- Gemini owns its announced asset repairs in `native-godot/assets/`, coordinated
-  with Claude. Codex's asset audit remains available in
+- Claude owns his assigned native implementation and **all Godot engine
+  execution**, including imports, tests, captures and exports. Codex will not
+  launch another engine process or edit Claude's assigned native files.
+- Antigravity owns cross-agent coordination, asset delivery and test health.
+  Codex's asset audit remains available in
   `docs/design/gemini-asset-review.md`.
-- Codex owns original-source comparison, reference generators, independent
-  review, and focused candidate patches outside `native-godot/`.
+- Codex's Missions 01 and 02 cover the read-only web presentation module,
+  original-source comparison, reference generator and pending cloud workflow.
 - `src/game/runtime.js`, including `HOOKL` and `PENT`, remains unchanged.
 - Stage explicit paths only. No `git add -A`, `git commit -a`, resets, or broad
   staging of a directory another agent may be changing.
 
-## Ready for Claude now
+## Native repair handoffs already routed
 
 1. **Three focused simulation fixes:**
    `work/godot-collaboration/simulation-fidelity-fixes.patch`.
-   This patch fixes the reversed hop clocks, Slipstream clearing during its
-   grace cooldown (including stars staying on the destination ring), and lab
-   visits consuming real-run newcomer grace. It passed `git apply --check`
-   against the audited source. Check it again immediately before applying.
+   Antigravity reports applying this patch. The source now has the corrected
+   hop clocks, Slipstream clearance on every successful hop with a separate
+   grace cooldown (converted stars stay on the destination ring), and lab
+   visits preserving real-run newcomer grace.
 2. **Behavioral regression script:**
    `work/godot-collaboration/simulation_fidelity_regression.gd`.
-   Please place it in native tests, establish failures before the patch, then
-   run it after the patch and run `tools/check_native.ps1` with isolated saves.
-   Codex has not run this new GDScript script; it is prepared code, not a passed
-   test. Source anchors are in `simulation-fidelity-handoff.md` beside it.
+   It is now present in `native-godot/tests/` and registered in
+   `tools/check_native.ps1`. Claude now reports all six native checks passing,
+   including this regression, in his Mission 02 completion record. Codex has
+   not independently rerun that engine test.
 3. **Music corrections:**
    `work/godot-collaboration/audio-fidelity-audit.md`.
    The first five repair targets are ordinary `RIFFL` instead of payoff `HOOKL`,
    Starfall's `HOOKBL` alternates and `ANSWERL` final two bars, keyed snare body,
    authored `PROG`/`PROGB` chord registers, and the original high-note timing.
    It also records missing chorus form and altered bass/score-layer roles.
+   The concrete findings are preserved below; ignored local notes are
+   supplementary, not the only record of this audit.
 4. **Executable original-music reference:** run
    `node db/export-native-audio-reference.mjs`.
-   It extracts source tables and executes the original `payoffStep`,
+   It extracts 24 source values/tables and executes the original `payoffStep`,
    `performerHit`, `chTone` and `chI` with recording sinks. Output is
    `work/godot-collaboration/original-audio-reference.json`: six worlds,
    18 Starfall scenarios and 432 movement scenarios, with pitches, durations,
-   timestamps, voice parameters, source lines and hashes. These are symbolic
-   reference events, not PCM or evidence of native sample accuracy.
+   timestamps, voice parameters, source lines and hashes. An independent
+   comparison against the full original-runtime sandbox matched all 24 tables,
+   18 Starfall event/beat traces and 432 movement traces with zero differences.
+   These are symbolic reference events, not PCM or native timing evidence.
+   Movement uses centered pan, zero timing bonus and a fixed chord; Starfall
+   uses recorded scenario values. The full ordinary arrangement is not
+   executed by this exporter; its melody tables are exported directly.
 5. **Visual verification bug and consistency fixes:**
    `work/godot-collaboration/visual-source-audit.md`.
-   Fix capture argument ordering first: `--seconds` precedes `--capture`, so
-   `_parse_test_arguments` resets requested long captures to about two seconds.
+   Claude reports fixing capture argument ordering and level-list parsing in
+   Mission Claude 01; his verification is recorded on the mission board.
    Other source findings cover missing next-star finale guidance, bridge
    suspension during black hole, outdated wake ring radii, and hidden overlapping
-   power statuses. Each item has a bounded fix and acceptance state.
+   power statuses. Claude reports completing finale guidance and simultaneous
+   power statuses in Mission 02. Commit `b98c94c` addresses bridge suspension,
+   cache invalidation and wake radii; `176a45a` restores its accidentally
+   removed shader declaration. These are source/agent records, not independent
+   Codex visual verification of the native changes.
 6. **Frontier and teaching parity:**
    `work/godot-collaboration/frontier-and-teaching-recommendations.md`.
    The original last level remains open; the native difficulty-760 ending is
@@ -61,7 +73,93 @@ ownership proposal in `native-godot/COORDINATION.md`.
    30 difficulty-seconds from engagement, not until absolute difficulty 30.
    These changes affect multiple consumers; keep them separate from patch 1.
 
-## Verification record
+## Remaining audio parity work
+
+Refreshed against executable source on 2026-09-07. Native already has 104 BPM,
+six keys, source-derived `HOOKL`/`PENT`, score threshold names, movement voices
+and pause support. The composition, synthesizer and scheduling remain
+incomplete. No native audio file was edited or regenerated by this mission.
+
+### Synthesizer parameters requested by MISSION-GPT-02
+
+| Part | Original executable behavior | Current native difference | Required parity work |
+|---|---|---|---|
+| Kick | `runtime.js:1136`: sine frequency ramps exponentially from **400 to 48 Hz in 0.075 s**; gain attacks in 0.006 s and decays by 0.24 s. | `generate_audio.mjs:136`: tonic-relative body with `130.2 * exp(-31*t)` added to frequency, a noise click and a 0.43 s sample. | Reproduce the fixed frequency sweep, amplitude envelope and sine voice. The original kick does not transpose with the level. |
+| Snare | `runtime.js:1156`: triangle body at **`CH[0][0] * 1.7818`**, 0.085 s, half the supplied gain, low-pass 900 Hz; noise high-pass 1900 Hz, 0.17 s decay. | `generate_audio.mjs:147`: fixed **220 Hz sine** body, low-passed noise and 0.23 s duration. | Restore keyed body, waveform and envelopes. Six body frequencies: approximately **196.00, 174.62, 155.57, 138.59, 123.48, 110.01 Hz**. |
+| Bass | `runtime.js:1163`: **saw at f** (gain `0.8*g`, cutoff 900), **sine at f/2** (gain `g`, cutoff 320), **square at 2f** (gain `0.30*g`, duration `0.6*dur`, cutoff 1600). `note` has a 0.012 s exponential attack and decay to 0.0001. | `generate_audio.mjs:125`: additive sines at f, 2f, 3f with weights 0.8/0.21/0.085, smooth 9 ms attack/90 ms release and `exp(-1.8*t)` decay. | Preserve the three independent voices, frequency ratios, durations, gains and filter envelopes. `sine/2` and `square*2` describe frequency, not amplitude. |
+| Score ladder | `runtime.js:2105–2134`: **600** adds offbeat square notes; **1400** substitutes the authored riff for the arp; **2400** adds a 1.5 s held sub, tonic pedal in level 4; **3600** adds a high sine every bar. | `reactive_audio.gd:994–1013`: drum gain, `HOOKL` answer stem, pulse-pattern gain, then broad brightness and a less frequent high sine. Thresholds match; their instruments do not. | Restore the actual event layers and mode gates, retaining thresholds and announcements. |
+
+### Arrangement and playback differences
+
+1. **Ordinary melody:** `musicStep` uses `ARPL`, then `RIFFL` at the 1400-point
+   rung, with `SOLOL` during afterglow (`runtime.js:1933–1960`, `2109`). `RIFFL`
+   and `SOLOL` are indexed at eighth-note resolution. Native `worldMelody`
+   (`generate_audio.mjs:228`, ordinary call at `274`) still uses payoff `HOOKL`.
+2. **Starfall:** executable `PAY=32` eighths is **four bars**, despite stale
+   eight-bar comments. `payoffStep` uses `HOOKL` or `HOOKBL` in bars 0–1 and
+   `ANSWERL` in bars 2–3, rotating the final answer by four sixteenths
+   (`runtime.js:896`, `1481–1541`). Native release generation still takes the
+   first four `HOOKL` bars; the alternate and answering phrases are missing.
+3. **Chord voicing:** original level-1 home chord is
+   `[110, 220, 261.63, 329.63]` Hz. Native `_chord_semitone` models
+   `[220, 440, 261.6256, 329.6276]`, raising slots 0 and 1 by an octave
+   (`runtime.js:850`, `2240`; `reactive_audio.gd:639`). Extract actual
+   `PROG`/`PROGB` voicings, not just chord degrees.
+4. **Bass and song form:** six original bass rhythms in `runtime.js:1860–1926`
+   are replaced by one root/root/fifth pattern at quarter offsets 0, 1.5, 2.75
+   (`generate_audio.mjs:268`). Native also lacks the earned `PROGB`/`ARPBL`
+   chorus state, `CHOFF`, four-bar section seam and twelve-bar hold. Preserve
+   the original special-event exclusions when adding that form.
+5. **High-note timing:** source emits every bar at eighth index 7 plus `S16`
+   (`runtime.js:2133–2134`), quarter offsets **3.75 and 7.75** in two bars.
+   Native emits once in two bars at **7.5** (`reactive_audio.gd:931–939`).
+6. **Performer and pad:** movement durations 0.16/0.13/0.09 s, source filter
+   envelopes and stereo placement differ from the native fixed voice bank,
+   whose envelope duration changes with `pitch_scale`. The source pad keeps
+   eight oscillators in detuned pairs alive and retunes them; native backing
+   samples restart three additive voices per bar. Separate accompaniment and
+   performer mix behavior is also unfinished.
+7. **Scheduling:** original `musicTick` places notes 160 ms ahead on the audio
+   clock, including sixteenth offsets (`runtime.js:2708–2729`). Native starts
+   queued voices from `_process` without a future sample offset
+   (`reactive_audio.gd:944–963`). This identifies a scheduling difference;
+   audible timing error has not been measured. A native event trace and
+   playback timing check are needed before claiming sample accuracy.
+
+The next useful native audio change is to reproduce the authored event roles
+and primitive voice parameters, then compare a native event trace with the
+source reference. Additional reference coverage should include the full
+ordinary arrangement at each score rung, chorus entry/exit and interruptions.
+Sampled voices can support the original composition when pitch, duration,
+filter, pan and start time remain independently controllable.
+
+The following SHA256 hashes were unchanged before and after this comparison:
+
+| File | SHA256 |
+|---|---|
+| `src/game/runtime.js` | `90dda777639ba1d414077481314f452fd92ca6b3960892d122e7bb3043ae0e9f` |
+| `native-godot/tools/generate_audio.mjs` | `637a1315dc285ae470e3eb5f6647510d0f9eb5ab92013ee989f3585c7e6cd8db` |
+| `native-godot/scripts/reactive_audio.gd` | `d81b659861b169e727d152784033e2682280b1d977641a84873e885eb3d8a334` |
+
+Refresh findings after native audio changes. `HOOKL` and `PENT` remain frozen.
+
+## iOS workflow status
+
+`.github/workflows/godot-ios.yml` exposes the prepared native export script
+through manual dispatch, read-only repository permission and temporary
+artifacts. It does not upload to Apple. See
+[the native cloud-build guide](../../native-godot/IOS_CLOUD.md). No cloud
+export, signed archive, IPA or installed iPhone build has been verified.
+
+Static review found no confirmed workflow blocker. The pinned editor/template
+hashes match the [official Godot release assets](https://github.com/godotengine/godot-builds/releases/expanded_assets/4.7.2-stable).
+The private signing key and passwords are excluded from the artifact paths.
+A signed archive normally includes its provisioning profile and public signing
+metadata, as described by [Apple](https://developer.apple.com/documentation/technotes/tn3125-inside-code-signing-provisioning-profiles).
+The native guide's broader claim that no secrets enter artifacts should be
+narrowed to this distinction by its owner.
+
+## Verification record for Missions GPT 01 and 02
 
 - Before Claude's exclusive engine lock was relayed, Codex ran the existing
   five native checks once. All five passed their assertions. Godot also logged
@@ -72,14 +170,34 @@ ownership proposal in `native-godot/COORDINATION.md`.
 - The new reference exporter successfully generated all 450 scenarios from
   original runtime SHA256
   `90dda777639ba1d414077481314f452fd92ca6b3960892d122e7bb3043ae0e9f`.
-- The three gameplay fixes are **prepared, not integrated or engine-tested**.
-  Music/rendering findings are **identified, not fixed**. Update this record
-  with actual results as Claude applies them.
+- `cmd /c npm run typecheck`: passed.
+- `node tools/all.mjs --fast`: all five fast checks passed in 18.4 s.
+- Full `node tools/all.mjs`: completed in 249.9 s; local Chrome discovery
+  skipped `rendercheck`. It was then run explicitly with `COSMO_CHROME`
+  pointing to installed Chrome and **passed** across all eight worlds.
+- `flightcheck`: 191 nonvisual functions and 11 tuning tables unchanged;
+  3,482 original trajectory frames and pure reads, 344 adapter calls, and 30
+  renderer draws passed. Controls, pause, powers, audio, RNG and saves remained
+  equivalent to the original reference.
+- Real browser checks passed launch, pointer tap, touch swipe, portrait and
+  landscape resize, one frame loop, context recovery and classic comparison.
+  Portrait and landscape frames were inspected. Separate WebGL checks found
+  no GL/browser errors and unchanged frozen/reduced-motion frames.
+- The flight change computes projected ribbon normals, follows dust motion
+  for its tail, sorts dust far to near, and caps streak length and width.
+  Dust can continue toward the viewer while existing masks protect the arena.
+  This is a bounded motion refinement, not a replacement background or
+  completed flyby system; the renderer still reads copied presentation state.
+- Geometry checks on 24,686 dust quads found maximum length 16.0002 and full
+  width 3.3001 reference pixels, within float precision of the intended limits.
+  This is geometry evidence, not an iPhone frame-rate benchmark.
+- `node --check db/export-native-audio-reference.mjs` and the reference export
+  passed. The three gameplay fixes are integrated but not engine-certified by
+  Codex. Remaining audio findings above are identified, not fixed.
+- Nothing was pushed, deployed or submitted to Apple by these missions.
 
-## Reply from Claude
-
-Please record which patches you applied, the exact checks/captures run and
-their outcome, and any bounded file ownership you want Codex to take next.
-Codex can prepare further source-derived patches without competing for the
-native import cache. Both agents should report what remains unfinished before
-calling a playtest a completed port.
+The five pending files listed in Mission 02 landed in shared-checkout commit
+`5301091` while this audit was being finished. Their current contents match
+that commit except for this expanded handoff. The completion record and audit
+are committed as a focused follow-up; no duplicate implementation commit or
+history rewrite is needed.
