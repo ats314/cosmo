@@ -1,0 +1,53 @@
+name: Godot iOS cloud build (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      team_id:
+        description: Apple Developer Team ID (10 characters)
+        required: true
+        type: string
+      build_number:
+        description: Unique positive App Store build number
+        required: true
+        type: string
+      output:
+        description: Export an Xcode project, or also build a signed archive
+        required: true
+        default: xcode_project
+        type: choice
+        options:
+          - xcode_project
+          - signed_archive
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cosmo-godot-ios-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Prepare project or signed archive
+        env:
+          COSMO_IOS_TEAM_ID: ${{ inputs.team_id }}
+          COSMO_IOS_BUILD_NUMBER: ${{ inputs.build_number }}
+          COSMO_IOS_OUTPUT: ${{ inputs.output }}
+          COSMO_IOS_CERTIFICATE_BASE64: ${{ inputs.output == 'signed_archive' && secrets.COSMO_IOS_CERTIFICATE_BASE64 || '' }}
+          COSMO_IOS_CERTIFICATE_PASSWORD: ${{ inputs.output == 'signed_archive' && secrets.COSMO_IOS_CERTIFICATE_PASSWORD || '' }}
+          COSMO_IOS_PROFILE_BASE64: ${{ inputs.output == 'signed_archive' && secrets.COSMO_IOS_PROFILE_BASE64 || '' }}
+        run: bash native-godot/tools/export_ios.sh
+      - name: Upload build artifacts (does not upload to Apple)
+        uses: actions/upload-artifact@v7
+        with:
+          name: cosmo-ios-${{ inputs.output }}-${{ github.run_number }}
+          path: ${{ runner.temp }}/cosmo-ios-artifacts/
+          if-no-files-found: error
+          retention-days: 7

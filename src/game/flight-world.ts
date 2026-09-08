@@ -46,6 +46,13 @@ const smooth = (a: number, b: number, x: number): number => {
 };
 const fract = (x: number): number => x - Math.floor(x);
 const seed = (x: number): number => fract(Math.sin(x * 127.1 + 311.7) * 43758.5453);
+// Fixed material identities: no game RNG and no trigonometric hash work per frame.
+const DUST = Array.from({ length: DUST_COUNT }, (_, i) => ({
+  phase: seed(i + 8), rate: 0.00042 + seed(i + 42) * 0.00012,
+  angle: seed(i + 191) * TAU, radial: 1.26 + seed(i + 612) * 1.3,
+  bright: seed(i + 333) > 0.89 ? 0.61 : 0.23,
+  width: 0.7 + seed(i + 200), exposure: 0.16 + seed(i + 38) * 0.12,
+}));
 
 const VERTEX = `
 precision highp float;
@@ -145,6 +152,8 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
   let cursor = 0, lastTime = -1, lastTravel = 0, sampleTime = -1;
   let width = 0, height = 0, previousReduced = false;
   let decorativeTravel = 0;
+  let focal = 900;
+  const dustOrder = DUST.map((grain, index) => ({ grain, index, depth: 0 }));
 
   function reset(): void {
     trail.length = 0; lastTime = -1; lastTravel = 0; sampleTime = -1;
@@ -164,8 +173,12 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
   function ribbon(a: Point, b: Point, wa: number, wb: number, color: FlightColor,
     aa: number, ab: number, phaseA: number, phaseB: number, style = 0, calm = 0.72): void {
     if (cursor + STRIDE * 6 > data.length || Math.max(aa, ab) < 0.0002) return;
-    const dx = b.x - a.x, dy = b.y - a.y;
-    const length = Math.hypot(dx, dy) || 1;
+    // The visible tangent includes perspective. An XY-only normal twists a
+    // depth streak sideways, and can collapse it when its endpoints share XY.
+    const aw = Math.max(0.20, 1 + a.z / focal), bw = Math.max(0.20, 1 + b.z / focal);
+    const dx = b.x / bw - a.x / aw, dy = b.y / bw - a.y / aw;
+    const length = Math.hypot(dx, dy);
+    if (length < 0.0001) return;
     const sx = -dy / length, sy = dx / length;
     vertex(a, sx * wa, sy * wa, color, aa, -1, phaseA, style, calm);
     vertex(a, -sx * wa, -sy * wa, color, aa, 1, phaseA, style, calm);
@@ -180,7 +193,8 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
 
   function build(frame: FlightFrame): void {
     cursor = 0;
-    const scale = frame.width / 540, focal = 900 * scale;
+    const scale = frame.width / 540;
+    focal = 900 * scale;
     const rx = frame.radii[0], ry = frame.radii[1];
     const offsetX = frame.outerCenter[0] - frame.center[0];
     const offsetY = frame.outerCenter[1] - frame.center[1];
@@ -230,23 +244,41 @@ export function createFlightWorld(gl: WebGLRenderingContext): FlightWorld {
       }
     }
 
-    // Long depth streaks become shorter near the plane, where threats need contrast.
+    // A grain and its tail follow the same path at successive travel positions.
+    // Near grains continue past the arena toward the viewer; the central masks
+    // still protect gameplay. Nothing changes direction when the comet turns.
     if (!frame.reducedMotion) {
       const dustHue = mix(frame.palette.rim, [0.64, 0.84, 0.93], 0.40);
-      for (let i = 0; i < DUST_COUNT; i++) {
-        const raw = fract(seed(i + 8) - decorativeTravel * (0.00042 + seed(i + 42) * 0.00012));
-        const depth = (-95 + raw * 3550) * scale;
-        const angle = seed(i + 191) * TAU;
-        const radial = 1.26 + seed(i + 612) * 1.3;
-        const a = route(angle, depth, radial);
-        const b = route(angle, depth + (17 + seed(i + 38) * 42) * scale, radial);
-        // A small world-space tangent prevents a radial segment collapsing in XY.
-        b.x += Math.cos(angle + Math.PI / 2) * 1.3 * scale;
-        b.y += Math.sin(angle + Math.PI / 2) * 1.3 * scale;
-        const fade = smooth(-95 * scale, 140 * scale, depth) * (1 - smooth(2650 * scale, 3450 * scale, depth));
-        const bright = seed(i + 333) > 0.89 ? 0.61 : 0.23;
-        const width = (0.7 + seed(i + 200) * 1.0) * scale;
-        ribbon(a, b, width, width * 0.65, dustHue, fade * bright, fade * bright * 0.25, -1, 1, 1, 0.87);
+      const near = -0.55 * focal, span = 3550 * scale - near;
+      for (const item of dustOrder) {
+        item.depth = near + fract(item.grain.phase - decorativeTravel * item.grain.rate) * span;
+      }
+      // Source-over transparency needs a stable far-to-near order on this sky.
+      dustOrder.sort((a, b) => b.depth - a.depth || a.index - b.index);
+      for (const { grain, depth } of dustOrder) {
+        const a = route(grain.angle, depth, grain.radial);
+        const exposureTravel = 100 * grain.exposure;
+        const tailDepth = depth + exposureTravel * grain.rate * span;
+        const b = route(grain.angle, tailDepth, grain.radial);
+        // Also rewind the gentle route bend, not only its depth coordinate.
+        const tailD = tailDepth / focal;
+        b.x = offsetX + Math.cos(grain.angle) * rx * grain.radial
+          + Math.sin(tailD * 1.15 + (distance - exposureTravel * scale) / focal * 0.12) * 29 * scale * tailD;
+        const aw = Math.max(0.20, 1 + a.z / focal), bw = Math.max(0.20, 1 + b.z / focal);
+        let dx = b.x / bw - a.x / aw, dy = b.y / bw - a.y / aw;
+        const projectedLength = Math.hypot(dx, dy);
+        // Cap the projected shutter length and width before a nearby grain
+        // becomes a bright rail. Preserve its direction while capping length.
+        const cap = 16 * scale;
+        if (projectedLength > cap) {
+          dx *= cap / projectedLength; dy *= cap / projectedLength;
+          b.x = (a.x / aw + dx) * bw; b.y = (a.y / aw + dy) * bw;
+        }
+        const fade = smooth(near, near + 180 * scale, depth)
+          * (1 - smooth(2650 * scale, 3450 * scale, depth));
+        const width = Math.min(grain.width * scale, 1.65 * scale * aw);
+        const alpha = fade * grain.bright / Math.sqrt(Math.max(1, projectedLength / (5 * scale)));
+        ribbon(a, b, width, width * 0.45, dustHue, alpha, alpha * 0.18, -1, 1, 1, 0.87);
       }
     }
 

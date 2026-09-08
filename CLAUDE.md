@@ -27,8 +27,11 @@ The owner has ended the engine comparison and explicitly directed Codex and
 Claude to work together on the Godot version. Finish a faithful port of the
 existing game, then improve its spatial presentation. The original web game's
 behavior is authoritative for controls, music, rules and progression. Preserve
-the Godot flyby work. Coordinate file ownership in
-native-godot/COORDINATION.md before editing systems another agent is changing.
+the Godot flyby work. Antigravity is Lead Agent; current missions and file
+ownership live in native-godot/COORDINATION.md. Read it before editing systems
+another agent is changing. Claude holds the shared Godot engine lock; coordinate
+imports, tests, captures and exports there. Source parity findings and the
+reference generator are documented in docs/engine/godot-collaboration.md.
 
 - **`native-godot/`** — the shared Godot 4.7.2 implementation being completed
   by both agents. Preserve all existing uncommitted work.
