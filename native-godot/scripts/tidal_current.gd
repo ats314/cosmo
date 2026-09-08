@@ -29,6 +29,8 @@ var _last_radii: Vector2 = Vector2.ZERO
 var _last_source: Vector3 = Vector3.ZERO
 var _last_angle: float = 0.0
 var _last_direction: float = 0.0
+var _last_black_hole: bool = false
+var _last_black_hole_mix: float = -1.0
 
 
 func _init() -> void:
@@ -177,6 +179,8 @@ func _refresh_path(sim) -> void:
 	_last_source = source
 	_last_angle = angle
 	_last_direction = direction
+	_last_black_hole = bool(sim.geometry.black_hole)
+	_last_black_hole_mix = float(sim.geometry.black_hole_mix)
 	_points[0] = source
 	_points[2] = sim.geometry.world(lane_angle(0.0), 0.0, 0.0)
 	_points[3] = sim.geometry.world(lane_angle(1.0), 1.0, 0.0)
@@ -188,7 +192,7 @@ func _refresh_path(sim) -> void:
 
 
 func point(sim, t: float) -> Vector3:
-	if not _path_ready or _last_radii != sim.geometry.radii or _last_source != source or _last_angle != angle or _last_direction != direction:
+	if not _path_ready or _last_radii != sim.geometry.radii or _last_source != source or _last_angle != angle or _last_direction != direction or _last_black_hole != bool(sim.geometry.black_hole) or _last_black_hole_mix != float(sim.geometry.black_hole_mix):
 		_refresh_path(sim)
 	var at: float = clampf(t, 0.0, 1.0)
 	var segment: int = 0

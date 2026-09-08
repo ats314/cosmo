@@ -5,8 +5,9 @@ extends Node2D
 
 const NEBULA_SHADER := preload("res://shaders/living_nebula.gdshader")
 const PLANET_SHADER := preload("res://shaders/celestial_planet.gdshader")
-const SINGULARITY_SHADER := preload("res://shaders/singularity.gdshader")
-const LANE_RADII := [1.0, 0.76, 0.53]
+const LANE_RADII := [1.0, 0.76, 0.545, 0.45]
+const NORMAL_LANE_RADII := [1.0, 0.76, 0.545, 0.45]
+const BLACK_HOLE_LANE_RADII := [1.0, 0.80, 0.62, 0.45]
 const WORLD_NAMES := ["DRIFT", "TIDE", "DUSTLANE", "GLASS", "EMBERFALL", "VEIL", "GRID", "DEEPFIELD"]
 const WORLD_TINTS := [Color(0.20, 0.39, 0.74), Color(0.10, 0.52, 0.48), Color(0.58, 0.34, 0.15), Color(0.25, 0.48, 0.68), Color(0.68, 0.18, 0.10), Color(0.44, 0.18, 0.69), Color(0.48, 0.23, 0.36), Color(0.10, 0.25, 0.45)]
 const WORLD_RIMS := [Color(0.59, 0.87, 1.00), Color(0.56, 1.00, 0.86), Color(1.00, 0.78, 0.43), Color(0.78, 0.95, 1.00), Color(1.00, 0.65, 0.26), Color(0.90, 0.62, 1.00), Color(1.00, 0.65, 0.77), Color(0.41, 0.69, 0.96)]
@@ -186,7 +187,7 @@ func update_tidal(tidal, geometry) -> void:
 		_tidal_phase = 0.0
 	var delta := maxf(0.0, _visual_clock - _tidal_last_clock)
 	_tidal_last_clock = _visual_clock
-	var active: bool = tidal != null and tidal.active
+	var active: bool = tidal != null and tidal.active and (geometry == null or not bool(geometry.black_hole))
 	var target := 0.0
 	if active:
 		var growing := clampf(1.0 - float(tidal.warning) / 3.0, 0.0, 1.0)
@@ -220,9 +221,12 @@ func set_singularity_strength(strength: float) -> void:
 
 
 func _radius_for_lane(lane: float) -> float:
-	var lower := clampi(floori(lane), 0, LANE_RADII.size() - 1)
-	var upper := mini(lower + 1, LANE_RADII.size() - 1)
-	return lerpf(LANE_RADII[lower], LANE_RADII[upper], clampf(lane - float(lower), 0.0, 1.0))
+	var lower := clampi(floori(lane), 0, 3)
+	var upper := mini(lower + 1, 3)
+	var blend := clampf(_singularity_strength, 0.0, 1.0)
+	var r_lower := lerpf(NORMAL_LANE_RADII[lower], BLACK_HOLE_LANE_RADII[lower], blend)
+	var r_upper := lerpf(NORMAL_LANE_RADII[upper], BLACK_HOLE_LANE_RADII[upper], blend)
+	return lerpf(r_lower, r_upper, clampf(lane - float(lower), 0.0, 1.0))
 
 
 func update_world(time: float, player_angle: float, player_lane: float, forward: float,
