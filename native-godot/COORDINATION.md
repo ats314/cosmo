@@ -723,3 +723,78 @@ Updated 2026-09-07 20:55 America/New_York.
 - Run `tools/check_native.ps1` and `audio/verify_audio.gd` to ensure 100% green tests.
 - Re-run `native-godot/tools/capture.ps1` across levels 1–6 with `-Tag mission04` to generate the clean reference captures for the release record.
 
+
+---
+
+## [MISSION-CLAUDE-04] — COMPLETE, one item not visually verified
+
+Staged: `scripts/main.gd`, `tools/generate_audio.mjs`, `audio/*.wav`,
+`COORDINATION.md`. All six native checks pass, audio verification passes,
+seven frames captured.
+
+### Findings (a)(b)(c) — confirmed resolved on a real frame
+`work/captures/mission04/level1.png`: the Pillars column and the dark panel are
+both gone, deep-space contrast is restored, and gold stars and the cyan comet
+read cleanly against the sky again. Thank you for taking the provenance point
+seriously — with the plates recorded as original synthetic work in
+`THIRD_PARTY_LICENSES.txt`, that question is closed.
+
+### A. Translucent passage veil — implemented, NOT visually verified
+
+`_shade()` now draws a vertical `GradientTexture2D` veil instead of a flat wash
+**while a passage is in flight**, darkening top and bottom where the heading and
+buttons need contrast and thinning to ~16% opacity through the middle band where
+the tunnel is. Pause and death keep the flat 75% wash — there is nothing behind
+those worth seeing, and a gradient there would only cost legibility.
+
+**I could not get a frame of it.** The veil only exists during a won passage,
+and the autoplay driver does not complete a level within a capture: at
+`-Seconds 105` on level 1 it was alive and scoring 2957 with the progress bar
+nearly full, but still in play. The code path is straightforward and the
+surrounding state is exercised by the checks, but **nobody has looked at this
+one**, and I am not going to claim otherwise. It wants either a human playthrough
+or a test argument that jumps to the result screen — say the word and I will add
+the latter.
+
+### B. Synthesiser and percussion parity — done, and the gap was large
+
+Applied from the 14 traces in
+`work/godot-collaboration/original-audio-reference.json`. These were not close
+before; they were plausible drum synthesis that sounded like a different game.
+
+| Voice | Was | Now (traced) |
+|---|---|---|
+| Kick | pitch-modulated sine, 430ms, `exp(-t*10.5)` | sine **400 -> 48Hz over 75ms**, gain 1e-4 -> 0.125 in 6ms -> 1e-4 at 240ms, stop 270ms |
+| Snare | fixed 220Hz body + noise | high-passed noise @1900Hz (x0.25) **plus a triangle body KEYED TO THE LEVEL**, low-pass 900 -> 315 over 85ms |
+| Bass | 3 summed sines, one envelope | **saw(f) + sine(f/2) + square(f*2)**, each with its own low-pass sweep and decay |
+
+The snare was the important one. The original tunes its body to **root x 1.7818**
+— 195.998Hz against A, 110.008Hz against B — so each world's backbeat sits in
+its own key. A fixed 220Hz body fights five of the six. It is now derived from
+the tonic rather than tabled, so all six stay in step; verified against the
+traces to within 0.01Hz (the residual is the original's rounded chord
+frequencies, e.g. 87.31 rather than exact equal temperament).
+
+WebAudio's primitives are reproduced rather than approximated:
+`exponentialRampToValueAtTime` is geometric interpolation, which is why every
+envelope starts at 0.0001 and never at zero — an exponential ramp cannot leave
+or reach zero. Filters are one-pole sections whose cutoff itself rides an
+exponential ramp, so they are gentler than `BiquadFilterNode`'s 12dB slope but
+hold the shape of the traced sweeps. The kick's phase is integrated in closed
+form rather than stepped; stepping an exponential sweep accumulates a pitch
+error that makes the drop land flat.
+
+Stems regenerated: 42 assets, 43.18 MiB, peak 0.417 (was 0.516, so more
+headroom, not less).
+
+**Not done, and worth its own pass:** `note-player-first-tap` is traced
+(sawtooth 261.63Hz, low-pass 1812 -> 634.2 over 160ms, gain 0.03824, post-gains
+0.28 and 0.12) but the player's note is synthesised live in `reactive_audio.gd`,
+not baked into a stem, so it is a separate change from this one. Assign it and I
+will take it.
+
+### C. Verification
+- `check_native.ps1`: **all six checks pass**.
+- `verify_audio.gd`: passes against the regenerated stems.
+- `capture.ps1 -Tag mission04`: **7 frames**, menu plus all six levels, no
+  shader errors and no flat frames. Canonical record updated.

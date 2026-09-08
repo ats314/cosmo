@@ -133,24 +133,119 @@ function tone(buffer, start, length, midi, gain, kind = 'brass', pan = 0) {
   }, gain, pan);
 }
 
+/* ---------- PERCUSSION AND BASS, AT WEBAUDIO PARITY ----------
+
+   These three voices are transcribed from recorded traces of the original
+   runtime's own graph, in work/godot-collaboration/original-audio-reference.json
+   — not re-invented by ear. The earlier versions here were plausible drum
+   synthesis and sounded nothing like Cosmo: the kick was a pitch-modulated sine
+   over 430ms where the original is a 400->48Hz sweep in 75, and the snare was a
+   fixed 220Hz body where the original's is TUNED TO THE LEVEL.
+
+   WebAudio's primitives are reproduced rather than approximated:
+   exponentialRampToValueAtTime is a geometric interpolation (which is why every
+   envelope starts at 0.0001 and never at zero — an exponential ramp cannot
+   leave or reach zero), and the filters are one-pole sections whose cutoff
+   itself rides an exponential ramp. */
+
+/* WebAudio's exponentialRampToValueAtTime, exactly: geometric between the two
+   scheduled points, flat outside them. */
+function expRamp(t, t0, v0, t1, v1) {
+  if (t <= t0) return v0;
+  if (t >= t1) return v1;
+  return v0 * Math.pow(v1 / v0, (t - t0) / (t1 - t0));
+}
+
+/* A one-pole low-pass whose cutoff moves per sample. Not a biquad, so it is
+   gentler than BiquadFilterNode's 12dB slope; it holds the shape of the
+   traced sweeps, which is what carries the character. */
+function onePole() {
+  let z = 0;
+  return (x, cutoffHz) => {
+    const a = 1 - Math.exp(-TAU * Math.max(20, cutoffHz) / SR);
+    z += (x - z) * a;
+    return z;
+  };
+}
+
+/* THE KICK. 400Hz to 48Hz in 75ms, and the phase is integrated in closed form
+   rather than stepped: for f(t) = f0*(f1/f0)^(t/T) the integral is
+   f0*T/ln(k) * (k^(t/T) - 1), which stays exact at any sample rate. Stepping it
+   accumulates a pitch error that makes the drop land flat. */
 function kick(buffer, beat, gain = 1) {
-  let f = hz(33);
-  while (f < 40) f *= 2; // Preserve tonic pitch class above the 40 Hz floor.
-  add(buffer, beat * BEAT, 0.43, (t) => {
-    const phase = TAU * (f * t + 4.2 * (1 - Math.exp(-t * 31)));
-    const body = Math.sin(phase) * Math.exp(-t * 10.5);
-    const click = noise() * Math.exp(-t * 160) * 0.11;
-    return smooth(t / 0.002) * smooth((0.43 - t) / 0.03) * (body + click);
+  const F0 = 400, F1 = 48, SWEEP = 0.075, LEN = 0.27;
+  const k = F1 / F0;
+  const lnk = Math.log(k);
+  const sweepPhase = F0 * SWEEP / lnk * (k - 1);
+  add(buffer, beat * BEAT, LEN, (t) => {
+    const phase = t < SWEEP
+      ? F0 * SWEEP / lnk * (Math.pow(k, t / SWEEP) - 1)
+      : sweepPhase + F1 * (t - SWEEP);
+    const env = t < 0.006
+      ? expRamp(t, 0, 0.0001, 0.006, 0.125)
+      : expRamp(t, 0.006, 0.125, 0.24, 0.0001);
+    return Math.sin(TAU * phase) * env * 8.0;
   }, gain);
 }
 
-function snare(buffer, beat, gain = 1) {
-  let low = 0;
-  add(buffer, beat * BEAT, 0.23, (t) => {
-    low += (noise() - low) * 0.25;
-    const body = Math.sin(TAU * 220 * t) * 0.35 * Math.exp(-t * 33);
-    return smooth(t / 0.0018) * smooth((0.23 - t) / 0.015) * (low * Math.exp(-t * 18) + body);
+/* THE SNARE, TUNED TO THE LEVEL. Two voices: high-passed noise for the rattle,
+   and a triangle body at the tonic root x 1.7818 whose low-pass falls 900->315
+   in 85ms. That ratio is what makes each world's backbeat sit in its own key
+   instead of fighting it, and it is the single biggest reason the old fixed
+   220Hz snare read as belonging to a different piece of music. */
+function snare(buffer, beat, gain = 1, bodyHz = 195.998) {
+  const lpBody = onePole();
+  let hpPrev = 0, hpOut = 0;
+  add(buffer, beat * BEAT, 0.2, (t) => {
+    /* Rattle: one-pole high-pass at 1900Hz, x0.25 post-gain. */
+    const raw = noise();
+    const a = Math.exp(-TAU * 1900 / SR);
+    hpOut = a * (hpOut + raw - hpPrev);
+    hpPrev = raw;
+    const rattleEnv = t < 0.004
+      ? expRamp(t, 0, 0.0001, 0.004, 0.125)
+      : expRamp(t, 0.004, 0.125, 0.17, 0.0001);
+    const rattle = hpOut * rattleEnv * 0.25;
+
+    /* Body: triangle through a low-pass sweeping 900 -> 315 over 85ms. */
+    let body = 0;
+    if (t < 0.105) {
+      const ph = (bodyHz * t) % 1;
+      const tri = 4 * Math.abs(ph - 0.5) - 1;
+      const bodyEnv = t < 0.012
+        ? expRamp(t, 0, 0.0001, 0.012, 0.0625)
+        : expRamp(t, 0.012, 0.0625, 0.085, 0.0001);
+      body = lpBody(tri, expRamp(t, 0, 900, 0.085, 315)) * bodyEnv * 0.5;
+    }
+    return (rattle + body) * 9.0;
   }, gain);
+}
+
+/* THE BASS, IN THREE VOICES. Saw at the root, sine an octave below, square an
+   octave above — each with its own low-pass sweep and its own decay, which is
+   why it reads as one fat instrument rather than three stacked notes. The
+   square is deliberately the shortest and quietest: it supplies the attack's
+   edge and then leaves. */
+function bassVoice(buffer, start, rootHz, gain = 1, pan = 0) {
+  const lpSaw = onePole(), lpSub = onePole(), lpSq = onePole();
+  add(buffer, start, 0.32, (t) => {
+    const sawPh = (rootHz * t) % 1;
+    const saw = (2 * sawPh - 1)
+      * expRamp(t, 0.012, 0.1, 0.3, 0.0001)
+      * (t < 0.012 ? t / 0.012 : 1);
+    const sub = Math.sin(TAU * (rootHz * 0.5) * t)
+      * expRamp(t, 0.012, 0.125, 0.3, 0.0001)
+      * (t < 0.012 ? t / 0.012 : 1);
+    let sq = 0;
+    if (t < 0.2) {
+      sq = (((rootHz * 2 * t) % 1) < 0.5 ? 1 : -1)
+        * expRamp(t, 0.012, 0.0375, 0.18, 0.0001)
+        * (t < 0.012 ? t / 0.012 : 1);
+    }
+    return (lpSaw(saw, expRamp(t, 0, 900, 0.3, 315)) * 0.5
+      + lpSub(sub, expRamp(t, 0, 320, 0.3, 180)) * 0.5
+      + lpSq(sq, expRamp(t, 0, 1600, 0.18, 560)) * 0.5) * 6.0;
+  }, gain, pan);
 }
 
 function hat(buffer, beat, gain = 1, open = false, pan = 0) {
@@ -254,6 +349,11 @@ for (const [levelIndex, profile] of PROFILES.entries()) {
 // so is HOOKL, so the index is the pairing — level 1 gets LIFT OFF's melody.
 MELODY_LEVEL = levelIndex;
 const tonic = profile.tonic_midi;
+// The snare body tracks the world. The traced values are the tonic two octaves
+// down times 1.7818 — 195.998Hz against A, 110.008 against B — so deriving it
+// keeps all six in step instead of hard-coding a table that can drift from the
+// keys it is supposed to follow.
+const snareBodyHz = hz(tonic - 24) * 1.7818;
 const chords = worldChords(profile);
 transpose = tonic - 69;
 stems = Object.fromEntries(['bed', 'pulse', 'drums', 'answer'].map((name) => [name, create(FRAMES / SR, true)]));
@@ -264,12 +364,17 @@ for (let bar = 0; bar < 8; bar++) {
   }
   // The bed carries a single heartbeat. Full drums add complementary slots.
   kick(stems.bed, bar * 4, 0.33);
+  // The traced three-voice bass, at the chord's own root. hz() already folds
+  // the pitch class up past the 40Hz floor, and the sub sits an octave under
+  // that, exactly as the original's sine leg does.
   for (const [offset, note, amp] of [[0, chord.root, 0.82], [1.5, chord.root, 0.55], [2.75, chord.root + 7, 0.44]]) {
-    tone(stems.pulse, (bar * 4 + offset) * BEAT, 0.53, note, amp, 'bass');
+    bassVoice(stems.pulse, (bar * 4 + offset) * BEAT, hz(note), amp);
   }
   kick(stems.drums, bar * 4 + 2, 0.88);
   if (bar % 2) kick(stems.drums, bar * 4 + 3.5, 0.4);
-  snare(stems.drums, bar * 4 + 1, 0.49); snare(stems.drums, bar * 4 + 3, 0.66);
+  // Keyed to this world: root x 1.7818, the ratio the original snare uses.
+  snare(stems.drums, bar * 4 + 1, 0.49, snareBodyHz);
+  snare(stems.drums, bar * 4 + 3, 0.66, snareBodyHz);
   for (let i = 0; i < 8; i++) hat(stems.drums, bar * 4 + i * 0.5, i % 2 ? 0.25 : 0.14, i === 7, i % 2 ? 0.3 : -0.25);
   for (const [offset, note, duration] of worldMelody(profile, bar)) tone(stems.answer, (bar * 4 + offset) * BEAT, duration * BEAT, note, 0.43, 'answer', bar % 2 ? 0.18 : -0.18);
 }

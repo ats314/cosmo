@@ -394,6 +394,39 @@ func _heading(title: String, subtitle: String = "") -> void:
 		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 func _shade(opacity: float = 0.75) -> void:
+	# A VEIL, NOT A CURTAIN, WHILE THE PASSAGE IS FLYING.
+	#
+	# A flat 75% wash over the whole screen is right for pause and for death —
+	# there is nothing behind it worth seeing. It is wrong over a passage: the
+	# wormhole, its rings and the exit vortex are the reward for finishing the
+	# level, and painting them out to put a summary card on top spends the whole
+	# transition. So during a passage the veil is a gradient that darkens the top
+	# and bottom, where the heading and the buttons need contrast, and thins
+	# through the middle band, where the tunnel is.
+	#
+	# It stays opaque enough at the extremes that white text still reads at a
+	# glance — legibility is not the thing being traded away here, screen area is.
+	if wormhole_active or wormhole_weight > 0.0:
+		var veil = TextureRect.new()
+		var gradient = Gradient.new()
+		gradient.offsets = PackedFloat32Array([0.0, 0.26, 0.5, 0.74, 1.0])
+		var edge = Color(0.005, 0.012, 0.025, opacity * 1.05)
+		var mid = Color(0.005, 0.012, 0.025, opacity * 0.16)
+		gradient.colors = PackedColorArray([edge, Color(0.005, 0.012, 0.025, opacity * 0.62), mid,
+			Color(0.005, 0.012, 0.025, opacity * 0.62), edge])
+		var texture = GradientTexture2D.new()
+		texture.gradient = gradient
+		texture.width = 4
+		texture.height = 256
+		texture.fill_from = Vector2(0.0, 0.0)
+		texture.fill_to = Vector2(0.0, 1.0)
+		veil.texture = texture
+		veil.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		veil.stretch_mode = TextureRect.STRETCH_SCALE
+		veil.size = ui_size
+		veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		page.add_child(veil)
+		return
 	var shade = ColorRect.new()
 	shade.color = Color(0.005, 0.012, 0.025, opacity)
 	shade.size = ui_size
