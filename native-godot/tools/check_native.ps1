@@ -15,11 +15,11 @@ $priorLocalAppData = $env:LOCALAPPDATA
 try {
     $env:APPDATA = $testOutput
     $env:LOCALAPPDATA = $testOutput
-    foreach ($testName in @('fidelity_check', 'profile_check', 'tidal_check', 'host_check', 'overdrive_check')) {
+    foreach ($testName in @('fidelity_check', 'profile_check', 'tidal_check', 'host_check', 'overdrive_check', 'simulation_fidelity_regression')) {
         & $Godot --headless --path $nativeProject --log-file (Join-Path $testOutput "$testName.log") --script "res://tests/$testName.gd"
         if ($LASTEXITCODE -ne 0) { throw "$testName failed with exit code $LASTEXITCODE" }
     }
-    Write-Output 'All five native checks passed.'
+    Write-Output 'All six native checks passed.'
 } finally {
     $env:APPDATA = $priorAppData
     $env:LOCALAPPDATA = $priorLocalAppData

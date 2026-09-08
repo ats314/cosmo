@@ -231,7 +231,9 @@ func begin(index: int = 0, practice: bool = false, teach: bool = false, carry: b
 		for pair in [["hyper",2],["slip",2],["spot",3],["trail",3],["mirror",4],["scorch",5]]:
 			guaranteed_powers[pair[0]] = level_index + 1 > int(pair[1])
 		guaranteed_powers["blackhole"] = false
-		runs += 1
+		# Lab visits must not spend the real run's newcomer grace.
+		if not practice:
+			runs += 1
 	lab = practice
 	tutorial = 0 if teach and index == 0 else -1
 	time = 0.0
@@ -397,10 +399,11 @@ func hop(delta: int, forced: bool = false) -> void:
 		judge_timing()
 		event.emit(&"hop")
 		flow = minf(1.0, flow + 0.18)
-		if has_power("slip") and slip_cooldown <= 0.0:
+		if has_power("slip"):
 			for obj in objects:
 				if obj.active and obj.kind == "hazard" and obj.shape != "saucer" and int(obj.lane) == destination and absf(angle_difference(angle, obj.angle)) < 0.48:
-					self.convert(obj)
+					self.convert(obj, destination)
+			# Every successful hop clears; only the extra grace is metered.
 			if slip_cooldown <= 0.0:
 				invulnerable = maxf(invulnerable, 0.4)
 				slip_cooldown = 0.8
@@ -438,6 +441,9 @@ func _tick(dt: float) -> void:
 		difficulty = 0.0
 	speed = 1.4 if tutorial >= 0 else Content.speed_at(difficulty)
 	var slow = lerpf(1.0, 0.6, bh_warp) if black_hole else (0.55 if has_power("warp") else 1.0)
+	# Source hop clock: presentation time in the black hole, raw time elsewhere.
+	# Capture it before a teaching veil further dilates ordinary world movement.
+	var hop_dt = dt * slow if black_hole else dt
 	if teach_left > 0.0 and not black_hole and finish_age < 0.0:
 		slow *= 0.35
 	teach_left = maxf(0.0, teach_left - dt)
@@ -461,7 +467,7 @@ func _tick(dt: float) -> void:
 			return
 	angle += speed * sd * direction
 	if hop_progress < 1.0:
-		hop_progress = minf(1.0, hop_progress + (dt if black_hole else sd) / 0.14)
+		hop_progress = minf(1.0, hop_progress + hop_dt / 0.14)
 		var eased = 1.0 - pow(1.0 - hop_progress, 3.0)
 		lane = lerpf(hop_from, float(target_lane), eased)
 		if hop_progress >= 1.0 and tutorial == 4:
