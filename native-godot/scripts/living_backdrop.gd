@@ -6,6 +6,8 @@ extends Node2D
 const NEBULA_SHADER := preload("res://shaders/living_nebula.gdshader")
 const PLANET_SHADER := preload("res://shaders/celestial_planet.gdshader")
 const SINGULARITY_SHADER := preload("res://shaders/singularity.gdshader")
+const PLANET_SURFACE_TEXTURE := preload("res://assets/textures/tex-planet-gasgiant.png")
+const PLANET_RING_TEXTURE := preload("res://assets/textures/tex-planet-ring.png")
 const LANE_RADII := [1.0, 0.76, 0.545, 0.45]
 const NORMAL_LANE_RADII := [1.0, 0.76, 0.545, 0.45]
 const BLACK_HOLE_LANE_RADII := [1.0, 0.80, 0.62, 0.45]
@@ -81,6 +83,15 @@ func _ensure_layers() -> void:
 	_sky_material.shader = NEBULA_SHADER
 	_planet_material = ShaderMaterial.new()
 	_planet_material.shader = PLANET_SHADER
+	# Authored detail over procedural lighting. The shader keeps deciding light,
+	# terminator, horizon and per-world hue; these supply the high-frequency
+	# structure noise is worst at. Both amounts default to zero in the shader, so
+	# assigning them here is what switches the detail on — and a world that wants
+	# less of it only has to lower the amount, not swap the map.
+	_planet_material.set_shader_parameter("surface_detail", PLANET_SURFACE_TEXTURE)
+	_planet_material.set_shader_parameter("ring_band", PLANET_RING_TEXTURE)
+	_planet_material.set_shader_parameter("surface_detail_amount", 0.55)
+	_planet_material.set_shader_parameter("ring_band_amount", 0.70)
 	_singularity_material = ShaderMaterial.new()
 	_singularity_material.shader = SINGULARITY_SHADER
 	_nebula = _make_layer("LivingNebula", _sky_material)

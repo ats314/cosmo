@@ -102,6 +102,15 @@ var _beam_mesh: ImmediateMesh
 var _tidal_mesh: ImmediateMesh
 var _tidal_particles: MultiMesh
 var _tidal_arrows: MultiMesh
+const WORMHOLE_SHADER := preload("res://shaders/wormhole.gdshader")
+var _wormhole_material: ShaderMaterial
+var _wormhole_node: MeshInstance3D
+var _wormhole_rings: MultiMesh
+var _wormhole_weight := 0.0
+var _wormhole_clock := 0.0
+var _wormhole_boost := 0.0
+var _saucers: MultiMesh
+var _saucer_material: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -241,6 +250,77 @@ func _ensure_world() -> void:
 	_mesh_node("TidalAccretionBridge", _tidal_mesh, _ribbon_material)
 	_tidal_particles = _pool("TidalMaterialGrains", octahedron, 96)
 	_tidal_arrows = _pool("TidalCurrentDirection", comet_mesh, 14)
+	var saucer_mesh = preload("res://assets/models/ufo-saucer.obj")
+	var saucer_tex = preload("res://assets/textures/tex-ufo-hull.png")
+	_saucer_material = StandardMaterial3D.new()
+	_saucer_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_saucer_material.albedo_texture = saucer_tex
+	_saucers = _pool("UFOSaucers", saucer_mesh, 8, _saucer_material)
+	_wormhole_material = ShaderMaterial.new()
+	_wormhole_material.shader = WORMHOLE_SHADER
+	_wormhole_material.set_shader_parameter("wormhole_amount", 0.0)
+	var tunnel_mesh := _tunnel_mesh(420.0, 4200.0, 32, 24)
+	_wormhole_node = _mesh_node("WormholeTunnel", tunnel_mesh, _wormhole_material)
+	_wormhole_node.position = Vector3(0.0, 0.0, -1100.0)
+	_wormhole_node.visible = false
+	var ring_torus := _ellipse_tube(Vector2(320.0, 320.0), 4.2, 48, 4)
+	_wormhole_rings = _pool("WormholeConcentricRings", ring_torus, 24, _solid_material(Color(0.4, 0.85, 1.0), 2.2))
+
+
+# THE PASSAGE BETWEEN LEVELS, DRIVEN ENTIRELY FROM OUTSIDE.
+#
+# This owns no clock of its own. The host advances the passage and hands the
+# state down, for the same reason every other visual here reads a supplied
+# world_clock rather than the engine's TIME: the transition has to freeze with
+# pause, slow with dilation, and stop dead under reduced motion. A tunnel that
+# kept spinning behind a paused game would be the one thing on screen still
+# moving.
+#
+# weight 0 retires the tunnel completely — the node is hidden rather than drawn
+# transparent, because a full-screen 4200-unit mesh at zero alpha is still fill
+# rate a phone pays for on every ordinary frame of the game.
+func set_wormhole_state(weight: float, clock: float, boost: float) -> void:
+	_ensure_world()
+	_wormhole_weight = clampf(weight, 0.0, 1.0)
+	_wormhole_clock = clock
+	_wormhole_boost = maxf(0.0, boost)
+	var live := _wormhole_weight > 0.001
+	_wormhole_node.visible = live
+	if not live:
+		_wormhole_rings.visible_instance_count = 0
+		return
+	_wormhole_material.set_shader_parameter("wormhole_amount", _wormhole_weight)
+	_wormhole_material.set_shader_parameter("tunnel_clock", _wormhole_clock)
+	# Reduced motion keeps the destination and drops the rush toward it.
+	var speed := 0.0 if _reduced_motion else 2.5 + _wormhole_boost * 5.0
+	_wormhole_material.set_shader_parameter("warp_speed", speed)
+
+	# Concentric rings streaming toward the viewer read as distance covered in a
+	# way the tunnel wall alone does not. They are placed on a repeating ramp so
+	# the throat never empties and never visibly pops a ring into existence.
+	var count := _wormhole_rings.instance_count
+	var shown := 0
+	for index in range(count):
+		var phase: float = fposmod(float(index) / float(count) + (0.0 if _reduced_motion else _wormhole_clock * 0.22), 1.0)
+		var depth := -3600.0 + phase * 4300.0
+		var reach: float = clampf((depth + 1200.0) / 2600.0, 0.0, 1.0)
+		var scale: float = (0.35 + 0.95 * (1.0 - reach)) * (0.55 + 0.45 * _wormhole_weight)
+		var basis := Basis().scaled(Vector3(scale, scale, scale))
+		_wormhole_rings.set_instance_transform(shown, Transform3D(basis, Vector3(0.0, 0.0, depth)))
+		# Fade at both ends so rings arrive and leave rather than blinking.
+		var fade: float = sin(clampf(phase, 0.0, 1.0) * PI)
+		_wormhole_rings.set_instance_color(shown, Color(0.45, 0.88, 1.0, fade * _wormhole_weight))
+		shown += 1
+	_wormhole_rings.visible_instance_count = shown
+
+
+# The moment of emergence. A short outward shove that the host resolves back to
+# zero; it does not decay on its own, because the host owns the clock.
+func wormhole_exit(strength: float) -> void:
+	_ensure_world()
+	_wormhole_boost = maxf(_wormhole_boost, maxf(0.0, strength))
+	if _wormhole_node.visible:
+		_wormhole_material.set_shader_parameter("warp_speed", 0.0 if _reduced_motion else 2.5 + _wormhole_boost * 9.0)
 
 
 func _solid_material(color: Color, emission: float) -> ShaderMaterial:
@@ -372,11 +452,14 @@ func _update_rails(sim) -> void:
 			color = Color(0.22, 0.58, 0.67)
 		if index == 3:
 			color = Color(0.35, 0.19, 0.48)
+		if _wormhole_weight > 0.001:
+			color = color.lerp(Color(0.04, 0.08, 0.12, 0.0), _wormhole_weight)
 		_rail_materials[index].set_shader_parameter("base_color", color)
 
 
 func _update_encounters(sim, clock: float) -> void:
 	var hazards := 0
+	var saucers := 0
 	var stars := 0
 	var powers := 0
 	var cages := 0
@@ -444,8 +527,10 @@ func _update_encounters(sim, clock: float) -> void:
 			hoops += 1
 		elif obj.kind == "hazard":
 			if obj.shape == "saucer":
-				_place(_cages, cages, position, diamond_basis.scaled(Vector3(18.0, 8.0, 11.0)), Color(0.65, 0.44, 0.84))
-				cages += 1
+				var saucer_phase := clock * 2.5 + float(obj.serial) * 0.4
+				var saucer_basis := Basis.from_euler(Vector3(0.35, saucer_phase, -angle))
+				_place(_saucers, saucers, position, saucer_basis.scaled(Vector3.ONE * 14.0), Color.WHITE)
+				saucers += 1
 			elif obj.lethal():
 				var shape_scale := Vector3(12.0, 14.0, 12.0)
 				if obj.shape in ["gate", "driftgate", "funnel"]:
@@ -464,6 +549,7 @@ func _update_encounters(sim, clock: float) -> void:
 				_place(_targets, targets, target, Basis(Vector3.BACK, PI * 0.25).scaled(Vector3(9.0, 9.0, 9.0)), Color(0.68, 0.27, 0.35))
 				targets += 1
 	_hazards.visible_instance_count = hazards
+	_saucers.visible_instance_count = saucers
 	_stars.visible_instance_count = stars
 	_star_cores.visible_instance_count = stars
 	_powers.visible_instance_count = powers
@@ -578,14 +664,20 @@ func _update_dust(sim) -> void:
 	if _reduced_motion:
 		_dust.visible_instance_count = 0
 		return
+	var speed_boost := 1.0 + _wormhole_weight * 3.5
 	for index in range(DUST_COUNT):
 		var seed := _dust_seeds[index]
-		var depth := fposmod(seed.z - float(sim.travel) * 1.35, 2800.0) + 90.0
-		var p: Vector3 = sim.geometry.world(seed.x, 0.0, depth, float(sim.travel))
+		var travel_val: float = float(sim.travel) * speed_boost
+		var depth := fposmod(seed.z - travel_val * 1.4, 2800.0) + 90.0
+		var p: Vector3 = sim.geometry.world(seed.x, 0.0, depth, travel_val)
 		p.x *= seed.y
 		p.y *= seed.y
 		var fade := smoothstep(90.0, 290.0, depth) * (1.0 - smoothstep(2100.0, 2890.0, depth))
-		_place(_dust, index, p, Basis.IDENTITY, Color(0.12, 0.25, 0.31) * fade)
+		var dust_scale := Vector3(1.2, 1.2, 18.0 + _wormhole_weight * 35.0)
+		var dust_color := Color(0.65, 0.88, 1.0) * (0.35 + 0.65 * fade)
+		if _wormhole_weight > 0.01:
+			dust_color = dust_color.lerp(Color(1.0, 0.60, 0.85), _wormhole_weight)
+		_place(_dust, index, p, Basis.IDENTITY.scaled(dust_scale), dust_color)
 	_dust.visible_instance_count = DUST_COUNT
 
 
@@ -796,4 +888,39 @@ func _ellipse_tube(radii: Vector2, width: float, segments: int, sides: int) -> A
 			var bb := b + (normal_b * cos(theta_b) + Vector3.BACK * sin(theta_b)) * width
 			_triangle(surface, aa, ba, ab)
 			_triangle(surface, ab, ba, bb)
+	return surface.commit()
+
+
+func _tunnel_mesh(radius: float, length: float, segments: int, slices: int) -> ArrayMesh:
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var half_len := length * 0.5
+	for j in range(slices):
+		var v_a := float(j) / float(slices)
+		var v_b := float(j + 1) / float(slices)
+		var z_a := half_len - v_a * length
+		var z_b := half_len - v_b * length
+		var r_a := radius * (1.1 - 0.45 * pow(v_a, 2.0))
+		var r_b := radius * (1.1 - 0.45 * pow(v_b, 2.0))
+		for i in range(segments):
+			var u_a := float(i) / float(segments)
+			var u_b := float(i + 1) / float(segments)
+			var theta_a := u_a * TAU
+			var theta_b := u_b * TAU
+			var p0 := Vector3(cos(theta_a) * r_a, sin(theta_a) * r_a, z_a)
+			var p1 := Vector3(cos(theta_b) * r_a, sin(theta_b) * r_a, z_a)
+			var p2 := Vector3(cos(theta_b) * r_b, sin(theta_b) * r_b, z_b)
+			var p3 := Vector3(cos(theta_a) * r_b, sin(theta_a) * r_b, z_b)
+			surface.set_uv(Vector2(u_a, v_a))
+			surface.add_vertex(p0)
+			surface.set_uv(Vector2(u_b, v_a))
+			surface.add_vertex(p1)
+			surface.set_uv(Vector2(u_b, v_b))
+			surface.add_vertex(p2)
+			surface.set_uv(Vector2(u_a, v_a))
+			surface.add_vertex(p0)
+			surface.set_uv(Vector2(u_b, v_b))
+			surface.add_vertex(p2)
+			surface.set_uv(Vector2(u_a, v_b))
+			surface.add_vertex(p3)
 	return surface.commit()

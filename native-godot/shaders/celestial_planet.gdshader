@@ -33,6 +33,24 @@ uniform vec3 world_dust : source_color = vec3(0.53, 0.15, 0.40);
 // so the shader stands alone until an integrator chooses to drive it.
 uniform float arena_calm = 0.56;
 uniform float surface_gain = 1.0;
+
+// AUTHORED DETAIL OVER PROCEDURAL LIGHTING — Route (a).
+//
+// The alternative was to render the planet as a textured mesh, which would have
+// bought authored art at the cost of the terminator, the limb scattering and
+// the per-world tinting that make eight worlds read as eight different KINDS of
+// world from one shader. So the authored maps come in as detail instead: the
+// procedural model still decides light, shadow, horizon and hue, and these
+// supply the high-frequency structure noise is worst at.
+//
+// Both amounts default to ZERO and both samplers default to white, so an
+// unwired shader renders exactly as it did before. Nothing is required to set
+// them, which matters because this file is read by eight worlds and by the
+// title screen before any of them is chosen.
+uniform sampler2D surface_detail : source_color, hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform sampler2D ring_band : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform float surface_detail_amount : hint_range(0.0, 1.0) = 0.0;
+uniform float ring_band_amount : hint_range(0.0, 1.0) = 0.0;
 uniform float air_gain = 1.0;
 uniform float ring_gain = 1.0;
 
@@ -135,6 +153,17 @@ void fragment() {
 			+ 0.14 * sin(ring_r * 121.0 - spin * 0.030) * band_fade(121.0, grad)
 			+ 0.09 * sin(ring_r * 268.0 + spin * 0.017) * band_fade(268.0, grad);
 		lanes = clamp(lanes, 0.0, 1.0);
+		// Authored ring density, read radially: the belt's structure is a
+		// function of orbital radius and nothing else, so one axis of the map is
+		// all that is meaningful. It biases the procedural lanes rather than
+		// replacing them, which keeps band_fade's edge-on lane retirement doing
+		// its job — that is what stops the rings aliasing into a moire as the
+		// belt closes, and a texture lookup has no equivalent.
+		if (ring_band_amount > 0.001) {
+			float band_u = clamp((ring_r - 1.14) / 0.83, 0.0, 1.0);
+			float authored_band = texture(ring_band, vec2(band_u, 0.5)).r;
+			lanes = clamp(mix(lanes, lanes * (0.45 + authored_band * 1.30), ring_band_amount), 0.0, 1.0);
+		}
 		// Lit face, then the globe's own round shadow thrown across the belt:
 		// the closest approach of the ray to the sphere decides it exactly.
 		float face = dot(belt_dir, sun_ring);
@@ -259,6 +288,27 @@ void fragment() {
 		float cloud = smoothstep(0.52 - cover * 0.16, 0.80 - cover * 0.10, veil + terrain * 0.16);
 		cloud *= cover * (0.35 + 0.65 * crisp);
 		surface = mix(surface, mix(world_rim, vec3(1.0), 0.30), cloud * 0.46);
+
+		// Authored cloud bands, mapped as equirectangular lat/lon so the detail
+		// compresses toward the limb with the sphere instead of lying flat over
+		// the disc. Applied as a signed deviation around mid-grey and MODULATED
+		// BY the world tint rather than replacing it, so one map serves eight
+		// worlds without flattening them all to the same colour. It drifts with
+		// the same `turn` the procedural bands use, so the two do not shear
+		// apart as the planet rotates.
+		if (surface_detail_amount > 0.001) {
+			vec2 detail_uv = vec2(
+				fract(lon * 0.1591549 + turn * 0.05),
+				clamp(lat * 0.3183099 + 0.5, 0.001, 0.999));
+			vec3 authored = texture(surface_detail, detail_uv).rgb;
+			float lift = dot(authored, vec3(0.2126, 0.7152, 0.0722)) - 0.5;
+			// Fade the contribution out near the poles, where an
+			// equirectangular map pinches and would otherwise smear.
+			float polar = 1.0 - smoothstep(0.72, 0.98, abs(pole_h));
+			float amount = surface_detail_amount * polar;
+			surface *= clamp(1.0 + lift * amount * 1.10, 0.35, 1.85);
+			surface = mix(surface, surface * (authored * 1.45 + 0.20), amount * 0.30);
+		}
 
 		float relief = clamp(0.80 + (veil - 0.465) * 0.60 * crisp, 0.40, 1.30);
 		vec3 globe = surface * (0.030 + daylight * 0.76) * relief;

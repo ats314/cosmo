@@ -42,6 +42,25 @@ var tidal_started = false
 var last_tidal_start = -100.0
 var tidal_lab_element = "nebula"
 var displayed_journey = 0.0
+# THE PASSAGE. A won level is not a stop, it is a door.
+#
+# Completing a level used to freeze everything — the simulation stopped
+# stepping, the presentation delta went to zero, and the music cut — and then a
+# summary card appeared over a still image. The run read as six separate games
+# rather than one flight, and the summary landed on silence.
+#
+# So a won passage now keeps flying. Gameplay genuinely stops (nothing spawns,
+# nothing can be hit, no score accrues) but the PRESENTATION clock carries on,
+# the comet keeps gliding, and a wormhole opens ahead. The summary and the
+# upgrade draft are presented over that flight rather than instead of it.
+#
+# wormhole_phase is presentation-only and is why the comet still moves while the
+# simulation is stopped. Advancing sim.visual_time/travel from outside is the
+# established pattern here — the menu backdrop already does exactly that.
+var wormhole_active = false
+var wormhole_weight = 0.0
+var wormhole_phase = 0.0
+var wormhole_exit_left = 0.0
 var resume_left = 0.0
 var pause_cooldown = 0.0
 var resume_label: Label
@@ -218,6 +237,31 @@ func _process(dt: float) -> void:
 		sim.lane = 1.0
 		sim.target_lane = 1
 		sim.rings = 3
+	# THE PASSAGE FLIES ITSELF. The simulation is stopped — sim.step() runs only
+	# in "play" — so visual_time and travel would sit still and every downstream
+	# visual would freeze with them. Advancing them here keeps the comet, the
+	# sky, the dust and the trail gliding while the summary and the draft are
+	# read, which is the whole point of a passage rather than a stop.
+	if wormhole_active:
+		wormhole_phase += dt
+		# Open quickly, hold. The draft can be read for as long as the player
+		# likes and the tunnel must not still be ramping a minute later.
+		wormhole_weight = minf(1.0, wormhole_weight + dt * 0.85)
+		wormhole_exit_left = maxf(0.0, wormhole_exit_left - dt)
+		var rush = 1.0 + wormhole_weight * 1.6 + wormhole_exit_left * 3.0
+		if not bool(profile.data.reduced_motion):
+			sim.visual_time += dt * rush
+			sim.travel += dt * 100.0 * rush
+	elif wormhole_weight > 0.0:
+		# Collapsing behind the comet after emergence. Faster than the opening
+		# so the new passage is not read through a dissolving tunnel, and the
+		# clock keeps advancing so it recedes rather than freezing as it fades.
+		wormhole_phase += dt
+		wormhole_weight = maxf(0.0, wormhole_weight - dt * 1.6)
+		wormhole_exit_left = maxf(0.0, wormhole_exit_left - dt)
+	if is_instance_valid(spatial):
+		spatial.set_wormhole_state(wormhole_weight, wormhole_phase, wormhole_exit_left)
+
 	var release = 0.0
 	if sim.starfall_left > 0.0:
 		var elapsed = Content.STARFALL_SECONDS - sim.starfall_left
@@ -228,7 +272,12 @@ func _process(dt: float) -> void:
 	backdrop.set_journey(displayed_journey)
 	backdrop.update_world(sim.visual_time, sim.angle, sim.lane, sim.travel, float(sim.charge) / Content.starfall_need(sim.upgrades), release, 1.0 if sim.has_power("spot") else 0.0, bool(profile.data.reduced_motion))
 	backdrop.update_tidal(sim.tidal, sim.geometry)
-	spatial.update_simulation(sim, 0.0 if mode in ["pause", "resume", "result", "draft"] else dt)
+	# Pause and resume still freeze — a paused game that keeps drifting is a
+	# paused game the player does not trust. A passage does not: "result" and
+	# "draft" keep their delta while the wormhole is open, so the summary and
+	# the upgrade card are read over a moving flight.
+	var frozen := mode in ["pause", "resume"] or (mode in ["result", "draft"] and not wormhole_active)
+	spatial.update_simulation(sim, 0.0 if frozen else dt)
 	hud_clock += dt
 	if hud_clock >= 0.08:
 		hud_clock = 0.0
@@ -240,24 +289,6 @@ func _process(dt: float) -> void:
 		capture_time -= dt
 		if capture_time < 0.0:
 			_capture.call_deferred()
-
-# ONE NAME PER MECHANIC, WHICH capitalize() QUIETLY BREAKS.
-#
-# The content ledger stores display names upper-case ("SLOW-MO", "THE MIRROR",
-# "STAR TRAIL"). String.capitalize() title-cases them correctly in every case
-# but one: it treats a hyphen as a word separator, so "SLOW-MO" comes back as
-# "Slow Mo" while the instruction card the player just read said "Slow-mo".
-# The invariant is one name per mechanic, and a HUD that renames a power the
-# moment it becomes active is the exact failure that rule exists to prevent.
-#
-# NOTE FOR THE LEAD: the real fix is one shared display-name table. Canonical
-# names currently live in a local dictionary inside simulation.gd (~line 787),
-# which this cannot reach without owning that file. This keeps the HUD honest
-# in the meantime; consolidating the two is worth a follow-up.
-func _power_label(raw: String) -> String:
-	if raw.contains("-"):
-		return raw.substr(0, 1) + raw.substr(1).to_lower()
-	return raw.capitalize()
 
 func _update_hud() -> void:
 	var visible_play = mode in ["play", "pause", "resume"]
@@ -301,7 +332,10 @@ func _update_hud() -> void:
 	for power in Content.powers():
 		var id := str(power.id)
 		if sim.has_power(id):
-			live.append({"name": _power_label(str(power.name)), "left": float(sim.powers[id])})
+			# One shared table, so the HUD cannot rename a power the instant it
+			# activates. This replaces local title-casing that turned the
+			# ledger's "SLOW-MO" into "Slow Mo" while the card said "Slow-mo".
+			live.append({"name": Content.power_display_name(id), "left": float(sim.powers[id])})
 	live.sort_custom(func(a, b): return a["left"] < b["left"])
 	for entry in live:
 		state_text += "\n%s %ds" % [entry["name"], ceili(entry["left"])]
@@ -623,8 +657,23 @@ func _show_draft() -> void:
 	_rebuild_page()
 
 func _pick_upgrade(id: String) -> void:
-	if profile.choose_upgrade(id, sim.level_index + 2):
-		_start(sim.level_index + 1, false, true)
+	if not profile.choose_upgrade(id, sim.level_index + 2):
+		return
+	# EMERGENCE. The exit shove, the drone resolving onto the new tonic, and the
+	# next passage all land on the same frame, so the arrival reads as one event
+	# rather than three that happen to be near each other.
+	wormhole_exit_left = 0.9
+	spatial.wormhole_exit(1.0)
+	if music.has_method("end_wormhole"):
+		music.end_wormhole()
+	# carry:true is what makes this one flight. sim.begin() guards travel,
+	# visual_time, angle, direction and lane behind `if not carry`, and _start
+	# seeds displayed_journey from world_progress rather than zero — so the
+	# comet emerges where it entered instead of snapping back to the start.
+	_start(sim.level_index + 1, false, true)
+	# Held open across the boundary and closed by _process, so the tunnel
+	# collapses behind the comet instead of vanishing on the cut.
+	wormhole_active = false
 
 func _skip_tutorial() -> void:
 	sim.finish_tutorial()
@@ -668,8 +717,30 @@ func _ended(won: bool) -> void:
 	gestures.cancel()
 	run_won = won
 	mode = "result"
-	music.stop_run()
-	music.cue(&"finish" if won else &"hit")
+
+	# A PASSAGE OPENS; A LOSS STOPS. The distinction is the whole feature.
+	#
+	# Winning a level with more ahead is not the end of anything, so the music
+	# does not stop and the flight does not halt: the arrangement bends into a
+	# warp drone and the comet flies on through a wormhole while the summary is
+	# read. Losing, and finishing the last passage, still resolve properly —
+	# silence after a death is correct, and the final passage has earned its
+	# ending.
+	var passage = won and not sim.lab and sim.level_index < 5
+	wormhole_active = passage
+	if passage:
+		wormhole_weight = 0.0
+		wormhole_phase = 0.0
+		wormhole_exit_left = 0.0
+		music.cue(&"finish")
+		if music.has_method("begin_wormhole"):
+			music.begin_wormhole()
+	else:
+		wormhole_weight = 0.0
+		spatial.set_wormhole_state(0.0, 0.0, 0.0)
+		music.stop_run()
+		music.cue(&"finish" if won else &"hit")
+
 	if not sim.lab and not automated:
 		profile.record_run(sim.score, sim.level_index + 1, sim.start_level + 1, won)
 	_rebuild_page()

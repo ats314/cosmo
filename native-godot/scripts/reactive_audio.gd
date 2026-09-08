@@ -98,6 +98,12 @@ var _running: bool = false
 var _paused: bool = false
 var _muted: bool = false
 var _dilated: bool = false
+# Set while a won passage is in flight; see begin_wormhole().
+var _wormhole: bool = false
+var _wormhole_since: float = -1.0
+# Captured on first use rather than assumed, so the drone restores whatever the
+# bus was actually built with instead of a number copied from the constructor.
+var _filter_resonance_base: float = -1.0
 var _overdrive: bool = false
 var _reduced_motion: bool = false
 var _break_until: float = -1.0
@@ -357,6 +363,11 @@ func start_run(carried_score: int = -1) -> void:
 func stop_run() -> void:
 	_running = false
 	_paused = false
+	# Any hard stop cancels a passage. Without this a stop during the drone
+	# would leave the filter parked at 520Hz, and the next run would open
+	# sounding like it was still underwater.
+	_wormhole = false
+	_wormhole_since = -1.0
 	_queued.clear()
 	_perf_queue.clear()
 	_cooldowns.clear()
@@ -498,6 +509,40 @@ func set_tonic(midi: int) -> void:
 		# A short fade at a bar boundary preserves both tempo and phrase position.
 		var after: float = maxf(_clock_seconds, _special_until)
 		_switch_at = (floorf(after / (4.0 * BEAT_SECONDS)) + 1.0) * 4.0 * BEAT_SECONDS
+
+
+## THE PASSAGE KEEPS PLAYING.
+##
+## stop_run() used to fire the moment a level was won, so the arrangement cut to
+## silence and the summary card landed on nothing. A won passage is not an
+## ending — the comet is still flying, through a wormhole, into the next galaxy
+## — and cutting the music there is what made a continuous run read as six
+## separate games.
+##
+## So the transport keeps running and the arrangement bends instead. The filter
+## closes toward the dilation cutoff for a warp-drone reading, and the mix backs
+## off, which leaves the summary sitting over a held resonance rather than over
+## a hole. No new stream is introduced: this is the same music, transformed, so
+## there is nothing to fall out of sync with and nothing to fail to load.
+##
+## Muted and absent-audio games behave exactly as before — this only moves a
+## filter and a gain, both of which are already no-ops without a device.
+func begin_wormhole() -> void:
+	if _wormhole:
+		return
+	_wormhole = true
+	_wormhole_since = _clock_seconds
+	_queued.clear()
+
+
+## Emergence. Releases the drone and lets the ordinary mix return; the caller
+## sets the new tonic immediately afterwards through start_run(), so the first
+## downbeat of the new passage is the resolution.
+func end_wormhole() -> void:
+	if not _wormhole:
+		return
+	_wormhole = false
+	_wormhole_since = -1.0
 
 
 func set_dilated(value: bool) -> void:
@@ -917,7 +962,21 @@ func _process(delta: float) -> void:
 		var ceiling_hz: float = OPEN_CUTOFF if _layer_index >= 4 else BASE_CUTOFF
 		var bright: float = ceiling_hz + RING_LIFT[clampi(_lane, 0, 3)]
 		var target_cutoff: float = DILATED_CUTOFF if _dilated else bright
-		_filter.cutoff_hz = lerpf(_filter.cutoff_hz, target_cutoff, 1.0 - exp(-delta * 5.0))
+		var approach: float = 5.0
+		if _wormhole:
+			# THE WARP DRONE. The arrangement is not replaced, it is bent: the
+			# filter falls below even the dilation cutoff and settles into a
+			# resonant hold, so what the player hears through the passage is the
+			# level's own harmony receding rather than a sound effect laid over
+			# silence. It closes slowly on purpose — a fast sweep reads as a
+			# door slamming, and this is a door opening.
+			target_cutoff = 520.0
+			approach = 1.15
+		_filter.cutoff_hz = lerpf(_filter.cutoff_hz, target_cutoff, 1.0 - exp(-delta * approach))
+		if _filter_resonance_base < 0.0:
+			_filter_resonance_base = _filter.resonance
+		var target_res: float = 0.62 if _wormhole else _filter_resonance_base
+		_filter.resonance = lerpf(_filter.resonance, target_res, 1.0 - exp(-delta * 1.6))
 	if not _running:
 		return
 	_update_clock(delta)
