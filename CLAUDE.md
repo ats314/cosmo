@@ -21,16 +21,17 @@ The owner wants ambitious, coherent work with strong visual impact, clear
 actions and earned musical peaks. Six authored levels are a content frontier,
 not an endless exam or a prohibition on new mechanics.
 
-## Two implementations, and which one you are in
+## Current task: finish the Godot port together
 
-The owner is comparing two builds toward a finished iPhone app: this agent's
-web/Capacitor upgrade and Claude's Godot build. The original web game's
-behavior is authoritative for controls, music and game rules in both paths.
-Judge the new spatial work by actual flybys and device play, not the polish
-already present in the owner's original web game.
+The owner has ended the engine comparison and explicitly directed Codex and
+Claude to work together on the Godot version. Finish a faithful port of the
+existing game, then improve its spatial presentation. The original web game's
+behavior is authoritative for controls, music, rules and progression. Preserve
+the Godot flyby work. Coordinate file ownership in
+native-godot/COORDINATION.md before editing systems another agent is changing.
 
-- **`native-godot/`** — the Godot 4.7.2 build, now developed by Claude. The web
-  upgrade agent should preserve this work and may study it as a reference.
+- **`native-godot/`** — the shared Godot 4.7.2 implementation being completed
+  by both agents. Preserve all existing uncommitted work.
   Read native-godot/PORT_STATUS.md first; it is the authoritative record of what
   has actually been ported and, more usefully, what has not.
 - **Repository root** — the shipping Phaser web product and the home of the
